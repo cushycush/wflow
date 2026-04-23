@@ -2,7 +2,7 @@
 name = "wflow"
 version = "0.1.0"
 edition = "2021"
-description = "A macOS Shortcuts-style GUI for Wayland automation"
+description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"
 rust-version = "1.77.2"
 
@@ -26,6 +26,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 kdl = "6"
+clap = { version = "4", features = ["derive"] }
 
 [build-dependencies]
 cxx-qt-build = "0.8"

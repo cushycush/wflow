@@ -131,6 +131,47 @@ impl Action {
             Action::Note { .. } => "note",
         }
     }
+
+    /// One-line description. Shared by CLI list / show / run output.
+    pub fn describe(&self) -> String {
+        match self {
+            Action::WdoType { text, .. } => format!("type {}", quote_short(text)),
+            Action::WdoKey { chord, .. } => format!("key {chord}"),
+            Action::WdoClick { button } => format!("click button {button}"),
+            Action::WdoMouseMove { x, y, relative } => {
+                if *relative {
+                    format!("move +{x},+{y}")
+                } else {
+                    format!("move {x},{y}")
+                }
+            }
+            Action::WdoScroll { dx, dy } => format!("scroll dx={dx} dy={dy}"),
+            Action::WdoActivateWindow { name } => format!("focus {}", quote_short(name)),
+            Action::Delay { ms } => format!("wait {ms}ms"),
+            Action::Shell { command, .. } => format!("shell {}", quote_short(command)),
+            Action::Notify { title, body } => match body {
+                Some(b) if !b.is_empty() => {
+                    format!("notify {}, {}", quote_short(title), quote_short(b))
+                }
+                _ => format!("notify {}", quote_short(title)),
+            },
+            Action::Clipboard { text } => format!("clip {}", quote_short(text)),
+            Action::Note { text } => format!("note {}", quote_short(text)),
+        }
+    }
+}
+
+fn quote_short(s: &str) -> String {
+    const MAX: usize = 64;
+    let single_line = s.replace('\n', " ↵ ");
+    let mut trimmed = single_line.as_str();
+    let mut truncated = String::new();
+    if single_line.chars().count() > MAX {
+        truncated = single_line.chars().take(MAX).collect::<String>();
+        truncated.push('…');
+        trimmed = truncated.as_str();
+    }
+    format!("\"{trimmed}\"")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
