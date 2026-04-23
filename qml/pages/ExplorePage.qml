@@ -7,9 +7,15 @@ import Wflow
 // the web. The app only consumes the catalog.
 Item {
     id: root
-    signal openWorkflow(string id)      // when the user imports + opens, reuse the same signal
+    signal openWorkflow(string id)      // emitted after import to route to the editor
 
     property string selectedCategory: "All"
+    property var selectedWorkflow: null
+
+    function selectWorkflow(id) {
+        const wf = root.communityWorkflows.find(w => w.id === id)
+        if (wf) root.selectedWorkflow = wf
+    }
 
     // ==== Mock community workflows ====
     // Shape: { id, title, subtitle, author, category, kinds, imports, forks, steps, hasShell, trending, newSubmission }
@@ -94,7 +100,7 @@ Item {
                     x: 24
                     width: page.width - 48
                     wf: root.featured
-                    onActivated: (id) => root.openWorkflow(id)
+                    onActivated: (id) => root.selectWorkflow(id)
                 }
 
                 // Category pills
@@ -148,7 +154,7 @@ Item {
                                     wf: modelData
                                     cardW: 280
                                     cardH: 150
-                                    onActivated: (id) => root.openWorkflow(id)
+                                    onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
                         }
@@ -195,7 +201,7 @@ Item {
                                     wf: modelData
                                     cardW: 280
                                     cardH: 150
-                                    onActivated: (id) => root.openWorkflow(id)
+                                    onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
                         }
@@ -245,12 +251,28 @@ Item {
                                 y: Math.floor(index / grid.cols) * (grid.cardH + grid.gap)
                                 cardW: grid.cardW
                                 cardH: grid.cardH
-                                onActivated: (id) => root.openWorkflow(id)
+                                onActivated: (id) => root.selectWorkflow(id)
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    // ==== Detail drawer ====
+    ExploreDetail {
+        anchors.fill: parent
+        wf: root.selectedWorkflow
+        open: root.selectedWorkflow !== null
+        onClosed: root.selectedWorkflow = null
+        onImported: (id) => {
+            // TODO: actually import via bridge; for now route to editor.
+            root.selectedWorkflow = null
+            root.openWorkflow(id)
+        }
+        onDryRunRequested: (id) => {
+            // TODO: dry-run walk-through; mocked.
         }
     }
 }
