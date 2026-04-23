@@ -12,7 +12,6 @@ Column {
     Repeater {
         model: [
             { key: "STYLE", sc: "Ctrl+." },
-            { key: "LIB",   sc: "Ctrl+," },
             { key: "EDIT",  sc: "Ctrl+;" }
         ]
         delegate: Rectangle {
@@ -20,7 +19,6 @@ Column {
             readonly property string cur: {
                 switch (modelData.key) {
                 case "STYLE": return VisualStyle.label
-                case "LIB":   return LibraryLayout.label
                 case "EDIT":  return WorkflowLayout.label
                 }
                 return ""
@@ -28,7 +26,6 @@ Column {
             readonly property string nxt: {
                 switch (modelData.key) {
                 case "STYLE": return VisualStyle.nextLabel
-                case "LIB":   return LibraryLayout.nextLabel
                 case "EDIT":  return WorkflowLayout.nextLabel
                 }
                 return ""
@@ -37,7 +34,6 @@ Column {
             function cycle() {
                 switch (modelData.key) {
                 case "STYLE": VisualStyle.cycle();    break
-                case "LIB":   LibraryLayout.cycle();  break
                 case "EDIT":  WorkflowLayout.cycle(); break
                 }
             }
