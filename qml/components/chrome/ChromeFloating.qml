@@ -63,7 +63,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: "w"
-                    color: "#1a1208"
+                    color: Theme.accentText
                     font.family: Theme.familyBody
                     font.pixelSize: 16
                     font.weight: Font.Bold
@@ -131,7 +131,7 @@ Item {
             spacing: 10
             Text {
                 text: "+"
-                color: "#1a1208"
+                color: Theme.accentText
                 font.family: Theme.familyBody
                 font.pixelSize: 22
                 font.weight: Font.Bold
@@ -139,7 +139,7 @@ Item {
             }
             Text {
                 text: "New workflow"
-                color: "#1a1208"
+                color: Theme.accentText
                 font.family: Theme.familyBody
                 font.pixelSize: Theme.fontSm
                 font.weight: Font.DemiBold

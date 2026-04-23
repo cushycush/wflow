@@ -2,9 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 4 — CARDS
-// Each action as a full-width card. Step number is huge, category icon big,
-// value in a code block. Heavier, more presentational.
+// Full-width action cards: huge step number, big category icon, value
+// in a code block.
 Column {
     id: root
     property var actions: []
@@ -55,7 +54,6 @@ Column {
                 anchors.rightMargin: 20
                 spacing: 20
 
-                // Huge step number
                 Text {
                     text: String(model.index + 1).padStart(2, "0")
                     color: Qt.rgba(card.catColor.r, card.catColor.g, card.catColor.b, 0.6)
@@ -109,7 +107,6 @@ Column {
                     }
                 }
 
-                // Right — status pill
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 72
@@ -123,7 +120,7 @@ Column {
                     Text {
                         anchors.centerIn: parent
                         text: card.isActive ? "RUNNING" : "ready"
-                        color: card.isActive ? "#1a1208" : card.catColor
+                        color: card.isActive ? Theme.accentText : card.catColor
                         font.family: Theme.familyMono
                         font.pixelSize: 10
                         font.weight: Font.Bold
