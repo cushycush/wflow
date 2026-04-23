@@ -9,7 +9,23 @@ Rectangle {
     property var wf
     signal activated(string id)
 
+    // Editorial override: wf.heroPalette can pin the hero tint to a curator-
+    // picked palette so the featured slot feels editorial week-to-week rather
+    // than locked to whatever the workflow's first-kind color happens to be.
     readonly property color catColor: {
+        if (wf && wf.heroPalette) {
+            const pals = ({
+                "amber":  Theme.accent,
+                "purple": Theme.catKey,
+                "blue":   Theme.catType,
+                "green":  Theme.catClick,
+                "teal":   Theme.catClip,
+                "pink":   Theme.catNotify,
+                "orange": Theme.catShell,
+                "gold":   Theme.catFocus
+            })
+            if (pals[wf.heroPalette]) return pals[wf.heroPalette]
+        }
         const k = wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait"
         const t = ({
             "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,

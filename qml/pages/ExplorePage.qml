@@ -20,7 +20,8 @@ Item {
     property var communityWorkflows: [
         { id: "c1", title: "git-forensics", subtitle: "investigate recent commits across branches with diffs + authors",
           author: "octant", category: "Dev", kinds: ["shell", "type", "notify"],
-          imports: 1243, forks: 87, steps: 9, hasShell: true, trending: true },
+          imports: 1243, forks: 87, steps: 9, hasShell: true, trending: true,
+          heroPalette: "amber" },
         { id: "c2", title: "standup-start", subtitle: "open slack standup, zoom huddle, project notes side by side",
           author: "minimice", category: "Meetings", kinds: ["focus", "key", "shell"],
           imports: 834, forks: 42, steps: 6, hasShell: true, trending: true },
@@ -111,11 +112,12 @@ Item {
                     }
                 }
 
-                // Trending row
                 Column {
                     x: 24
                     width: page.width - 48
                     spacing: 12
+                    visible: root.selectedCategory === "All"
+                    height: visible ? implicitHeight : 0
 
                     Row {
                         spacing: 8
@@ -158,11 +160,12 @@ Item {
                     }
                 }
 
-                // New submissions row
                 Column {
                     x: 24
                     width: page.width - 48
                     spacing: 12
+                    visible: root.selectedCategory === "All"
+                    height: visible ? implicitHeight : 0
 
                     Row {
                         spacing: 8
