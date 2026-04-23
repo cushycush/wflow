@@ -98,12 +98,43 @@ Item {
 
                 Row {
                     spacing: 6
+                    width: parent.width
+
                     Repeater {
                         model: card.wf.kinds || []
                         delegate: CategoryIcon {
                             kind: modelData
                             size: 20
                             hovered: false
+                        }
+                    }
+
+                    Item { width: Math.max(0, parent.width
+                            - (card.wf.kinds ? card.wf.kinds.length : 0) * 20
+                            - Math.max(0, (card.wf.kinds ? card.wf.kinds.length : 0) - 1) * 6
+                            - (card.wf.importedFrom ? importedPill.width + 6 : 0))
+                          height: 1 }
+
+                    // Imported-from pill, subtle accent outline so the user
+                    // can tell a workflow came from Explore at a glance.
+                    Rectangle {
+                        id: importedPill
+                        visible: !!card.wf.importedFrom
+                        width: importedText.implicitWidth + 12
+                        height: 20
+                        radius: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+                        border.width: 1
+
+                        Text {
+                            id: importedText
+                            anchors.centerIn: parent
+                            text: card.wf.importedFrom ? "@" + card.wf.importedFrom : ""
+                            color: Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
                         }
                     }
                 }
