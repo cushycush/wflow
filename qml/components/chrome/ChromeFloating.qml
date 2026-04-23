@@ -20,12 +20,16 @@ Item {
     StackLayout {
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
-                      root.currentPage === "workflow" ? 1 : 2
+                      root.currentPage === "explore" ? 1 :
+                      root.currentPage === "workflow" ? 2 : 3
 
         LibraryPage {
             onNewWorkflow: root.newWorkflow()
             onOpenWorkflow: (id) => root.openWorkflow(id)
             onRecordRequested: root.recordRequested()
+        }
+        ExplorePage {
+            onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         WorkflowPage {
             workflowId: root.currentWorkflowId
@@ -71,6 +75,7 @@ Item {
             Repeater {
                 model: [
                     { id: "library",  label: "Library" },
+                    { id: "explore",  label: "Explore" },
                     { id: "workflow", label: "Editor" },
                     { id: "record",   label: "Record" }
                 ]
