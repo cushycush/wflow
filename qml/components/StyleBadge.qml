@@ -12,7 +12,6 @@ Column {
     Repeater {
         model: [
             { key: "STYLE",  sc: "Ctrl+." },
-            { key: "CHROME", sc: "Ctrl+[" },
             { key: "LIB",    sc: "Ctrl+," },
             { key: "EDIT",   sc: "Ctrl+;" },
             { key: "REC",    sc: "Ctrl+'" }
@@ -21,32 +20,29 @@ Column {
             id: pill
             readonly property string cur: {
                 switch (modelData.key) {
-                case "STYLE":  return VisualStyle.label
-                case "CHROME": return GlobalLayout.label
-                case "LIB":    return LibraryLayout.label
-                case "EDIT":   return WorkflowLayout.label
-                case "REC":    return RecordLayout.label
+                case "STYLE": return VisualStyle.label
+                case "LIB":   return LibraryLayout.label
+                case "EDIT":  return WorkflowLayout.label
+                case "REC":   return RecordLayout.label
                 }
                 return ""
             }
             readonly property string nxt: {
                 switch (modelData.key) {
-                case "STYLE":  return VisualStyle.nextLabel
-                case "CHROME": return GlobalLayout.nextLabel
-                case "LIB":    return LibraryLayout.nextLabel
-                case "EDIT":   return WorkflowLayout.nextLabel
-                case "REC":    return RecordLayout.nextLabel
+                case "STYLE": return VisualStyle.nextLabel
+                case "LIB":   return LibraryLayout.nextLabel
+                case "EDIT":  return WorkflowLayout.nextLabel
+                case "REC":   return RecordLayout.nextLabel
                 }
                 return ""
             }
 
             function cycle() {
                 switch (modelData.key) {
-                case "STYLE":  VisualStyle.cycle();    break
-                case "CHROME": GlobalLayout.cycle();   break
-                case "LIB":    LibraryLayout.cycle();  break
-                case "EDIT":   WorkflowLayout.cycle(); break
-                case "REC":    RecordLayout.cycle();   break
+                case "STYLE": VisualStyle.cycle();    break
+                case "LIB":   LibraryLayout.cycle();  break
+                case "EDIT":  WorkflowLayout.cycle(); break
+                case "REC":   RecordLayout.cycle();   break
                 }
             }
 
