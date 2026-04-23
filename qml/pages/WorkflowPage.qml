@@ -38,7 +38,7 @@ Item {
             title: root.title
             subtitle: root.subtitle
 
-            LayoutSwitcher { anchors.verticalCenter: parent.verticalCenter }
+            WorkflowLayoutSwitcher { anchors.verticalCenter: parent.verticalCenter }
 
             Button {
                 text: "↗ Share"

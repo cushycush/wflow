@@ -2,7 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Library page — hero + grid layout.
+// Local library of user-authored workflows. Two layouts (Grid / List) the
+// user picks via the switcher in the header. No featured hero here — that
+// concept belongs in Explore, not on someone's own workspace.
 Item {
     id: root
     signal newWorkflow()
@@ -45,6 +47,8 @@ Item {
             width: parent.width
             title: "Library"
             subtitle: root.workflows.length + " workflows"
+
+            LibraryLayoutSwitcher { anchors.verticalCenter: parent.verticalCenter }
 
             Button {
                 text: "+ New workflow"
@@ -91,17 +95,45 @@ Item {
             clip: true
 
             Item {
-                id: stage
                 width: parent.width
-                height: hero.height + 48
+                height: variantLoader.item ? variantLoader.item.height + 48 : 200
 
-                HeroGrid {
-                    id: hero
+                Loader {
+                    id: variantLoader
                     x: 24; y: 24
                     width: parent.width - 48
-                    workflows: root.workflows
-                    onOpenWorkflow: (id) => root.openWorkflow(id)
-                    onRunWorkflow: (id) => root.openWorkflow(id)
+
+                    sourceComponent: LibraryLayout.variant === 0 ? gridComp : listComp
+
+                    opacity: 0
+                    Component.onCompleted: opacity = 1
+                    onSourceComponentChanged: {
+                        opacity = 0
+                        fadeIn.restart()
+                    }
+                    Timer {
+                        id: fadeIn
+                        interval: 30
+                        onTriggered: variantLoader.opacity = 1
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                }
+
+                Component {
+                    id: gridComp
+                    LibraryGrid {
+                        width: variantLoader.width
+                        workflows: root.workflows
+                        onOpenWorkflow: (id) => root.openWorkflow(id)
+                    }
+                }
+                Component {
+                    id: listComp
+                    LibraryList {
+                        width: variantLoader.width
+                        workflows: root.workflows
+                        onOpenWorkflow: (id) => root.openWorkflow(id)
+                    }
                 }
             }
         }

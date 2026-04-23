@@ -6,6 +6,7 @@ fn main() {
             // Singletons
             QmlFile::from("qml/Theme.qml").singleton(true),
             QmlFile::from("qml/VisualStyle.qml").singleton(true),
+            QmlFile::from("qml/LibraryLayout.qml").singleton(true),
             QmlFile::from("qml/WorkflowLayout.qml").singleton(true),
             // Root
             QmlFile::from("qml/Main.qml"),
@@ -18,10 +19,12 @@ fn main() {
             QmlFile::from("qml/components/CategoryIcon.qml"),
             QmlFile::from("qml/components/ActionRow.qml"),
             QmlFile::from("qml/components/EmptyState.qml"),
-            // Library
-            QmlFile::from("qml/components/library/HeroGrid.qml"),
+            // Library (user-switchable layouts)
+            QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
+            QmlFile::from("qml/components/library/LibraryGrid.qml"),
+            QmlFile::from("qml/components/library/LibraryList.qml"),
             // Workflow layouts (user-switchable)
-            QmlFile::from("qml/components/workflow/LayoutSwitcher.qml"),
+            QmlFile::from("qml/components/workflow/WorkflowLayoutSwitcher.qml"),
             QmlFile::from("qml/components/workflow/StackList.qml"),
             QmlFile::from("qml/components/workflow/HorizontalTimeline.qml"),
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
