@@ -111,8 +111,11 @@ Item {
         }
     }
 
-    // Floating "+ new" FAB bottom-right
+    // Floating "+ new" FAB bottom-right. Hidden on Explore because the user
+    // isn't authoring from a catalog view, and the drawer's Import CTA needs
+    // the space.
     Rectangle {
+        visible: root.currentPage !== "explore"
         anchors.bottom: parent.bottom
         anchors.right: parent.right
         anchors.margins: 24
