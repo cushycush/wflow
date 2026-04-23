@@ -2,10 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Library page. Six layout variants are swapped at runtime via
-// LibraryLayout.variant (cycle with Ctrl+,). The demo workflow set is
-// richer now — each has a `kinds` list so the cards can show
-// category icons, and a `runs` counter for the hero variant.
+// Library page — hero + grid layout.
 Item {
     id: root
     signal newWorkflow()
@@ -47,7 +44,7 @@ Item {
             id: tb
             width: parent.width
             title: "Library"
-            subtitle: root.workflows.length + " workflows · " + LibraryLayout.label
+            subtitle: root.workflows.length + " workflows"
 
             Button {
                 text: "+ New workflow"
@@ -96,88 +93,15 @@ Item {
             Item {
                 id: stage
                 width: parent.width
-                height: variantLoader.item ? variantLoader.item.height + 48 : 200
+                height: hero.height + 48
 
-                Loader {
-                    id: variantLoader
+                HeroGrid {
+                    id: hero
                     x: 24; y: 24
                     width: parent.width - 48
-
-                    sourceComponent: {
-                        switch (LibraryLayout.variant) {
-                        case 0: return gridRichComp
-                        case 1: return listDenseComp
-                        case 2: return mosaicComp
-                        case 3: return heroGridComp
-                        case 4: return timelineComp
-                        case 5: return compactComp
-                        }
-                        return gridRichComp
-                    }
-
-                    // Fade between variants
-                    opacity: 0
-                    Component.onCompleted: opacity = 1
-                    onSourceComponentChanged: {
-                        opacity = 0
-                        fadeIn.restart()
-                    }
-                    Timer {
-                        id: fadeIn
-                        interval: 30
-                        onTriggered: variantLoader.opacity = 1
-                    }
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                }
-
-                Component {
-                    id: gridRichComp
-                    GridRich {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                    }
-                }
-                Component {
-                    id: listDenseComp
-                    ListDense {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                    }
-                }
-                Component {
-                    id: mosaicComp
-                    Mosaic {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                    }
-                }
-                Component {
-                    id: heroGridComp
-                    HeroGrid {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                        onRunWorkflow: (id) => root.openWorkflow(id)
-                    }
-                }
-                Component {
-                    id: timelineComp
-                    Timeline {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                    }
-                }
-                Component {
-                    id: compactComp
-                    CompactGrid {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                    }
+                    workflows: root.workflows
+                    onOpenWorkflow: (id) => root.openWorkflow(id)
+                    onRunWorkflow: (id) => root.openWorkflow(id)
                 }
             }
         }

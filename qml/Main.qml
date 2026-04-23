@@ -23,8 +23,6 @@ ApplicationWindow {
     // Ctrl+.  cycle visual style (bold / cinematic / maximalist)
     Shortcut { sequence: "Ctrl+."; onActivated: VisualStyle.cycle() }
     Shortcut { sequence: "Ctrl+/"; onActivated: VisualStyle.cycle() }
-    // Ctrl+,  cycle library layout
-    Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     // Ctrl+;  cycle workflow editor layout
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
 
