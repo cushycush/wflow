@@ -11,6 +11,17 @@ Item {
     signal openWorkflow(string id)
     signal recordRequested()
 
+    // Local-only reorder (real persistence lands with the bridge's
+    // LibraryModel.move). Splicing a new array triggers rebinding so
+    // ListView runs its move/displaced transitions.
+    function moveWorkflow(from, to) {
+        if (from === to) return
+        const a = root.workflows.slice()
+        const [item] = a.splice(from, 1)
+        a.splice(to, 0, item)
+        root.workflows = a
+    }
+
     property var workflows: [
         { id: "p1", title: "Open dev setup",      subtitle: "launch editor, terminal, focus firefox",
           steps: 12, lastRun: "yesterday",     runs: 47,
@@ -135,6 +146,7 @@ Item {
                         width: variantLoader.width
                         workflows: root.workflows
                         onOpenWorkflow: (id) => root.openWorkflow(id)
+                        onReorderRequested: (from, to) => root.moveWorkflow(from, to)
                     }
                 }
             }
