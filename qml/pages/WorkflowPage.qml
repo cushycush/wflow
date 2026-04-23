@@ -61,6 +61,12 @@ Item {
     onWorkflowIdChanged: _reload()
     Component.onCompleted: _reload()
 
+    Shortcut {
+        sequence: "Ctrl+Return"
+        enabled: root.visible && (root.actions || []).length > 0 && !root.running
+        onActivated: wfCtrl.run()
+    }
+
     function _reload() {
         if (!root.workflowId) {
             root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
