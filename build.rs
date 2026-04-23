@@ -21,7 +21,8 @@ fn main() {
             QmlFile::from("qml/components/StyleBadge.qml"),
             // Library
             QmlFile::from("qml/components/library/HeroGrid.qml"),
-            // Workflow layout variants
+            // Workflow layouts (user-switchable)
+            QmlFile::from("qml/components/workflow/LayoutSwitcher.qml"),
             QmlFile::from("qml/components/workflow/StackList.qml"),
             QmlFile::from("qml/components/workflow/HorizontalTimeline.qml"),
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
