@@ -8,7 +8,6 @@ fn main() {
             QmlFile::from("qml/VisualStyle.qml").singleton(true),
             QmlFile::from("qml/LibraryLayout.qml").singleton(true),
             QmlFile::from("qml/WorkflowLayout.qml").singleton(true),
-            QmlFile::from("qml/RecordLayout.qml").singleton(true),
             // Root
             QmlFile::from("qml/Main.qml"),
             // Shared components
@@ -34,11 +33,7 @@ fn main() {
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
             QmlFile::from("qml/components/workflow/GroupedPhases.qml"),
             QmlFile::from("qml/components/workflow/CardDeck.qml"),
-            // Record layout variants
-            QmlFile::from("qml/components/record/ClassicRec.qml"),
-            QmlFile::from("qml/components/record/RadialRec.qml"),
-            QmlFile::from("qml/components/record/TheaterRec.qml"),
-            QmlFile::from("qml/components/record/StripRec.qml"),
+            // Record
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Chrome
             QmlFile::from("qml/components/chrome/ChromeFloating.qml"),

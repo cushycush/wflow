@@ -11,10 +11,9 @@ Column {
 
     Repeater {
         model: [
-            { key: "STYLE",  sc: "Ctrl+." },
-            { key: "LIB",    sc: "Ctrl+," },
-            { key: "EDIT",   sc: "Ctrl+;" },
-            { key: "REC",    sc: "Ctrl+'" }
+            { key: "STYLE", sc: "Ctrl+." },
+            { key: "LIB",   sc: "Ctrl+," },
+            { key: "EDIT",  sc: "Ctrl+;" }
         ]
         delegate: Rectangle {
             id: pill
@@ -23,7 +22,6 @@ Column {
                 case "STYLE": return VisualStyle.label
                 case "LIB":   return LibraryLayout.label
                 case "EDIT":  return WorkflowLayout.label
-                case "REC":   return RecordLayout.label
                 }
                 return ""
             }
@@ -32,7 +30,6 @@ Column {
                 case "STYLE": return VisualStyle.nextLabel
                 case "LIB":   return LibraryLayout.nextLabel
                 case "EDIT":  return WorkflowLayout.nextLabel
-                case "REC":   return RecordLayout.nextLabel
                 }
                 return ""
             }
@@ -42,7 +39,6 @@ Column {
                 case "STYLE": VisualStyle.cycle();    break
                 case "LIB":   LibraryLayout.cycle();  break
                 case "EDIT":  WorkflowLayout.cycle(); break
-                case "REC":   RecordLayout.cycle();   break
                 }
             }
 

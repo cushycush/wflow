@@ -27,8 +27,6 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     // Ctrl+;  cycle workflow editor layout
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
-    // Ctrl+'  cycle record page layout
-    Shortcut { sequence: "Ctrl+'"; onActivated: RecordLayout.cycle() }
 
     // ========== Shell ==========
     ChromeFloating {
