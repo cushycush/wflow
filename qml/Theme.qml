@@ -8,6 +8,10 @@ QtObject {
     // now we follow the system unless pinned.
     property string mode: "auto"
 
+    function cycleMode() {
+        mode = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto"
+    }
+
     // Dark when the system reports Dark OR when it reports Unknown (e.g.
     // Hyprland without the xdg-desktop-portal appearance shim). The brand is
     // dark-first, so "no idea" → dark rather than surprising people with a

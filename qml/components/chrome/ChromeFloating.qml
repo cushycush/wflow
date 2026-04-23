@@ -108,6 +108,40 @@ Item {
                     }
                 }
             }
+
+            Item { width: 2; height: 1 }
+
+            // Theme mode cycle: auto → light → dark → auto.
+            // Icon reflects the current mode, not the resolved theme, so the
+            // user can tell whether they've pinned it.
+            Rectangle {
+                id: themeBtn
+                width: 32; height: 32; radius: 16
+                anchors.verticalCenter: parent.verticalCenter
+                color: themeArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: Theme.mode === "light" ? "☀" : Theme.mode === "dark" ? "☾" : "◐"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 14
+                }
+
+                MouseArea {
+                    id: themeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Theme.cycleMode()
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: Theme.mode === "auto"
+                        ? "Theme: follow system"
+                        : Theme.mode === "light" ? "Theme: light" : "Theme: dark"
+                }
+            }
         }
     }
 

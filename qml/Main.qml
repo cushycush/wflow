@@ -23,6 +23,7 @@ ApplicationWindow {
     // shortcuts are for keyboard users.
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
+    Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
 
     ChromeFloating {
         anchors.fill: parent
