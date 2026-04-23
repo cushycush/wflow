@@ -106,18 +106,33 @@ pub fn run(cli: Cli) -> ExitCode {
 // ------------------------------- Commands -----------------------------------
 
 fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
-    // Hand-tuned scaffold. Comments in kdl use //; we keep them in the
-    // template to teach the format.
+    // Hand-written scaffold so we can mix freeform comments in with the
+    // canonical KDL. The steps below are `disabled=#true` so running the
+    // fresh workflow is a no-op until the user turns them on.
     let wf = Workflow::new(title);
-    let body = kdl_format::encode(&wf);
+    let created = wf
+        .created
+        .map(|t| t.to_rfc3339())
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     let template = format!(
-        "// A wflow workflow. See `wflow show <id>` and `docs/KDL.md`\n\
-         // for the full action vocabulary.\n\
-         {body}\
-         // Add steps to the `recipe` block above. Examples:\n\
-         //   key \"super+1\"\n\
-         //   await-window \"Firefox\" timeout=\"5s\"\n\
-         //   shell \"notify-send 'done'\"\n"
+        "// A wflow workflow. See `docs/KDL.md` for the full action vocabulary.\n\
+         schema 1\n\
+         id \"{id}\"\n\
+         title \"{title}\"\n\
+         created \"{created}\"\n\
+         modified \"{created}\"\n\
+         \n\
+         recipe {{\n    \
+             // Starter steps — marked `disabled=#true` so `wflow run` is a no-op\n    \
+             // until you turn them on. Delete these lines and write your own.\n    \
+             notify \"hello from wflow\" disabled=#true\n    \
+             shell \"echo 'wflow ran at ' \\\"$(date)\\\"\" disabled=#true\n    \
+             await-window \"Firefox\" timeout=\"5s\" disabled=#true\n    \
+             key \"ctrl+l\" disabled=#true\n\
+         }}\n",
+        id = wf.id,
+        title = title.replace('"', "\\\""),
+        created = created,
     );
     if to_stdout {
         print!("{template}");
