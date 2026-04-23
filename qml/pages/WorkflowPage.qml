@@ -61,6 +61,14 @@ Item {
     onWorkflowIdChanged: _reload()
     Component.onCompleted: _reload()
 
+    // Run on Ctrl+Enter — the editor is the only page where this is active,
+    // and the enabled guard matches the Run button.
+    Shortcut {
+        sequence: "Ctrl+Return"
+        enabled: root.visible && (root.actions || []).length > 0 && !root.running
+        onActivated: wfCtrl.run()
+    }
+
     function _reload() {
         if (!root.workflowId) {
             root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
