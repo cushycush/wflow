@@ -19,14 +19,9 @@ ApplicationWindow {
     font.family: Theme.familyBody
     font.pixelSize: Theme.fontBase
 
-    // ========== Keyboard shortcuts ==========
-    // Ctrl+.  cycle visual style (bold / cinematic / maximalist)
-    Shortcut { sequence: "Ctrl+."; onActivated: VisualStyle.cycle() }
-    Shortcut { sequence: "Ctrl+/"; onActivated: VisualStyle.cycle() }
-    // Ctrl+;  cycle workflow editor layout
+    // Ctrl+; cycles the workflow editor layout (segmented picker also in header).
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
 
-    // ========== Shell ==========
     ChromeFloating {
         anchors.fill: parent
         currentPage: root.currentPage
@@ -35,12 +30,5 @@ ApplicationWindow {
         onOpenWorkflow: (id) => { root.currentWorkflowId = id; root.currentPage = "workflow" }
         onNewWorkflow: { root.currentWorkflowId = "new-draft"; root.currentPage = "workflow" }
         onRecordRequested: root.currentPage = "record"
-    }
-
-    // Dev-only switcher pills in the bottom-right
-    StyleBadge {
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.margins: 16
     }
 }
