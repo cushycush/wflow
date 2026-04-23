@@ -18,7 +18,6 @@ fn main() {
             QmlFile::from("qml/components/CategoryIcon.qml"),
             QmlFile::from("qml/components/ActionRow.qml"),
             QmlFile::from("qml/components/EmptyState.qml"),
-            QmlFile::from("qml/components/StyleBadge.qml"),
             // Library
             QmlFile::from("qml/components/library/HeroGrid.qml"),
             // Workflow layouts (user-switchable)
