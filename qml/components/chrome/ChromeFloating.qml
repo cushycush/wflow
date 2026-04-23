@@ -35,7 +35,9 @@ Item {
             workflowId: root.currentWorkflowId
             onBackRequested: root.navigate("library")
         }
-        RecordPage {}
+        RecordPage {
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
     }
 
     // Floating nav pill
