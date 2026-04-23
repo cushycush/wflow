@@ -2,8 +2,10 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Workflow editor — the main stage. Swaps between 5 layouts at runtime via
-// WorkflowLayout.variant (cycle with Ctrl+;).
+// Workflow editor. Split layout: step list on the left, inspector on the
+// right. Other layouts (Stack / Timeline / Grouped / Cards) are archived
+// under qml/components/workflow/_archive — kept in source so we can dust
+// them off if the product direction changes.
 Item {
     id: root
     property string workflowId: ""
@@ -37,8 +39,6 @@ Item {
             width: parent.width
             title: root.title
             subtitle: root.subtitle
-
-            WorkflowLayoutSwitcher { anchors.verticalCenter: parent.verticalCenter }
 
             Button {
                 text: "↗ Share"
@@ -97,92 +97,16 @@ Item {
             }
         }
 
-        // Variant host
-        ScrollView {
+        Item {
             width: parent.width
             height: parent.height - tb.height
-            contentWidth: availableWidth
-            clip: true
 
-            Item {
-                width: parent.width
-                height: variantLoader.item ? variantLoader.item.height + 60 : 200
-
-                Loader {
-                    id: variantLoader
-                    x: 24; y: 20
-                    width: parent.width - 48
-
-                    sourceComponent: {
-                        switch (WorkflowLayout.variant) {
-                        case 0: return stackComp
-                        case 1: return timelineComp
-                        case 2: return splitComp
-                        case 3: return groupedComp
-                        case 4: return cardsComp
-                        }
-                        return stackComp
-                    }
-
-                    opacity: 0
-                    Component.onCompleted: opacity = 1
-                    onSourceComponentChanged: {
-                        opacity = 0
-                        fadeIn.restart()
-                    }
-                    Timer {
-                        id: fadeIn
-                        interval: 30
-                        onTriggered: variantLoader.opacity = 1
-                    }
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                }
-
-                Component {
-                    id: stackComp
-                    StackList {
-                        width: variantLoader.width
-                        actions: root.actions
-                        activeStepIndex: root.activeStepIndex
-                        running: root.running
-                    }
-                }
-                Component {
-                    id: timelineComp
-                    HorizontalTimeline {
-                        width: variantLoader.width
-                        actions: root.actions
-                        activeStepIndex: root.activeStepIndex
-                        running: root.running
-                    }
-                }
-                Component {
-                    id: splitComp
-                    SplitInspector {
-                        width: variantLoader.width
-                        actions: root.actions
-                        activeStepIndex: root.activeStepIndex
-                        running: root.running
-                    }
-                }
-                Component {
-                    id: groupedComp
-                    GroupedPhases {
-                        width: variantLoader.width
-                        actions: root.actions
-                        activeStepIndex: root.activeStepIndex
-                        running: root.running
-                    }
-                }
-                Component {
-                    id: cardsComp
-                    CardDeck {
-                        width: variantLoader.width
-                        actions: root.actions
-                        activeStepIndex: root.activeStepIndex
-                        running: root.running
-                    }
-                }
+            SplitInspector {
+                anchors.fill: parent
+                anchors.margins: 24
+                actions: root.actions
+                activeStepIndex: root.activeStepIndex
+                running: root.running
             }
         }
     }
