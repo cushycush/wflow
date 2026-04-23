@@ -82,9 +82,9 @@ FocusScope {
         id: drawer
         width: Math.min(560, root.width - 40)
         height: root.height
-        anchors.right: parent.right
         x: root.open ? root.width - width : root.width
         color: Theme.bg
+        visible: root.width > 0 && x < root.width - 1
         Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
 
         // Left hairline
