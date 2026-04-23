@@ -1,0 +1,5 @@
+/target
+/build
+/.cache
+/.gstack
+*.pro.user

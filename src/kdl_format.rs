@@ -1,0 +1,430 @@
+//! KDL encoder/decoder for Workflow.
+//!
+//! The goal here is not round-trip-preserving edits — yet — but to emit KDL
+//! that reads naturally to a human and parses back into a clean `Workflow`.
+//! Format:
+//!
+//! ```kdl
+//! schema 1
+//! id "uuid"
+//! title "Open my dev setup"
+//! subtitle "launch editor, terminal, focus browser"
+//! created "2026-04-22T12:30:00Z"
+//!
+//! recipe {
+//!     type "hello, world" delay-ms=30
+//!     wait 500
+//!     key "ctrl+shift+p"
+//!     shell "hyprctl dispatch exec firefox"
+//!     note "enable the VPN manually"
+//!     key "Return" disabled=#true comment="commented out for now"
+//! }
+//! ```
+//!
+//! Step-level metadata (`disabled=`, `comment=`) may appear on any action
+//! node. Integer values are accepted as both bare args and named props
+//! (`wait 500` or `wait ms=500`) where sensible.
+
+use anyhow::{anyhow, bail, Context, Result};
+use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
+
+use crate::actions::{Action, Step, Workflow};
+
+pub const SCHEMA_VERSION: i128 = 1;
+
+// ---------------------------------------------------------- Encoding --------
+
+pub fn encode(wf: &Workflow) -> String {
+    let mut doc = KdlDocument::new();
+
+    doc.nodes_mut().push(kv_int("schema", SCHEMA_VERSION));
+    doc.nodes_mut().push(kv_str("id", &wf.id));
+    doc.nodes_mut().push(kv_str("title", &wf.title));
+    if let Some(s) = &wf.subtitle {
+        if !s.is_empty() {
+            doc.nodes_mut().push(kv_str("subtitle", s));
+        }
+    }
+    if let Some(t) = wf.created {
+        doc.nodes_mut().push(kv_str("created", &t.to_rfc3339()));
+    }
+    if let Some(t) = wf.modified {
+        doc.nodes_mut().push(kv_str("modified", &t.to_rfc3339()));
+    }
+    if let Some(t) = wf.last_run {
+        doc.nodes_mut().push(kv_str("last-run", &t.to_rfc3339()));
+    }
+
+    let mut recipe = KdlNode::new("recipe");
+    let mut inner = KdlDocument::new();
+    for step in &wf.steps {
+        inner.nodes_mut().push(encode_step(step));
+    }
+    recipe.set_children(inner);
+    doc.nodes_mut().push(recipe);
+
+    doc.autoformat();
+    doc.to_string()
+}
+
+fn encode_step(step: &Step) -> KdlNode {
+    let mut node = match &step.action {
+        Action::WdoType { text, delay_ms } => {
+            let mut n = KdlNode::new("type");
+            n.push(arg_str(text));
+            if let Some(d) = delay_ms {
+                n.push(prop_int("delay-ms", *d as i128));
+            }
+            n
+        }
+        Action::WdoKey {
+            chord,
+            clear_modifiers,
+        } => {
+            let mut n = KdlNode::new("key");
+            n.push(arg_str(chord));
+            if *clear_modifiers {
+                n.push(prop_bool("clear-modifiers", true));
+            }
+            n
+        }
+        Action::WdoClick { button } => {
+            let mut n = KdlNode::new("click");
+            n.push(prop_int("button", *button as i128));
+            n
+        }
+        Action::WdoMouseMove { x, y, relative } => {
+            let mut n = KdlNode::new("move");
+            n.push(prop_int("x", *x as i128));
+            n.push(prop_int("y", *y as i128));
+            if *relative {
+                n.push(prop_bool("relative", true));
+            }
+            n
+        }
+        Action::WdoScroll { dx, dy } => {
+            let mut n = KdlNode::new("scroll");
+            n.push(prop_int("dx", *dx as i128));
+            n.push(prop_int("dy", *dy as i128));
+            n
+        }
+        Action::WdoActivateWindow { name } => {
+            let mut n = KdlNode::new("focus");
+            n.push(prop_str("window", name));
+            n
+        }
+        Action::Delay { ms } => {
+            let mut n = KdlNode::new("wait");
+            n.push(arg_int(*ms as i128));
+            n
+        }
+        Action::Shell { command, shell } => {
+            let mut n = KdlNode::new("shell");
+            n.push(arg_str(command));
+            if let Some(s) = shell {
+                n.push(prop_str("shell", s));
+            }
+            n
+        }
+        Action::Notify { title, body } => {
+            let mut n = KdlNode::new("notify");
+            n.push(arg_str(title));
+            if let Some(b) = body {
+                n.push(prop_str("body", b));
+            }
+            n
+        }
+        Action::Clipboard { text } => {
+            let mut n = KdlNode::new("clip");
+            n.push(arg_str(text));
+            n
+        }
+        Action::Note { text } => {
+            let mut n = KdlNode::new("note");
+            n.push(arg_str(text));
+            n
+        }
+    };
+
+    // Step-level metadata on any action node.
+    if !step.enabled {
+        node.push(prop_bool("disabled", true));
+    }
+    if let Some(c) = &step.note {
+        if !c.is_empty() {
+            node.push(prop_str("comment", c));
+        }
+    }
+    node
+}
+
+fn arg_str(s: &str) -> KdlEntry { KdlEntry::new(KdlValue::String(s.into())) }
+fn arg_int(v: i128) -> KdlEntry { KdlEntry::new(KdlValue::Integer(v)) }
+fn prop_str(k: &str, v: &str) -> KdlEntry {
+    let mut e = KdlEntry::new(KdlValue::String(v.into()));
+    e.set_name(Some(KdlIdentifier::from(k)));
+    e
+}
+fn prop_int(k: &str, v: i128) -> KdlEntry {
+    let mut e = KdlEntry::new(KdlValue::Integer(v));
+    e.set_name(Some(KdlIdentifier::from(k)));
+    e
+}
+fn prop_bool(k: &str, v: bool) -> KdlEntry {
+    let mut e = KdlEntry::new(KdlValue::Bool(v));
+    e.set_name(Some(KdlIdentifier::from(k)));
+    e
+}
+fn kv_str(name: &str, v: &str) -> KdlNode {
+    let mut n = KdlNode::new(name);
+    n.push(arg_str(v));
+    n
+}
+fn kv_int(name: &str, v: i128) -> KdlNode {
+    let mut n = KdlNode::new(name);
+    n.push(arg_int(v));
+    n
+}
+
+// ---------------------------------------------------------- Decoding --------
+
+pub fn decode(src: &str) -> Result<Workflow> {
+    let doc: KdlDocument = src.parse().context("parsing KDL")?;
+
+    let mut id: Option<String> = None;
+    let mut title: Option<String> = None;
+    let mut subtitle: Option<String> = None;
+    let mut created = None;
+    let mut modified = None;
+    let mut last_run = None;
+    let mut steps: Vec<Step> = Vec::new();
+
+    for node in doc.nodes() {
+        match node.name().value() {
+            "schema" => { /* we only support one version; ignore for now */ }
+            "id" => id = Some(first_string(node)?),
+            "title" => title = Some(first_string(node)?),
+            "subtitle" => subtitle = Some(first_string(node)?),
+            "created" => created = parse_ts_opt(&first_string(node)?),
+            "modified" => modified = parse_ts_opt(&first_string(node)?),
+            "last-run" => last_run = parse_ts_opt(&first_string(node)?),
+            "recipe" => {
+                let children = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`recipe` must have a block {{ ... }}"))?;
+                for step_node in children.nodes() {
+                    steps.push(decode_step(step_node)?);
+                }
+            }
+            other => {
+                tracing::debug!("skipping unknown top-level node `{other}`");
+            }
+        }
+    }
+
+    Ok(Workflow {
+        id: id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+        title: title.unwrap_or_default(),
+        subtitle,
+        steps,
+        created,
+        modified,
+        last_run,
+    })
+}
+
+fn decode_step(node: &KdlNode) -> Result<Step> {
+    let name = node.name().value();
+
+    // Pull step-level metadata off first, so the action decoders don't see them.
+    let disabled = prop_bool_or(node, "disabled", false);
+    let comment = prop_string(node, "comment");
+
+    let action: Action = match name {
+        "type" => {
+            let text = first_string(node)?;
+            let delay_ms = prop_integer(node,"delay-ms").map(|n| n as u32);
+            Action::WdoType { text, delay_ms }
+        }
+        "key" => {
+            let chord = first_string(node)?;
+            let clear_modifiers = prop_bool_or(node, "clear-modifiers", false);
+            Action::WdoKey {
+                chord,
+                clear_modifiers,
+            }
+        }
+        "click" => {
+            let button = prop_integer(node,"button").unwrap_or(1) as u8;
+            Action::WdoClick { button }
+        }
+        "move" => {
+            let x = prop_integer(node,"x").unwrap_or(0) as i32;
+            let y = prop_integer(node,"y").unwrap_or(0) as i32;
+            let relative = prop_bool_or(node, "relative", false);
+            Action::WdoMouseMove { x, y, relative }
+        }
+        "scroll" => {
+            let dx = prop_integer(node,"dx").unwrap_or(0) as i32;
+            let dy = prop_integer(node,"dy").unwrap_or(0) as i32;
+            Action::WdoScroll { dx, dy }
+        }
+        "focus" => {
+            let name = prop_string(node, "window").unwrap_or_default();
+            Action::WdoActivateWindow { name }
+        }
+        "wait" => {
+            // Accept both `wait 500` and `wait ms=500`.
+            let ms = first_int_opt(node)
+                .or_else(|| prop_integer(node,"ms"))
+                .ok_or_else(|| anyhow!("`wait` needs a duration"))? as u64;
+            Action::Delay { ms }
+        }
+        "shell" => {
+            let command = first_string(node)?;
+            let shell = prop_string(node, "shell");
+            Action::Shell { command, shell }
+        }
+        "notify" => {
+            let title = first_string(node)?;
+            let body = prop_string(node, "body");
+            Action::Notify { title, body }
+        }
+        "clip" => {
+            let text = first_string(node)?;
+            Action::Clipboard { text }
+        }
+        "note" => {
+            let text = first_string(node)?;
+            Action::Note { text }
+        }
+        other => bail!("unknown step kind `{other}`"),
+    };
+
+    let mut step = Step::new(action);
+    step.enabled = !disabled;
+    step.note = comment;
+    Ok(step)
+}
+
+// ---------------------------------------------------------- Helpers ---------
+
+fn first_string(node: &KdlNode) -> Result<String> {
+    for e in node.entries() {
+        if e.name().is_none() {
+            if let KdlValue::String(s) = e.value() {
+                return Ok(s.clone());
+            }
+        }
+    }
+    Err(anyhow!(
+        "`{}` needs a string argument",
+        node.name().value()
+    ))
+}
+
+fn first_int_opt(node: &KdlNode) -> Option<i128> {
+    for e in node.entries() {
+        if e.name().is_none() {
+            if let KdlValue::Integer(i) = e.value() {
+                return Some(*i);
+            }
+        }
+    }
+    None
+}
+
+fn prop_string(node: &KdlNode, key: &str) -> Option<String> {
+    for e in node.entries() {
+        if e.name().map(|n| n.value()) == Some(key) {
+            if let KdlValue::String(s) = e.value() {
+                return Some(s.clone());
+            }
+        }
+    }
+    None
+}
+
+fn prop_integer(node: &KdlNode, key: &str) -> Option<i128> {
+    for e in node.entries() {
+        if e.name().map(|n| n.value()) == Some(key) {
+            if let KdlValue::Integer(i) = e.value() {
+                return Some(*i);
+            }
+        }
+    }
+    None
+}
+
+fn prop_bool_or(node: &KdlNode, key: &str, fallback: bool) -> bool {
+    for e in node.entries() {
+        if e.name().map(|n| n.value()) == Some(key) {
+            if let KdlValue::Bool(b) = e.value() {
+                return *b;
+            }
+        }
+    }
+    fallback
+}
+
+fn parse_ts_opt(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+}
+
+// ---------------------------------------------------------- Tests -----------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::{Action, Step};
+
+    #[test]
+    fn round_trip_preserves_every_action() {
+        let mut wf = Workflow::new("test");
+        wf.subtitle = Some("end-to-end".into());
+
+        let mut s1 = Step::new(Action::WdoType {
+            text: "hello \"world\"".into(),
+            delay_ms: Some(30),
+        });
+        s1.note = Some("greet first".into());
+
+        let mut s2 = Step::new(Action::WdoKey {
+            chord: "ctrl+shift+p".into(),
+            clear_modifiers: true,
+        });
+        s2.enabled = false;
+
+        wf.steps = vec![
+            s1,
+            s2,
+            Step::new(Action::WdoClick { button: 1 }),
+            Step::new(Action::WdoMouseMove { x: 10, y: -5, relative: true }),
+            Step::new(Action::WdoScroll { dx: 0, dy: 3 }),
+            Step::new(Action::WdoActivateWindow { name: "Firefox".into() }),
+            Step::new(Action::Delay { ms: 500 }),
+            Step::new(Action::Shell { command: "echo hi".into(), shell: None }),
+            Step::new(Action::Notify { title: "done".into(), body: Some("all good".into()) }),
+            Step::new(Action::Clipboard { text: "copied".into() }),
+            Step::new(Action::Note { text: "remember to disable VPN".into() }),
+        ];
+
+        let text = encode(&wf);
+        let back = decode(&text).expect("decode should succeed");
+
+        assert_eq!(back.title, wf.title);
+        assert_eq!(back.subtitle, wf.subtitle);
+        assert_eq!(back.steps.len(), wf.steps.len());
+
+        // Compare actions pairwise via serde_json (easy structural compare).
+        for (a, b) in wf.steps.iter().zip(back.steps.iter()) {
+            let ja = serde_json::to_value(&a.action).unwrap();
+            let jb = serde_json::to_value(&b.action).unwrap();
+            assert_eq!(ja, jb, "action changed through round trip");
+            assert_eq!(a.enabled, b.enabled, "enabled flag changed");
+            assert_eq!(a.note, b.note, "note changed");
+        }
+    }
+}
