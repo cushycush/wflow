@@ -7,7 +7,6 @@ fn main() {
             QmlFile::from("qml/Theme.qml").singleton(true),
             QmlFile::from("qml/VisualStyle.qml").singleton(true),
             QmlFile::from("qml/LibraryLayout.qml").singleton(true),
-            QmlFile::from("qml/WorkflowLayout.qml").singleton(true),
             // Root
             QmlFile::from("qml/Main.qml"),
             // Shared components
@@ -23,13 +22,10 @@ fn main() {
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
             QmlFile::from("qml/components/library/LibraryList.qml"),
-            // Workflow layouts (user-switchable)
-            QmlFile::from("qml/components/workflow/WorkflowLayoutSwitcher.qml"),
-            QmlFile::from("qml/components/workflow/StackList.qml"),
-            QmlFile::from("qml/components/workflow/HorizontalTimeline.qml"),
+            // Workflow editor — Split is the only locked layout.
+            // Stack / Timeline / Grouped / Cards are archived under
+            // qml/components/workflow/_archive (excluded from the build).
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
-            QmlFile::from("qml/components/workflow/GroupedPhases.qml"),
-            QmlFile::from("qml/components/workflow/CardDeck.qml"),
             // Record
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Explore

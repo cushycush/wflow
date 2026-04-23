@@ -21,7 +21,6 @@ ApplicationWindow {
 
     // Page-header pickers are primary; these are for keyboard users.
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
-    Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
     Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
     Shortcut { sequence: "Ctrl+2"; onActivated: root.currentPage = "explore" }
