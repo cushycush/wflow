@@ -2,18 +2,73 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Local library of user-authored workflows. Two layouts (Grid / List) the
-// user picks via the switcher in the header. No featured hero here — that
-// concept belongs in Explore, not on someone's own workspace.
+// Local library of user-authored workflows.
+//
+// Data flows through LibraryController (a cxx-qt QObject registered by the
+// Rust side). It reads $XDG_CONFIG_HOME/wflow/workflows/*.kdl on construction
+// and exposes the list as a JSON string we parse here. QML components want
+// camelCased keys + a few display-only fields, so we shape the summaries
+// into a `workflows` array that the grid/list delegates already understand.
 Item {
     id: root
     signal newWorkflow()
     signal openWorkflow(string id)
     signal recordRequested()
 
-    // Local-only reorder (real persistence lands with the bridge's
-    // LibraryModel.move). Splicing a new array triggers rebinding so
-    // ListView runs its move/displaced transitions.
+    LibraryController { id: libCtrl }
+
+    function _humanizeTs(iso) {
+        if (!iso) return "never"
+        const then = new Date(iso)
+        const diffMs = Date.now() - then.getTime()
+        if (isNaN(diffMs) || diffMs < 0) return then.toLocaleDateString()
+        const mins = Math.floor(diffMs / 60000)
+        if (mins < 1)  return "just now"
+        if (mins < 60) return mins + "m ago"
+        const hrs  = Math.floor(mins / 60)
+        if (hrs  < 24) return hrs + "h ago"
+        const days = Math.floor(hrs / 24)
+        if (days === 1) return "yesterday"
+        if (days < 14)  return days + "d ago"
+        return then.toLocaleDateString()
+    }
+
+    function _shape(rawList) {
+        const out = []
+        for (const wf of rawList) {
+            out.push({
+                id:       wf.id,
+                title:    wf.title,
+                subtitle: wf.subtitle && wf.subtitle.length > 0 ? wf.subtitle : "",
+                steps:    wf.steps || 0,
+                lastRun:  root._humanizeTs(wf.last_run),
+                runs:     0,                 // real counter lands with run-history persistence
+                kinds:    wf.kinds || []
+            })
+        }
+        return out
+    }
+
+    property var workflows: []
+
+    function _refreshShaped() {
+        try {
+            const raw = JSON.parse(libCtrl.workflows || "[]")
+            root.workflows = root._shape(raw)
+        } catch (e) {
+            root.workflows = []
+        }
+    }
+
+    Component.onCompleted: _refreshShaped()
+    Connections {
+        target: libCtrl
+        function onWorkflowsChanged() { root._refreshShaped() }
+    }
+
+    // Drag-to-reorder is local-only until the bridge owns a user-ordered
+    // list. For now splicing the shaped array gives the ListView its
+    // move/displaced transitions; the on-disk order is by modified-time.
     function moveWorkflow(from, to) {
         if (from === to) return
         const a = root.workflows.slice()
@@ -21,35 +76,6 @@ Item {
         a.splice(to, 0, item)
         root.workflows = a
     }
-
-    property var workflows: [
-        { id: "p1", title: "Open dev setup",      subtitle: "launch editor, terminal, focus firefox",
-          steps: 12, lastRun: "yesterday",     runs: 47,
-          kinds: ["key", "shell", "type", "focus"] },
-        { id: "p2", title: "Screenshot to clip",  subtitle: "region grab → wl-copy",
-          steps: 2,  lastRun: "2h ago",        runs: 112,
-          kinds: ["shell", "clipboard"] },
-        { id: "p3", title: "VPN on",              subtitle: "toggle the work vpn",
-          steps: 3,  lastRun: "3d ago",        runs: 8,
-          kinds: ["shell", "notify"] },
-        { id: "p4", title: "Close the day",       subtitle: "commit, push, lock screen",
-          steps: 6,  lastRun: "never",         runs: 0,
-          kinds: ["shell", "notify", "key"] },
-        { id: "p5", title: "Morning standup",     subtitle: "open slack, zoom, project notes",
-          steps: 5,  lastRun: "this morning",  runs: 94,
-          kinds: ["shell", "focus", "type"],
-          importedFrom: "minimice" },
-        { id: "p6", title: "Review PRs",          subtitle: "fetch branches, open github tabs",
-          steps: 8,  lastRun: "5h ago",        runs: 23,
-          kinds: ["shell", "key", "type", "click"] },
-        { id: "p7", title: "Deep focus",          subtitle: "DND on, music, hide dock",
-          steps: 4,  lastRun: "12d ago",       runs: 6,
-          kinds: ["notify", "shell", "focus"],
-          importedFrom: "quietwater" },
-        { id: "p8", title: "Clipboard to file",   subtitle: "paste clipboard into scratch.md",
-          steps: 3,  lastRun: "never",         runs: 0,
-          kinds: ["clipboard", "shell", "note"] }
-    ]
 
     Column {
         anchors.fill: parent
@@ -59,9 +85,14 @@ Item {
             id: tb
             width: parent.width
             title: "Library"
-            subtitle: root.workflows.length + " workflows"
+            subtitle: root.workflows.length === 1
+                ? "1 workflow"
+                : root.workflows.length + " workflows"
 
-            LibraryLayoutSwitcher { anchors.verticalCenter: parent.verticalCenter }
+            LibraryLayoutSwitcher {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.workflows.length > 0
+            }
 
             Button {
                 text: "+ New workflow"
@@ -78,7 +109,11 @@ Item {
                     font.pixelSize: Theme.fontSm
                     font.weight: Font.DemiBold
                 }
-                onClicked: root.newWorkflow()
+                onClicked: {
+                    const id = libCtrl.new_workflow("Untitled")
+                    if (id && id.length > 0) root.openWorkflow(id)
+                    else root.newWorkflow()
+                }
             }
             Button {
                 text: "● Record"
@@ -101,52 +136,70 @@ Item {
             }
         }
 
-        ScrollView {
+        Item {
             width: parent.width
             height: parent.height - tb.height
-            contentWidth: availableWidth
-            clip: true
 
-            Item {
-                width: parent.width
-                height: variantLoader.item ? variantLoader.item.height + 48 : 200
+            // Empty state — wired for the first-run case where the
+            // workflows directory is empty. No reshuffling required: the
+            // + New workflow button already sits in the top bar, and this
+            // CTA points at it.
+            EmptyState {
+                anchors.fill: parent
+                visible: root.workflows.length === 0
+                title: "No workflows yet"
+                description: "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
+                actionLabel: "● Record a workflow"
+                onActionClicked: root.recordRequested()
+            }
 
-                Loader {
-                    id: variantLoader
-                    x: 24; y: 24
-                    width: parent.width - 48
+            ScrollView {
+                anchors.fill: parent
+                visible: root.workflows.length > 0
+                contentWidth: availableWidth
+                clip: true
 
-                    sourceComponent: LibraryLayout.variant === 0 ? gridComp : listComp
+                Item {
+                    width: parent.width
+                    height: variantLoader.item ? variantLoader.item.height + 48 : 200
 
-                    opacity: 0
-                    Component.onCompleted: opacity = 1
-                    onSourceComponentChanged: {
-                        opacity = 0
-                        fadeIn.restart()
+                    Loader {
+                        id: variantLoader
+                        x: 24; y: 24
+                        width: parent.width - 48
+
+                        sourceComponent: LibraryLayout.variant === 0 ? gridComp : listComp
+
+                        opacity: 0
+                        Component.onCompleted: opacity = 1
+                        onSourceComponentChanged: {
+                            opacity = 0
+                            fadeIn.restart()
+                        }
+                        Timer {
+                            id: fadeIn
+                            interval: 30
+                            onTriggered: variantLoader.opacity = 1
+                        }
+                        Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                     }
-                    Timer {
-                        id: fadeIn
-                        interval: 30
-                        onTriggered: variantLoader.opacity = 1
-                    }
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                }
 
-                Component {
-                    id: gridComp
-                    LibraryGrid {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
+                    Component {
+                        id: gridComp
+                        LibraryGrid {
+                            width: variantLoader.width
+                            workflows: root.workflows
+                            onOpenWorkflow: (id) => root.openWorkflow(id)
+                        }
                     }
-                }
-                Component {
-                    id: listComp
-                    LibraryList {
-                        width: variantLoader.width
-                        workflows: root.workflows
-                        onOpenWorkflow: (id) => root.openWorkflow(id)
-                        onReorderRequested: (from, to) => root.moveWorkflow(from, to)
+                    Component {
+                        id: listComp
+                        LibraryList {
+                            width: variantLoader.width
+                            workflows: root.workflows
+                            onOpenWorkflow: (id) => root.openWorkflow(id)
+                            onReorderRequested: (from, to) => root.moveWorkflow(from, to)
+                        }
                     }
                 }
             }

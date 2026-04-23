@@ -13,8 +13,8 @@ ApplicationWindow {
     title: "wflow"
     color: Theme.bg
 
-    property string currentPage: "library"       // "library" | "workflow" | "record"
-    property string currentWorkflowId: "p1"
+    property string currentPage: "library"        // "library" | "explore" | "workflow" | "record"
+    property string currentWorkflowId: ""
 
     font.family: Theme.familyBody
     font.pixelSize: Theme.fontBase
@@ -25,7 +25,7 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
     Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
     Shortcut { sequence: "Ctrl+2"; onActivated: root.currentPage = "explore" }
-    Shortcut { sequence: "Ctrl+3"; onActivated: { root.currentWorkflowId = "p1"; root.currentPage = "workflow" } }
+    Shortcut { sequence: "Ctrl+3"; onActivated: root.currentPage = "workflow" }
     Shortcut { sequence: "Ctrl+4"; onActivated: root.currentPage = "record" }
 
     ChromeFloating {
