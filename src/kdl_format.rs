@@ -113,6 +113,14 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(prop_str("window", name));
             n
         }
+        Action::WdoAwaitWindow { name, timeout_ms } => {
+            let mut n = KdlNode::new("await-window");
+            n.push(arg_str(name));
+            // Emit the timeout as an integer (ms) for round-trip stability;
+            // users can hand-write `timeout="5s"` and we'll parse both.
+            n.push(prop_int("timeout-ms", *timeout_ms as i128));
+            n
+        }
         Action::Delay { ms } => {
             let mut n = KdlNode::new("wait");
             n.push(arg_int(*ms as i128));
@@ -273,11 +281,32 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             let name = prop_string(node, "window").unwrap_or_default();
             Action::WdoActivateWindow { name }
         }
+        "await-window" => {
+            let name = first_string(node)?;
+            // Accept either `timeout-ms=5000` or `timeout="5s"`.
+            let timeout_ms = if let Some(v) = prop_integer(node, "timeout-ms") {
+                v as u64
+            } else if let Some(s) = prop_string(node, "timeout") {
+                parse_duration_ms(&s)?
+            } else {
+                5_000
+            };
+            Action::WdoAwaitWindow { name, timeout_ms }
+        }
         "wait" => {
-            // Accept both `wait 500` and `wait ms=500`.
-            let ms = first_int_opt(node)
-                .or_else(|| prop_integer(node,"ms"))
-                .ok_or_else(|| anyhow!("`wait` needs a duration"))? as u64;
+            // Accept:
+            //   wait 500               (bare int, milliseconds)
+            //   wait ms=500
+            //   wait "1.5s" / "250ms" / "2m"
+            let ms = if let Some(v) = first_int_opt(node) {
+                v as u64
+            } else if let Some(v) = prop_integer(node, "ms") {
+                v as u64
+            } else if let Some(s) = first_string_opt(node) {
+                parse_duration_ms(&s)?
+            } else {
+                bail!("`wait` needs a duration — try `wait 500` or `wait \"1.5s\"`");
+            };
             Action::Delay { ms }
         }
         "shell" => {
@@ -334,6 +363,52 @@ fn first_int_opt(node: &KdlNode) -> Option<i128> {
     None
 }
 
+fn first_string_opt(node: &KdlNode) -> Option<String> {
+    for e in node.entries() {
+        if e.name().is_none() {
+            if let KdlValue::String(s) = e.value() {
+                return Some(s.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Parse a short human duration like "250ms", "1.5s", "2m", or "1h".
+/// No unit suffix defaults to milliseconds so bare numbers still work.
+pub fn parse_duration_ms(s: &str) -> Result<u64> {
+    let t = s.trim();
+    if t.is_empty() {
+        bail!("empty duration");
+    }
+    // Split the trailing unit letters off the numeric part.
+    let (num, unit): (&str, &str) = {
+        let split = t
+            .char_indices()
+            .find(|(_, c)| c.is_ascii_alphabetic())
+            .map(|(i, _)| i)
+            .unwrap_or(t.len());
+        (t[..split].trim(), t[split..].trim())
+    };
+
+    let value: f64 = num
+        .parse()
+        .with_context(|| format!("can't parse `{num}` as a number in duration `{s}`"))?;
+
+    let mult_ms: f64 = match unit.to_ascii_lowercase().as_str() {
+        "" | "ms" => 1.0,
+        "s" | "sec" | "secs" => 1_000.0,
+        "m" | "min" | "mins" => 60_000.0,
+        "h" | "hr" | "hrs" => 3_600_000.0,
+        other => bail!("unknown duration unit `{other}` in `{s}` (use ms, s, m, or h)"),
+    };
+
+    if !value.is_finite() || value < 0.0 {
+        bail!("duration must be a non-negative number: `{s}`");
+    }
+    Ok((value * mult_ms).round() as u64)
+}
+
 fn prop_string(node: &KdlNode, key: &str) -> Option<String> {
     for e in node.entries() {
         if e.name().map(|n| n.value()) == Some(key) {
@@ -381,6 +456,47 @@ mod tests {
     use crate::actions::{Action, Step};
 
     #[test]
+    fn duration_parser_handles_common_shapes() {
+        assert_eq!(parse_duration_ms("500").unwrap(), 500);
+        assert_eq!(parse_duration_ms("500ms").unwrap(), 500);
+        assert_eq!(parse_duration_ms("1.5s").unwrap(), 1500);
+        assert_eq!(parse_duration_ms("2s").unwrap(), 2000);
+        assert_eq!(parse_duration_ms("2m").unwrap(), 120_000);
+        assert_eq!(parse_duration_ms("1h").unwrap(), 3_600_000);
+        assert_eq!(parse_duration_ms(" 250 ms ").unwrap(), 250);
+        // Errors
+        assert!(parse_duration_ms("").is_err());
+        assert!(parse_duration_ms("abc").is_err());
+        assert!(parse_duration_ms("-5s").is_err());
+        assert!(parse_duration_ms("5y").is_err());
+    }
+
+    #[test]
+    fn wait_accepts_bare_int_prop_and_string() {
+        let src = r#"
+            schema 1
+            id "t"
+            title "t"
+            recipe {
+                wait 500
+                wait ms=250
+                wait "1.5s"
+                wait "2m"
+            }
+        "#;
+        let wf = decode(src).unwrap();
+        let ms: Vec<u64> = wf
+            .steps
+            .iter()
+            .filter_map(|s| match &s.action {
+                Action::Delay { ms } => Some(*ms),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ms, vec![500, 250, 1500, 120_000]);
+    }
+
+    #[test]
     fn round_trip_preserves_every_action() {
         let mut wf = Workflow::new("test");
         wf.subtitle = Some("end-to-end".into());
@@ -404,6 +520,7 @@ mod tests {
             Step::new(Action::WdoMouseMove { x: 10, y: -5, relative: true }),
             Step::new(Action::WdoScroll { dx: 0, dy: 3 }),
             Step::new(Action::WdoActivateWindow { name: "Firefox".into() }),
+            Step::new(Action::WdoAwaitWindow { name: "Firefox".into(), timeout_ms: 7500 }),
             Step::new(Action::Delay { ms: 500 }),
             Step::new(Action::Shell { command: "echo hi".into(), shell: None }),
             Step::new(Action::Notify { title: "done".into(), body: Some("all good".into()) }),

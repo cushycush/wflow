@@ -83,6 +83,7 @@ async fn run_action(step: &Step) -> StepOutcome {
         Action::WdoMouseMove { x, y, relative } => wdo_mousemove(*x, *y, *relative).await,
         Action::WdoScroll { dx, dy } => wdo_scroll(*dx, *dy).await,
         Action::WdoActivateWindow { name } => wdo_activate(name).await,
+        Action::WdoAwaitWindow { name, timeout_ms } => wdo_await_window(name, *timeout_ms).await,
         Action::Delay { ms } => {
             tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
             Ok(None)
@@ -148,21 +149,52 @@ async fn wdo_scroll(dx: i32, dy: i32) -> Result<Option<String>> {
 
 async fn wdo_activate(name: &str) -> Result<Option<String>> {
     // Search, then activate the first match.
-    let out = run_wdotool(&[
+    let id = find_window_id(name)
+        .await?
+        .ok_or_else(|| anyhow!("no window matching {name:?}"))?;
+    run_wdotool(&["windowactivate".into(), id]).await
+}
+
+/// Poll wdotool for a matching window until it appears or the timeout
+/// elapses. Returns Ok on success; on timeout returns an error so the
+/// engine halts (the user's next step almost certainly relies on the
+/// window being real).
+async fn wdo_await_window(name: &str, timeout_ms: u64) -> Result<Option<String>> {
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    let poll_every = Duration::from_millis(100);
+    loop {
+        if let Some(id) = find_window_id(name).await? {
+            return Ok(Some(format!("window `{name}` at id {id}")));
+        }
+        if Instant::now() >= deadline {
+            return Err(anyhow!(
+                "no window matching {name:?} appeared within {timeout_ms}ms"
+            ));
+        }
+        tokio::time::sleep(poll_every).await;
+    }
+}
+
+async fn find_window_id(name: &str) -> Result<Option<String>> {
+    // `wdotool search` prints one id per match; "no match" surfaces as a
+    // non-zero exit, so treat NotFound / exit-error as "not yet there"
+    // instead of a hard failure.
+    let args = [
         "search".into(),
         "--limit".into(),
         "1".into(),
         "--name".into(),
         name.to_string(),
-    ])
-    .await?;
-    let id = out
-        .as_deref()
-        .and_then(|s| s.lines().next())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("no window matching {name:?}"))?;
-    run_wdotool(&["windowactivate".into(), id]).await
+    ];
+    match run_wdotool(&args).await {
+        Ok(out) => Ok(out
+            .as_deref()
+            .and_then(|s| s.lines().next())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())),
+        Err(_) => Ok(None),
+    }
 }
 
 async fn run_wdotool(args: &[String]) -> Result<Option<String>> {

@@ -58,6 +58,18 @@ pub enum Command {
     },
     /// Print the workflows directory.
     Path,
+    /// Scaffold a new workflow KDL file in the library and print its path.
+    New {
+        /// Title for the new workflow (shown in `list` / editor).
+        title: String,
+        /// Print the generated KDL to stdout instead of writing to disk.
+        #[arg(long)]
+        stdout: bool,
+    },
+    /// Check that required binaries (wdotool, notify-send, wl-copy) are
+    /// available on PATH. Useful as a preflight before shipping
+    /// workflows to a new machine.
+    Doctor,
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -78,6 +90,8 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Validate { target } => cmd_validate(&target),
         Command::Show { target } => cmd_show(&target),
         Command::Path => cmd_path(),
+        Command::New { title, stdout } => cmd_new(&title, stdout),
+        Command::Doctor => cmd_doctor(),
     };
 
     match result {
@@ -90,6 +104,119 @@ pub fn run(cli: Cli) -> ExitCode {
 }
 
 // ------------------------------- Commands -----------------------------------
+
+fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
+    // Hand-tuned scaffold. Comments in kdl use //; we keep them in the
+    // template to teach the format.
+    let wf = Workflow::new(title);
+    let body = kdl_format::encode(&wf);
+    let template = format!(
+        "// A wflow workflow. See `wflow show <id>` and `docs/KDL.md`\n\
+         // for the full action vocabulary.\n\
+         {body}\
+         // Add steps to the `recipe` block above. Examples:\n\
+         //   key \"super+1\"\n\
+         //   await-window \"Firefox\" timeout=\"5s\"\n\
+         //   shell \"notify-send 'done'\"\n"
+    );
+    if to_stdout {
+        print!("{template}");
+        return Ok(ExitCode::SUCCESS);
+    }
+    // Persist to the library directory. We need to route through
+    // store::save so the file lands with the canonical safe_id-based
+    // filename, but save() does not accept a comment template. Shortcut:
+    // save the plain workflow, then overwrite the file with the
+    // template body in-place so the comments survive.
+    let saved = store::save(wf).context("saving workflow")?;
+    let base = dirs::config_dir().context("no XDG config dir")?;
+    let file = base
+        .join("wflow")
+        .join("workflows")
+        .join(format!("{}.kdl", saved.id.replace(['/', '\\', '.'], "_")));
+    std::fs::write(&file, &template).with_context(|| format!("write {}", file.display()))?;
+    println!("{}", file.display());
+    eprintln!(
+        "{} created `{}` — edit the file, then run `wflow run {}`",
+        check(),
+        title,
+        saved.id
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_doctor() -> Result<ExitCode> {
+    // Tools wflow invokes as subprocesses. Not all workflows need all of
+    // them — wflow itself doesn't fail to launch on a missing notify-send.
+    // This is a preflight so the user knows what the current environment
+    // will support.
+    let tools: &[(&str, &str)] = &[
+        ("wdotool", "keyboard / mouse / focus automation"),
+        ("notify-send", "desktop notifications"),
+        ("wl-copy", "clipboard (Wayland)"),
+    ];
+
+    let mut all_ok = true;
+    let path_w = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0).max(8);
+    for (bin, role) in tools {
+        match which(bin) {
+            Some(p) => println!(
+                "  {} {:path_w$}  {}  {}",
+                check(),
+                bin,
+                dim(&p.display().to_string()),
+                dim(role),
+                path_w = path_w
+            ),
+            None => {
+                all_ok = false;
+                println!(
+                    "  {} {:path_w$}  {}  {}",
+                    cross(),
+                    bin,
+                    dim("(not on PATH)"),
+                    dim(role),
+                    path_w = path_w
+                );
+            }
+        }
+    }
+
+    // Workflow directory / count summary.
+    let base = dirs::config_dir().context("no XDG config dir")?;
+    let dir = base.join("wflow").join("workflows");
+    let count = std::fs::read_dir(&dir)
+        .map(|d| d.filter(|e| e.is_ok()).count())
+        .unwrap_or(0);
+    println!();
+    println!(
+        "  library: {} ({} file{})",
+        dir.display(),
+        count,
+        plural_s(count)
+    );
+
+    if all_ok {
+        Ok(ExitCode::SUCCESS)
+    } else {
+        eprintln!(
+            "\n{} some tools are missing — workflows using those actions will fail",
+            cross()
+        );
+        Ok(ExitCode::from(1))
+    }
+}
+
+fn which(bin: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for entry in std::env::split_paths(&path) {
+        let candidate = entry.join(bin);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
 
 fn cmd_path() -> Result<ExitCode> {
     // Match store::workflows_dir but we don't expose it publicly yet.

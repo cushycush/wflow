@@ -11,6 +11,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+fn default_await_timeout_ms() -> u64 {
+    5_000
+}
+
 /// A single ingredient in a recipe.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Step {
@@ -99,6 +103,14 @@ pub enum Action {
     WdoScroll { dx: i32, dy: i32 },
     /// Activate a window by name substring (wlroots/kde only on wdotool).
     WdoActivateWindow { name: String },
+    /// Block until a window matching `name` exists or `timeout_ms` elapses.
+    /// The counterpart to Delay for event-driven waits — the difference
+    /// between a reliable replay and a racy one.
+    WdoAwaitWindow {
+        name: String,
+        #[serde(default = "default_await_timeout_ms")]
+        timeout_ms: u64,
+    },
 
     // ------------------------------ System -------------------------------
     /// Wait.
@@ -136,6 +148,7 @@ impl Action {
             Action::WdoMouseMove { .. } => "move",
             Action::WdoScroll { .. } => "scroll",
             Action::WdoActivateWindow { .. } => "focus",
+            Action::WdoAwaitWindow { .. } => "wait",
             Action::Delay { .. } => "wait",
             Action::Shell { .. } => "shell",
             Action::Notify { .. } => "notify",
@@ -161,7 +174,12 @@ impl Action {
             }
             Action::WdoScroll { dx, dy } => format!("scroll dx={dx} dy={dy}"),
             Action::WdoActivateWindow { name } => format!("focus {}", quote_short(name)),
-            Action::Delay { ms } => format!("wait {ms}ms"),
+            Action::WdoAwaitWindow { name, timeout_ms } => format!(
+                "await-window {} (timeout {})",
+                quote_short(name),
+                fmt_duration_ms(*timeout_ms)
+            ),
+            Action::Delay { ms } => format!("wait {}", fmt_duration_ms(*ms)),
             Action::Shell { command, .. } => format!("shell {}", quote_short(command)),
             Action::Notify { title, body } => match body {
                 Some(b) if !b.is_empty() => {
@@ -172,6 +190,25 @@ impl Action {
             Action::Clipboard { text } => format!("clip {}", quote_short(text)),
             Action::Note { text } => format!("note {}", quote_short(text)),
         }
+    }
+}
+
+/// Short human duration, used in `describe()`. 500 → "500ms", 1500 → "1.5s",
+/// 90000 → "90s", 3600000 → "60m".
+pub fn fmt_duration_ms(ms: u64) -> String {
+    if ms < 1_000 {
+        format!("{ms}ms")
+    } else if ms < 60_000 {
+        let secs = ms as f64 / 1_000.0;
+        if (secs - secs.round()).abs() < 0.05 {
+            format!("{}s", secs.round() as u64)
+        } else {
+            format!("{secs:.1}s")
+        }
+    } else if ms < 3_600_000 {
+        format!("{}m", ms / 60_000)
+    } else {
+        format!("{}h", ms / 3_600_000)
     }
 }
 
