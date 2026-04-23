@@ -37,6 +37,7 @@ fn main() {
             QmlFile::from("qml/components/explore/ExploreHero.qml"),
             QmlFile::from("qml/components/explore/CategoryPills.qml"),
             QmlFile::from("qml/components/explore/CommunityCard.qml"),
+            QmlFile::from("qml/components/explore/ExploreDetail.qml"),
             // Chrome
             QmlFile::from("qml/components/chrome/ChromeFloating.qml"),
             // Pages

@@ -7,9 +7,15 @@ import Wflow
 // the web. The app only consumes the catalog.
 Item {
     id: root
-    signal openWorkflow(string id)      // when the user imports + opens, reuse the same signal
+    signal openWorkflow(string id)
 
     property string selectedCategory: "All"
+    property var selectedWorkflow: null
+
+    function selectWorkflow(id) {
+        const wf = root.communityWorkflows.find(w => w.id === id)
+        if (wf) root.selectedWorkflow = wf
+    }
 
     property var communityWorkflows: [
         { id: "c1", title: "git-forensics", subtitle: "investigate recent commits across branches with diffs + authors",
@@ -92,7 +98,7 @@ Item {
                     x: 24
                     width: page.width - 48
                     wf: root.featured
-                    onActivated: (id) => root.openWorkflow(id)
+                    onActivated: (id) => root.selectWorkflow(id)
                 }
 
                 Item {
@@ -145,7 +151,7 @@ Item {
                                     wf: modelData
                                     cardW: 280
                                     cardH: 150
-                                    onActivated: (id) => root.openWorkflow(id)
+                                    onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
                         }
@@ -192,7 +198,7 @@ Item {
                                     wf: modelData
                                     cardW: 280
                                     cardH: 150
-                                    onActivated: (id) => root.openWorkflow(id)
+                                    onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
                         }
@@ -241,12 +247,27 @@ Item {
                                 y: Math.floor(index / grid.cols) * (grid.cardH + grid.gap)
                                 cardW: grid.cardW
                                 cardH: grid.cardH
-                                onActivated: (id) => root.openWorkflow(id)
+                                onActivated: (id) => root.selectWorkflow(id)
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    ExploreDetail {
+        anchors.fill: parent
+        wf: root.selectedWorkflow
+        open: root.selectedWorkflow !== null
+        onClosed: root.selectedWorkflow = null
+        onImported: (id) => {
+            // TODO: actually import via bridge; for now route to editor.
+            root.selectedWorkflow = null
+            root.openWorkflow(id)
+        }
+        onDryRunRequested: (id) => {
+            // TODO: dry-run walk-through; mocked.
         }
     }
 }
