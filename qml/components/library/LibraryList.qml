@@ -80,7 +80,14 @@ Column {
                 }
 
                 Column {
-                    width: (parent.width - 16 - 14 - 28 - 14 - kindRow.width - 14 - stepsText.width - 14 - runsText.width - 14 - lastRunText.width - 14) / 1
+                    width: Math.max(120, parent.width
+                        - 16 - 14                          // drag handle + spacing
+                        - 28 - 14                          // icon + spacing
+                        - kindRow.width - 14
+                        - (row.wf.importedFrom ? importedPill.width + 14 : 0)
+                        - stepsText.width - 14
+                        - runsText.width - 14
+                        - lastRunText.width - 14)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 1
 
@@ -114,6 +121,28 @@ Column {
                             size: 18
                             hovered: false
                         }
+                    }
+                }
+
+                // Imported-from pill, only visible when set.
+                Rectangle {
+                    id: importedPill
+                    visible: !!row.wf.importedFrom
+                    width: importedLbl.implicitWidth + 10
+                    height: 18
+                    radius: 9
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: "transparent"
+                    border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+                    border.width: 1
+
+                    Text {
+                        id: importedLbl
+                        anchors.centerIn: parent
+                        text: row.wf.importedFrom ? "@" + row.wf.importedFrom : ""
+                        color: Theme.accent
+                        font.family: Theme.familyMono
+                        font.pixelSize: 9
                     }
                 }
 
