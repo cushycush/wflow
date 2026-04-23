@@ -9,7 +9,6 @@ fn main() {
             QmlFile::from("qml/LibraryLayout.qml").singleton(true),
             QmlFile::from("qml/WorkflowLayout.qml").singleton(true),
             QmlFile::from("qml/RecordLayout.qml").singleton(true),
-            QmlFile::from("qml/GlobalLayout.qml").singleton(true),
             // Root
             QmlFile::from("qml/Main.qml"),
             // Shared components
@@ -41,11 +40,7 @@ fn main() {
             QmlFile::from("qml/components/record/TheaterRec.qml"),
             QmlFile::from("qml/components/record/StripRec.qml"),
             QmlFile::from("qml/components/record/AmbientRec.qml"),
-            // Chrome variants
-            QmlFile::from("qml/components/chrome/ChromeSidebar.qml"),
-            QmlFile::from("qml/components/chrome/ChromeRail.qml"),
-            QmlFile::from("qml/components/chrome/ChromeTopBar.qml"),
-            QmlFile::from("qml/components/chrome/ChromeHybrid.qml"),
+            // Chrome
             QmlFile::from("qml/components/chrome/ChromeFloating.qml"),
             // Pages
             QmlFile::from("qml/pages/LibraryPage.qml"),
