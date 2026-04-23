@@ -32,10 +32,16 @@ fn main() {
             QmlFile::from("qml/components/workflow/CardDeck.qml"),
             // Record
             QmlFile::from("qml/components/record/AmbientRec.qml"),
+            // Explore
+            QmlFile::from("qml/components/explore/ExploreSearch.qml"),
+            QmlFile::from("qml/components/explore/ExploreHero.qml"),
+            QmlFile::from("qml/components/explore/CategoryPills.qml"),
+            QmlFile::from("qml/components/explore/CommunityCard.qml"),
             // Chrome
             QmlFile::from("qml/components/chrome/ChromeFloating.qml"),
             // Pages
             QmlFile::from("qml/pages/LibraryPage.qml"),
+            QmlFile::from("qml/pages/ExplorePage.qml"),
             QmlFile::from("qml/pages/WorkflowPage.qml"),
             QmlFile::from("qml/pages/RecordPage.qml"),
         ]),
