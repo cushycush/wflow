@@ -24,6 +24,10 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
+    Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
+    Shortcut { sequence: "Ctrl+2"; onActivated: root.currentPage = "explore" }
+    Shortcut { sequence: "Ctrl+3"; onActivated: { root.currentWorkflowId = "p1"; root.currentPage = "workflow" } }
+    Shortcut { sequence: "Ctrl+4"; onActivated: root.currentPage = "record" }
 
     ChromeFloating {
         anchors.fill: parent
