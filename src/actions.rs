@@ -143,6 +143,49 @@ impl Action {
             Action::Note { .. } => "note",
         }
     }
+
+    /// Human-readable one-line description. Used by the CLI for `list`,
+    /// `show`, and per-step progress in `run`. Kept here so the format
+    /// stays consistent across commands.
+    pub fn describe(&self) -> String {
+        match self {
+            Action::WdoType { text, .. } => format!("type {}", quote_short(text)),
+            Action::WdoKey { chord, .. } => format!("key {chord}"),
+            Action::WdoClick { button } => format!("click button {button}"),
+            Action::WdoMouseMove { x, y, relative } => {
+                if *relative {
+                    format!("move +{x},+{y}")
+                } else {
+                    format!("move {x},{y}")
+                }
+            }
+            Action::WdoScroll { dx, dy } => format!("scroll dx={dx} dy={dy}"),
+            Action::WdoActivateWindow { name } => format!("focus {}", quote_short(name)),
+            Action::Delay { ms } => format!("wait {ms}ms"),
+            Action::Shell { command, .. } => format!("shell {}", quote_short(command)),
+            Action::Notify { title, body } => match body {
+                Some(b) if !b.is_empty() => {
+                    format!("notify {} — {}", quote_short(title), quote_short(b))
+                }
+                _ => format!("notify {}", quote_short(title)),
+            },
+            Action::Clipboard { text } => format!("clip {}", quote_short(text)),
+            Action::Note { text } => format!("note {}", quote_short(text)),
+        }
+    }
+}
+
+fn quote_short(s: &str) -> String {
+    const MAX: usize = 64;
+    let single_line = s.replace('\n', " ↵ ");
+    let mut trimmed = single_line.as_str();
+    let mut truncated = String::new();
+    if single_line.chars().count() > MAX {
+        truncated = single_line.chars().take(MAX).collect::<String>();
+        truncated.push('…');
+        trimmed = truncated.as_str();
+    }
+    format!("\"{trimmed}\"")
 }
 
 /// What happened when a step ran. Streamed to the frontend per-step.

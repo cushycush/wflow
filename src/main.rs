@@ -1,19 +1,32 @@
-//! wflow — Qt Quick front-end, Rust engine.
+//! wflow — Qt Quick front-end + CLI over the Rust engine.
 //!
-//! `fn main` boots QGuiApplication, instantiates a QQmlApplicationEngine,
-//! and loads the Wflow QML module's root `Main.qml`. Bridge QObjects are
-//! auto-registered by cxx-qt when their modules are linked in below.
+//! `wflow` with no subcommand launches the GUI (QQmlApplicationEngine
+//! loads the Wflow QML module). Everything else (`run`, `list`,
+//! `validate`, `show`, `path`) is routed through `cli.rs` and never
+//! brings up Qt.
 
 mod actions;
 mod bridge;
+mod cli;
 mod engine;
 mod kdl_format;
 mod recorder;
 mod store;
 
+use std::process::ExitCode;
+
+use clap::Parser;
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QUrl};
 
-fn main() {
+fn main() -> ExitCode {
+    let parsed = cli::Cli::parse();
+    if parsed.command.is_some() {
+        return cli::run(parsed);
+    }
+    run_gui()
+}
+
+fn run_gui() -> ExitCode {
     // Tokio runtime owned by the app — bridge controllers spawn their
     // async work on this. Enter a guard so top-level spawn() works.
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -39,4 +52,5 @@ fn main() {
     if let Some(app) = app.as_mut() {
         app.exec();
     }
+    ExitCode::SUCCESS
 }
