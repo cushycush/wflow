@@ -1,0 +1,265 @@
+//! Workflow execution engine.
+//!
+//! Runs a `Workflow`'s steps sequentially. Each step dispatches through
+//! `run_action`, producing a `StepOutcome`. A caller-supplied `sink`
+//! receives `RunEvent`s as they happen so the UI can light up the active
+//! step and surface results in real time.
+
+use std::process::Stdio;
+use std::sync::Arc;
+use std::time::Instant;
+
+use anyhow::{anyhow, Context, Result};
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
+use uuid::Uuid;
+
+use crate::actions::{Action, RunEvent, Step, StepOutcome, Workflow};
+
+/// A thread-safe event sink. Implemented by the bridge layer so the Qt
+/// signal path owns the threading concerns; the engine stays pure Rust.
+pub type EventSink = Arc<dyn Fn(RunEvent) + Send + Sync>;
+
+/// Run a workflow to completion (or first hard error).
+pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
+    let run_id = Uuid::new_v4().to_string();
+
+    sink(RunEvent::Started {
+        workflow_id: wf.id.clone(),
+        run_id: run_id.clone(),
+    });
+
+    let mut all_ok = true;
+    for (idx, step) in wf.steps.iter().enumerate() {
+        sink(RunEvent::StepStart {
+            step_id: step.id.clone(),
+            index: idx,
+        });
+
+        let outcome = if !step.enabled {
+            StepOutcome::Skipped {
+                reason: "disabled".into(),
+            }
+        } else if matches!(step.action, Action::Note { .. }) {
+            StepOutcome::Skipped {
+                reason: "note".into(),
+            }
+        } else {
+            run_action(step).await
+        };
+
+        if matches!(outcome, StepOutcome::Error { .. }) {
+            all_ok = false;
+        }
+
+        sink(RunEvent::StepDone {
+            step_id: step.id.clone(),
+            index: idx,
+            outcome: outcome.clone(),
+        });
+
+        if matches!(outcome, StepOutcome::Error { .. }) {
+            break;
+        }
+    }
+
+    sink(RunEvent::Finished {
+        run_id: run_id.clone(),
+        ok: all_ok,
+    });
+    Ok(())
+}
+
+/// Dispatch a single action. Measures wall-time. Never panics.
+async fn run_action(step: &Step) -> StepOutcome {
+    let start = Instant::now();
+    let result: Result<Option<String>> = match &step.action {
+        Action::WdoType { text, delay_ms } => wdo_type(text, *delay_ms).await,
+        Action::WdoKey {
+            chord,
+            clear_modifiers,
+        } => wdo_key(chord, *clear_modifiers).await,
+        Action::WdoClick { button } => wdo_click(*button).await,
+        Action::WdoMouseMove { x, y, relative } => wdo_mousemove(*x, *y, *relative).await,
+        Action::WdoScroll { dx, dy } => wdo_scroll(*dx, *dy).await,
+        Action::WdoActivateWindow { name } => wdo_activate(name).await,
+        Action::Delay { ms } => {
+            tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+            Ok(None)
+        }
+        Action::Shell { command, shell } => shell_run(command, shell.as_deref()).await,
+        Action::Notify { title, body } => notify(title, body.as_deref()).await,
+        Action::Clipboard { text } => clipboard_copy(text).await,
+        Action::Note { .. } => Ok(None),
+    };
+    let duration_ms = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok(output) => StepOutcome::Ok {
+            output,
+            duration_ms,
+        },
+        Err(e) => StepOutcome::Error {
+            message: format!("{e:#}"),
+            duration_ms,
+        },
+    }
+}
+
+// ----------------------------- wdotool subprocess helpers ------------------
+
+async fn wdo_type(text: &str, delay_ms: Option<u32>) -> Result<Option<String>> {
+    let mut args = vec!["type".to_string()];
+    if let Some(d) = delay_ms {
+        args.push("--delay".into());
+        args.push(d.to_string());
+    }
+    args.push("--".into()); // stop option parsing so a leading - is literal
+    args.push(text.to_string());
+    run_wdotool(&args).await
+}
+
+async fn wdo_key(chord: &str, clear_modifiers: bool) -> Result<Option<String>> {
+    let mut args = vec!["key".to_string()];
+    if clear_modifiers {
+        args.push("--clearmodifiers".into());
+    }
+    args.push(chord.to_string());
+    run_wdotool(&args).await
+}
+
+async fn wdo_click(button: u8) -> Result<Option<String>> {
+    run_wdotool(&["click".into(), button.to_string()]).await
+}
+
+async fn wdo_mousemove(x: i32, y: i32, relative: bool) -> Result<Option<String>> {
+    let mut args = vec!["mousemove".to_string()];
+    if relative {
+        args.push("--relative".into());
+    }
+    args.push(x.to_string());
+    args.push(y.to_string());
+    run_wdotool(&args).await
+}
+
+async fn wdo_scroll(dx: i32, dy: i32) -> Result<Option<String>> {
+    run_wdotool(&["scroll".into(), dx.to_string(), dy.to_string()]).await
+}
+
+async fn wdo_activate(name: &str) -> Result<Option<String>> {
+    // Search, then activate the first match.
+    let out = run_wdotool(&[
+        "search".into(),
+        "--limit".into(),
+        "1".into(),
+        "--name".into(),
+        name.to_string(),
+    ])
+    .await?;
+    let id = out
+        .as_deref()
+        .and_then(|s| s.lines().next())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("no window matching {name:?}"))?;
+    run_wdotool(&["windowactivate".into(), id]).await
+}
+
+async fn run_wdotool(args: &[String]) -> Result<Option<String>> {
+    let mut cmd = Command::new("wdotool");
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("failed to spawn wdotool {}", args.join(" ")))?;
+
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    if let Some(mut o) = child.stdout.take() {
+        o.read_to_string(&mut stdout).await.ok();
+    }
+    if let Some(mut e) = child.stderr.take() {
+        e.read_to_string(&mut stderr).await.ok();
+    }
+    let status = child.wait().await?;
+    if !status.success() {
+        return Err(anyhow!(
+            "wdotool {} failed ({}): {}",
+            args.join(" "),
+            status,
+            stderr.trim()
+        ));
+    }
+    Ok(if stdout.is_empty() {
+        None
+    } else {
+        Some(stdout.trim().to_string())
+    })
+}
+
+// ----------------------------- system helpers -----------------------------
+
+async fn shell_run(command: &str, shell: Option<&str>) -> Result<Option<String>> {
+    let sh = shell
+        .map(String::from)
+        .or_else(|| std::env::var("SHELL").ok())
+        .unwrap_or_else(|| "/bin/sh".into());
+    let output = Command::new(&sh)
+        .arg("-c")
+        .arg(command)
+        .output()
+        .await
+        .with_context(|| format!("failed to spawn {sh}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    if !output.status.success() {
+        return Err(anyhow!(
+            "{sh} exit {}: {}",
+            output.status,
+            stderr.trim()
+        ));
+    }
+    let combined = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        format!("{stdout}\n--- stderr ---\n{stderr}")
+    };
+    Ok(if combined.trim().is_empty() {
+        None
+    } else {
+        Some(combined.trim().to_string())
+    })
+}
+
+async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
+    let mut cmd = Command::new("notify-send");
+    cmd.arg(title);
+    if let Some(b) = body {
+        cmd.arg(b);
+    }
+    let status = cmd.status().await.context("failed to run notify-send")?;
+    if !status.success() {
+        return Err(anyhow!("notify-send exit {status}"));
+    }
+    Ok(None)
+}
+
+async fn clipboard_copy(text: &str) -> Result<Option<String>> {
+    use tokio::io::AsyncWriteExt;
+    let mut child = Command::new("wl-copy")
+        .stdin(Stdio::piped())
+        .spawn()
+        .context("failed to spawn wl-copy (is wl-clipboard installed?)")?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(text.as_bytes()).await?;
+        stdin.shutdown().await?;
+    }
+    let status = child.wait().await?;
+    if !status.success() {
+        return Err(anyhow!("wl-copy exit {status}"));
+    }
+    Ok(None)
+}
