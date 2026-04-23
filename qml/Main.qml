@@ -19,7 +19,8 @@ ApplicationWindow {
     font.family: Theme.familyBody
     font.pixelSize: Theme.fontBase
 
-    // Ctrl+; cycles the workflow editor layout (segmented picker also in header).
+    // Page-header pickers are primary; these are for keyboard users.
+    Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     Shortcut { sequence: "Ctrl+;"; onActivated: WorkflowLayout.cycle() }
 
     ChromeFloating {
