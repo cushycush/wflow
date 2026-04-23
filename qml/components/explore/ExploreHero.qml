@@ -150,7 +150,7 @@ Rectangle {
             }
             contentItem: Text {
                 text: parent.text
-                color: "#1a1208"
+                color: Theme.accentText
                 font.family: Theme.familyBody
                 font.pixelSize: Theme.fontSm
                 font.weight: Font.DemiBold

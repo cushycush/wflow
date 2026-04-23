@@ -123,7 +123,7 @@ Column {
                     Text {
                         anchors.centerIn: parent
                         text: card.isActive ? "RUNNING" : "ready"
-                        color: card.isActive ? "#1a1208" : card.catColor
+                        color: card.isActive ? Theme.accentText : card.catColor
                         font.family: Theme.familyMono
                         font.pixelSize: 10
                         font.weight: Font.Bold

@@ -63,7 +63,7 @@ Item {
                     color: parent.hovered ? Theme.accentHi : Theme.accent
                 }
                 contentItem: Text {
-                    text: parent.text; color: "#1a1208"
+                    text: parent.text; color: Theme.accentText
                     font.family: Theme.familyBody; font.pixelSize: Theme.fontSm; font.weight: Font.DemiBold
                 }
                 onClicked: {

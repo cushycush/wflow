@@ -258,7 +258,7 @@ Item {
                                     anchors.centerIn: parent
                                     visible: index === 0
                                     text: "✓"
-                                    color: "#1a1208"
+                                    color: Theme.accentText
                                     font.family: Theme.familyBody
                                     font.pixelSize: 11
                                     font.weight: Font.Bold

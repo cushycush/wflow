@@ -123,7 +123,7 @@ Item {
                                     })
                                     return g[modelData.kind] || "•"
                                 }
-                                color: node.isActive ? "#1a1208" : node.catColor
+                                color: node.isActive ? Theme.accentText : node.catColor
                                 font.family: Theme.familyBody
                                 font.pixelSize: node.isActive ? 20 : 16
                                 font.weight: Font.Bold
