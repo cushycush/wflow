@@ -71,15 +71,16 @@ pub fn load(id: &str) -> Result<Workflow> {
 }
 
 fn load_path(p: &Path) -> Result<Workflow> {
-    let bytes = fs::read(p).with_context(|| format!("read {}", p.display()))?;
-    let s = String::from_utf8(bytes).with_context(|| format!("utf-8 {}", p.display()))?;
     if p.extension().and_then(|s| s.to_str()) == Some("json") {
+        let bytes = fs::read(p).with_context(|| format!("read {}", p.display()))?;
+        let s = String::from_utf8(bytes).with_context(|| format!("utf-8 {}", p.display()))?;
         let wf: Workflow = serde_json::from_str(&s)
             .with_context(|| format!("parse json {}", p.display()))?;
-        Ok(wf)
-    } else {
-        kdl_format::decode(&s).with_context(|| format!("parse kdl {}", p.display()))
+        return Ok(wf);
     }
+    // KDL path: go through the include-expanding loader so
+    // `include "other.kdl"` resolves relative to this file.
+    kdl_format::decode_from_file(p)
 }
 
 pub fn save(mut wf: Workflow) -> Result<Workflow> {

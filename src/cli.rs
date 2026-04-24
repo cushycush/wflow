@@ -667,11 +667,16 @@ fn load_target(target: &str) -> Result<Workflow> {
 }
 
 fn load_file(p: &Path) -> Result<Workflow> {
-    let text = std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
     match p.extension().and_then(|s| s.to_str()) {
-        Some("json") => serde_json::from_str(&text)
-            .with_context(|| format!("parse json {}", p.display())),
-        _ => kdl_format::decode(&text).with_context(|| format!("parse kdl {}", p.display())),
+        Some("json") => {
+            let text =
+                std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
+            serde_json::from_str(&text)
+                .with_context(|| format!("parse json {}", p.display()))
+        }
+        // KDL path: expand any `include "..."` nodes relative to the
+        // including file's directory.
+        _ => kdl_format::decode_from_file(p),
     }
 }
 
@@ -793,6 +798,10 @@ fn collect_tool_needs(
                 }
                 collect_tool_needs(inner, needed);
             }
+            // `include` should be expanded by load_file; if it
+            // survived to here, the preflight has nothing to report
+            // but shouldn't crash.
+            Action::Include { .. } => {}
             Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
         }
     }
@@ -944,6 +953,12 @@ fn explain_lines(action: &Action) -> Vec<String> {
             )];
             indent_inner(steps, &mut lines);
             lines
+        }
+        Action::Include { path } => {
+            // Include would normally be expanded away by decode_from_file
+            // before explain runs. If one survives, print a single line
+            // so the user can tell.
+            vec![format!("{head} # include {}", path)]
         }
     }
 }
