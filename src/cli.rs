@@ -160,7 +160,7 @@ fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
              // until you turn them on. Delete these lines and write your own.\n    \
              notify \"hello from wflow\" disabled=#true\n    \
              shell \"echo 'wflow ran at ' \\\"$(date)\\\"\" disabled=#true\n    \
-             await-window \"Firefox\" timeout=\"5s\" disabled=#true\n    \
+             wait-window \"Firefox\" timeout=\"5s\" disabled=#true\n    \
              key \"ctrl+l\" disabled=#true\n\
          }}\n",
         id = wf.id,

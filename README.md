@@ -73,7 +73,7 @@ title "Open dev setup"
 
 recipe {
     shell "hyprctl dispatch exec 'kitty'"
-    await-window "Alacritty" timeout="5s"
+    wait-window "kitty" timeout="5s"
     key "ctrl+shift+t"
     type "cd ~/projects && ls"
     key "Return"
