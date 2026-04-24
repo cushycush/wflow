@@ -29,6 +29,11 @@ kdl = "6"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 
+# Record Mode — portal + libei
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "tracing", "remote_desktop", "screencast"] }
+reis = { version = "0.6", features = ["tokio"] }
+futures-util = "0.3"
+
 [build-dependencies]
 cxx-qt-build = "0.8"
 
