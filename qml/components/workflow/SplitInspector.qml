@@ -10,6 +10,8 @@ Item {
     property bool running: false
     property int selectedIndex: 0
 
+    signal valueEdited(int stepIndex, string newPrimary)
+
     implicitHeight: 520
 
     Row {
@@ -187,33 +189,108 @@ Item {
 
                 Rectangle { width: parent.width; height: 1; color: Theme.lineSoft }
 
-                // Value box
                 Column {
+                    id: valueSection
                     width: parent.width
                     spacing: 6
 
-                    Text {
-                        text: "VALUE"
-                        color: Theme.text3
-                        font.family: Theme.familyBody
-                        font.pixelSize: 10
-                        font.weight: Font.Bold
-                        font.letterSpacing: 1.0
+                    readonly property var sel: parent.parent.sel
+                    readonly property color catColor: parent.parent.catColor
+
+                    Row {
+                        spacing: 10
+                        width: parent.width
+                        Text {
+                            text: "VALUE"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.0
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            visible: valueSection.sel
+                                && valueSection.sel.editable
+                                && valueSection.sel.intOnly === true
+                            text: valueSection.sel && valueSection.sel.unit
+                                ? valueSection.sel.unit
+                                : "integer"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 9
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            visible: valueSection.sel && !valueSection.sel.editable
+                            text: "edit via KDL"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: 9
+                            font.italic: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
+
                     Rectangle {
                         width: parent.width
                         height: 56
                         radius: Theme.radiusMd
                         color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 1)
-                        border.color: Theme.lineSoft
-                        border.width: 1
+                        border.color: valueField.activeFocus
+                            ? valueSection.catColor
+                            : Theme.lineSoft
+                        border.width: valueField.activeFocus ? 2 : 1
+                        Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                        TextField {
+                            id: valueField
+                            visible: valueSection.sel && valueSection.sel.editable
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            verticalAlignment: TextInput.AlignVCenter
+
+                            // Synthetic syncKey so user typing doesn't fight
+                            // the binding (text is plain assignment, not bound).
+                            readonly property var _syncKey: [root.selectedIndex,
+                                valueSection.sel ? valueSection.sel.rawPrimary : ""]
+                            onSyncKeyChanged: {
+                                const v = valueSection.sel ? (valueSection.sel.rawPrimary || "") : ""
+                                if (valueField.text !== v) valueField.text = v
+                            }
+                            Component.onCompleted: {
+                                valueField.text = valueSection.sel ? (valueSection.sel.rawPrimary || "") : ""
+                            }
+
+                            color: Theme.text
+                            font.family: Theme.familyMono
+                            font.pixelSize: Theme.fontMd
+                            selectByMouse: true
+
+                            background: Item {}
+
+                            validator: valueSection.sel && valueSection.sel.intOnly
+                                ? intValidator : null
+                            IntValidator { id: intValidator; bottom: 0 }
+
+                            onEditingFinished: {
+                                if (!valueSection.sel || !valueSection.sel.editable) return
+                                if (text !== valueSection.sel.rawPrimary) {
+                                    root.valueEdited(root.selectedIndex, text)
+                                }
+                            }
+                            Keys.onReturnPressed: editingFinished()
+                            Keys.onEnterPressed:  editingFinished()
+                        }
 
                         Text {
+                            visible: valueSection.sel && !valueSection.sel.editable
                             anchors.left: parent.left
                             anchors.leftMargin: 14
                             anchors.verticalCenter: parent.verticalCenter
-                            text: parent.parent.parent.parent.sel ? parent.parent.parent.parent.sel.value : ""
-                            color: Theme.text
+                            text: valueSection.sel ? valueSection.sel.value : ""
+                            color: Theme.text2
                             font.family: Theme.familyMono
                             font.pixelSize: Theme.fontMd
                         }
