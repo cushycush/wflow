@@ -15,16 +15,23 @@ Row {
     Repeater {
         model: root.categories
         delegate: Rectangle {
+            id: pill
             readonly property bool active: modelData === root.selected
             width: lbl.implicitWidth + 22
             height: 30
             radius: 15
             color: active
-                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                ? Theme.accentWash(0.18)
                 : (pillArea.containsMouse ? Theme.surface3 : Theme.surface2)
-            border.color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55) : Theme.line
+            border.color: active ? Theme.accentWash(0.55) : Theme.line
             border.width: 1
-            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+            activeFocusOnTab: true
+            Keys.onReturnPressed: root.selectionChanged(modelData)
+            Keys.onEnterPressed:  root.selectionChanged(modelData)
+            Keys.onSpacePressed:  root.selectionChanged(modelData)
+            FocusRing { }
 
             Text {
                 id: lbl
@@ -41,7 +48,10 @@ Row {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.selectionChanged(modelData)
+                onClicked: {
+                    pill.forceActiveFocus()
+                    root.selectionChanged(modelData)
+                }
             }
         }
     }

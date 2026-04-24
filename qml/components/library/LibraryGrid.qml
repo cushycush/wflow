@@ -41,6 +41,14 @@ Item {
             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
+            activeFocusOnTab: true
+            Keys.onReturnPressed: root.openWorkflow(card.wf.id)
+            Keys.onEnterPressed:  root.openWorkflow(card.wf.id)
+            Keys.onSpacePressed:  root.openWorkflow(card.wf.id)
+            Keys.onMenuPressed:   cardMenu.popup()
+            Keys.onDeletePressed: root.deleteRequested(card.wf.id)
+            FocusRing { }
+
             MouseArea {
                 id: cardArea
                 anchors.fill: parent
@@ -48,6 +56,7 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: (mouse) => {
+                    card.forceActiveFocus()
                     if (mouse.button === Qt.RightButton) cardMenu.popup()
                     else root.openWorkflow(card.wf.id)
                 }

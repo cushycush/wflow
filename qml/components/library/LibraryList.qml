@@ -69,6 +69,14 @@ Item {
                     visible: index < root.workflows.length - 1 && !card.dragging
                 }
 
+                activeFocusOnTab: true
+                Keys.onReturnPressed: root.openWorkflow(card.wf.id)
+                Keys.onEnterPressed:  root.openWorkflow(card.wf.id)
+                Keys.onSpacePressed:  root.openWorkflow(card.wf.id)
+                Keys.onMenuPressed:   rowMenu.popup()
+                Keys.onDeletePressed: root.deleteRequested(card.wf.id)
+                FocusRing { radiusOverride: 4 }
+
                 MouseArea {
                     id: rowArea
                     anchors.fill: parent
@@ -77,6 +85,7 @@ Item {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: (mouse) => {
                         if (card.dragging) return
+                        card.forceActiveFocus()
                         if (mouse.button === Qt.RightButton) rowMenu.popup()
                         else root.openWorkflow(card.wf.id)
                     }

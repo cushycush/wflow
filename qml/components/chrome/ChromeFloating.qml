@@ -83,15 +83,22 @@ Item {
                     { id: "record",   label: "Record" }
                 ]
                 delegate: Rectangle {
+                    id: tab
                     readonly property bool isActive: modelData.id === root.currentPage
                     width: lbl.implicitWidth + 24
                     height: 32
                     radius: 16
                     anchors.verticalCenter: parent.verticalCenter
                     color: isActive
-                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                        ? Theme.accentWash(0.18)
                         : (tabArea.containsMouse ? Theme.surface2 : "transparent")
-                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                    activeFocusOnTab: true
+                    Keys.onReturnPressed: root.navigate(modelData.id)
+                    Keys.onEnterPressed:  root.navigate(modelData.id)
+                    Keys.onSpacePressed:  root.navigate(modelData.id)
+                    FocusRing { }
 
                     Text {
                         id: lbl
@@ -107,7 +114,10 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.navigate(modelData.id)
+                        onClicked: {
+                            tab.forceActiveFocus()
+                            root.navigate(modelData.id)
+                        }
                     }
                 }
             }

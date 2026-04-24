@@ -76,12 +76,22 @@ Rectangle {
         }
     }
 
+    activeFocusOnTab: true
+    Keys.onReturnPressed: root.activated()
+    Keys.onEnterPressed:  root.activated()
+    Keys.onSpacePressed:  root.activated()
+    Keys.onDeletePressed: root.removeRequested()
+    FocusRing { }
+
     MouseArea {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.activated()
+        onClicked: {
+            root.forceActiveFocus()
+            root.activated()
+        }
     }
 
     Row {
