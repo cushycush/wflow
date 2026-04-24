@@ -253,7 +253,7 @@ Item {
 
                             // Synthetic syncKey so user typing doesn't fight
                             // the binding (text is plain assignment, not bound).
-                            readonly property var _syncKey: [root.selectedIndex,
+                            readonly property var syncKey: [root.selectedIndex,
                                 valueSection.sel ? valueSection.sel.rawPrimary : ""]
                             onSyncKeyChanged: {
                                 const v = valueSection.sel ? (valueSection.sel.rawPrimary || "") : ""
