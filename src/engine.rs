@@ -14,7 +14,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use uuid::Uuid;
 
-use crate::actions::{substitute, Action, RunEvent, StepOutcome, VarMap, Workflow};
+use crate::actions::{substitute, Action, OnError, RunEvent, StepOutcome, VarMap, Workflow};
 
 /// A thread-safe event sink. Implemented by the bridge layer so the Qt
 /// signal path owns the threading concerns; the engine stays pure Rust.
@@ -90,7 +90,7 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
             outcome: outcome.clone(),
         });
 
-        if matches!(outcome, StepOutcome::Error { .. }) {
+        if matches!(outcome, StepOutcome::Error { .. }) && step.on_error == OnError::Stop {
             break;
         }
     }

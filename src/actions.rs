@@ -93,6 +93,11 @@ pub struct Step {
     /// Optional handwritten-style note that renders in the margin.
     #[serde(default)]
     pub note: Option<String>,
+    /// What to do if this step errors at runtime. Default `stop` halts
+    /// the workflow (prior behaviour); `continue` logs the failure and
+    /// moves on.
+    #[serde(default)]
+    pub on_error: OnError,
     pub action: Action,
 }
 
@@ -102,9 +107,21 @@ impl Step {
             id: Uuid::new_v4().to_string(),
             enabled: true,
             note: None,
+            on_error: OnError::default(),
             action,
         }
     }
+}
+
+/// Per-step error policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OnError {
+    /// Halt the workflow immediately. Default.
+    #[default]
+    Stop,
+    /// Log the error, report the step as failed, keep running.
+    Continue,
 }
 
 /// The recipe itself.

@@ -28,7 +28,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
-use crate::actions::{Action, Step, Workflow};
+use crate::actions::{Action, OnError, Step, Workflow};
 
 pub const SCHEMA_VERSION: i128 = 1;
 
@@ -177,6 +177,13 @@ fn encode_step(step: &Step) -> KdlNode {
         if !c.is_empty() {
             node.push(prop_str("comment", c));
         }
+    }
+    if step.on_error != OnError::Stop {
+        let v = match step.on_error {
+            OnError::Continue => "continue",
+            OnError::Stop => "stop", // never emitted (default)
+        };
+        node.push(prop_str("on-error", v));
     }
     node
 }
@@ -328,6 +335,14 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
     // Pull step-level metadata off first, so the action decoders don't see them.
     let disabled = prop_bool_or(node, "disabled", false);
     let comment = prop_string(node, "comment");
+    let on_error = match prop_string(node, "on-error").as_deref() {
+        None => OnError::Stop,
+        Some("stop") => OnError::Stop,
+        Some("continue") => OnError::Continue,
+        Some(other) => bail!(
+            "`on-error` must be \"stop\" or \"continue\", got `{other}`"
+        ),
+    };
 
     let action: Action = match name {
         "type" => {
@@ -485,6 +500,7 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
     let mut step = Step::new(action);
     step.enabled = !disabled;
     step.note = comment;
+    step.on_error = on_error;
     Ok(step)
 }
 
@@ -578,7 +594,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
     }
 }
 
-const COMMON_PROPS: &[&str] = &["disabled", "comment"];
+const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error"];
 
 /// Walk every named entry on a step node and fail if any name isn't in
 /// the action's allowlist or the common list. Unnamed (positional)
@@ -731,6 +747,48 @@ mod tests {
 
     fn wrap(step: &str) -> String {
         format!("schema 1\nid \"t\"\ntitle \"t\"\nrecipe {{\n{step}\n}}\n")
+    }
+
+    #[test]
+    fn on_error_round_trips_and_defaults_stop() {
+        // Default = stop → not serialized.
+        let mut wf = Workflow::new("t");
+        wf.steps.push(Step::new(Action::Note { text: "a".into() }));
+        wf.steps.push({
+            let mut s = Step::new(Action::Shell {
+                command: "false".into(),
+                shell: None,
+                capture_as: None,
+            });
+            s.on_error = OnError::Continue;
+            s
+        });
+        let text = encode(&wf);
+        // Only the Continue step should mention on-error.
+        let occurrences = text.matches("on-error").count();
+        assert_eq!(occurrences, 1, "got:\n{text}");
+        assert!(text.contains("on-error=continue"), "got:\n{text}");
+
+        // Round trips.
+        let back = decode(&text).unwrap();
+        assert_eq!(back.steps[0].on_error, OnError::Stop);
+        assert_eq!(back.steps[1].on_error, OnError::Continue);
+    }
+
+    #[test]
+    fn on_error_accepts_stop_and_continue_only() {
+        // "stop" and "continue" both parse.
+        let src = wrap(
+            "shell \"false\" on-error=\"continue\"\n\
+             shell \"false\" on-error=\"stop\"",
+        );
+        let wf = decode(&src).unwrap();
+        assert_eq!(wf.steps[0].on_error, OnError::Continue);
+        assert_eq!(wf.steps[1].on_error, OnError::Stop);
+
+        // Garbage value errors.
+        let err = decode(&wrap(r#"shell "false" on-error="lol""#)).unwrap_err();
+        assert!(format!("{err:#}").contains("must be"), "got: {err:#}");
     }
 
     #[test]
