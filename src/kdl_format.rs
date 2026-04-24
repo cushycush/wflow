@@ -100,8 +100,28 @@ fn encode_step(step: &Step) -> KdlNode {
             }
             n
         }
+        Action::WdoKeyDown { chord } => {
+            let mut n = KdlNode::new("key-down");
+            n.push(arg_str(chord));
+            n
+        }
+        Action::WdoKeyUp { chord } => {
+            let mut n = KdlNode::new("key-up");
+            n.push(arg_str(chord));
+            n
+        }
         Action::WdoClick { button } => {
             let mut n = KdlNode::new("click");
+            n.push(arg_int(*button as i128));
+            n
+        }
+        Action::WdoMouseDown { button } => {
+            let mut n = KdlNode::new("mouse-down");
+            n.push(arg_int(*button as i128));
+            n
+        }
+        Action::WdoMouseUp { button } => {
+            let mut n = KdlNode::new("mouse-up");
             n.push(arg_int(*button as i128));
             n
         }
@@ -381,6 +401,20 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             };
             Action::WdoClick { button }
         }
+        "key-down" => Action::WdoKeyDown { chord: first_string(node)? },
+        "key-up" => Action::WdoKeyUp { chord: first_string(node)? },
+        "mouse-down" => {
+            let button = first_int_opt(node)
+                .ok_or_else(|| anyhow!("`mouse-down` needs a button number — try `mouse-down 1`"))?
+                as u8;
+            Action::WdoMouseDown { button }
+        }
+        "mouse-up" => {
+            let button = first_int_opt(node)
+                .ok_or_else(|| anyhow!("`mouse-up` needs a button number — try `mouse-up 1`"))?
+                as u8;
+            Action::WdoMouseUp { button }
+        }
         "move" => {
             // move 640 480 [relative=#true]  |  move x=640 y=480 [relative=#true]
             let ints = positional_ints(node);
@@ -608,7 +642,11 @@ fn action_props(kind: &str) -> &'static [&'static str] {
     match kind {
         "type" => &["delay-ms"],
         "key" => &["clear-modifiers"],
+        "key-down" => &[],
+        "key-up" => &[],
         "click" => &["button"],
+        "mouse-down" => &[],
+        "mouse-up" => &[],
         "move" => &["x", "y", "relative"],
         "scroll" => &["dx", "dy"],
         "focus" => &["window"],
@@ -1231,6 +1269,10 @@ mod tests {
         wf.steps = vec![
             s1,
             s2,
+            Step::new(Action::WdoKeyDown { chord: "shift".into() }),
+            Step::new(Action::WdoKeyUp { chord: "shift".into() }),
+            Step::new(Action::WdoMouseDown { button: 1 }),
+            Step::new(Action::WdoMouseUp { button: 1 }),
             Step::new(Action::WdoClick { button: 1 }),
             Step::new(Action::WdoMouseMove { x: 10, y: -5, relative: true }),
             Step::new(Action::WdoScroll { dx: 0, dy: 3 }),

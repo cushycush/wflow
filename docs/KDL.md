@@ -99,7 +99,11 @@ last in any order.
 |---|---|---|
 | [`type`](#type) | `type "text" delay-ms=30` | `wdotool type --delay 30 -- "text"` |
 | [`key`](#key) | `key "ctrl+l" clear-modifiers=#true` | `wdotool key [--clearmodifiers] ctrl+l` |
+| [`key-down`](#key-down--key-up) | `key-down "ctrl"` | `wdotool keydown ctrl` |
+| [`key-up`](#key-down--key-up) | `key-up "ctrl"` | `wdotool keyup ctrl` |
 | [`click`](#click) | `click 1` | `wdotool click 1` |
+| [`mouse-down`](#mouse-down--mouse-up) | `mouse-down 1` | `wdotool mousedown 1` |
+| [`mouse-up`](#mouse-down--mouse-up) | `mouse-up 1` | `wdotool mouseup 1` |
 | [`move`](#move) | `move 120 80 relative=#true` | `wdotool mousemove [--relative] 120 80` |
 | [`scroll`](#scroll) | `scroll 0 3` | `wdotool scroll 0 3` |
 | [`focus`](#focus) | `focus "Firefox"` | `wdotool search --limit 1 --name Firefox` + `windowactivate <id>` |
@@ -160,6 +164,31 @@ key "shift+g"             // vim's end-of-file
 the chord. Useful when you don't trust the prior state (e.g. right
 after a `shell` that might have been fired by a Super-keybinding).
 
+### key-down / key-up
+
+Press a key or chord without releasing it, and release it separately.
+Pair the two around other steps to hold a modifier while something
+else happens, or to build a long-press.
+
+```kdl
+// Chord assembly: hold Ctrl while clicking at two points.
+key-down "ctrl"
+move 100 100
+click 1
+move 400 100
+click 1
+key-up "ctrl"
+
+// Long-press shift for half a second.
+key-down "shift"
+wait 500
+key-up "shift"
+```
+
+If the workflow errors or is killed mid-run, the OS will naturally
+release held keys as the wdotool subprocess exits; still, pair every
+`key-down` with a matching `key-up` for clean shutdown.
+
 ### click
 
 Mouse button press-release at the current cursor position. Buttons
@@ -173,6 +202,23 @@ click 3
 
 The older prop form `click button=1` still decodes for backwards
 compatibility.
+
+### mouse-down / mouse-up
+
+Press / release a mouse button without an implicit click. The drag
+primitive — combine with `move` steps to reshape a selection, drag
+a window, or draw.
+
+```kdl
+move 200 200
+mouse-down 1
+move 600 400 relative=#false
+mouse-up 1
+```
+
+Buttons follow the same numbering as `click`. A stuck button from a
+half-failed workflow is a common bug; default to a paired form unless
+you're sure you want to leave one pressed across a long sequence.
 
 ### move
 

@@ -767,7 +767,11 @@ fn collect_tool_needs(
         match &step.action {
             Action::WdoType { .. }
             | Action::WdoKey { .. }
+            | Action::WdoKeyDown { .. }
+            | Action::WdoKeyUp { .. }
             | Action::WdoClick { .. }
+            | Action::WdoMouseDown { .. }
+            | Action::WdoMouseUp { .. }
             | Action::WdoMouseMove { .. }
             | Action::WdoScroll { .. }
             | Action::WdoActivateWindow { .. }
@@ -814,8 +818,24 @@ fn explain_lines(action: &Action) -> Vec<String> {
             a.push(chord.clone());
             vec![format!("{head} $ {}", join_argv(&a))]
         }
+        Action::WdoKeyDown { chord } => {
+            let a = ["wdotool".to_string(), "keydown".into(), chord.clone()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoKeyUp { chord } => {
+            let a = ["wdotool".to_string(), "keyup".into(), chord.clone()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
         Action::WdoClick { button } => {
             let a = ["wdotool".to_string(), "click".into(), button.to_string()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoMouseDown { button } => {
+            let a = ["wdotool".to_string(), "mousedown".into(), button.to_string()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoMouseUp { button } => {
+            let a = ["wdotool".to_string(), "mouseup".into(), button.to_string()];
             vec![format!("{head} $ {}", join_argv(&a))]
         }
         Action::WdoMouseMove { x, y, relative } => {

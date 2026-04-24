@@ -181,8 +181,18 @@ pub enum Action {
         #[serde(default)]
         clear_modifiers: bool,
     },
+    /// Press a key or chord and hold it until a matching `key-up` runs.
+    /// Handy for building chords manually or long-press.
+    WdoKeyDown { chord: String },
+    /// Release a previously pressed key or chord.
+    WdoKeyUp { chord: String },
     /// Mouse click. Buttons: 1=left, 2=middle, 3=right, 8=back, 9=forward.
     WdoClick { button: u8 },
+    /// Press a mouse button and hold it. Pair with `mouse-up` to complete
+    /// a drag (with `move` steps in between).
+    WdoMouseDown { button: u8 },
+    /// Release a previously pressed mouse button.
+    WdoMouseUp { button: u8 },
     /// Move the cursor.
     WdoMouseMove {
         x: i32,
@@ -248,7 +258,11 @@ impl Action {
         match self {
             Action::WdoType { .. } => "type",
             Action::WdoKey { .. } => "key",
+            Action::WdoKeyDown { .. } => "key",
+            Action::WdoKeyUp { .. } => "key",
             Action::WdoClick { .. } => "click",
+            Action::WdoMouseDown { .. } => "click",
+            Action::WdoMouseUp { .. } => "click",
             Action::WdoMouseMove { .. } => "move",
             Action::WdoScroll { .. } => "scroll",
             Action::WdoActivateWindow { .. } => "focus",
@@ -269,7 +283,11 @@ impl Action {
         match self {
             Action::WdoType { text, .. } => format!("type {}", quote_short(text)),
             Action::WdoKey { chord, .. } => format!("key {chord}"),
+            Action::WdoKeyDown { chord } => format!("key-down {chord}"),
+            Action::WdoKeyUp { chord } => format!("key-up {chord}"),
             Action::WdoClick { button } => format!("click button {button}"),
+            Action::WdoMouseDown { button } => format!("mouse-down button {button}"),
+            Action::WdoMouseUp { button } => format!("mouse-up button {button}"),
             Action::WdoMouseMove { x, y, relative } => {
                 if *relative {
                     format!("move +{x},+{y}")

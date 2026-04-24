@@ -141,7 +141,11 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             chord: sub(chord)?,
             clear_modifiers: *clear_modifiers,
         },
+        Action::WdoKeyDown { chord } => Action::WdoKeyDown { chord: sub(chord)? },
+        Action::WdoKeyUp { chord } => Action::WdoKeyUp { chord: sub(chord)? },
         Action::WdoClick { button } => Action::WdoClick { button: *button },
+        Action::WdoMouseDown { button } => Action::WdoMouseDown { button: *button },
+        Action::WdoMouseUp { button } => Action::WdoMouseUp { button: *button },
         Action::WdoMouseMove { x, y, relative } => Action::WdoMouseMove {
             x: *x,
             y: *y,
@@ -185,7 +189,11 @@ async fn run_action_value(action: &Action) -> StepOutcome {
             chord,
             clear_modifiers,
         } => wdo_key(chord, *clear_modifiers).await,
+        Action::WdoKeyDown { chord } => wdo_key_down(chord).await,
+        Action::WdoKeyUp { chord } => wdo_key_up(chord).await,
         Action::WdoClick { button } => wdo_click(*button).await,
+        Action::WdoMouseDown { button } => wdo_mouse_down(*button).await,
+        Action::WdoMouseUp { button } => wdo_mouse_up(*button).await,
         Action::WdoMouseMove { x, y, relative } => wdo_mousemove(*x, *y, *relative).await,
         Action::WdoScroll { dx, dy } => wdo_scroll(*dx, *dy).await,
         Action::WdoActivateWindow { name } => wdo_activate(name).await,
@@ -242,6 +250,22 @@ async fn wdo_key(chord: &str, clear_modifiers: bool) -> Result<Option<String>> {
 
 async fn wdo_click(button: u8) -> Result<Option<String>> {
     run_wdotool(&["click".into(), button.to_string()]).await
+}
+
+async fn wdo_key_down(chord: &str) -> Result<Option<String>> {
+    run_wdotool(&["keydown".into(), chord.to_string()]).await
+}
+
+async fn wdo_key_up(chord: &str) -> Result<Option<String>> {
+    run_wdotool(&["keyup".into(), chord.to_string()]).await
+}
+
+async fn wdo_mouse_down(button: u8) -> Result<Option<String>> {
+    run_wdotool(&["mousedown".into(), button.to_string()]).await
+}
+
+async fn wdo_mouse_up(button: u8) -> Result<Option<String>> {
+    run_wdotool(&["mouseup".into(), button.to_string()]).await
 }
 
 async fn wdo_mousemove(x: i32, y: i32, relative: bool) -> Result<Option<String>> {
