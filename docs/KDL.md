@@ -4,6 +4,35 @@ A wflow workflow is a [KDL](https://kdl.dev) document. KDL is whitespace-
 sensitive, bracket-free for the most part, and reads like a configuration
 file. One workflow per file. One `recipe { ... }` block holds the steps.
 
+## Starting from a scaffold
+
+`wflow new <title>` writes a fresh KDL file and prints its path. The
+scaffold's steps are all `disabled=#true` so running it straight away
+is a safe no-op:
+
+```kdl
+// A wflow workflow. See `docs/KDL.md` for the full action vocabulary.
+schema 1
+id "a1b2c3d4-..."
+title "My workflow"
+created "..."
+modified "..."
+
+recipe {
+    // Starter steps — marked `disabled=#true` so `wflow run` is a no-op
+    // until you turn them on. Delete these lines and write your own.
+    notify "hello from wflow" disabled=#true
+    shell "echo 'wflow ran at ' \"$(date)\"" disabled=#true
+    wait-window "Firefox" timeout="5s" disabled=#true
+    key "ctrl+l" disabled=#true
+}
+```
+
+Flip `disabled=#true` off on the steps you want, or delete the whole
+block and write your own. `wflow new "<title>" --stdout` prints the
+template without persisting — pipe it somewhere else if you'd rather
+name the file yourself.
+
 ## Quick example
 
 ```kdl
@@ -47,6 +76,19 @@ The file can also carry `created`, `modified`, and `last-run` timestamps
 (RFC 3339). `wflow run` writes `last-run` back after a successful run;
 you generally don't hand-write these.
 
+### A note on booleans: `#true` and `#false`
+
+Properties that take a boolean use the KDL v2 syntax `#true` / `#false`,
+not bare `true` / `false`. Bare `true` decodes as a *string*, which
+either errors out (type mismatch) or — worse — silently becomes a
+falsy value for a bool. If something isn't taking effect and the prop
+is a bool, double-check you used the `#` prefix.
+
+```kdl
+key "Return" clear-modifiers=#true    // right
+key "Return" clear-modifiers=true     // wrong — decodes as the string "true"
+```
+
 ## Actions
 
 Every line inside `recipe { ... }` is one step. The first word picks the
@@ -57,9 +99,9 @@ last in any order.
 |---|---|---|
 | [`type`](#type) | `type "text" delay-ms=30` | `wdotool type --delay 30 -- "text"` |
 | [`key`](#key) | `key "ctrl+l" clear-modifiers=#true` | `wdotool key [--clearmodifiers] ctrl+l` |
-| [`click`](#click) | `click button=1` | `wdotool click 1` |
-| [`move`](#move) | `move x=120 y=80 relative=#false` | `wdotool mousemove [--relative] 120 80` |
-| [`scroll`](#scroll) | `scroll dx=0 dy=3` | `wdotool scroll 0 3` |
+| [`click`](#click) | `click 1` | `wdotool click 1` |
+| [`move`](#move) | `move 120 80 relative=#true` | `wdotool mousemove [--relative] 120 80` |
+| [`scroll`](#scroll) | `scroll 0 3` | `wdotool scroll 0 3` |
 | [`focus`](#focus) | `focus "Firefox"` | `wdotool search --limit 1 --name Firefox` + `windowactivate <id>` |
 | [`wait-window`](#wait-window) | `wait-window "Firefox" timeout="5s"` | poll `wdotool search` until match or timeout |
 | [`wait`](#wait) | `wait "1.5s"` | `tokio::time::sleep` (no subprocess) |
@@ -85,20 +127,37 @@ type "password" delay-ms=50
 
 ### key
 
-Sends a key or chord. Chords use wdotool's naming: `super`, `ctrl`,
-`shift`, `alt`; letter keys lower-case; special keys Title-cased
-(`Return`, `Tab`, `Escape`, `BackSpace`, `Left`, `Right`, `Up`,
-`Down`, `F1`–`F12`).
+Sends a key or chord via wdotool. Common convention:
+
+- **Letters are lower-case.** `key "a"` types `a`. For uppercase you
+  need the `shift` modifier: `key "shift+a"` types `A`.
+- **Modifiers are lower-case.** `super`, `ctrl`, `shift`, `alt`, `meta`.
+- **Special keys are Title-cased X11 keysyms.** `Return` (not `Enter`),
+  `Escape` (not `Esc`), `BackSpace`, `Tab`, `space`, `Home`, `End`,
+  `Page_Up`, `Page_Down`, `Left`, `Right`, `Up`, `Down`, `F1`–`F12`,
+  `Caps_Lock`, `Insert`, `Delete`.
+- **Plus joins the chord.** `key "ctrl+shift+t"`, not `key "ctrl-shift-t"`.
+
+If you're unsure what wdotool will accept, try the command directly:
+
+```sh
+wdotool key Return        # works
+wdotool key Enter         # "no such key" — you want Return
+```
+
+Examples:
 
 ```kdl
 key "Return"
 key "ctrl+l"
 key "ctrl+shift+t"
 key "super+1" clear-modifiers=#true
+key "shift+g"             // vim's end-of-file
 ```
 
 `clear-modifiers=#true` releases any held modifier keys before sending
-the chord. Useful when you don't trust the prior state.
+the chord. Useful when you don't trust the prior state (e.g. right
+after a `shell` that might have been fired by a Super-keybinding).
 
 ### click
 
@@ -303,6 +362,76 @@ Every action accepts these in addition to its own:
 ```kdl
 shell "rm -rf /tmp/scratch" disabled=#true comment="only enable if you really mean it"
 ```
+
+## A realistic example
+
+Putting variables, window-waits, shell capture, and categorized steps
+together — a workflow that opens today's daily note, with a scratchpad
+ready for the clipboard contents:
+
+```kdl
+schema 1
+id "scratch-from-clip"
+title "Scratch from clipboard"
+subtitle "open today's note in nvim, drop a timestamped clip block at the end"
+
+vars {
+    notes-dir "/home/cush/notes"
+}
+
+recipe {
+    // Grab the clipboard into a variable so we can reference it by
+    // name in later steps rather than relying on paste state.
+    shell "wl-paste --no-newline" as="clip"
+    shell "date +%F"              as="today"
+    shell "date +%H:%M"           as="now"
+
+    // Guarantee the notes file exists before the editor opens it.
+    shell "mkdir -p {{notes-dir}}"
+    shell "touch {{notes-dir}}/{{today}}.md"
+
+    // Append a timestamped block with the clipboard contents.
+    shell "printf '\\n## %s\\n\\n%s\\n' '{{now}}' '{{clip}}' >> {{notes-dir}}/{{today}}.md"
+
+    // Launch the editor and make sure it's the focused window before
+    // we touch the keyboard.
+    shell "hyprctl dispatch exec 'kitty nvim {{notes-dir}}/{{today}}.md'"
+    wait-window "kitty" timeout="8s"
+
+    // Jump to end-of-file so the cursor lands at the clip we just
+    // appended. Vim's `G` is shift+g.
+    key "Escape"
+    key "shift+g"
+
+    notify "note ready" body="{{today}}.md updated with {{now}} clip"
+}
+```
+
+Run with `wflow run scratch-from-clip`. Copy something, run it again,
+see a timestamped block appended to today's daily note.
+
+## When things go wrong
+
+Sample error messages you'll see from `wflow run` / `wflow validate`:
+
+| What you wrote | What you get |
+|---|---|
+| `wiat 500` | ``unknown step kind `wiat` `` |
+| `key chord="Return"` | ``unknown property `chord` on `key`. valid: clear-modifiers, disabled, comment`` (key takes the chord positionally: `key "Return"`) |
+| `click buton=1` | ``unknown property `buton` on `click`. valid: button, disabled, comment. did you mean `button`?`` |
+| `wait "forever"` | ``unknown duration unit `forever` in `forever` (use ms, s, m, or h)`` |
+| `shell "cmd" retries=3` | ``unknown property `retries` on `shell`. valid: shell, with, as, disabled, comment`` |
+| `schema 2` | `schema 2 is not supported (this wflow reads schema 1). upgrade wflow or convert the file` |
+| missing `title` | ``missing required `title "..."` at the top of the file`` |
+| `recipie { ... }` | ``unknown top-level node `recipie`. valid: schema, id, title, subtitle, created, modified, last-run, vars, recipe. did you mean `recipe`?`` |
+| `{{nope}}` in a string | `unknown variable `{{nope}}`. known: name, fruit` |
+| `move 640 480 x=0 y=0` | ``move: specify coordinates as `move 640 480` OR `move x=640 y=480`, not both`` |
+| `await-window "X" timeout-ms=5000 timeout="10s"` | ``wait-window: specify the timeout once ... — not both`` |
+| wdotool not installed | `missing required tools: wdotool — run \`wflow doctor\` for details` |
+
+All parse errors surface with exit code 1. Runtime step failures surface
+with exit code 2 and halt the workflow. `wflow validate <file>` parses
+without running — use it in CI to check a file before you commit it.
 
 ## How wflow actually runs each action
 
