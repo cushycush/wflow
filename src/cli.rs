@@ -718,13 +718,17 @@ fn explain_lines(action: &Action) -> Vec<String> {
             )]
         }
         Action::Delay { ms } => vec![format!("{head} # sleep {ms}ms (in-process)")],
-        Action::Shell { command, shell } => {
+        Action::Shell { command, shell, capture_as } => {
             let sh = shell
                 .clone()
                 .or_else(|| std::env::var("SHELL").ok())
                 .unwrap_or_else(|| "/bin/sh".into());
             let a = [sh, "-c".into(), command.clone()];
-            vec![format!("{head} $ {}", join_argv(&a))]
+            let mut line = format!("{head} $ {}", join_argv(&a));
+            if let Some(name) = capture_as {
+                line.push_str(&format!("  → stdout captured as {{{{{name}}}}}"));
+            }
+            vec![line]
         }
         Action::Notify { title, body } => {
             let mut a = vec!["notify-send".to_string(), title.clone()];

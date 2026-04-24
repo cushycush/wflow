@@ -10,7 +10,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use uuid::Uuid;
 
-use crate::actions::{Action, RunEvent, Step, StepOutcome, Workflow};
+use crate::actions::{substitute, Action, RunEvent, StepOutcome, VarMap, Workflow};
 
 /// Thread-safe sink. Owned by the bridge so threading concerns stay there.
 pub type EventSink = Arc<dyn Fn(RunEvent) + Send + Sync>;
@@ -23,6 +23,10 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
         workflow_id: wf.id.clone(),
         run_id: run_id.clone(),
     });
+
+    // Run-time variable environment. Starts from the workflow's `vars {}`
+    // block; grows as `shell "..." as="name"` steps capture their stdout.
+    let mut vars: VarMap = wf.vars.clone();
 
     let mut all_ok = true;
     for (idx, step) in wf.steps.iter().enumerate() {
@@ -40,7 +44,35 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
                 reason: "note".into(),
             }
         } else {
-            run_action(step).await
+            // Substitute {{name}} before dispatch so both the runtime
+            // and any captured output see the expanded form.
+            match expand(&step.action, &vars) {
+                Ok(expanded) => {
+                    let outcome = run_action_value(&expanded).await;
+                    // On success, if this is a `shell ... as="k"` step,
+                    // bind its stdout for later steps.
+                    if let (
+                        StepOutcome::Ok { output: Some(out), .. },
+                        Action::Shell { capture_as: Some(name), .. },
+                    ) = (&outcome, &expanded)
+                    {
+                        vars.insert(name.clone(), out.trim_end().to_string());
+                    } else if let (
+                        StepOutcome::Ok { output: None, .. },
+                        Action::Shell { capture_as: Some(name), .. },
+                    ) = (&outcome, &expanded)
+                    {
+                        // No stdout → bind empty string rather than leaving
+                        // the name unbound; later `{{name}}` substitutes "".
+                        vars.insert(name.clone(), String::new());
+                    }
+                    outcome
+                }
+                Err(e) => StepOutcome::Error {
+                    message: format!("{e:#}"),
+                    duration_ms: 0,
+                },
+            }
         };
 
         if matches!(outcome, StepOutcome::Error { .. }) {
@@ -65,10 +97,50 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
     Ok(())
 }
 
-/// Dispatch a single action. Measures wall-time. Never panics.
-async fn run_action(step: &Step) -> StepOutcome {
+/// `{{name}}`-expand every string field against `vars`. Integer /
+/// boolean fields pass through.
+fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
+    let sub = |s: &str| substitute(s, vars);
+    Ok(match action {
+        Action::WdoType { text, delay_ms } => Action::WdoType {
+            text: sub(text)?,
+            delay_ms: *delay_ms,
+        },
+        Action::WdoKey { chord, clear_modifiers } => Action::WdoKey {
+            chord: sub(chord)?,
+            clear_modifiers: *clear_modifiers,
+        },
+        Action::WdoClick { button } => Action::WdoClick { button: *button },
+        Action::WdoMouseMove { x, y, relative } => Action::WdoMouseMove {
+            x: *x,
+            y: *y,
+            relative: *relative,
+        },
+        Action::WdoScroll { dx, dy } => Action::WdoScroll { dx: *dx, dy: *dy },
+        Action::WdoActivateWindow { name } => Action::WdoActivateWindow { name: sub(name)? },
+        Action::WdoAwaitWindow { name, timeout_ms } => Action::WdoAwaitWindow {
+            name: sub(name)?,
+            timeout_ms: *timeout_ms,
+        },
+        Action::Delay { ms } => Action::Delay { ms: *ms },
+        Action::Shell { command, shell, capture_as } => Action::Shell {
+            command: sub(command)?,
+            shell: shell.clone(),
+            capture_as: capture_as.clone(),
+        },
+        Action::Notify { title, body } => Action::Notify {
+            title: sub(title)?,
+            body: body.as_deref().map(sub).transpose()?,
+        },
+        Action::Clipboard { text } => Action::Clipboard { text: sub(text)? },
+        Action::Note { text } => Action::Note { text: text.clone() },
+    })
+}
+
+/// Post-substitution dispatch. Measures wall-time, never panics.
+async fn run_action_value(action: &Action) -> StepOutcome {
     let start = Instant::now();
-    let result: Result<Option<String>> = match &step.action {
+    let result: Result<Option<String>> = match action {
         Action::WdoType { text, delay_ms } => wdo_type(text, *delay_ms).await,
         Action::WdoKey {
             chord,
@@ -83,7 +155,7 @@ async fn run_action(step: &Step) -> StepOutcome {
             tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
             Ok(None)
         }
-        Action::Shell { command, shell } => shell_run(command, shell.as_deref()).await,
+        Action::Shell { command, shell, .. } => shell_run(command, shell.as_deref()).await,
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
