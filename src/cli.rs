@@ -626,13 +626,16 @@ fn cmd_run(target: &str, dry_run: bool, explain: bool) -> Result<ExitCode> {
         .context("tokio runtime")?;
 
     // The sink receives RunEvents in order from inside run_workflow. We
-    // print them as they land so progress is live.
-    let step_count = wf.steps.len();
+    // print them as they land so progress is live. `ran` counts StepDone
+    // events — the post-flatten number, which may exceed wf.steps.len()
+    // when `repeat` blocks expand.
     let title = wf.title.clone();
     let failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let failed_c = failed.clone();
+    let ran = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let ran_c = ran.clone();
 
-    let sink: engine::EventSink = Arc::new(move |ev| print_event(&title, step_count, &failed_c, ev));
+    let sink: engine::EventSink = Arc::new(move |ev| print_event(&title, &ran_c, &failed_c, ev));
 
     runtime.block_on(async move { engine::run_workflow(sink, wf).await })?;
 
@@ -672,7 +675,12 @@ fn load_file(p: &Path) -> Result<Workflow> {
     }
 }
 
-fn print_event(title: &str, step_count: usize, failed: &Arc<std::sync::atomic::AtomicBool>, ev: RunEvent) {
+fn print_event(
+    title: &str,
+    ran: &Arc<std::sync::atomic::AtomicUsize>,
+    failed: &Arc<std::sync::atomic::AtomicBool>,
+    ev: RunEvent,
+) {
     match ev {
         RunEvent::Started { .. } => {
             println!("{} {}", arrow(), bold(title));
@@ -684,6 +692,7 @@ fn print_event(title: &str, step_count: usize, failed: &Arc<std::sync::atomic::A
         RunEvent::StepDone {
             index, outcome, ..
         } => {
+            ran.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let num = format!("{:02}", index + 1);
             match outcome {
                 StepOutcome::Ok { output, duration_ms } => {
@@ -716,8 +725,9 @@ fn print_event(title: &str, step_count: usize, failed: &Arc<std::sync::atomic::A
             }
         }
         RunEvent::Finished { ok, .. } => {
+            let n = ran.load(std::sync::atomic::Ordering::SeqCst);
             if ok {
-                println!("{} finished ({} step{})", check(), step_count, plural_s(step_count));
+                println!("{} finished ({} step{})", check(), n, plural_s(n));
             } else {
                 println!("{} failed", cross());
             }
@@ -732,7 +742,25 @@ fn print_event(title: &str, step_count: usize, failed: &Arc<std::sync::atomic::A
 fn preflight(wf: &Workflow) -> Result<()> {
     use std::collections::BTreeSet;
     let mut needed: BTreeSet<&'static str> = BTreeSet::new();
-    for step in &wf.steps {
+    collect_tool_needs(&wf.steps, &mut needed);
+    let missing: Vec<&'static str> = needed.iter().filter(|t| which(t).is_none()).copied().collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "missing required tool{}: {} — run `wflow doctor` for details",
+        if missing.len() == 1 { "" } else { "s" },
+        missing.join(", "),
+    ))
+}
+
+/// Walk steps (recursing through `repeat` blocks) and collect the set
+/// of external binaries the workflow needs.
+fn collect_tool_needs(
+    steps: &[crate::actions::Step],
+    needed: &mut std::collections::BTreeSet<&'static str>,
+) {
+    for step in steps {
         if !step.enabled {
             continue;
         }
@@ -752,18 +780,12 @@ fn preflight(wf: &Workflow) -> Result<()> {
             Action::Clipboard { .. } => {
                 needed.insert("wl-copy");
             }
+            Action::Repeat { steps: inner, .. } => {
+                collect_tool_needs(inner, needed);
+            }
             Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
         }
     }
-    let missing: Vec<&'static str> = needed.iter().filter(|t| which(t).is_none()).copied().collect();
-    if missing.is_empty() {
-        return Ok(());
-    }
-    Err(anyhow!(
-        "missing required tool{}: {} — run `wflow doctor` for details",
-        if missing.len() == 1 { "" } else { "s" },
-        missing.join(", "),
-    ))
 }
 
 /// Build the subprocess command line(s) that the engine would invoke for
@@ -853,6 +875,26 @@ fn explain_lines(action: &Action) -> Vec<String> {
         Action::Note { text } => {
             let one_line = text.replace('\n', " ↵ ");
             vec![format!("{head} # {}", one_line)]
+        }
+        Action::Repeat { count, steps } => {
+            // Render nested structure so explain output tracks the source
+            // shape rather than the engine's flattened iteration stream.
+            let mut lines = vec![format!(
+                "{head} # repeat {count}× ({} step{})",
+                steps.len(),
+                if steps.len() == 1 { "" } else { "s" }
+            )];
+            for step in steps {
+                let sub_head = format!("{:<9}", step.action.category());
+                for (i, line) in explain_lines(&step.action).into_iter().enumerate() {
+                    // Drop the sub-line's own head prefix and replace with
+                    // indented compact form so everything fits on one line.
+                    let tail = line.trim_start_matches(&sub_head).trim_start();
+                    let first_prefix = if i == 0 { "  · " } else { "    " };
+                    lines.push(format!("{:<9} {first_prefix}{}", "", tail));
+                }
+            }
+            lines
         }
     }
 }

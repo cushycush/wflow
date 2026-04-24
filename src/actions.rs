@@ -205,6 +205,15 @@ pub enum Action {
 
     /// Pure annotation, never executes.
     Note { text: String },
+
+    // ------------------------------ Flow control -------------------------
+    /// Repeat a nested sequence of steps `count` times. Flattened at run
+    /// time so the engine's per-step signals fire once per
+    /// iteration-step; the KDL round-trip keeps the block form.
+    Repeat {
+        count: u32,
+        steps: Vec<Step>,
+    },
 }
 
 impl Action {
@@ -225,6 +234,7 @@ impl Action {
             Action::Notify { .. } => "notify",
             Action::Clipboard { .. } => "clipboard",
             Action::Note { .. } => "note",
+            Action::Repeat { .. } => "repeat",
         }
     }
 
@@ -258,6 +268,11 @@ impl Action {
             },
             Action::Clipboard { text } => format!("clipboard {}", quote_short(text)),
             Action::Note { text } => format!("note {}", quote_short(text)),
+            Action::Repeat { count, steps } => format!(
+                "repeat {count}× ({} step{})",
+                steps.len(),
+                if steps.len() == 1 { "" } else { "s" }
+            ),
         }
     }
 }
