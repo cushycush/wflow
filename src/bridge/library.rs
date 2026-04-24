@@ -30,6 +30,10 @@ pub mod qobject {
 
         #[qinvokable]
         fn remove(self: Pin<&mut LibraryController>, id: QString);
+
+        /// Mints a fresh id, suffixes " (copy)" on the title.
+        #[qinvokable]
+        fn duplicate(self: Pin<&mut LibraryController>, id: QString) -> QString;
     }
 }
 
@@ -92,6 +96,37 @@ impl qobject::LibraryController {
             return;
         }
         self.as_mut().set_workflows(load_as_json());
+    }
+
+    fn duplicate(mut self: Pin<&mut Self>, id: QString) -> QString {
+        let id_s: String = id.to_string();
+        let mut wf = match store::load(&id_s) {
+            Ok(wf) => wf,
+            Err(e) => {
+                tracing::warn!(?e, "duplicate: load {} failed", id_s);
+                return QString::from("");
+            }
+        };
+        wf.id = uuid::Uuid::new_v4().to_string();
+        wf.title = format!("{} (copy)", wf.title);
+        let now = chrono::Utc::now();
+        wf.created = Some(now);
+        wf.modified = Some(now);
+        wf.last_run = None;
+        // Fresh step ids so editor lookups don't cross-target the original.
+        for step in &mut wf.steps {
+            step.id = uuid::Uuid::new_v4().to_string();
+        }
+        match store::save(wf) {
+            Ok(saved) => {
+                self.as_mut().set_workflows(load_as_json());
+                QString::from(&saved.id)
+            }
+            Err(e) => {
+                tracing::warn!(?e, "duplicate save failed");
+                QString::from("")
+            }
+        }
     }
 }
 
