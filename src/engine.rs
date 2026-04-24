@@ -14,7 +14,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use uuid::Uuid;
 
-use crate::actions::{substitute, Action, OnError, RunEvent, StepOutcome, VarMap, Workflow};
+use crate::actions::{substitute, Action, OnError, RunEvent, Step, StepOutcome, VarMap, Workflow};
 
 /// A thread-safe event sink. Implemented by the bridge layer so the Qt
 /// signal path owns the threading concerns; the engine stays pure Rust.
@@ -33,8 +33,13 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
     // block; grows as `shell "..." as="name"` steps capture their stdout.
     let mut vars: VarMap = wf.vars.clone();
 
+    // Expand `repeat N { ... }` into a flat step list so the per-step
+    // signal stream shows every iteration-step individually. Disabled
+    // repeats pass through as-is and are skipped inside the loop.
+    let flat = flatten_steps(&wf.steps);
+
     let mut all_ok = true;
-    for (idx, step) in wf.steps.iter().enumerate() {
+    for (idx, step) in flat.iter().enumerate() {
         sink(RunEvent::StepStart {
             step_id: step.id.clone(),
             index: idx,
@@ -102,6 +107,27 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
     Ok(())
 }
 
+/// Recursively flatten `Action::Repeat` blocks into their expanded
+/// iteration-steps. A `repeat 3 { a; b }` becomes `[a, b, a, b, a, b]`
+/// — same step ids reused across iterations so captures and outcomes
+/// stay traceable. A `disabled=#true` repeat passes through as its
+/// single node so the run loop still reports it as skipped.
+fn flatten_steps(steps: &[Step]) -> Vec<Step> {
+    let mut out = Vec::with_capacity(steps.len());
+    for step in steps {
+        match (&step.action, step.enabled) {
+            (Action::Repeat { count, steps: inner }, true) => {
+                let inner_flat = flatten_steps(inner);
+                for _ in 0..*count {
+                    out.extend(inner_flat.iter().cloned());
+                }
+            }
+            _ => out.push(step.clone()),
+        }
+    }
+    out
+}
+
 /// Clone an action with all of its string fields `{{name}}`-expanded
 /// against `vars`. Integer / boolean fields pass through untouched.
 fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
@@ -139,6 +165,12 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
         },
         Action::Clipboard { text } => Action::Clipboard { text: sub(text)? },
         Action::Note { text } => Action::Note { text: text.clone() },
+        // Already flattened by `flatten_steps` before run_workflow iterates;
+        // cloning here for completeness keeps the function total.
+        Action::Repeat { count, steps } => Action::Repeat {
+            count: *count,
+            steps: steps.clone(),
+        },
     })
 }
 
@@ -166,6 +198,11 @@ async fn run_action_value(action: &Action) -> StepOutcome {
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
+        // Repeat is always flattened before dispatch; reaching here
+        // would be a bug. Report it rather than panicking.
+        Action::Repeat { .. } => Err(anyhow!(
+            "internal: `repeat` action should have been flattened before dispatch"
+        )),
     };
     let duration_ms = start.elapsed().as_millis() as u64;
 

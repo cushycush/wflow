@@ -167,6 +167,16 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_str(text));
             n
         }
+        Action::Repeat { count, steps } => {
+            let mut n = KdlNode::new("repeat");
+            n.push(arg_int(*count as i128));
+            let mut inner = KdlDocument::new();
+            for step in steps {
+                inner.nodes_mut().push(encode_step(step));
+            }
+            n.set_children(inner);
+            n
+        }
     };
 
     // Step-level metadata on any action node.
@@ -490,6 +500,24 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             let text = first_string(node)?;
             Action::Clipboard { text }
         }
+        "repeat" => {
+            let count = first_int_opt(node)
+                .ok_or_else(|| anyhow!("`repeat` needs a positive integer count — try `repeat 3 {{ ... }}`"))?;
+            if count < 0 {
+                bail!("`repeat` count must be >= 0, got {count}");
+            }
+            let children = node.children().ok_or_else(|| {
+                anyhow!("`repeat {count}` must have a block `{{ ... }}` of steps")
+            })?;
+            let mut steps = Vec::new();
+            for step_node in children.nodes() {
+                steps.push(decode_step(step_node)?);
+            }
+            Action::Repeat {
+                count: count as u32,
+                steps,
+            }
+        }
         "note" => {
             let text = first_string(node)?;
             Action::Note { text }
@@ -590,6 +618,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "notify" => &["body"],
         "clipboard" => &[],
         "note" => &[],
+        "repeat" => &[],
         _ => &[],
     }
 }
@@ -747,6 +776,68 @@ mod tests {
 
     fn wrap(step: &str) -> String {
         format!("schema 1\nid \"t\"\ntitle \"t\"\nrecipe {{\n{step}\n}}\n")
+    }
+
+    #[test]
+    fn repeat_block_round_trips() {
+        let src = wrap(
+            "repeat 3 {\n\
+             \t\tkey \"Tab\"\n\
+             \t\twait 50\n\
+             \t}",
+        );
+        let wf = decode(&src).unwrap();
+        assert_eq!(wf.steps.len(), 1);
+        match &wf.steps[0].action {
+            Action::Repeat { count, steps } => {
+                assert_eq!(*count, 3);
+                assert_eq!(steps.len(), 2);
+                assert!(matches!(steps[0].action, Action::WdoKey { .. }));
+                assert!(matches!(steps[1].action, Action::Delay { ms: 50 }));
+            }
+            _ => panic!("expected Repeat"),
+        }
+        let text = encode(&wf);
+        assert!(text.contains("repeat 3"), "got:\n{text}");
+        let again = decode(&text).unwrap();
+        match &again.steps[0].action {
+            Action::Repeat { count, steps } => {
+                assert_eq!(*count, 3);
+                assert_eq!(steps.len(), 2);
+            }
+            _ => panic!("expected Repeat"),
+        }
+    }
+
+    #[test]
+    fn repeat_requires_a_block_and_nonnegative_count() {
+        let err = format!("{:#}", decode(&wrap("repeat")).unwrap_err());
+        assert!(err.contains("needs a positive integer count"), "got: {err}");
+        let err = format!("{:#}", decode(&wrap("repeat -3 { }")).unwrap_err());
+        assert!(err.contains("count must be >= 0"), "got: {err}");
+        let err = format!("{:#}", decode(&wrap("repeat 5")).unwrap_err());
+        assert!(err.contains("must have a block"), "got: {err}");
+    }
+
+    #[test]
+    fn repeat_nested_round_trips() {
+        let src = wrap(
+            "repeat 2 {\n\
+             \t\trepeat 3 {\n\
+             \t\t\tkey \"Tab\"\n\
+             \t\t}\n\
+             \t}",
+        );
+        let wf = decode(&src).unwrap();
+        match &wf.steps[0].action {
+            Action::Repeat { count: 2, steps: outer } => match &outer[0].action {
+                Action::Repeat { count: 3, steps: inner } => {
+                    assert_eq!(inner.len(), 1);
+                }
+                _ => panic!("expected inner Repeat"),
+            },
+            _ => panic!("expected outer Repeat"),
+        }
     }
 
     #[test]

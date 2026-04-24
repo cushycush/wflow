@@ -109,6 +109,7 @@ last in any order.
 | [`notify`](#notify) | `notify "title" body="body"` | `notify-send "title" "body"` |
 | [`clipboard`](#clipboard) | `clipboard "text to copy"` | `wl-copy` (pipes stdin) |
 | [`note`](#note) | `note "reminder to self"` | nothing — a comment; always skipped |
+| [`repeat`](#repeat) | `repeat 3 { key "Tab" }` | flattened into 3× `key "Tab"` at run time |
 
 Every action accepts the common step properties:
 
@@ -303,6 +304,39 @@ note "the next two steps unlock the keychain"
 key "super+space"
 type "password"
 ```
+
+### repeat
+
+Run a nested sequence of steps `N` times. Flattened into the
+iteration-step stream at run time, so the engine reports each
+iteration's steps individually (`01 key Tab`, `02 key Tab`, …).
+
+```kdl
+focus "vim"
+repeat 5 {
+    key "Tab"
+    wait 50
+}
+```
+
+Nesting works:
+
+```kdl
+repeat 3 {
+    repeat 2 {
+        key "Down"
+    }
+    key "Return"
+}
+```
+
+Variables captured from `shell ... as="name"` inside a repeat iteration
+are visible to later iterations — so you can, for example, number
+iterations yourself by capturing a counter through an external
+command.
+
+`count` must be a non-negative integer. `repeat 0 { ... }` is a valid
+no-op. `disabled=#true` on the repeat node skips the whole block.
 
 ## Variables and substitution
 
