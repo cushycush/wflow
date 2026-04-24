@@ -18,6 +18,7 @@ fn main() {
             QmlFile::from("qml/components/CategoryIcon.qml"),
             QmlFile::from("qml/components/ActionRow.qml"),
             QmlFile::from("qml/components/EmptyState.qml"),
+            QmlFile::from("qml/components/FocusRing.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),

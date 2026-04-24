@@ -21,16 +21,23 @@ Rectangle {
         Repeater {
             model: LibraryLayout.labels
             delegate: Rectangle {
+                id: cell
                 readonly property bool active: index === LibraryLayout.variant
                 width: cellLbl.implicitWidth + 18
                 height: 24
                 radius: 4
                 color: active
-                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.16)
+                    ? Theme.accentWash(0.16)
                     : (cellArea.containsMouse ? Theme.surface3 : "transparent")
                 anchors.verticalCenter: parent.verticalCenter
 
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                activeFocusOnTab: true
+                Keys.onReturnPressed: LibraryLayout.set(index)
+                Keys.onEnterPressed:  LibraryLayout.set(index)
+                Keys.onSpacePressed:  LibraryLayout.set(index)
+                FocusRing { }
 
                 Text {
                     id: cellLbl
@@ -51,7 +58,10 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: LibraryLayout.set(index)
+                    onClicked: {
+                        cell.forceActiveFocus()
+                        LibraryLayout.set(index)
+                    }
                 }
             }
         }
