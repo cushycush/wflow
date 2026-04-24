@@ -108,6 +108,21 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     Ok(wf)
 }
 
+/// Filesystem path to the KDL file backing `id`, if it exists. Falls back
+/// to the legacy `.json` file if no `.kdl` has been written yet. Returns
+/// an error if neither exists.
+pub fn path_of(id: &str) -> Result<PathBuf> {
+    let kdl = kdl_path_for(id)?;
+    if kdl.exists() {
+        return Ok(kdl);
+    }
+    let json = legacy_json_path_for(id)?;
+    if json.exists() {
+        return Ok(json);
+    }
+    anyhow::bail!("no workflow with id {id}")
+}
+
 pub fn delete(id: &str) -> Result<()> {
     for p in [kdl_path_for(id)?, legacy_json_path_for(id)?] {
         if p.exists() {
