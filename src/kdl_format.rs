@@ -28,7 +28,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
-use crate::actions::{Action, OnError, Step, Workflow};
+use crate::actions::{normalize_chord, Action, OnError, Step, Workflow};
 
 pub const SCHEMA_VERSION: i128 = 1;
 
@@ -381,7 +381,7 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             Action::WdoType { text, delay_ms }
         }
         "key" => {
-            let chord = first_string(node)?;
+            let chord = normalize_chord(&first_string(node)?);
             let clear_modifiers = prop_bool_or(node, "clear-modifiers", false);
             Action::WdoKey {
                 chord,
@@ -401,8 +401,8 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             };
             Action::WdoClick { button }
         }
-        "key-down" => Action::WdoKeyDown { chord: first_string(node)? },
-        "key-up" => Action::WdoKeyUp { chord: first_string(node)? },
+        "key-down" => Action::WdoKeyDown { chord: normalize_chord(&first_string(node)?) },
+        "key-up" => Action::WdoKeyUp { chord: normalize_chord(&first_string(node)?) },
         "mouse-down" => {
             let button = first_int_opt(node)
                 .ok_or_else(|| anyhow!("`mouse-down` needs a button number — try `mouse-down 1`"))?
@@ -814,6 +814,34 @@ mod tests {
 
     fn wrap(step: &str) -> String {
         format!("schema 1\nid \"t\"\ntitle \"t\"\nrecipe {{\n{step}\n}}\n")
+    }
+
+    #[test]
+    fn key_names_are_normalized_at_decode() {
+        // Hand-authored aliases get canonicalized so `show` and the
+        // round-trip reflect what wdotool will actually execute.
+        let src = wrap(
+            "key \"Enter\"\n\
+             key \"Esc\"\n\
+             key \"Cmd+Shift+T\"\n\
+             key-down \"Option\"\n\
+             key-up \"PageDown\"",
+        );
+        let wf = decode(&src).unwrap();
+        let chords: Vec<String> = wf
+            .steps
+            .iter()
+            .map(|s| match &s.action {
+                Action::WdoKey { chord, .. } => chord.clone(),
+                Action::WdoKeyDown { chord } => chord.clone(),
+                Action::WdoKeyUp { chord } => chord.clone(),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(
+            chords,
+            vec!["Return", "Escape", "super+shift+T", "alt", "Page_Down"]
+        );
     }
 
     #[test]

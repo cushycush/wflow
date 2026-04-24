@@ -136,19 +136,35 @@ Sends a key or chord via wdotool. Common convention:
 
 - **Letters are lower-case.** `key "a"` types `a`. For uppercase you
   need the `shift` modifier: `key "shift+a"` types `A`.
-- **Modifiers are lower-case.** `super`, `ctrl`, `shift`, `alt`, `meta`.
-- **Special keys are Title-cased X11 keysyms.** `Return` (not `Enter`),
-  `Escape` (not `Esc`), `BackSpace`, `Tab`, `space`, `Home`, `End`,
-  `Page_Up`, `Page_Down`, `Left`, `Right`, `Up`, `Down`, `F1`–`F12`,
-  `Caps_Lock`, `Insert`, `Delete`.
-- **Plus joins the chord.** `key "ctrl+shift+t"`, not `key "ctrl-shift-t"`.
+- **Modifiers are lower-case.** `super`, `ctrl`, `shift`, `alt`.
+- **Special keys are Title-cased X11 keysyms.** `Return`, `Escape`,
+  `BackSpace`, `Tab`, `space`, `Home`, `End`, `Page_Up`, `Page_Down`,
+  `Left`, `Right`, `Up`, `Down`, `F1`–`F12`, `Caps_Lock`, `Insert`,
+  `Delete`.
+- **Plus joins the chord.** `key "ctrl+shift+t"`.
 
-If you're unsure what wdotool will accept, try the command directly:
+**You can hand-author friendly names.** wflow normalizes common
+aliases at decode time, so the file you write and the file you round-
+trip both show the canonical name:
 
-```sh
-wdotool key Return        # works
-wdotool key Enter         # "no such key" — you want Return
-```
+| You write | wflow stores |
+|---|---|
+| `Enter` | `Return` |
+| `Esc` | `Escape` |
+| `Del` / `Delete` | `Delete` |
+| `PgUp` / `PageUp` | `Page_Up` |
+| `PgDn` / `PageDown` | `Page_Down` |
+| `Caps` / `CapsLock` | `Caps_Lock` |
+| `Backspace` | `BackSpace` |
+| `cmd` / `command` / `win` / `meta` | `super` |
+| `option` / `opt` | `alt` |
+| `Ctrl` / `CONTROL` | `ctrl` |
+
+So `key "Cmd+Shift+Enter"` in your source ends up saved and run as
+`key "super+shift+Return"` — no surprises at wdotool dispatch time.
+
+Everything not in the alias table passes through unchanged, so the
+X11 keysym name is always the safe choice.
 
 Examples:
 

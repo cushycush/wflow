@@ -15,6 +15,110 @@ fn default_await_timeout_ms() -> u64 {
     5_000
 }
 
+// ----------------------------- Key-name normalization ---------------------
+
+/// Map user-friendly aliases to the X11 keysyms wdotool actually
+/// wants. Applied at decode time to `key`, `key-down`, `key-up` chords,
+/// so the canonical on-disk form is the one wdotool will accept and
+/// the source file round-trips truthfully.
+///
+/// Mapping philosophy: only rewrite obvious name confusion (Enter vs
+/// Return) and popular shorthands (Esc, PageUp). Anything that isn't
+/// in the table passes through unchanged — the user can always write
+/// the wdotool name literally.
+pub fn normalize_chord(raw: &str) -> String {
+    raw.split('+')
+        .map(str::trim)
+        .map(normalize_key_segment)
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+fn normalize_key_segment(part: &str) -> String {
+    // Case-insensitive lookup so both `Enter` and `ENTER` land on Return.
+    // The canonical form preserves the user's case for anything not in
+    // the table (e.g. a literal character like "a" or "A").
+    let lower = part.to_ascii_lowercase();
+    match lower.as_str() {
+        // Modifiers — canonicalize to lower-case spelling wdotool wants.
+        "ctrl" | "control" => "ctrl".into(),
+        "shift" => "shift".into(),
+        "alt" => "alt".into(),
+        "super" => "super".into(),
+        // Colloquial / cross-platform modifier aliases.
+        "cmd" | "command" | "win" | "windows" | "meta" => "super".into(),
+        "option" | "opt" => "alt".into(),
+        // Return / Enter confusion. Always pick Return.
+        "enter" | "return" => "Return".into(),
+        // Escape / Esc.
+        "esc" | "escape" => "Escape".into(),
+        // Everyone spells this one slightly differently; canonical is
+        // BackSpace in X11 keysyms.
+        "backspace" | "back_space" => "BackSpace".into(),
+        "delete" | "del" => "Delete".into(),
+        "insert" | "ins" => "Insert".into(),
+        "capslock" | "caps" | "caps_lock" => "Caps_Lock".into(),
+        "numlock" | "num_lock" => "Num_Lock".into(),
+        "scrolllock" | "scroll_lock" => "Scroll_Lock".into(),
+        "printscreen" | "prtsc" | "print_screen" => "Print".into(),
+        "pageup" | "pgup" | "page_up" => "Page_Up".into(),
+        "pagedown" | "pgdn" | "page_down" => "Page_Down".into(),
+        "home" => "Home".into(),
+        "end" => "End".into(),
+        "left" => "Left".into(),
+        "right" => "Right".into(),
+        "up" => "Up".into(),
+        "down" => "Down".into(),
+        "tab" => "Tab".into(),
+        "space" | "spacebar" => "space".into(),
+        _ => part.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::*;
+
+    #[test]
+    fn plain_aliases() {
+        assert_eq!(normalize_chord("Enter"), "Return");
+        assert_eq!(normalize_chord("Esc"), "Escape");
+        assert_eq!(normalize_chord("PgUp"), "Page_Up");
+        assert_eq!(normalize_chord("Del"), "Delete");
+        assert_eq!(normalize_chord("Caps"), "Caps_Lock");
+    }
+
+    #[test]
+    fn modifier_aliases_in_chords() {
+        assert_eq!(normalize_chord("cmd+shift+t"), "super+shift+t");
+        assert_eq!(normalize_chord("win+1"), "super+1");
+        assert_eq!(normalize_chord("option+f"), "alt+f");
+    }
+
+    #[test]
+    fn case_insensitive_modifiers() {
+        assert_eq!(normalize_chord("ENTER"), "Return");
+        // All of these canonicalize to lower-case modifier names.
+        assert_eq!(normalize_chord("CTRL+SHIFT+A"), "ctrl+shift+A");
+        assert_eq!(normalize_chord("Ctrl+Alt+L"), "ctrl+alt+L");
+        assert_eq!(normalize_chord("ctrl+shift+a"), "ctrl+shift+a");
+        assert_eq!(normalize_chord("Super+Enter"), "super+Return");
+    }
+
+    #[test]
+    fn unknown_keys_pass_through() {
+        assert_eq!(normalize_chord("a"), "a");
+        assert_eq!(normalize_chord("F11"), "F11");
+        assert_eq!(normalize_chord("ctrl+l"), "ctrl+l");
+    }
+
+    #[test]
+    fn composite_with_aliased_end_key() {
+        assert_eq!(normalize_chord("ctrl+Enter"), "ctrl+Return");
+        assert_eq!(normalize_chord("shift+PageDown"), "shift+Page_Down");
+    }
+}
+
 // ----------------------------- Template substitution ----------------------
 
 /// Map of variable name → value, threaded through a workflow run.
