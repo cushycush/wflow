@@ -11,6 +11,8 @@ Item {
     property int activeStepIndex: -1
     property bool running: false
     property int selectedIndex: 0
+    // { [stepIndex]: "ok"|"skipped"|"error" } from the engine's step_done signal.
+    property var stepStatuses: ({})
 
     signal valueEdited(int stepIndex, string newPrimary)
 
@@ -41,6 +43,12 @@ Item {
                         id: stepRow
                         readonly property bool isSelected: model.index === root.selectedIndex
                         readonly property bool isActive: model.index === root.activeStepIndex
+                        readonly property string status: {
+                            const s = root.stepStatuses
+                            if (!s) return ""
+                            const v = s[model.index]
+                            return v === undefined ? "" : v
+                        }
                         readonly property color catColor: {
                             const t = ({
                                 "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
@@ -74,13 +82,35 @@ Item {
                             anchors.rightMargin: 12
                             spacing: 12
 
-                            Text {
-                                text: String(model.index + 1).padStart(2, "0")
-                                color: stepRow.isActive ? stepRow.catColor : Theme.text3
-                                font.family: Theme.familyMono
-                                font.pixelSize: 11
-                                anchors.verticalCenter: parent.verticalCenter
+                            Item {
                                 width: 20
+                                height: parent.height
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: stepRow.status === ""
+                                    text: String(model.index + 1).padStart(2, "0")
+                                    color: stepRow.isActive ? stepRow.catColor : Theme.text3
+                                    font.family: Theme.familyMono
+                                    font.pixelSize: 11
+                                }
+                                // Status glyph replaces the step number once the
+                                // engine reports an outcome for this step.
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: stepRow.status !== ""
+                                    text: stepRow.status === "ok"      ? "✓"
+                                        : stepRow.status === "error"   ? "✗"
+                                        : stepRow.status === "skipped" ? "·"
+                                        : ""
+                                    color: stepRow.status === "ok"      ? Theme.ok
+                                         : stepRow.status === "error"   ? Theme.err
+                                         : Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
+                                }
                             }
                             CategoryIcon {
                                 kind: modelData.kind
