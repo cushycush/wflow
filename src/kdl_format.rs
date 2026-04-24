@@ -90,13 +90,13 @@ fn encode_step(step: &Step) -> KdlNode {
         }
         Action::WdoClick { button } => {
             let mut n = KdlNode::new("click");
-            n.push(prop_int("button", *button as i128));
+            n.push(arg_int(*button as i128));
             n
         }
         Action::WdoMouseMove { x, y, relative } => {
             let mut n = KdlNode::new("move");
-            n.push(prop_int("x", *x as i128));
-            n.push(prop_int("y", *y as i128));
+            n.push(arg_int(*x as i128));
+            n.push(arg_int(*y as i128));
             if *relative {
                 n.push(prop_bool("relative", true));
             }
@@ -104,13 +104,13 @@ fn encode_step(step: &Step) -> KdlNode {
         }
         Action::WdoScroll { dx, dy } => {
             let mut n = KdlNode::new("scroll");
-            n.push(prop_int("dx", *dx as i128));
-            n.push(prop_int("dy", *dy as i128));
+            n.push(arg_int(*dx as i128));
+            n.push(arg_int(*dy as i128));
             n
         }
         Action::WdoActivateWindow { name } => {
             let mut n = KdlNode::new("focus");
-            n.push(prop_str("window", name));
+            n.push(arg_str(name));
             n
         }
         Action::WdoAwaitWindow { name, timeout_ms } => {
@@ -306,33 +306,80 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             }
         }
         "click" => {
-            let button = prop_integer(node,"button").unwrap_or(1) as u8;
+            // click 1  |  click button=1  |  click (defaults to 1)
+            let positional = first_int_opt(node);
+            let prop = prop_integer(node, "button");
+            let button = match (positional, prop) {
+                (Some(_), Some(_)) => bail!(
+                    "`click`: specify the button as `click 1` or `click button=1`, not both"
+                ),
+                (Some(p), None) | (None, Some(p)) => p as u8,
+                (None, None) => 1,
+            };
             Action::WdoClick { button }
         }
         "move" => {
-            let x = prop_integer(node,"x").unwrap_or(0) as i32;
-            let y = prop_integer(node,"y").unwrap_or(0) as i32;
+            // move 640 480 [relative=#true]  |  move x=640 y=480 [relative=#true]
+            let ints = positional_ints(node);
+            let xp = prop_integer(node, "x");
+            let yp = prop_integer(node, "y");
+            let (x, y) = match (ints.as_slice(), xp, yp) {
+                (&[x, y], None, None) => (x as i32, y as i32),
+                (&[_, _], Some(_), _) | (&[_, _], _, Some(_)) => bail!(
+                    "`move`: specify coordinates as `move 640 480` OR `move x=640 y=480`, not both"
+                ),
+                ([], Some(x), Some(y)) => (x as i32, y as i32),
+                _ => bail!(
+                    "`move` needs two integer coordinates — try `move 640 480` or `move x=640 y=480`"
+                ),
+            };
             let relative = prop_bool_or(node, "relative", false);
             Action::WdoMouseMove { x, y, relative }
         }
         "scroll" => {
-            let dx = prop_integer(node,"dx").unwrap_or(0) as i32;
-            let dy = prop_integer(node,"dy").unwrap_or(0) as i32;
+            // scroll 0 3  |  scroll dx=0 dy=3
+            let ints = positional_ints(node);
+            let dxp = prop_integer(node, "dx");
+            let dyp = prop_integer(node, "dy");
+            let (dx, dy) = match (ints.as_slice(), dxp, dyp) {
+                (&[dx, dy], None, None) => (dx as i32, dy as i32),
+                (&[_, _], Some(_), _) | (&[_, _], _, Some(_)) => bail!(
+                    "`scroll`: specify as `scroll 0 3` OR `scroll dx=0 dy=3`, not both"
+                ),
+                ([], Some(dx), Some(dy)) => (dx as i32, dy as i32),
+                _ => bail!(
+                    "`scroll` needs two integer deltas — try `scroll 0 3` or `scroll dx=0 dy=3`"
+                ),
+            };
             Action::WdoScroll { dx, dy }
         }
         "focus" => {
-            let name = prop_string(node, "window").unwrap_or_default();
+            // focus "Firefox"  |  focus window="Firefox"
+            let positional = first_string_opt(node);
+            let prop = prop_string(node, "window");
+            let name = match (positional, prop) {
+                (Some(_), Some(_)) => bail!(
+                    "`focus`: specify the window as `focus \"Firefox\"` or `focus window=\"Firefox\"`, not both"
+                ),
+                (Some(s), None) | (None, Some(s)) if !s.is_empty() => s,
+                _ => bail!(
+                    "`focus` needs a window name — try `focus \"Firefox\"`"
+                ),
+            };
             Action::WdoActivateWindow { name }
         }
         "await-window" => {
             let name = first_string(node)?;
-            // Accept either `timeout-ms=5000` or `timeout="5s"`.
-            let timeout_ms = if let Some(v) = prop_integer(node, "timeout-ms") {
-                v as u64
-            } else if let Some(s) = prop_string(node, "timeout") {
-                parse_duration_ms(&s)?
-            } else {
-                5_000
+            let tms = prop_integer(node, "timeout-ms");
+            let ts = prop_string(node, "timeout");
+            let timeout_ms = match (tms, ts) {
+                (Some(_), Some(_)) => bail!(
+                    "`await-window`: specify the timeout once, as either \
+                     `timeout-ms=5000` or `timeout=\"5s\"` — not both"
+                ),
+                (Some(v), None) => v as u64,
+                (None, Some(s)) => parse_duration_ms(&s)?,
+                (None, None) => 5_000,
             };
             Action::WdoAwaitWindow { name, timeout_ms }
         }
@@ -341,14 +388,25 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             //   wait 500               (bare int, milliseconds)
             //   wait ms=500
             //   wait "1.5s" / "250ms" / "2m"
-            let ms = if let Some(v) = first_int_opt(node) {
-                v as u64
-            } else if let Some(v) = prop_integer(node, "ms") {
-                v as u64
-            } else if let Some(s) = first_string_opt(node) {
-                parse_duration_ms(&s)?
-            } else {
-                bail!("`wait` needs a duration — try `wait 500` or `wait \"1.5s\"`");
+            // But only ONE of those at a time.
+            let pos_int = first_int_opt(node);
+            let pos_str = first_string_opt(node);
+            let ms_prop = prop_integer(node, "ms");
+            let present = [pos_int.is_some(), pos_str.is_some(), ms_prop.is_some()]
+                .iter()
+                .filter(|b| **b)
+                .count();
+            if present > 1 {
+                bail!(
+                    "`wait`: specify the duration once — `wait 500`, `wait \"1.5s\"`, \
+                     or `wait ms=500`"
+                );
+            }
+            let ms = match (pos_int, pos_str, ms_prop) {
+                (Some(v), _, _) => v as u64,
+                (_, Some(s), _) => parse_duration_ms(&s)?,
+                (_, _, Some(v)) => v as u64,
+                _ => bail!("`wait` needs a duration — try `wait 500` or `wait \"1.5s\"`"),
             };
             Action::Delay { ms }
         }
@@ -404,6 +462,19 @@ fn first_int_opt(node: &KdlNode) -> Option<i128> {
         }
     }
     None
+}
+
+/// All unnamed integer entries on a node, in source order. Used by
+/// `move` / `scroll` which take two positional ints.
+fn positional_ints(node: &KdlNode) -> Vec<i128> {
+    node.entries()
+        .iter()
+        .filter(|e| e.name().is_none())
+        .filter_map(|e| match e.value() {
+            KdlValue::Integer(i) => Some(*i),
+            _ => None,
+        })
+        .collect()
 }
 
 fn first_string_opt(node: &KdlNode) -> Option<String> {
@@ -590,6 +661,62 @@ fn parse_ts_opt(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 mod tests {
     use super::*;
     use crate::actions::{Action, Step};
+
+    fn wrap(step: &str) -> String {
+        format!("schema 1\nid \"t\"\ntitle \"t\"\nrecipe {{\n{step}\n}}\n")
+    }
+
+    #[test]
+    fn positional_and_prop_forms_both_decode() {
+        // Both syntaxes for focus / click / move / scroll parse to the
+        // same Action.
+        let new_form = wrap(
+            "focus \"Firefox\"\n\
+             click 2\n\
+             move 640 480 relative=#true\n\
+             scroll 0 3",
+        );
+        let old_form = wrap(
+            "focus window=\"Firefox\"\n\
+             click button=2\n\
+             move x=640 y=480 relative=#true\n\
+             scroll dx=0 dy=3",
+        );
+        let a = decode(&new_form).unwrap().steps;
+        let b = decode(&old_form).unwrap().steps;
+        assert_eq!(a.len(), 4);
+        for (sa, sb) in a.iter().zip(b.iter()) {
+            let ja = serde_json::to_value(&sa.action).unwrap();
+            let jb = serde_json::to_value(&sb.action).unwrap();
+            assert_eq!(ja, jb);
+        }
+    }
+
+    #[test]
+    fn positional_and_prop_conflict_rejected() {
+        let cases: &[(&str, &str)] = &[
+            (r#"focus "X" window="Y""#, "not both"),
+            (r#"click 1 button=2"#, "not both"),
+            (r#"move 1 2 x=3 y=4"#, "not both"),
+            (r#"scroll 0 3 dx=0 dy=3"#, "not both"),
+            (r#"await-window "X" timeout-ms=5000 timeout="10s""#, "not both"),
+            (r#"wait 500 ms=300"#, "specify the duration once"),
+            (r#"wait "1.5s" ms=500"#, "specify the duration once"),
+        ];
+        for (step, expected) in cases {
+            let msg = format!("{:#}", decode(&wrap(step)).unwrap_err());
+            assert!(msg.contains(expected), "step `{step}`, got: {msg}");
+        }
+    }
+
+    #[test]
+    fn move_and_scroll_require_both_coords() {
+        let msg = format!("{:#}", decode(&wrap("move x=10")).unwrap_err());
+        assert!(msg.contains("`move` needs two integer coordinates"), "got: {msg}");
+
+        let msg = format!("{:#}", decode(&wrap("scroll 0")).unwrap_err());
+        assert!(msg.contains("`scroll` needs two integer deltas"), "got: {msg}");
+    }
 
     #[test]
     fn missing_required_fields_are_rejected() {
