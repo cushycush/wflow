@@ -84,6 +84,9 @@ pub struct Step {
     /// Optional handwritten-style note that renders in the margin.
     #[serde(default)]
     pub note: Option<String>,
+    /// `stop` halts the run; `continue` logs and moves on.
+    #[serde(default)]
+    pub on_error: OnError,
     pub action: Action,
 }
 
@@ -93,9 +96,18 @@ impl Step {
             id: Uuid::new_v4().to_string(),
             enabled: true,
             note: None,
+            on_error: OnError::default(),
             action,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OnError {
+    #[default]
+    Stop,
+    Continue,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

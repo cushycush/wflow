@@ -96,10 +96,18 @@ pub enum Command {
     ///   bash  →  source <(wflow completions bash){n}
     ///   zsh   →  wflow completions zsh  > "${fpath[1]}/_wflow"{n}
     ///   fish  →  wflow completions fish > ~/.config/fish/completions/wflow.fish
+    ///
+    /// The generated scripts include dynamic library-id completion,
+    /// powered by `wflow ids`.
     Completions {
         /// Target shell.
         shell: Shell,
     },
+    /// Print library workflows as `id<TAB>title`, one per line.
+    ///
+    /// Stable interface for shell completion (`wflow completions ...`)
+    /// and external tooling. Use `wflow list` for human-readable output.
+    Ids,
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -125,6 +133,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::New { title, stdout } => cmd_new(&title, stdout),
         Command::Doctor => cmd_doctor(),
         Command::Completions { shell } => cmd_completions(shell),
+        Command::Ids => cmd_ids(),
     };
 
     match result {
@@ -321,12 +330,110 @@ fn cmd_doctor() -> Result<ExitCode> {
     }
 }
 
-fn cmd_completions(shell: Shell) -> Result<ExitCode> {
-    let mut cmd = Cli::command();
-    let bin_name = cmd.get_name().to_string();
-    clap_complete::generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+fn cmd_ids() -> Result<ExitCode> {
+    // Stable, parseable contract: `id\ttitle\n`. Tabs in titles are
+    // replaced with spaces to keep the format unambiguous; titles
+    // otherwise pass through unchanged. Used by shell completions and
+    // anything else that wants to enumerate the library by id.
+    let workflows = store::list().context("reading library")?;
+    for wf in workflows {
+        let title = wf.title.replace('\t', " ");
+        println!("{}\t{}", wf.id, title);
+    }
     Ok(ExitCode::SUCCESS)
 }
+
+fn cmd_completions(shell: Shell) -> Result<ExitCode> {
+    use std::io::Write;
+    let mut cmd = Cli::command();
+    let bin_name = cmd.get_name().to_string();
+
+    // Capture into a buffer so we can post-process before writing — zsh's
+    // dynamic-completion path needs to swap `_default` for our id
+    // completer on a few specific lines.
+    let mut buf: Vec<u8> = Vec::new();
+    clap_complete::generate(shell, &mut cmd, &bin_name, &mut buf);
+
+    let mut out = std::io::stdout().lock();
+    match shell {
+        Shell::Fish => {
+            out.write_all(&buf)?;
+            out.write_all(FISH_DYNAMIC.as_bytes())?;
+        }
+        Shell::Bash => {
+            out.write_all(&buf)?;
+            out.write_all(BASH_DYNAMIC.as_bytes())?;
+        }
+        Shell::Zsh => {
+            // Re-target the `_default` action on `target` args belonging
+            // to subcommands that take a workflow id. Generated lines look
+            // like `':target -- Library id, ...:_default'` — exactly one
+            // per affected subcommand, so a literal replace is safe.
+            let s = String::from_utf8(buf).context("non-utf8 zsh completion script")?;
+            let s = s.replace(
+                "':target -- Library id, or path to a .kdl file:_default'",
+                "':target -- Library id, or path to a .kdl file:_wflow_ids'",
+            );
+            let s = s.replace(
+                "':target -- Library id of the workflow to remove:_default'",
+                "':target -- Library id of the workflow to remove:_wflow_ids'",
+            );
+            out.write_all(s.as_bytes())?;
+            out.write_all(ZSH_DYNAMIC.as_bytes())?;
+        }
+        // Elvish + PowerShell: ship the static script, no dynamic hook.
+        // Users who care can wire one with `wflow ids`.
+        _ => {
+            out.write_all(&buf)?;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+// Subcommands that take a library id as their first positional. Kept
+// here as a comment-grep target so future commands can be added to the
+// shell snippets below: run, show, validate, edit, rm.
+
+const FISH_DYNAMIC: &str = r#"
+# Dynamic library-id completion (added by `wflow completions fish`).
+complete -c wflow -n "__fish_wflow_using_subcommand run show validate edit rm" -f -a "(wflow ids 2>/dev/null)"
+"#;
+
+const BASH_DYNAMIC: &str = r#"
+# Dynamic library-id completion (added by `wflow completions bash`).
+# Wraps the clap-generated `_wflow` so subcommands taking a workflow id
+# tab-complete from `wflow ids` instead of falling through to filenames.
+_wflow_with_ids() {
+    if [ "${COMP_CWORD}" -eq 2 ]; then
+        case "${COMP_WORDS[1]}" in
+            run|show|validate|edit|rm)
+                local cur ids
+                cur="${COMP_WORDS[COMP_CWORD]}"
+                ids=$(wflow ids 2>/dev/null | cut -f1)
+                COMPREPLY=( $(compgen -W "${ids}" -- "${cur}") )
+                return 0
+                ;;
+        esac
+    fi
+    _wflow "$@"
+}
+complete -F _wflow_with_ids -o nosort -o bashdefault -o default wflow 2>/dev/null \
+    || complete -F _wflow_with_ids -o bashdefault -o default wflow
+"#;
+
+const ZSH_DYNAMIC: &str = r#"
+# Dynamic library-id completion (added by `wflow completions zsh`).
+# Referenced by the `:_wflow_ids` action injected on `target` arguments
+# for run/show/validate/edit/rm.
+_wflow_ids() {
+    local -a entries
+    local id title
+    while IFS=$'\t' read -r id title; do
+        [ -n "$id" ] && entries+=("${id}:${title}")
+    done < <(wflow ids 2>/dev/null)
+    _describe -t workflows 'workflow' entries
+}
+"#;
 
 fn which(bin: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
