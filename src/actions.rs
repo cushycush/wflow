@@ -15,6 +15,75 @@ fn default_await_timeout_ms() -> u64 {
     5_000
 }
 
+// ----------------------------- Template substitution ----------------------
+
+/// Map of variable name → value, threaded through a workflow run.
+/// Populated at start from the workflow's `vars {}` block, then extended
+/// as `shell ... as="foo"` steps capture their stdout.
+pub type VarMap = std::collections::BTreeMap<String, String>;
+
+/// Resolve `{{name}}` tokens in `s`. Names starting with `env.` read
+/// from the process environment; everything else looks up `vars`. An
+/// unknown name errors with a list of known ones so typos are
+/// diagnosable. `\{{...}}` keeps the literal (backslash-escape).
+pub fn substitute(s: &str, vars: &VarMap) -> anyhow::Result<String> {
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        // Backslash-escape: `\{{` emits `{{` and skips substitution.
+        if bytes[i] == b'\\' && bytes.get(i + 1..i + 3) == Some(b"{{") {
+            out.push_str("{{");
+            i += 3;
+            continue;
+        }
+        if bytes.get(i..i + 2) == Some(b"{{") {
+            let start = i + 2;
+            // Find the matching `}}`.
+            let mut end = None;
+            let mut j = start;
+            while j + 1 < bytes.len() {
+                if &bytes[j..j + 2] == b"}}" {
+                    end = Some(j);
+                    break;
+                }
+                j += 1;
+            }
+            let end = end.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unclosed `{{{{` in `{s}` — use `\\{{{{...}}}}` to keep a literal"
+                )
+            })?;
+            let name = s[start..end].trim();
+            let value = resolve_var(name, vars)?;
+            out.push_str(&value);
+            i = end + 2;
+            continue;
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    Ok(out)
+}
+
+fn resolve_var(name: &str, vars: &VarMap) -> anyhow::Result<String> {
+    if let Some(env_key) = name.strip_prefix("env.") {
+        return std::env::var(env_key)
+            .map_err(|_| anyhow::anyhow!("env var `{env_key}` is not set"));
+    }
+    if let Some(v) = vars.get(name) {
+        return Ok(v.clone());
+    }
+    let mut known: Vec<&str> = vars.keys().map(|s| s.as_str()).collect();
+    known.sort();
+    let list = if known.is_empty() {
+        "(no vars defined — add `vars {{ name \"value\" }}` at the top of the file, or use `env.NAME`)".to_string()
+    } else {
+        format!("known: {}", known.join(", "))
+    };
+    anyhow::bail!("unknown variable `{{{{{name}}}}}`. {list}")
+}
+
 /// A single ingredient in a recipe.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Step {
@@ -47,6 +116,10 @@ pub struct Workflow {
     pub subtitle: Option<String>,
     #[serde(default)]
     pub steps: Vec<Step>,
+    /// User-defined workflow-level variables, substituted into string
+    /// args at run time as `{{name}}`. Also overridable via CLI.
+    #[serde(default)]
+    pub vars: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub created: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
@@ -63,6 +136,7 @@ impl Workflow {
             title: title.into(),
             subtitle: None,
             steps: Vec::new(),
+            vars: Default::default(),
             created: Some(now),
             modified: Some(now),
             last_run: None,
@@ -120,6 +194,10 @@ pub enum Action {
         command: String,
         #[serde(default)]
         shell: Option<String>, // defaults to $SHELL or /bin/sh
+        /// If set, the shell's stdout is captured into a variable of
+        /// this name, substitutable as `{{name}}` in later steps.
+        #[serde(default)]
+        capture_as: Option<String>,
     },
     /// Send a desktop notification via `notify-send`.
     Notify {

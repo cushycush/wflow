@@ -245,6 +245,52 @@ key "super+space"
 type "password"
 ```
 
+## Variables and substitution
+
+Any string argument in a step can contain `{{name}}` tokens, expanded
+at run time. Three sources:
+
+1. **Workflow-level `vars { ... }` block.** Hand-authored bindings at
+   the top of the file.
+2. **Captured shell output.** `shell "cmd" as="name"` stores the
+   command's stdout (stripped of trailing whitespace) under `name`.
+   Later steps can reference it.
+3. **Process environment.** `{{env.NAME}}` reads `$NAME` from the
+   process environment.
+
+```kdl
+schema 1
+id "daily-note"
+title "Create today's note"
+
+vars {
+    notes-dir "~/notes/daily"
+    template "daily.md.tmpl"
+}
+
+recipe {
+    shell "date +%F"                        as="today"
+    shell "cp {{notes-dir}}/{{template}} {{notes-dir}}/{{today}}.md"
+    shell "hyprctl dispatch exec 'nvim {{notes-dir}}/{{today}}.md'"
+    wait-window "nvim"
+    notify "note ready" body="{{today}}.md opened in nvim by {{env.USER}}"
+}
+```
+
+Rules:
+
+- Unknown `{{name}}` → the step errors with a list of known names. No
+  silent empties.
+- Capture-and-use sequencing matters: a step can only reference vars
+  that were bound by an earlier step or the file's `vars` block.
+- `vars` values are strings only. Integer / boolean fields (`click 2`,
+  `move 10 20`, `relative=#true`) don't take templates today.
+- Shell stdout capture trims trailing whitespace, so `shell "date +%F"
+  as="today"` gives `2026-04-24` without a trailing newline.
+- To keep a literal `{{...}}` in a string without substitution, escape
+  with a backslash: `\{{not a var}}`.
+- `env.*` is a reserved namespace — `vars { env.HOME "..." }` errors.
+
 ## Step-level properties
 
 Every action accepts these in addition to its own:

@@ -55,6 +55,18 @@ pub fn encode(wf: &Workflow) -> String {
         doc.nodes_mut().push(kv_str("last-run", &t.to_rfc3339()));
     }
 
+    // Optional variables block. Only emitted if the workflow actually
+    // carries any — keeps files without vars clean.
+    if !wf.vars.is_empty() {
+        let mut vars_node = KdlNode::new("vars");
+        let mut inner = KdlDocument::new();
+        for (k, v) in &wf.vars {
+            inner.nodes_mut().push(kv_str(k, v));
+        }
+        vars_node.set_children(inner);
+        doc.nodes_mut().push(vars_node);
+    }
+
     let mut recipe = KdlNode::new("recipe");
     let mut inner = KdlDocument::new();
     for step in &wf.steps {
@@ -126,11 +138,14 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_int(*ms as i128));
             n
         }
-        Action::Shell { command, shell } => {
+        Action::Shell { command, shell, capture_as } => {
             let mut n = KdlNode::new("shell");
             n.push(arg_str(command));
             if let Some(s) = shell {
                 n.push(prop_str("with", s));
+            }
+            if let Some(name) = capture_as {
+                n.push(prop_str("as", name));
             }
             n
         }
@@ -206,6 +221,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
     let mut modified = None;
     let mut last_run = None;
     let mut steps: Vec<Step> = Vec::new();
+    let mut vars: std::collections::BTreeMap<String, String> = Default::default();
     let mut recipe_seen = false;
 
     for node in doc.nodes() {
@@ -229,6 +245,26 @@ pub fn decode(src: &str) -> Result<Workflow> {
             "created" => created = parse_ts_opt(&first_string(node)?),
             "modified" => modified = parse_ts_opt(&first_string(node)?),
             "last-run" => last_run = parse_ts_opt(&first_string(node)?),
+            "vars" => {
+                // `vars { name "value" ... }` — workflow-level bindings
+                // that actions can substitute as `{{name}}` at run time.
+                let children = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`vars` must have a block {{ ... }}"))?;
+                for var_node in children.nodes() {
+                    let key = var_node.name().value().to_string();
+                    if key.starts_with("env.") {
+                        bail!(
+                            "`vars` can't define `{key}` — the `env.*` namespace is reserved \
+                             for process environment lookups"
+                        );
+                    }
+                    let value = first_string(var_node).with_context(|| {
+                        format!("`vars {{ {key} ... }}` needs a string value")
+                    })?;
+                    vars.insert(key, value);
+                }
+            }
             "recipe" => {
                 recipe_seen = true;
                 let children = node
@@ -243,7 +279,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
                 // so loudly instead of dropping it silently.
                 let valid = [
                     "schema", "id", "title", "subtitle", "created",
-                    "modified", "last-run", "recipe",
+                    "modified", "last-run", "vars", "recipe",
                 ];
                 let hint = suggest(other, &valid)
                     .map(|s| format!(". did you mean `{s}`?"))
@@ -273,6 +309,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
         title,
         subtitle,
         steps,
+        vars,
         created,
         modified,
         last_run,
@@ -426,7 +463,8 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 (Some(s), None) | (None, Some(s)) => Some(s),
                 (None, None) => None,
             };
-            Action::Shell { command, shell }
+            let capture_as = prop_string(node, "as").filter(|s| !s.is_empty());
+            Action::Shell { command, shell, capture_as }
         }
         "notify" => {
             let title = first_string(node)?;
@@ -532,7 +570,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "focus" => &["window"],
         "wait-window" => &["timeout-ms", "timeout"],
         "wait" => &["ms"],
-        "shell" => &["shell", "with"],
+        "shell" => &["shell", "with", "as"],
         "notify" => &["body"],
         "clipboard" => &[],
         "note" => &[],
@@ -696,6 +734,80 @@ mod tests {
     }
 
     #[test]
+    fn vars_block_round_trips() {
+        let src = r#"schema 1
+            id "t"
+            title "t"
+            vars {
+                username "matt"
+                project "wflow"
+            }
+            recipe {
+                type "{{username}} / {{project}}"
+            }"#;
+        let wf = decode(src).unwrap();
+        assert_eq!(wf.vars.get("username").map(String::as_str), Some("matt"));
+        assert_eq!(wf.vars.get("project").map(String::as_str), Some("wflow"));
+        let text = encode(&wf);
+        assert!(text.contains("vars "), "got:\n{text}");
+        let again = decode(&text).unwrap();
+        assert_eq!(again.vars, wf.vars);
+    }
+
+    #[test]
+    fn vars_cannot_shadow_env_namespace() {
+        let src = r#"schema 1 id "t" title "t"
+            vars {
+                env.PATH "nope"
+            }
+            recipe { }"#;
+        let err = decode(src).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("env.*"), "got: {msg}");
+        assert!(msg.contains("reserved"), "got: {msg}");
+    }
+
+    #[test]
+    fn shell_as_captures_into_var() {
+        let src = wrap(r#"shell "date +%F" as="today""#);
+        let wf = decode(&src).unwrap();
+        match &wf.steps[0].action {
+            Action::Shell { capture_as, .. } => {
+                assert_eq!(capture_as.as_deref(), Some("today"));
+            }
+            _ => panic!("expected shell"),
+        }
+    }
+
+    #[test]
+    fn substitute_resolves_known_vars_and_errors_on_unknown() {
+        use crate::actions::substitute;
+        let mut vars = crate::actions::VarMap::new();
+        vars.insert("who".into(), "matt".into());
+
+        assert_eq!(substitute("hello {{who}}", &vars).unwrap(), "hello matt");
+        assert_eq!(substitute("{{who}}+{{who}}", &vars).unwrap(), "matt+matt");
+        // Backslash-escape keeps the literal.
+        assert_eq!(substitute(r"literal \{{who}}", &vars).unwrap(), "literal {{who}}");
+        // Unknown → error with a hint.
+        let err = substitute("hi {{nope}}", &vars).unwrap_err();
+        assert!(format!("{err:#}").contains("unknown variable"));
+        assert!(format!("{err:#}").contains("known: who"));
+        // Unclosed.
+        assert!(substitute("{{who", &vars).is_err());
+    }
+
+    #[test]
+    fn substitute_reads_env_prefix() {
+        use crate::actions::substitute;
+        std::env::set_var("WFLOW_TEST_VAR_XY", "yep");
+        let vars = crate::actions::VarMap::new();
+        assert_eq!(substitute("x={{env.WFLOW_TEST_VAR_XY}}", &vars).unwrap(), "x=yep");
+        std::env::remove_var("WFLOW_TEST_VAR_XY");
+        assert!(substitute("{{env.WFLOW_TEST_VAR_XY}}", &vars).is_err());
+    }
+
+    #[test]
     fn old_verb_names_still_decode() {
         // `clip` → `clipboard`, `await-window` → `wait-window`. Old files
         // keep working; only the encoder switches to the new names.
@@ -734,6 +846,7 @@ mod tests {
         wf.steps.push(Step::new(Action::Shell {
             command: "echo hi".into(),
             shell: Some("/bin/bash".into()),
+            capture_as: None,
         }));
         let text = encode(&wf);
         // KDL autoformat drops quotes when strings are bareword-safe, so
@@ -876,7 +989,7 @@ mod tests {
         let err = decode(src).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("unknown property `retries`"), "got: {msg}");
-        assert!(msg.contains("shell, with, disabled, comment"), "got: {msg}");
+        assert!(msg.contains("shell, with, as, disabled, comment"), "got: {msg}");
     }
 
     #[test]
@@ -975,11 +1088,14 @@ mod tests {
             Step::new(Action::WdoActivateWindow { name: "Firefox".into() }),
             Step::new(Action::WdoAwaitWindow { name: "Firefox".into(), timeout_ms: 7500 }),
             Step::new(Action::Delay { ms: 500 }),
-            Step::new(Action::Shell { command: "echo hi".into(), shell: None }),
+            Step::new(Action::Shell { command: "echo hi".into(), shell: None, capture_as: None }),
+            Step::new(Action::Shell { command: "date +%F".into(), shell: None, capture_as: Some("today".into()) }),
             Step::new(Action::Notify { title: "done".into(), body: Some("all good".into()) }),
             Step::new(Action::Clipboard { text: "copied".into() }),
             Step::new(Action::Note { text: "remember to disable VPN".into() }),
         ];
+        wf.vars.insert("username".into(), "matt".into());
+        wf.vars.insert("app".into(), "firefox".into());
 
         let text = encode(&wf);
         let back = decode(&text).expect("decode should succeed");
@@ -987,6 +1103,7 @@ mod tests {
         assert_eq!(back.title, wf.title);
         assert_eq!(back.subtitle, wf.subtitle);
         assert_eq!(back.steps.len(), wf.steps.len());
+        assert_eq!(back.vars, wf.vars);
 
         // Compare actions pairwise via serde_json (easy structural compare).
         for (a, b) in wf.steps.iter().zip(back.steps.iter()) {
