@@ -334,6 +334,14 @@ pub enum Action {
         /// `None` = no limit (inherit prior behaviour).
         #[serde(default)]
         timeout_ms: Option<u64>,
+        /// Retry the command up to `retries` extra times on failure.
+        /// Default 0 (no retry).
+        #[serde(default)]
+        retries: u32,
+        /// Sleep `backoff_ms` between retries. Default 500ms when
+        /// `retries > 0` and not specified.
+        #[serde(default)]
+        backoff_ms: Option<u64>,
     },
     /// Send a desktop notification via `notify-send`.
     Notify {

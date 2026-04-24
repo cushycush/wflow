@@ -221,11 +221,20 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             timeout_ms: *timeout_ms,
         },
         Action::Delay { ms } => Action::Delay { ms: *ms },
-        Action::Shell { command, shell, capture_as, timeout_ms } => Action::Shell {
+        Action::Shell {
+            command,
+            shell,
+            capture_as,
+            timeout_ms,
+            retries,
+            backoff_ms,
+        } => Action::Shell {
             command: sub(command)?,
             shell: shell.clone(),
             capture_as: capture_as.clone(),
             timeout_ms: *timeout_ms,
+            retries: *retries,
+            backoff_ms: *backoff_ms,
         },
         Action::Notify { title, body } => Action::Notify {
             title: sub(title)?,
@@ -272,8 +281,22 @@ async fn run_action_value(action: &Action) -> StepOutcome {
             tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
             Ok(None)
         }
-        Action::Shell { command, shell, timeout_ms, .. } => {
-            shell_run(command, shell.as_deref(), *timeout_ms).await
+        Action::Shell {
+            command,
+            shell,
+            timeout_ms,
+            retries,
+            backoff_ms,
+            ..
+        } => {
+            shell_run_with_retry(
+                command,
+                shell.as_deref(),
+                *timeout_ms,
+                *retries,
+                *backoff_ms,
+            )
+            .await
         }
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
@@ -440,6 +463,46 @@ async fn run_wdotool(args: &[String]) -> Result<Option<String>> {
 }
 
 // ----------------------------- system helpers -----------------------------
+
+/// Wrap `shell_run` in a retry loop. `retries=3` means up to 4 total
+/// attempts (one initial + three retries), with `backoff_ms` between
+/// each. Backoff defaults to 500ms when retries > 0 and not given.
+async fn shell_run_with_retry(
+    command: &str,
+    shell: Option<&str>,
+    timeout_ms: Option<u64>,
+    retries: u32,
+    backoff_ms: Option<u64>,
+) -> Result<Option<String>> {
+    if retries == 0 {
+        return shell_run(command, shell, timeout_ms).await;
+    }
+    let backoff = backoff_ms.unwrap_or(500);
+    let total_attempts = retries + 1;
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 1..=total_attempts {
+        match shell_run(command, shell, timeout_ms).await {
+            Ok(v) => {
+                if attempt > 1 {
+                    tracing::info!(attempt, "shell succeeded on retry");
+                }
+                return Ok(v);
+            }
+            Err(e) => {
+                tracing::warn!(attempt, ?e, "shell attempt failed");
+                last_err = Some(e);
+                if attempt < total_attempts {
+                    tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap().context(format!(
+        "gave up after {} attempt{}",
+        total_attempts,
+        if total_attempts == 1 { "" } else { "s" }
+    )))
+}
 
 async fn shell_run(
     command: &str,

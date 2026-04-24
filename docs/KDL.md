@@ -114,6 +114,8 @@ last in any order.
 | [`clipboard`](#clipboard) | `clipboard "text to copy"` | `wl-copy` (pipes stdin) |
 | [`note`](#note) | `note "reminder to self"` | nothing — a comment; always skipped |
 | [`repeat`](#repeat) | `repeat 3 { key "Tab" }` | flattened into 3× `key "Tab"` at run time |
+| [`when`](#when--unless) | `when window="Firefox" { ... }` | runs the block only if the condition holds |
+| [`unless`](#when--unless) | `unless file="/tmp/lock" { ... }` | runs the block only if the condition fails |
 
 Every action accepts the common step properties:
 
@@ -349,6 +351,21 @@ shell "some-flaky-probe"           timeout="2s" on-error="continue"
 Both `timeout-ms=30000` and `timeout="30s"` are accepted. Specifying
 both at once is a hard error.
 
+**Retries.** Re-run a failed command up to `retries` extra times,
+sleeping `backoff` between attempts. `retries=3` means up to 4 total
+attempts (one initial + three retries). `backoff` defaults to 500ms
+when retries is set and backoff is omitted.
+
+```kdl
+shell "curl -fsS https://api.example.com/status" \
+    retries=3 backoff="500ms" timeout="5s"
+```
+
+On final failure, the step's `on-error` policy applies — a retry
+step that exhausts all attempts under `on-error="stop"` halts the
+workflow; under `continue`, the workflow moves on to the next step.
+The final error message reads "gave up after N attempts: ...".
+
 ### notify
 
 Convenience wrapper over `notify-send`. Equivalent to
@@ -379,6 +396,49 @@ note "the next two steps unlock the keychain"
 key "super+space"
 type "password"
 ```
+
+### when / unless
+
+Gate a block of steps on live system state. Exactly one of
+`window=` / `file=` / `env=` is required. `unless` is literally
+`when` with the condition negated.
+
+```kdl
+// Only touch the URL bar if Firefox is actually up.
+when window="Firefox" {
+    focus "Firefox"
+    key "ctrl+l"
+    type "hyprland wiki"
+    key "Return"
+}
+
+// Skip the long-running backup if a lock file is already there.
+unless file="/tmp/wflow-backup.lock" {
+    shell "touch /tmp/wflow-backup.lock"
+    shell "rsync -a ~/projects /mnt/backup/"
+    shell "rm /tmp/wflow-backup.lock"
+}
+
+// Turn on verbose logging only when DEBUG=1 in the caller's env.
+when env="DEBUG" equals="1" {
+    notify "debug mode" body="workflow is running with DEBUG=1"
+}
+```
+
+Condition types:
+
+- **`window="name"`** — a window whose title contains `name` is
+  currently present. Evaluated via the same `wdotool search` path
+  used by `wait-window`.
+- **`file="path"`** — filesystem path exists (file, dir, or symlink
+  to either). Leading `~/` is expanded against $HOME. Does not
+  interpolate — use `{{var}}` substitution if you need dynamic paths.
+- **`env="NAME"`** — environment variable is set and non-empty.
+  Add `equals="value"` to also require an exact match.
+
+The condition is evaluated **each time** the block is reached, not at
+workflow start. A `when file="/tmp/marker"` guarding the second half
+of a workflow will pick up a marker file created by the first half.
 
 ### repeat
 

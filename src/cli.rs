@@ -875,7 +875,14 @@ fn explain_lines(action: &Action) -> Vec<String> {
             )]
         }
         Action::Delay { ms } => vec![format!("{head} # sleep {ms}ms (in-process)")],
-        Action::Shell { command, shell, capture_as, timeout_ms } => {
+        Action::Shell {
+            command,
+            shell,
+            capture_as,
+            timeout_ms,
+            retries,
+            backoff_ms,
+        } => {
             let sh = shell
                 .clone()
                 .or_else(|| std::env::var("SHELL").ok())
@@ -886,6 +893,14 @@ fn explain_lines(action: &Action) -> Vec<String> {
                 line.push_str(&format!(
                     "  (timeout {})",
                     crate::actions::fmt_duration_ms(*ms)
+                ));
+            }
+            if *retries > 0 {
+                let b = backoff_ms.unwrap_or(500);
+                line.push_str(&format!(
+                    "  (retries {}× backoff {})",
+                    retries,
+                    crate::actions::fmt_duration_ms(b)
                 ));
             }
             if let Some(name) = capture_as {
