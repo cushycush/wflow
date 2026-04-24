@@ -175,7 +175,7 @@ impl Action {
             Action::WdoScroll { dx, dy } => format!("scroll dx={dx} dy={dy}"),
             Action::WdoActivateWindow { name } => format!("focus {}", quote_short(name)),
             Action::WdoAwaitWindow { name, timeout_ms } => format!(
-                "await-window {} (timeout {})",
+                "wait-window {} (timeout {})",
                 quote_short(name),
                 fmt_duration_ms(*timeout_ms)
             ),
@@ -187,7 +187,7 @@ impl Action {
                 }
                 _ => format!("notify {}", quote_short(title)),
             },
-            Action::Clipboard { text } => format!("clip {}", quote_short(text)),
+            Action::Clipboard { text } => format!("clipboard {}", quote_short(text)),
             Action::Note { text } => format!("note {}", quote_short(text)),
         }
     }

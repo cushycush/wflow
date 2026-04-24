@@ -14,13 +14,13 @@ subtitle "open slack, zoom, and the notes doc"
 
 recipe {
     shell "hyprctl dispatch exec 'slack'"
-    await-window "Slack" timeout="10s"
+    wait-window "Slack" timeout="10s"
 
     shell "hyprctl dispatch exec 'zoom'"
-    await-window "Zoom" timeout="15s"
+    wait-window "Zoom" timeout="15s"
 
     shell "hyprctl dispatch exec 'obsidian ~/notes/standup.md'"
-    await-window "Obsidian" timeout="10s"
+    wait-window "Obsidian" timeout="10s"
 
     notify "ready" body="all three apps are up"
 }
@@ -60,12 +60,12 @@ last in any order.
 | [`click`](#click) | `click button=1` | `wdotool click 1` |
 | [`move`](#move) | `move x=120 y=80 relative=#false` | `wdotool mousemove [--relative] 120 80` |
 | [`scroll`](#scroll) | `scroll dx=0 dy=3` | `wdotool scroll 0 3` |
-| [`focus`](#focus) | `focus window="Firefox"` | `wdotool search --limit 1 --name Firefox` + `windowactivate <id>` |
-| [`await-window`](#await-window) | `await-window "Firefox" timeout="5s"` | poll `wdotool search` until match or timeout |
+| [`focus`](#focus) | `focus "Firefox"` | `wdotool search --limit 1 --name Firefox` + `windowactivate <id>` |
+| [`wait-window`](#wait-window) | `wait-window "Firefox" timeout="5s"` | poll `wdotool search` until match or timeout |
 | [`wait`](#wait) | `wait "1.5s"` | `tokio::time::sleep` (no subprocess) |
 | [`shell`](#shell) | `shell "notify-send done"` | `$SHELL -c "notify-send done"` |
 | [`notify`](#notify) | `notify "title" body="body"` | `notify-send "title" "body"` |
-| [`clip`](#clip) | `clip "text to copy"` | `wl-copy` (pipes stdin) |
+| [`clipboard`](#clipboard) | `clipboard "text to copy"` | `wl-copy` (pipes stdin) |
 | [`note`](#note) | `note "reminder to self"` | nothing — a comment; always skipped |
 
 Every action accepts the common step properties:
@@ -104,54 +104,66 @@ the chord. Useful when you don't trust the prior state.
 
 Mouse button press-release at the current cursor position. Buttons
 follow X11 convention: `1`=left, `2`=middle, `3`=right, `8`=back,
-`9`=forward.
+`9`=forward. Defaults to left-click if omitted.
 
 ```kdl
-click button=1
+click 1
+click 3
 ```
+
+The older prop form `click button=1` still decodes for backwards
+compatibility.
 
 ### move
 
-Move the cursor. `relative=#false` (default) treats `x,y` as absolute
-screen coordinates. `relative=#true` makes them a delta from the
-current position.
+Move the cursor. Two positional ints = x, y. `relative=#false`
+(default) treats them as absolute screen coordinates. `relative=#true`
+makes them a delta from the current position.
 
 ```kdl
-move x=640 y=480
-move x=100 y=0 relative=#true
+move 640 480
+move 100 0 relative=#true
 ```
+
+Older prop form `move x=640 y=480` still decodes. You can't mix
+forms — `move 640 480 x=100` is an error.
 
 ### scroll
 
-Scroll by wheel clicks. `dy` positive = down, `dx` positive = right.
+Scroll by wheel clicks. Two positional ints = dx, dy. `dy` positive
+= down, `dx` positive = right.
 
 ```kdl
-scroll dx=0 dy=3
-scroll dx=0 dy=-5
+scroll 0 3
+scroll 0 -5
 ```
+
+Older prop form `scroll dx=0 dy=3` still decodes.
 
 ### focus
 
-Activate the first window whose title contains `window=`. Errors
-immediately if no matching window exists — pair with `await-window`
-if the window might not be up yet.
+Activate the first window whose title contains the positional argument.
+Errors immediately if no matching window exists — pair with
+`wait-window` if the window might not be up yet.
 
 ```kdl
-focus window="Firefox"
+focus "Firefox"
 ```
 
-### await-window
+Older prop form `focus window="Firefox"` still decodes.
+
+### wait-window
 
 Block until a window matching the positional argument exists, or the
 timeout elapses. This is the primitive that turns a racy workflow
 into a reliable one.
 
 Timeout can be either `timeout-ms=5000` or `timeout="5s"`. Defaults
-to 5 seconds if omitted.
+to 5 seconds if omitted. Specifying both forms is a hard error.
 
 ```kdl
 shell "firefox"
-await-window "Firefox" timeout="10s"
+wait-window "Firefox" timeout="10s"
 focus "Firefox"
 key "ctrl+l"
 type "hyprland wiki"
@@ -159,6 +171,9 @@ key "Return"
 ```
 
 If the window never appears, the step errors and the workflow halts.
+
+Older verb `await-window` still decodes; the encoder emits
+`wait-window` so it pairs lexically with `wait`.
 
 ### wait
 
@@ -189,12 +204,15 @@ shell "git -C ~/projects/wflow status --short"
 shell "notify-send 'ok' 'step 3 done'"
 ```
 
-Override the shell with `shell="/bin/bash"` if `$SHELL` isn't what
-you want:
+Override the interpreter with `with="/bin/bash"` if `$SHELL` isn't
+what you want:
 
 ```kdl
-shell "echo $0" shell="/bin/bash"
+shell "echo $0" with="/bin/bash"
 ```
+
+Older prop name `shell="/bin/bash"` still decodes for backwards
+compatibility, but `with=` avoids the awkward `shell shell=` reading.
 
 ### notify
 
@@ -206,13 +224,15 @@ notify "done"
 notify "build failed" body="see ~/tmp/build.log"
 ```
 
-### clip
+### clipboard
 
 Copy text to the Wayland clipboard via `wl-copy`.
 
 ```kdl
-clip "git@github.com:cushycush/wflow.git"
+clipboard "git@github.com:cushycush/wflow.git"
 ```
+
+Older verb `clip` still decodes.
 
 ### note
 

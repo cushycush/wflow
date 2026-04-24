@@ -114,7 +114,7 @@ fn encode_step(step: &Step) -> KdlNode {
             n
         }
         Action::WdoAwaitWindow { name, timeout_ms } => {
-            let mut n = KdlNode::new("await-window");
+            let mut n = KdlNode::new("wait-window");
             n.push(arg_str(name));
             // Emit the timeout as an integer (ms) for round-trip stability;
             // users can hand-write `timeout="5s"` and we'll parse both.
@@ -130,7 +130,7 @@ fn encode_step(step: &Step) -> KdlNode {
             let mut n = KdlNode::new("shell");
             n.push(arg_str(command));
             if let Some(s) = shell {
-                n.push(prop_str("shell", s));
+                n.push(prop_str("with", s));
             }
             n
         }
@@ -143,7 +143,7 @@ fn encode_step(step: &Step) -> KdlNode {
             n
         }
         Action::Clipboard { text } => {
-            let mut n = KdlNode::new("clip");
+            let mut n = KdlNode::new("clipboard");
             n.push(arg_str(text));
             n
         }
@@ -280,7 +280,8 @@ pub fn decode(src: &str) -> Result<Workflow> {
 }
 
 fn decode_step(node: &KdlNode) -> Result<Step> {
-    let name = node.name().value();
+    let raw_name = node.name().value();
+    let name = canonical_verb(raw_name);
 
     // Reject unknown props up-front. Every action accepts `disabled` and
     // `comment` on top of its own list. A typo'd `retries=3` or `wndow=...`
@@ -368,7 +369,7 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             };
             Action::WdoActivateWindow { name }
         }
-        "await-window" => {
+        "wait-window" => {
             let name = first_string(node)?;
             let tms = prop_integer(node, "timeout-ms");
             let ts = prop_string(node, "timeout");
@@ -412,7 +413,19 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
         }
         "shell" => {
             let command = first_string(node)?;
-            let shell = prop_string(node, "shell");
+            // Accept both `with="..."` (preferred) and `shell="..."`
+            // (original, retained so pre-rename files still decode).
+            // Both at once is a user mistake.
+            let new_name = prop_string(node, "with");
+            let old_name = prop_string(node, "shell");
+            let shell = match (new_name, old_name) {
+                (Some(_), Some(_)) => bail!(
+                    "`shell`: set the interpreter with `with=\"/bin/bash\"` — \
+                     drop the older `shell=` alias"
+                ),
+                (Some(s), None) | (None, Some(s)) => Some(s),
+                (None, None) => None,
+            };
             Action::Shell { command, shell }
         }
         "notify" => {
@@ -420,7 +433,7 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             let body = prop_string(node, "body");
             Action::Notify { title, body }
         }
-        "clip" => {
+        "clipboard" => {
             let text = first_string(node)?;
             Action::Clipboard { text }
         }
@@ -488,11 +501,27 @@ fn first_string_opt(node: &KdlNode) -> Option<String> {
     None
 }
 
-/// Per-action list of property names the decoder will accept. Every
-/// action additionally accepts the common step properties (see
-/// `COMMON_PROPS`). Keep in lockstep with the match arms in
-/// `decode_step` — this is the single source of truth for "is
-/// `shell retries=3` valid?".
+/// Canonicalize a verb to its one-true-name. Accepts old / alias
+/// forms for backwards compatibility (files written by prior releases,
+/// or workflows shared by other users). The encoder only emits the
+/// canonical form; the decoder accepts both.
+fn canonical_verb(raw: &str) -> &str {
+    match raw {
+        "clip" => "clipboard",
+        "await-window" => "wait-window",
+        other => other,
+    }
+}
+
+/// Per-action list of property names the decoder will accept, keyed by
+/// the *canonical* verb name. Every action additionally accepts the
+/// common step properties (see `COMMON_PROPS`). Keep in lockstep with
+/// the match arms in `decode_step` — this is the single source of
+/// truth for "is `shell retries=3` valid?".
+///
+/// `shell` accepts both `shell=` (the original, now-deprecated prop
+/// name) and `with=` (the new name; `shell "cmd" shell="..."` was
+/// confusing).
 fn action_props(kind: &str) -> &'static [&'static str] {
     match kind {
         "type" => &["delay-ms"],
@@ -501,11 +530,11 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "move" => &["x", "y", "relative"],
         "scroll" => &["dx", "dy"],
         "focus" => &["window"],
-        "await-window" => &["timeout-ms", "timeout"],
+        "wait-window" => &["timeout-ms", "timeout"],
         "wait" => &["ms"],
-        "shell" => &["shell"],
+        "shell" => &["shell", "with"],
         "notify" => &["body"],
-        "clip" => &[],
+        "clipboard" => &[],
         "note" => &[],
         _ => &[],
     }
@@ -667,6 +696,66 @@ mod tests {
     }
 
     #[test]
+    fn old_verb_names_still_decode() {
+        // `clip` → `clipboard`, `await-window` → `wait-window`. Old files
+        // keep working; only the encoder switches to the new names.
+        let src = wrap(
+            "clip \"copied\"\n\
+             await-window \"Firefox\" timeout=\"5s\"",
+        );
+        let wf = decode(&src).unwrap();
+        let actions: Vec<_> = wf.steps.iter().map(|s| s.action.category()).collect();
+        assert_eq!(actions, vec!["clipboard", "wait"]);
+    }
+
+    #[test]
+    fn shell_prop_accepts_old_and_new_names() {
+        // `shell="..."` (old) and `with="..."` (new) both work.
+        let a = decode(&wrap(r#"shell "echo hi" with="/bin/bash""#)).unwrap();
+        let b = decode(&wrap(r#"shell "echo hi" shell="/bin/bash""#)).unwrap();
+        let ja = serde_json::to_value(&a.steps[0].action).unwrap();
+        let jb = serde_json::to_value(&b.steps[0].action).unwrap();
+        assert_eq!(ja, jb);
+
+        // Both at once is a user mistake.
+        let err = decode(&wrap(r#"shell "echo hi" with="/bin/bash" shell="/bin/bash""#))
+            .unwrap_err();
+        assert!(format!("{err:#}").contains("drop the older `shell=` alias"));
+    }
+
+    #[test]
+    fn encoder_emits_canonical_names() {
+        let mut wf = Workflow::new("t");
+        wf.steps.push(Step::new(Action::Clipboard { text: "copied".into() }));
+        wf.steps.push(Step::new(Action::WdoAwaitWindow {
+            name: "Firefox".into(),
+            timeout_ms: 5_000,
+        }));
+        wf.steps.push(Step::new(Action::Shell {
+            command: "echo hi".into(),
+            shell: Some("/bin/bash".into()),
+        }));
+        let text = encode(&wf);
+        // KDL autoformat drops quotes when strings are bareword-safe, so
+        // match the verb + content on a word boundary instead.
+        assert!(text.contains("clipboard copied") || text.contains("clipboard \"copied\""), "got:\n{text}");
+        assert!(text.contains("wait-window Firefox") || text.contains("wait-window \"Firefox\""), "got:\n{text}");
+        assert!(text.contains("with=\"/bin/bash\"") || text.contains("with=/bin/bash"), "got:\n{text}");
+        // No lingering old names on canonical output.
+        for line in text.lines() {
+            let trimmed = line.trim_start();
+            assert!(
+                !trimmed.starts_with("clip ") && !trimmed.starts_with("clip\""),
+                "line leaks old `clip` verb: {line}"
+            );
+            assert!(
+                !trimmed.starts_with("await-window"),
+                "line leaks old `await-window` verb: {line}"
+            );
+        }
+    }
+
+    #[test]
     fn positional_and_prop_forms_both_decode() {
         // Both syntaxes for focus / click / move / scroll parse to the
         // same Action.
@@ -787,7 +876,7 @@ mod tests {
         let err = decode(src).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("unknown property `retries`"), "got: {msg}");
-        assert!(msg.contains("shell, disabled, comment"), "got: {msg}");
+        assert!(msg.contains("shell, with, disabled, comment"), "got: {msg}");
     }
 
     #[test]
