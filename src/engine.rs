@@ -14,13 +14,13 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use uuid::Uuid;
 
-use crate::actions::{substitute, Action, OnError, RunEvent, Step, StepOutcome, VarMap, Workflow};
+use crate::actions::{substitute, Action, Condition, OnError, RunEvent, Step, StepOutcome, VarMap, Workflow};
 
 /// A thread-safe event sink. Implemented by the bridge layer so the Qt
 /// signal path owns the threading concerns; the engine stays pure Rust.
 pub type EventSink = Arc<dyn Fn(RunEvent) + Send + Sync>;
 
-/// Run a workflow to completion (or first hard error).
+/// Run a workflow to completion (or first halting error).
 pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
     let run_id = Uuid::new_v4().to_string();
 
@@ -29,103 +29,166 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
         run_id: run_id.clone(),
     });
 
-    // Run-time variable environment. Starts from the workflow's `vars {}`
-    // block; grows as `shell "..." as="name"` steps capture their stdout.
     let mut vars: VarMap = wf.vars.clone();
+    let mut index = 0usize;
+    let mut any_failed = false;
 
-    // Expand `repeat N { ... }` into a flat step list so the per-step
-    // signal stream shows every iteration-step individually. Disabled
-    // repeats pass through as-is and are skipped inside the loop.
-    let flat = flatten_steps(&wf.steps);
-
-    let mut all_ok = true;
-    for (idx, step) in flat.iter().enumerate() {
-        sink(RunEvent::StepStart {
-            step_id: step.id.clone(),
-            index: idx,
-        });
-
-        let outcome = if !step.enabled {
-            StepOutcome::Skipped {
-                reason: "disabled".into(),
-            }
-        } else if matches!(step.action, Action::Note { .. }) {
-            StepOutcome::Skipped {
-                reason: "note".into(),
-            }
-        } else {
-            // Substitute {{name}} before dispatch so both the runtime
-            // and any captured output see the expanded form.
-            match expand(&step.action, &vars) {
-                Ok(expanded) => {
-                    let outcome = run_action_value(&expanded).await;
-                    // On success, if this is a `shell ... as="k"` step,
-                    // bind its stdout for later steps.
-                    if let (
-                        StepOutcome::Ok { output: Some(out), .. },
-                        Action::Shell { capture_as: Some(name), .. },
-                    ) = (&outcome, &expanded)
-                    {
-                        vars.insert(name.clone(), out.trim_end().to_string());
-                    } else if let (
-                        StepOutcome::Ok { output: None, .. },
-                        Action::Shell { capture_as: Some(name), .. },
-                    ) = (&outcome, &expanded)
-                    {
-                        // No stdout → bind empty string rather than leaving
-                        // the name unbound; later `{{name}}` substitutes "".
-                        vars.insert(name.clone(), String::new());
-                    }
-                    outcome
-                }
-                Err(e) => StepOutcome::Error {
-                    message: format!("{e:#}"),
-                    duration_ms: 0,
-                },
-            }
-        };
-
-        if matches!(outcome, StepOutcome::Error { .. }) {
-            all_ok = false;
-        }
-
-        sink(RunEvent::StepDone {
-            step_id: step.id.clone(),
-            index: idx,
-            outcome: outcome.clone(),
-        });
-
-        if matches!(outcome, StepOutcome::Error { .. }) && step.on_error == OnError::Stop {
-            break;
-        }
-    }
+    run_steps(
+        &wf.steps,
+        &sink,
+        &mut vars,
+        &mut index,
+        &mut any_failed,
+    )
+    .await?;
 
     sink(RunEvent::Finished {
-        run_id: run_id.clone(),
-        ok: all_ok,
+        run_id,
+        ok: !any_failed,
     });
     Ok(())
 }
 
-/// Recursively flatten `Action::Repeat` blocks into their expanded
-/// iteration-steps. A `repeat 3 { a; b }` becomes `[a, b, a, b, a, b]`
-/// — same step ids reused across iterations so captures and outcomes
-/// stay traceable. A `disabled=#true` repeat passes through as its
-/// single node so the run loop still reports it as skipped.
-fn flatten_steps(steps: &[Step]) -> Vec<Step> {
-    let mut out = Vec::with_capacity(steps.len());
-    for step in steps {
-        match (&step.action, step.enabled) {
-            (Action::Repeat { count, steps: inner }, true) => {
-                let inner_flat = flatten_steps(inner);
-                for _ in 0..*count {
-                    out.extend(inner_flat.iter().cloned());
+/// Recursively dispatch a list of steps. Handles flow-control actions
+/// (`repeat`, `when`/`unless`) inline so their inner steps emit their
+/// own StepStart/StepDone events with continuous indices. Returns
+/// `Flow::Halt` when a step fails with `on-error=stop`; that bubbles
+/// up the recursion and terminates the whole workflow.
+type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
+
+fn run_steps<'a>(
+    steps: &'a [Step],
+    sink: &'a EventSink,
+    vars: &'a mut VarMap,
+    index: &'a mut usize,
+    any_failed: &'a mut bool,
+) -> BoxFuture<'a, Result<Flow>> {
+    Box::pin(async move {
+        for step in steps {
+            // Flow-control actions get evaluated inline — their inner
+            // steps become the ones that emit events.
+            match &step.action {
+                Action::Repeat { count, steps: inner } if step.enabled => {
+                    for _ in 0..*count {
+                        if run_steps(inner, sink, vars, index, any_failed).await? == Flow::Halt {
+                            return Ok(Flow::Halt);
+                        }
+                    }
+                    continue;
                 }
+                Action::Conditional { cond, negate, steps: inner } if step.enabled => {
+                    let cond_holds = evaluate_condition(cond, vars)
+                        .await
+                        .unwrap_or(false);
+                    if cond_holds ^ *negate {
+                        if run_steps(inner, sink, vars, index, any_failed).await? == Flow::Halt {
+                            return Ok(Flow::Halt);
+                        }
+                    }
+                    continue;
+                }
+                _ => {}
             }
-            _ => out.push(step.clone()),
+
+            // Leaf step: emit StepStart, dispatch, emit StepDone.
+            let idx = *index;
+            *index += 1;
+            sink(RunEvent::StepStart {
+                step_id: step.id.clone(),
+                index: idx,
+            });
+
+            let outcome = if !step.enabled {
+                StepOutcome::Skipped { reason: "disabled".into() }
+            } else if matches!(step.action, Action::Note { .. }) {
+                StepOutcome::Skipped { reason: "note".into() }
+            } else {
+                match expand(&step.action, vars) {
+                    Ok(expanded) => {
+                        let outcome = run_action_value(&expanded).await;
+                        // Bind stdout to the `as=` var on shell success.
+                        if let (
+                            StepOutcome::Ok { output, .. },
+                            Action::Shell { capture_as: Some(name), .. },
+                        ) = (&outcome, &expanded)
+                        {
+                            let value = output
+                                .clone()
+                                .map(|s| s.trim_end().to_string())
+                                .unwrap_or_default();
+                            vars.insert(name.clone(), value);
+                        }
+                        outcome
+                    }
+                    Err(e) => StepOutcome::Error {
+                        message: format!("{e:#}"),
+                        duration_ms: 0,
+                    },
+                }
+            };
+
+            let errored = matches!(outcome, StepOutcome::Error { .. });
+            if errored {
+                *any_failed = true;
+            }
+
+            sink(RunEvent::StepDone {
+                step_id: step.id.clone(),
+                index: idx,
+                outcome: outcome.clone(),
+            });
+
+            if errored && step.on_error == OnError::Stop {
+                return Ok(Flow::Halt);
+            }
+        }
+        Ok(Flow::Continue)
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Flow {
+    Continue,
+    Halt,
+}
+
+/// Test a `Condition` against live system state. Errors surface as
+/// `Ok(false)` — we treat "can't tell" as "not true" so `unless
+/// window="X"` does the right thing when wdotool is missing.
+async fn evaluate_condition(cond: &Condition, vars: &VarMap) -> Result<bool> {
+    match cond {
+        Condition::Window { name } => {
+            let name = substitute(name, vars)?;
+            Ok(find_window_id(&name).await?.is_some())
+        }
+        Condition::File { path } => {
+            let path = substitute(path, vars)?;
+            let resolved = expand_tilde(&path);
+            Ok(resolved.exists())
+        }
+        Condition::Env { name, equals } => match std::env::var(name) {
+            Err(_) => Ok(false),
+            Ok(v) if v.is_empty() => Ok(false),
+            Ok(v) => Ok(match equals {
+                Some(target) => v == *target,
+                None => true,
+            }),
+        },
+    }
+}
+
+fn expand_tilde(p: &str) -> std::path::PathBuf {
+    if let Some(rest) = p.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(rest);
         }
     }
-    out
+    if p == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home;
+        }
+    }
+    std::path::PathBuf::from(p)
 }
 
 /// Clone an action with all of its string fields `{{name}}`-expanded
@@ -170,10 +233,16 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
         },
         Action::Clipboard { text } => Action::Clipboard { text: sub(text)? },
         Action::Note { text } => Action::Note { text: text.clone() },
-        // Already flattened by `flatten_steps` before run_workflow iterates;
-        // cloning here for completeness keeps the function total.
+        // Flow-control actions are handled inline by `run_steps` so
+        // reaching here would be a misuse. Clone through so the
+        // function stays total.
         Action::Repeat { count, steps } => Action::Repeat {
             count: *count,
+            steps: steps.clone(),
+        },
+        Action::Conditional { cond, negate, steps } => Action::Conditional {
+            cond: cond.clone(),
+            negate: *negate,
             steps: steps.clone(),
         },
     })
@@ -209,10 +278,10 @@ async fn run_action_value(action: &Action) -> StepOutcome {
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
-        // Repeat is always flattened before dispatch; reaching here
-        // would be a bug. Report it rather than panicking.
-        Action::Repeat { .. } => Err(anyhow!(
-            "internal: `repeat` action should have been flattened before dispatch"
+        // Flow-control actions are handled inline by `run_steps`;
+        // reaching here means something bypassed that path.
+        Action::Repeat { .. } | Action::Conditional { .. } => Err(anyhow!(
+            "internal: flow-control action reached dispatch"
         )),
     };
     let duration_ms = start.elapsed().as_millis() as u64;

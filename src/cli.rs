@@ -787,6 +787,12 @@ fn collect_tool_needs(
             Action::Repeat { steps: inner, .. } => {
                 collect_tool_needs(inner, needed);
             }
+            Action::Conditional { cond, steps: inner, .. } => {
+                if matches!(cond, crate::actions::Condition::Window { .. }) {
+                    needed.insert("wdotool");
+                }
+                collect_tool_needs(inner, needed);
+            }
             Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
         }
     }
@@ -910,17 +916,30 @@ fn explain_lines(action: &Action) -> Vec<String> {
                 steps.len(),
                 if steps.len() == 1 { "" } else { "s" }
             )];
-            for step in steps {
-                let sub_head = format!("{:<9}", step.action.category());
-                for (i, line) in explain_lines(&step.action).into_iter().enumerate() {
-                    // Drop the sub-line's own head prefix and replace with
-                    // indented compact form so everything fits on one line.
-                    let tail = line.trim_start_matches(&sub_head).trim_start();
-                    let first_prefix = if i == 0 { "  · " } else { "    " };
-                    lines.push(format!("{:<9} {first_prefix}{}", "", tail));
-                }
-            }
+            indent_inner(steps, &mut lines);
             lines
+        }
+        Action::Conditional { cond, negate, steps } => {
+            let verb = if *negate { "unless" } else { "when" };
+            let mut lines = vec![format!(
+                "{head} # {verb} {} ({} step{})",
+                cond.describe(),
+                steps.len(),
+                if steps.len() == 1 { "" } else { "s" }
+            )];
+            indent_inner(steps, &mut lines);
+            lines
+        }
+    }
+}
+
+fn indent_inner(steps: &[crate::actions::Step], lines: &mut Vec<String>) {
+    for step in steps {
+        let sub_head = format!("{:<9}", step.action.category());
+        for (i, line) in explain_lines(&step.action).into_iter().enumerate() {
+            let tail = line.trim_start_matches(&sub_head).trim_start();
+            let first_prefix = if i == 0 { "  · " } else { "    " };
+            lines.push(format!("{:<9} {first_prefix}{}", "", tail));
         }
     }
 }

@@ -28,7 +28,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 
-use crate::actions::{normalize_chord, Action, OnError, Step, Workflow};
+use crate::actions::{normalize_chord, Action, Condition, OnError, Step, Workflow};
 
 pub const SCHEMA_VERSION: i128 = 1;
 
@@ -193,6 +193,25 @@ fn encode_step(step: &Step) -> KdlNode {
         Action::Repeat { count, steps } => {
             let mut n = KdlNode::new("repeat");
             n.push(arg_int(*count as i128));
+            let mut inner = KdlDocument::new();
+            for step in steps {
+                inner.nodes_mut().push(encode_step(step));
+            }
+            n.set_children(inner);
+            n
+        }
+        Action::Conditional { cond, negate, steps } => {
+            let mut n = KdlNode::new(if *negate { "unless" } else { "when" });
+            match cond {
+                Condition::Window { name } => n.push(prop_str("window", name)),
+                Condition::File { path } => n.push(prop_str("file", path)),
+                Condition::Env { name, equals } => {
+                    n.push(prop_str("env", name));
+                    if let Some(v) = equals {
+                        n.push(prop_str("equals", v));
+                    }
+                }
+            }
             let mut inner = KdlDocument::new();
             for step in steps {
                 inner.nodes_mut().push(encode_step(step));
@@ -568,6 +587,22 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 steps,
             }
         }
+        "when" | "unless" => {
+            let verb = name; // already canonical (no alias today)
+            let cond = decode_condition(node, verb)?;
+            let children = node.children().ok_or_else(|| {
+                anyhow!("`{verb}` must have a block `{{ ... }}` of steps")
+            })?;
+            let mut steps = Vec::new();
+            for step_node in children.nodes() {
+                steps.push(decode_step(step_node)?);
+            }
+            Action::Conditional {
+                cond,
+                negate: verb == "unless",
+                steps,
+            }
+        }
         "note" => {
             let text = first_string(node)?;
             Action::Note { text }
@@ -580,6 +615,48 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
     step.note = comment;
     step.on_error = on_error;
     Ok(step)
+}
+
+fn decode_condition(node: &KdlNode, verb: &str) -> Result<Condition> {
+    // Exactly one of window / file / env is required. `equals` only
+    // makes sense with `env`.
+    let window = prop_string(node, "window");
+    let file = prop_string(node, "file");
+    let env = prop_string(node, "env");
+    let equals = prop_string(node, "equals");
+
+    let present = [window.is_some(), file.is_some(), env.is_some()]
+        .iter()
+        .filter(|b| **b)
+        .count();
+    if present == 0 {
+        bail!(
+            "`{verb}` needs exactly one condition — try `{verb} window=\"Firefox\" {{ ... }}`, \
+             `{verb} file=\"/tmp/marker\" {{ ... }}`, or `{verb} env=\"DEBUG\" {{ ... }}`"
+        );
+    }
+    if present > 1 {
+        bail!(
+            "`{verb}` takes exactly one of `window=` / `file=` / `env=`, not two"
+        );
+    }
+
+    if let Some(name) = window {
+        if equals.is_some() {
+            bail!("`{verb} window=...` doesn't take `equals=`");
+        }
+        return Ok(Condition::Window { name });
+    }
+    if let Some(path) = file {
+        if equals.is_some() {
+            bail!("`{verb} file=...` doesn't take `equals=`");
+        }
+        return Ok(Condition::File { path });
+    }
+    if let Some(name) = env {
+        return Ok(Condition::Env { name, equals });
+    }
+    unreachable!()
 }
 
 // ---------------------------------------------------------- Helpers ---------
@@ -673,6 +750,10 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "clipboard" => &[],
         "note" => &[],
         "repeat" => &[],
+        // Conditional props: exactly one of window / file / env is
+        // required. `env` may pair with `equals`.
+        "when" => &["window", "file", "env", "equals"],
+        "unless" => &["window", "file", "env", "equals"],
         _ => &[],
     }
 }
@@ -858,6 +939,67 @@ mod tests {
             chords,
             vec!["Return", "Escape", "super+shift+T", "alt", "Page_Down"]
         );
+    }
+
+    #[test]
+    fn when_unless_round_trip() {
+        let src = wrap(
+            "when window=\"Firefox\" {\n\
+             \t\tkey \"ctrl+l\"\n\
+             \t}\n\
+             \tunless file=\"/tmp/marker\" {\n\
+             \t\tshell \"echo gate\"\n\
+             \t}\n\
+             \twhen env=\"DEBUG\" equals=\"1\" {\n\
+             \t\tnote \"debug on\"\n\
+             \t}",
+        );
+        let wf = decode(&src).unwrap();
+        assert_eq!(wf.steps.len(), 3);
+
+        match &wf.steps[0].action {
+            Action::Conditional { cond: Condition::Window { name }, negate: false, steps } => {
+                assert_eq!(name, "Firefox");
+                assert_eq!(steps.len(), 1);
+            }
+            _ => panic!("expected when window=..."),
+        }
+        match &wf.steps[1].action {
+            Action::Conditional { cond: Condition::File { path }, negate: true, .. } => {
+                assert_eq!(path, "/tmp/marker");
+            }
+            _ => panic!("expected unless file=..."),
+        }
+        match &wf.steps[2].action {
+            Action::Conditional { cond: Condition::Env { name, equals }, negate: false, .. } => {
+                assert_eq!(name, "DEBUG");
+                assert_eq!(equals.as_deref(), Some("1"));
+            }
+            _ => panic!("expected when env=..."),
+        }
+
+        // Round-trip preserves verb and condition shape.
+        let text = encode(&wf);
+        assert!(text.contains("when "), "got:\n{text}");
+        assert!(text.contains("unless "), "got:\n{text}");
+        let back = decode(&text).unwrap();
+        assert_eq!(back.steps.len(), 3);
+    }
+
+    #[test]
+    fn when_requires_exactly_one_condition() {
+        let err = format!("{:#}", decode(&wrap("when { }")).unwrap_err());
+        assert!(err.contains("exactly one condition"), "got: {err}");
+
+        let err = format!("{:#}", decode(&wrap("when window=\"X\" file=\"/p\" { }")).unwrap_err());
+        assert!(err.contains("exactly one"), "got: {err}");
+
+        // equals only makes sense with env
+        let err = format!(
+            "{:#}",
+            decode(&wrap("when window=\"X\" equals=\"v\" { }")).unwrap_err()
+        );
+        assert!(err.contains("doesn't take `equals="), "got: {err}");
     }
 
     #[test]
