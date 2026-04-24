@@ -96,6 +96,12 @@ QtObject {
     // the raw constants. Infinite animations (pulses, shimmers, ambient washes)
     // should gate their `running` flag on `!Theme.reduceMotion`.
     property bool reduceMotion: false
+
+    // ============ Feature flags ============
+    // Explore is 100% mock data until a real catalog backend lands. Flip to
+    // `true` to surface the tab while iterating on the UI. Don't ship `true`
+    // — the nav pill and StackLayout both read this flag.
+    readonly property bool showExplore: false
     readonly property int durFast: 120
     readonly property int durBase: 160
     readonly property int durSlow: 220

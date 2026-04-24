@@ -23,10 +23,19 @@ ApplicationWindow {
     // shortcuts are for keyboard users.
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
+    // Ctrl+N follows the current nav-pill order — the Explore tab only
+    // appears when Theme.showExplore is on, so the shortcut list shifts too.
     Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
-    Shortcut { sequence: "Ctrl+2"; onActivated: root.currentPage = "explore" }
-    Shortcut { sequence: "Ctrl+3"; onActivated: root.currentPage = "workflow" }
-    Shortcut { sequence: "Ctrl+4"; onActivated: root.currentPage = "record" }
+    Shortcut { sequence: "Ctrl+2"
+        onActivated: root.currentPage = Theme.showExplore ? "explore" : "workflow"
+    }
+    Shortcut { sequence: "Ctrl+3"
+        onActivated: root.currentPage = Theme.showExplore ? "workflow" : "record"
+    }
+    Shortcut { sequence: "Ctrl+4"
+        enabled: Theme.showExplore
+        onActivated: root.currentPage = "record"
+    }
 
     ChromeFloating {
         anchors.fill: parent

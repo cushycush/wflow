@@ -76,12 +76,18 @@ Item {
             Item { width: 6; height: 1 }
 
             Repeater {
-                model: [
-                    { id: "library",  label: "Library" },
-                    { id: "explore",  label: "Explore" },
-                    { id: "workflow", label: "Editor" },
-                    { id: "record",   label: "Record" }
-                ]
+                model: Theme.showExplore
+                    ? [
+                        { id: "library",  label: "Library" },
+                        { id: "explore",  label: "Explore" },
+                        { id: "workflow", label: "Editor" },
+                        { id: "record",   label: "Record" }
+                      ]
+                    : [
+                        { id: "library",  label: "Library" },
+                        { id: "workflow", label: "Editor" },
+                        { id: "record",   label: "Record" }
+                      ]
                 delegate: Rectangle {
                     id: tab
                     readonly property bool isActive: modelData.id === root.currentPage
