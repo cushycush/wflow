@@ -5,7 +5,8 @@ import Wflow
 
 // Chrome variant 4 — FLOATING
 // No chrome. Content fills the window. A floating pill in the top-center
-// handles navigation, and a floating + button in the bottom-right creates.
+// handles navigation. Each page carries its own "+ New workflow" /
+// "Save" / run-style affordances in its header — no global FAB.
 Item {
     id: root
     property string currentPage: "library"
@@ -147,48 +148,4 @@ Item {
         }
     }
 
-    // Floating "+ new" FAB bottom-right. Hidden on Explore because the user
-    // isn't authoring from a catalog view, and the drawer's Import CTA needs
-    // the space.
-    Rectangle {
-        visible: root.currentPage !== "explore"
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.margins: 24
-        width: fabRow.implicitWidth + 28
-        height: 56
-        radius: 28
-        color: fabArea.containsMouse ? Theme.accentHi : Theme.accent
-        Behavior on color { ColorAnimation { duration: Theme.durFast } }
-
-        Row {
-            id: fabRow
-            anchors.centerIn: parent
-            spacing: 10
-            Text {
-                text: "+"
-                color: Theme.accentText
-                font.family: Theme.familyBody
-                font.pixelSize: 22
-                font.weight: Font.Bold
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text: "New workflow"
-                color: Theme.accentText
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontSm
-                font.weight: Font.DemiBold
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-
-        MouseArea {
-            id: fabArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.newWorkflow()
-        }
-    }
 }

@@ -3,14 +3,21 @@ import QtQuick.Controls
 import Wflow
 
 // Top bar inside the main pane. Title on the left, contextual actions on the right.
-// Renders nothing if `title` is empty (used for record / empty-library states).
+// When `titleEditable` / `subtitleEditable` are true, the matching label renders
+// as a TextField (borderless until focus) instead of plain Text. Focus loss or
+// Return emits `titleCommitted` / `subtitleCommitted`.
 Rectangle {
     id: root
     color: Theme.bg
     height: 56
     property string title: ""
     property string subtitle: ""
+    property bool titleEditable: false
+    property bool subtitleEditable: false
     default property alias actions: actionRow.data
+
+    signal titleCommitted(string newTitle)
+    signal subtitleCommitted(string newSubtitle)
 
     // Bottom hairline
     Rectangle {
@@ -32,7 +39,9 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
 
+            // Title — plain Text when read-only, TextField when editable.
             Text {
+                visible: !root.titleEditable
                 text: root.title
                 color: Theme.text
                 font.family: Theme.familyBody
@@ -41,14 +50,69 @@ Rectangle {
                 elide: Text.ElideRight
                 width: parent.width
             }
+            TextField {
+                id: titleField
+                visible: root.titleEditable
+                width: parent.width
+                text: root.title
+                color: Theme.text
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontLg
+                font.weight: Font.DemiBold
+                selectByMouse: true
+                leftPadding: 0
+                rightPadding: 0
+                topPadding: 0
+                bottomPadding: 0
+                background: Rectangle {
+                    color: "transparent"
+                    border.color: titleField.activeFocus ? Theme.accent : "transparent"
+                    border.width: 1
+                    radius: 2
+                }
+                // Resync from upstream when not actively focused.
+                property string upstream: root.title
+                onUpstreamChanged: if (!activeFocus) text = upstream
+                onEditingFinished: {
+                    if (text !== root.title) root.titleCommitted(text)
+                }
+            }
+
+            // Subtitle.
             Text {
+                visible: !root.subtitleEditable && root.subtitle.length > 0
                 text: root.subtitle
                 color: Theme.text3
                 font.family: Theme.familyBody
                 font.pixelSize: Theme.fontSm
-                visible: text.length > 0
                 elide: Text.ElideRight
                 width: parent.width
+            }
+            TextField {
+                id: subtitleField
+                visible: root.subtitleEditable
+                width: parent.width
+                text: root.subtitle
+                placeholderText: "add a subtitle…"
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+                selectByMouse: true
+                leftPadding: 0
+                rightPadding: 0
+                topPadding: 0
+                bottomPadding: 0
+                background: Rectangle {
+                    color: "transparent"
+                    border.color: subtitleField.activeFocus ? Theme.accent : "transparent"
+                    border.width: 1
+                    radius: 2
+                }
+                property string upstream: root.subtitle
+                onUpstreamChanged: if (!activeFocus) text = upstream
+                onEditingFinished: {
+                    if (text !== root.subtitle) root.subtitleCommitted(text)
+                }
             }
         }
 
