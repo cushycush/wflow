@@ -244,6 +244,11 @@ pub fn decode(src: &str) -> Result<Workflow> {
 fn decode_step(node: &KdlNode) -> Result<Step> {
     let name = node.name().value();
 
+    // Reject unknown props up-front. Every action accepts `disabled` and
+    // `comment` on top of its own list. A typo'd `retries=3` or `wndow=...`
+    // now hard-errors instead of being silently dropped.
+    validate_props(node, name, action_props(name))?;
+
     // Pull step-level metadata off first, so the action decoders don't see them.
     let disabled = prop_bool_or(node, "disabled", false);
     let comment = prop_string(node, "comment");
@@ -374,6 +379,99 @@ fn first_string_opt(node: &KdlNode) -> Option<String> {
     None
 }
 
+/// Per-action list of property names the decoder will accept. Every
+/// action additionally accepts the common step properties (see
+/// `COMMON_PROPS`). Keep in lockstep with the match arms in
+/// `decode_step` — this is the single source of truth for "is
+/// `shell retries=3` valid?".
+fn action_props(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "type" => &["delay-ms"],
+        "key" => &["clear-modifiers"],
+        "click" => &["button"],
+        "move" => &["x", "y", "relative"],
+        "scroll" => &["dx", "dy"],
+        "focus" => &["window"],
+        "await-window" => &["timeout-ms", "timeout"],
+        "wait" => &["ms"],
+        "shell" => &["shell"],
+        "notify" => &["body"],
+        "clip" => &[],
+        "note" => &[],
+        _ => &[],
+    }
+}
+
+const COMMON_PROPS: &[&str] = &["disabled", "comment"];
+
+/// Walk every named entry on a step node and fail if any name isn't in
+/// the action's allowlist or the common list. Unnamed (positional)
+/// entries are left alone — their handling belongs to the action decoder.
+fn validate_props(node: &KdlNode, kind: &str, allowed: &[&str]) -> Result<()> {
+    for entry in node.entries() {
+        let Some(name) = entry.name().map(|n| n.value()) else {
+            continue;
+        };
+        if allowed.contains(&name) || COMMON_PROPS.contains(&name) {
+            continue;
+        }
+        let valid: Vec<&str> = allowed.iter().copied().chain(COMMON_PROPS.iter().copied()).collect();
+        let hint = suggest(name, &valid);
+        let valid_list = if valid.is_empty() {
+            String::from("(none — this action takes no properties)")
+        } else {
+            valid.join(", ")
+        };
+        bail!(
+            "unknown property `{name}` on `{kind}`. valid: {valid_list}{}",
+            hint.map(|s| format!(". did you mean `{s}`?")).unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+/// Cheap "did you mean?" — returns the closest allowlisted name if the
+/// Levenshtein distance is <= 2 and strictly smaller than the candidate
+/// length (so `x` doesn't suggest `y`).
+fn suggest<'a>(got: &str, valid: &[&'a str]) -> Option<&'a str> {
+    let mut best: Option<(&str, usize)> = None;
+    for &v in valid {
+        let d = levenshtein(got, v);
+        if d >= got.len().max(v.len()) {
+            continue;
+        }
+        if d > 2 {
+            continue;
+        }
+        if best.map(|(_, bd)| d < bd).unwrap_or(true) {
+            best = Some((v, d));
+        }
+    }
+    best.map(|(s, _)| s)
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.is_empty() {
+        return b.len();
+    }
+    if b.is_empty() {
+        return a.len();
+    }
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut curr = vec![0usize; b.len() + 1];
+    for (i, ca) in a.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let cost = if ca == cb { 0 } else { 1 };
+            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[b.len()]
+}
+
 /// Parse a short human duration like "250ms", "1.5s", "2m", or "1h".
 /// No unit suffix defaults to milliseconds so bare numbers still work.
 pub fn parse_duration_ms(s: &str) -> Result<u64> {
@@ -454,6 +552,62 @@ fn parse_ts_opt(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 mod tests {
     use super::*;
     use crate::actions::{Action, Step};
+
+    #[test]
+    fn unknown_props_are_rejected_with_suggestion() {
+        // Typo close enough to be a "did you mean" hit.
+        let src = r#"
+            schema 1
+            id "t"
+            title "t"
+            recipe { click buton=1 }
+        "#;
+        let err = decode(src).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("unknown property `buton`"), "got: {msg}");
+        assert!(msg.contains("did you mean `button`"), "got: {msg}");
+
+        // Totally foreign prop → listed options, no hint.
+        let src = r#"
+            schema 1
+            id "t"
+            title "t"
+            recipe { shell "cmd" retries=3 }
+        "#;
+        let err = decode(src).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("unknown property `retries`"), "got: {msg}");
+        assert!(msg.contains("shell, disabled, comment"), "got: {msg}");
+    }
+
+    #[test]
+    fn common_props_still_work() {
+        let src = r#"
+            schema 1
+            id "t"
+            title "t"
+            recipe {
+                key "Return" disabled=#true comment="temp"
+            }
+        "#;
+        let wf = decode(src).expect("disabled + comment must remain valid");
+        assert_eq!(wf.steps.len(), 1);
+        assert!(!wf.steps[0].enabled);
+        assert_eq!(wf.steps[0].note.as_deref(), Some("temp"));
+    }
+
+    #[test]
+    fn note_rejects_foreign_prop() {
+        // `note` takes no properties. A property here is clearly a mistake.
+        let src = r#"
+            schema 1
+            id "t"
+            title "t"
+            recipe { note "hi" important=#true }
+        "#;
+        let err = decode(src).unwrap_err();
+        assert!(format!("{err:#}").contains("unknown property `important`"));
+    }
 
     #[test]
     fn duration_parser_handles_common_shapes() {

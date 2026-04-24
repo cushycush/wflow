@@ -9,7 +9,8 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 
 use crate::actions::{Action, RunEvent, StepOutcome, Workflow};
 use crate::{engine, kdl_format, store};
@@ -89,6 +90,16 @@ pub enum Command {
     /// available on PATH. Useful as a preflight before shipping
     /// workflows to a new machine.
     Doctor,
+    /// Print a shell completion script to stdout.
+    ///
+    /// Install (pick your shell):{n}
+    ///   bash  →  source <(wflow completions bash){n}
+    ///   zsh   →  wflow completions zsh  > "${fpath[1]}/_wflow"{n}
+    ///   fish  →  wflow completions fish > ~/.config/fish/completions/wflow.fish
+    Completions {
+        /// Target shell.
+        shell: Shell,
+    },
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -113,6 +124,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Rm { target, force } => cmd_rm(&target, force),
         Command::New { title, stdout } => cmd_new(&title, stdout),
         Command::Doctor => cmd_doctor(),
+        Command::Completions { shell } => cmd_completions(shell),
     };
 
     match result {
@@ -307,6 +319,13 @@ fn cmd_doctor() -> Result<ExitCode> {
         );
         Ok(ExitCode::from(1))
     }
+}
+
+fn cmd_completions(shell: Shell) -> Result<ExitCode> {
+    let mut cmd = Cli::command();
+    let bin_name = cmd.get_name().to_string();
+    clap_complete::generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+    Ok(ExitCode::SUCCESS)
 }
 
 fn which(bin: &str) -> Option<PathBuf> {
