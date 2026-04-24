@@ -158,7 +158,14 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_int(*ms as i128));
             n
         }
-        Action::Shell { command, shell, capture_as, timeout_ms } => {
+        Action::Shell {
+            command,
+            shell,
+            capture_as,
+            timeout_ms,
+            retries,
+            backoff_ms,
+        } => {
             let mut n = KdlNode::new("shell");
             n.push(arg_str(command));
             if let Some(s) = shell {
@@ -169,6 +176,12 @@ fn encode_step(step: &Step) -> KdlNode {
             }
             if let Some(ms) = timeout_ms {
                 n.push(prop_int("timeout-ms", *ms as i128));
+            }
+            if *retries > 0 {
+                n.push(prop_int("retries", *retries as i128));
+            }
+            if let Some(ms) = backoff_ms {
+                n.push(prop_int("backoff-ms", *ms as i128));
             }
             n
         }
@@ -558,7 +571,31 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 (None, Some(s)) => Some(parse_duration_ms(&s)?),
                 (None, None) => None,
             };
-            Action::Shell { command, shell, capture_as, timeout_ms }
+            let retries = prop_integer(node, "retries").unwrap_or(0);
+            if retries < 0 {
+                bail!("`shell`: `retries` must be >= 0, got {retries}");
+            }
+            let retries = retries as u32;
+            // Same bi-form treatment for backoff.
+            let bms = prop_integer(node, "backoff-ms");
+            let bs = prop_string(node, "backoff");
+            let backoff_ms = match (bms, bs) {
+                (Some(_), Some(_)) => bail!(
+                    "`shell`: specify the backoff once, as either \
+                     `backoff-ms=500` or `backoff=\"500ms\"` — not both"
+                ),
+                (Some(v), None) => Some(v as u64),
+                (None, Some(s)) => Some(parse_duration_ms(&s)?),
+                (None, None) => None,
+            };
+            Action::Shell {
+                command,
+                shell,
+                capture_as,
+                timeout_ms,
+                retries,
+                backoff_ms,
+            }
         }
         "notify" => {
             let title = first_string(node)?;
@@ -745,7 +782,11 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "focus" => &["window"],
         "wait-window" => &["timeout-ms", "timeout"],
         "wait" => &["ms"],
-        "shell" => &["shell", "with", "as", "timeout", "timeout-ms"],
+        "shell" => &[
+            "shell", "with", "as",
+            "timeout", "timeout-ms",
+            "retries", "backoff", "backoff-ms",
+        ],
         "notify" => &["body"],
         "clipboard" => &[],
         "note" => &[],
@@ -1065,6 +1106,52 @@ mod tests {
     }
 
     #[test]
+    fn shell_retries_round_trip() {
+        let src = wrap(
+            "shell \"flaky\" retries=3 backoff=\"250ms\"\n\
+             shell \"once\"",
+        );
+        let wf = decode(&src).unwrap();
+        match &wf.steps[0].action {
+            Action::Shell { retries, backoff_ms, .. } => {
+                assert_eq!(*retries, 3);
+                assert_eq!(*backoff_ms, Some(250));
+            }
+            _ => panic!("expected shell"),
+        }
+        match &wf.steps[1].action {
+            Action::Shell { retries, backoff_ms, .. } => {
+                assert_eq!(*retries, 0);
+                assert_eq!(*backoff_ms, None);
+            }
+            _ => panic!("expected shell"),
+        }
+
+        // Encode + re-decode.
+        let text = encode(&wf);
+        assert!(text.contains("retries=3"), "got:\n{text}");
+        let back = decode(&text).unwrap();
+        match &back.steps[0].action {
+            Action::Shell { retries, backoff_ms, .. } => {
+                assert_eq!(*retries, 3);
+                assert_eq!(*backoff_ms, Some(250));
+            }
+            _ => panic!(),
+        }
+
+        // Both backoff forms at once → error
+        let err = decode(&wrap(
+            r#"shell "x" retries=1 backoff-ms=500 backoff="500ms""#,
+        ))
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("not both"), "got: {err:#}");
+
+        // Negative retries → error
+        let err = decode(&wrap(r#"shell "x" retries=-1"#)).unwrap_err();
+        assert!(format!("{err:#}").contains("must be >= 0"), "got: {err:#}");
+    }
+
+    #[test]
     fn shell_timeout_accepts_both_forms() {
         // Bare-int ms, string form, and no-timeout all decode.
         let src = wrap(
@@ -1102,6 +1189,8 @@ mod tests {
                 shell: None,
                 capture_as: None,
                 timeout_ms: None,
+                retries: 0,
+                backoff_ms: None,
             });
             s.on_error = OnError::Continue;
             s
@@ -1249,6 +1338,8 @@ mod tests {
             shell: Some("/bin/bash".into()),
             capture_as: None,
             timeout_ms: None,
+            retries: 0,
+            backoff_ms: None,
         }));
         let text = encode(&wf);
         // KDL autoformat drops quotes when strings are bareword-safe, so
@@ -1386,13 +1477,13 @@ mod tests {
             schema 1
             id "t"
             title "t"
-            recipe { shell "cmd" retries=3 }
+            recipe { shell "cmd" gizmo=3 }
         "#;
         let err = decode(src).unwrap_err();
         let msg = format!("{err:#}");
-        assert!(msg.contains("unknown property `retries`"), "got: {msg}");
+        assert!(msg.contains("unknown property `gizmo`"), "got: {msg}");
         assert!(
-            msg.contains("shell, with, as, timeout, timeout-ms, disabled, comment"),
+            msg.contains("shell, with, as, timeout, timeout-ms, retries, backoff, backoff-ms, disabled, comment"),
             "got: {msg}"
         );
     }
@@ -1497,8 +1588,8 @@ mod tests {
             Step::new(Action::WdoActivateWindow { name: "Firefox".into() }),
             Step::new(Action::WdoAwaitWindow { name: "Firefox".into(), timeout_ms: 7500 }),
             Step::new(Action::Delay { ms: 500 }),
-            Step::new(Action::Shell { command: "echo hi".into(), shell: None, capture_as: None, timeout_ms: None }),
-            Step::new(Action::Shell { command: "date +%F".into(), shell: None, capture_as: Some("today".into()), timeout_ms: Some(30_000) }),
+            Step::new(Action::Shell { command: "echo hi".into(), shell: None, capture_as: None, timeout_ms: None, retries: 0, backoff_ms: None }),
+            Step::new(Action::Shell { command: "date +%F".into(), shell: None, capture_as: Some("today".into()), timeout_ms: Some(30_000), retries: 3, backoff_ms: Some(250) }),
             Step::new(Action::Notify { title: "done".into(), body: Some("all good".into()) }),
             Step::new(Action::Clipboard { text: "copied".into() }),
             Step::new(Action::Note { text: "remember to disable VPN".into() }),

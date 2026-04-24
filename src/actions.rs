@@ -291,6 +291,11 @@ pub enum Action {
         /// `None` = no timeout. On elapse the child is killed.
         #[serde(default)]
         timeout_ms: Option<u64>,
+        #[serde(default)]
+        retries: u32,
+        /// Default 500ms when retries > 0 and unset.
+        #[serde(default)]
+        backoff_ms: Option<u64>,
     },
     /// notify-send.
     Notify {
