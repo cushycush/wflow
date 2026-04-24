@@ -13,15 +13,7 @@ Rectangle {
     property bool active: false
     property bool hasError: false
     property string errorMessage: ""
-    property color categoryColor: {
-        const t = ({
-            "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-            "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-            "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-            "clipboard": Theme.catClip, "note": Theme.catNote
-        })
-        return t[kind] || Theme.catWait
-    }
+    property color categoryColor: Theme.catFor(kind)
     signal activated()
     signal removeRequested()
 
@@ -30,35 +22,33 @@ Rectangle {
 
     color: {
         if (VisualStyle.categoryTintedRow) {
-            const c = root.categoryColor
             const alpha = root.active ? 0.18 :
                           hoverArea.containsMouse ? 0.12 : 0.07
-            return Qt.rgba(c.r, c.g, c.b, alpha)
+            return Theme.wash(root.categoryColor, alpha)
         }
         return root.active
-            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.08)
+            ? Theme.accentWash(0.08)
             : (hoverArea.containsMouse ? Theme.surface2 : Theme.surface)
     }
-    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
     border.color: {
         if (root.hasError) return Theme.err
         if (root.active) return root.categoryColor
         if (VisualStyle.categoryTintedRow && hoverArea.containsMouse) {
-            const c = root.categoryColor
-            return Qt.rgba(c.r, c.g, c.b, 0.45)
+            return Theme.wash(root.categoryColor, 0.45)
         }
         return Theme.lineSoft
     }
     border.width: root.active ? 1 : 1
-    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
     transform: Scale {
         origin.x: root.width / 2
         origin.y: root.height / 2
         xScale: (VisualStyle.rowHoverScale && hoverArea.containsMouse) ? 1.012 : 1.0
         yScale: xScale
-        Behavior on xScale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+        Behavior on xScale { NumberAnimation { duration: Theme.dur(Theme.durFast); easing.type: Easing.OutCubic } }
     }
 
     Rectangle {
@@ -73,7 +63,7 @@ Rectangle {
         opacity: 0.55
         z: -1
         SequentialAnimation on opacity {
-            running: VisualStyle.richActiveStep && root.active
+            running: VisualStyle.richActiveStep && root.active && !Theme.reduceMotion
             loops: Animation.Infinite
             NumberAnimation { to: 0.15; duration: 1100; easing.type: Easing.InOutSine }
             NumberAnimation { to: 0.55; duration: 1100; easing.type: Easing.InOutSine }
@@ -159,17 +149,17 @@ Rectangle {
             }
         }
 
-        // Delete on hover
+        // Reveals on activeFocus too, so Tab-only users still see it.
         IconButton {
             id: removeBtn
             iconText: "×"
             iconColor: Theme.text3
             hoverColor: Theme.err
-            opacity: hoverArea.containsMouse ? 1.0 : 0.0
+            opacity: (hoverArea.containsMouse || removeBtn.activeFocus) ? 1.0 : 0.0
             anchors.verticalCenter: parent.verticalCenter
             compact: true
             onClicked: root.removeRequested()
-            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+            Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
         }
     }
 }
