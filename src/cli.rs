@@ -39,6 +39,10 @@ pub enum Command {
         /// Print what would run without executing anything.
         #[arg(long)]
         dry_run: bool,
+        /// Print the exact subprocess command line each step would
+        /// invoke, then exit without running. Implies --dry-run.
+        #[arg(long)]
+        explain: bool,
     },
     /// List workflows in the library.
     List {
@@ -58,6 +62,21 @@ pub enum Command {
     },
     /// Print the workflows directory.
     Path,
+    /// Open a workflow's KDL file in $VISUAL / $EDITOR (falls back to
+    /// xdg-open). Accepts a library id or a path to a .kdl file.
+    Edit {
+        /// Library id, or path to a .kdl file.
+        target: String,
+    },
+    /// Delete a workflow from the library by id. Prompts for
+    /// confirmation on a TTY; pass --force to skip the prompt.
+    Rm {
+        /// Library id of the workflow to remove.
+        target: String,
+        /// Skip the confirmation prompt.
+        #[arg(short, long)]
+        force: bool,
+    },
     /// Scaffold a new workflow KDL file in the library and print its path.
     New {
         /// Title for the new workflow (shown in `list` / editor).
@@ -85,11 +104,13 @@ pub fn run(cli: Cli) -> ExitCode {
         .try_init();
 
     let result = match cli.command.expect("run called without a subcommand") {
-        Command::Run { target, dry_run } => cmd_run(&target, dry_run),
+        Command::Run { target, dry_run, explain } => cmd_run(&target, dry_run, explain),
         Command::List { json } => cmd_list(json),
         Command::Validate { target } => cmd_validate(&target),
         Command::Show { target } => cmd_show(&target),
         Command::Path => cmd_path(),
+        Command::Edit { target } => cmd_edit(&target),
+        Command::Rm { target, force } => cmd_rm(&target, force),
         Command::New { title, stdout } => cmd_new(&title, stdout),
         Command::Doctor => cmd_doctor(),
     };
@@ -157,6 +178,72 @@ fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
         title,
         saved.id
     );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_edit(target: &str) -> Result<ExitCode> {
+    // Resolve to an on-disk path. If TARGET points at a real file, just
+    // open that — handy for editing a workflow that isn't in the library
+    // yet. Otherwise look it up by id.
+    let as_path = PathBuf::from(target);
+    let path = if as_path.exists() && (target.contains('/') || target.ends_with(".kdl")) {
+        as_path
+    } else {
+        store::path_of(target).with_context(|| {
+            format!("no workflow with id `{target}` in library; try `wflow list`")
+        })?
+    };
+
+    // Defer to the shell so $EDITOR strings like "nvim --noplugin" or
+    // "code --wait" word-split correctly. Empty $VISUAL/$EDITOR ⇒
+    // xdg-open as a last resort.
+    let editor = std::env::var("VISUAL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| std::env::var("EDITOR").ok().filter(|s| !s.trim().is_empty()))
+        .unwrap_or_else(|| "xdg-open".into());
+
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(r#"exec $WFLOW_EDITOR "$@""#)
+        .arg("wflow-edit")
+        .arg(&path)
+        .env("WFLOW_EDITOR", &editor)
+        .status()
+        .with_context(|| format!("failed to spawn editor `{editor}`"))?;
+
+    if !status.success() {
+        anyhow::bail!("editor `{editor}` exited {status}");
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_rm(target: &str, force: bool) -> Result<ExitCode> {
+    // Resolve via load() so we get the real id + a friendly title for the
+    // confirmation prompt, and so a typoed id errors out before we touch
+    // the filesystem.
+    let wf = store::load(target).with_context(|| {
+        format!("no workflow with id `{target}` in library; try `wflow list`")
+    })?;
+
+    if !force {
+        use std::io::{IsTerminal, Write};
+        if !std::io::stdin().is_terminal() {
+            anyhow::bail!("refusing to delete without a TTY; pass --force to override");
+        }
+        eprint!("delete `{}` ({})? [y/N] ", wf.title, wf.id);
+        std::io::stderr().flush().ok();
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        let yes = matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes");
+        if !yes {
+            eprintln!("{} cancelled", dim("—"));
+            return Ok(ExitCode::SUCCESS);
+        }
+    }
+
+    store::delete(&wf.id).context("removing workflow")?;
+    eprintln!("{} deleted `{}` ({})", check(), wf.title, wf.id);
     Ok(ExitCode::SUCCESS)
 }
 
@@ -360,8 +447,28 @@ fn cmd_show(target: &str) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_run(target: &str, dry_run: bool) -> Result<ExitCode> {
+fn cmd_run(target: &str, dry_run: bool, explain: bool) -> Result<ExitCode> {
     let wf = load_target(target)?;
+
+    if explain {
+        println!("{} {} (explain)", arrow(), bold(&wf.title));
+        let w = if wf.steps.is_empty() {
+            1
+        } else {
+            (wf.steps.len().ilog10() as usize) + 1
+        };
+        for (i, step) in wf.steps.iter().enumerate() {
+            let num = format!("{:0>w$}", i + 1, w = w);
+            if !step.enabled {
+                println!("  {} {} {}", num, dim("·"), dim(&format!("(disabled) {}", step.action.describe())));
+                continue;
+            }
+            for line in explain_lines(&step.action) {
+                println!("  {} {}", num, line);
+            }
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
 
     if dry_run {
         println!("{} {} (dry run)", arrow(), bold(&wf.title));
@@ -381,6 +488,8 @@ fn cmd_run(target: &str, dry_run: bool) -> Result<ExitCode> {
         println!("{} nothing to run", dim("—"));
         return Ok(ExitCode::SUCCESS);
     }
+
+    preflight(&wf)?;
 
     // Build a runtime only when we actually need one.
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -486,6 +595,154 @@ fn print_event(title: &str, step_count: usize, failed: &Arc<std::sync::atomic::A
             }
         }
     }
+}
+
+/// Refuse to start a run if the workflow needs a tool that isn't on PATH.
+/// Faster + clearer than letting the per-step subprocess spawn fail —
+/// users see one message pointing at `wflow doctor` instead of N
+/// identical "wdotool: command not found" lines.
+fn preflight(wf: &Workflow) -> Result<()> {
+    use std::collections::BTreeSet;
+    let mut needed: BTreeSet<&'static str> = BTreeSet::new();
+    for step in &wf.steps {
+        if !step.enabled {
+            continue;
+        }
+        match &step.action {
+            Action::WdoType { .. }
+            | Action::WdoKey { .. }
+            | Action::WdoClick { .. }
+            | Action::WdoMouseMove { .. }
+            | Action::WdoScroll { .. }
+            | Action::WdoActivateWindow { .. }
+            | Action::WdoAwaitWindow { .. } => {
+                needed.insert("wdotool");
+            }
+            Action::Notify { .. } => {
+                needed.insert("notify-send");
+            }
+            Action::Clipboard { .. } => {
+                needed.insert("wl-copy");
+            }
+            Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
+        }
+    }
+    let missing: Vec<&'static str> = needed.iter().filter(|t| which(t).is_none()).copied().collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "missing required tool{}: {} — run `wflow doctor` for details",
+        if missing.len() == 1 { "" } else { "s" },
+        missing.join(", "),
+    ))
+}
+
+/// Build the subprocess command line(s) that the engine would invoke for
+/// `action`, formatted as one or more shell-quoted strings ready to print.
+/// In-process actions (delay, note, await-window, clipboard) come back as
+/// a comment-style line so the explain output stays one-row-per-thing.
+fn explain_lines(action: &Action) -> Vec<String> {
+    let cat = action.category();
+    let head = format!("{:<9}", cat);
+    match action {
+        Action::WdoType { text, delay_ms } => {
+            let mut a = vec!["wdotool".to_string(), "type".into()];
+            if let Some(d) = delay_ms {
+                a.push("--delay".into());
+                a.push(d.to_string());
+            }
+            a.push("--".into());
+            a.push(text.clone());
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoKey { chord, clear_modifiers } => {
+            let mut a = vec!["wdotool".to_string(), "key".into()];
+            if *clear_modifiers {
+                a.push("--clearmodifiers".into());
+            }
+            a.push(chord.clone());
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoClick { button } => {
+            let a = ["wdotool".to_string(), "click".into(), button.to_string()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoMouseMove { x, y, relative } => {
+            let mut a = vec!["wdotool".to_string(), "mousemove".into()];
+            if *relative {
+                a.push("--relative".into());
+            }
+            a.push(x.to_string());
+            a.push(y.to_string());
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoScroll { dx, dy } => {
+            let a = ["wdotool".to_string(), "scroll".into(), dx.to_string(), dy.to_string()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::WdoActivateWindow { name } => {
+            // Two subprocesses: search returns the id, windowactivate uses it.
+            let search = ["wdotool".to_string(), "search".into(), "--limit".into(), "1".into(), "--name".into(), name.clone()];
+            vec![
+                format!("{head} $ {}", join_argv(&search)),
+                format!("{:<9} $ wdotool windowactivate <id>", ""),
+            ]
+        }
+        Action::WdoAwaitWindow { name, timeout_ms } => {
+            let search = ["wdotool".to_string(), "search".into(), "--limit".into(), "1".into(), "--name".into(), name.clone()];
+            vec![format!(
+                "{head} # poll every 100ms for up to {}ms\n  {:<9} $ {}",
+                timeout_ms,
+                "",
+                join_argv(&search),
+            )]
+        }
+        Action::Delay { ms } => vec![format!("{head} # sleep {ms}ms (in-process)")],
+        Action::Shell { command, shell } => {
+            let sh = shell
+                .clone()
+                .or_else(|| std::env::var("SHELL").ok())
+                .unwrap_or_else(|| "/bin/sh".into());
+            let a = [sh, "-c".into(), command.clone()];
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::Notify { title, body } => {
+            let mut a = vec!["notify-send".to_string(), title.clone()];
+            if let Some(b) = body {
+                a.push(b.clone());
+            }
+            vec![format!("{head} $ {}", join_argv(&a))]
+        }
+        Action::Clipboard { text } => {
+            // wl-copy reads stdin; show the equivalent here-string form.
+            vec![format!("{head} $ printf %s {} | wl-copy", shell_quote(text))]
+        }
+        Action::Note { text } => {
+            let one_line = text.replace('\n', " ↵ ");
+            vec![format!("{head} # {}", one_line)]
+        }
+    }
+}
+
+fn join_argv(argv: &[String]) -> String {
+    argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ")
+}
+
+/// POSIX-ish shell quoting. Bare for safe alphanum-ish strings, otherwise
+/// single-quoted with embedded single quotes escaped as '\''.
+fn shell_quote(s: &str) -> String {
+    if s.is_empty() {
+        return "''".into();
+    }
+    let safe = s.chars().all(|c| {
+        c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.' | ':' | ',' | '+' | '=' | '@' | '%')
+    });
+    if safe {
+        return s.to_string();
+    }
+    let escaped = s.replace('\'', "'\\''");
+    format!("'{escaped}'")
 }
 
 fn fmt_duration(ms: u64) -> String {
