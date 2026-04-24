@@ -11,6 +11,95 @@ fn default_await_timeout_ms() -> u64 {
     5_000
 }
 
+// Key-name normalization.
+
+/// Maps friendly aliases to the X11 keysyms wdotool wants. Applied at
+/// decode time so the on-disk form is what wdotool will execute.
+/// Unknown names pass through; users can always write a wdotool keysym.
+pub fn normalize_chord(raw: &str) -> String {
+    raw.split('+')
+        .map(str::trim)
+        .map(normalize_key_segment)
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+fn normalize_key_segment(part: &str) -> String {
+    // Case-insensitive; user case survives for anything not in the table.
+    let lower = part.to_ascii_lowercase();
+    match lower.as_str() {
+        "ctrl" | "control" => "ctrl".into(),
+        "shift" => "shift".into(),
+        "alt" => "alt".into(),
+        "super" => "super".into(),
+        "cmd" | "command" | "win" | "windows" | "meta" => "super".into(),
+        "option" | "opt" => "alt".into(),
+        "enter" | "return" => "Return".into(),
+        "esc" | "escape" => "Escape".into(),
+        "backspace" | "back_space" => "BackSpace".into(),
+        "delete" | "del" => "Delete".into(),
+        "insert" | "ins" => "Insert".into(),
+        "capslock" | "caps" | "caps_lock" => "Caps_Lock".into(),
+        "numlock" | "num_lock" => "Num_Lock".into(),
+        "scrolllock" | "scroll_lock" => "Scroll_Lock".into(),
+        "printscreen" | "prtsc" | "print_screen" => "Print".into(),
+        "pageup" | "pgup" | "page_up" => "Page_Up".into(),
+        "pagedown" | "pgdn" | "page_down" => "Page_Down".into(),
+        "home" => "Home".into(),
+        "end" => "End".into(),
+        "left" => "Left".into(),
+        "right" => "Right".into(),
+        "up" => "Up".into(),
+        "down" => "Down".into(),
+        "tab" => "Tab".into(),
+        "space" | "spacebar" => "space".into(),
+        _ => part.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::*;
+
+    #[test]
+    fn plain_aliases() {
+        assert_eq!(normalize_chord("Enter"), "Return");
+        assert_eq!(normalize_chord("Esc"), "Escape");
+        assert_eq!(normalize_chord("PgUp"), "Page_Up");
+        assert_eq!(normalize_chord("Del"), "Delete");
+        assert_eq!(normalize_chord("Caps"), "Caps_Lock");
+    }
+
+    #[test]
+    fn modifier_aliases_in_chords() {
+        assert_eq!(normalize_chord("cmd+shift+t"), "super+shift+t");
+        assert_eq!(normalize_chord("win+1"), "super+1");
+        assert_eq!(normalize_chord("option+f"), "alt+f");
+    }
+
+    #[test]
+    fn case_insensitive_modifiers() {
+        assert_eq!(normalize_chord("ENTER"), "Return");
+        assert_eq!(normalize_chord("CTRL+SHIFT+A"), "ctrl+shift+A");
+        assert_eq!(normalize_chord("Ctrl+Alt+L"), "ctrl+alt+L");
+        assert_eq!(normalize_chord("ctrl+shift+a"), "ctrl+shift+a");
+        assert_eq!(normalize_chord("Super+Enter"), "super+Return");
+    }
+
+    #[test]
+    fn unknown_keys_pass_through() {
+        assert_eq!(normalize_chord("a"), "a");
+        assert_eq!(normalize_chord("F11"), "F11");
+        assert_eq!(normalize_chord("ctrl+l"), "ctrl+l");
+    }
+
+    #[test]
+    fn composite_with_aliased_end_key() {
+        assert_eq!(normalize_chord("ctrl+Enter"), "ctrl+Return");
+        assert_eq!(normalize_chord("shift+PageDown"), "shift+Page_Down");
+    }
+}
+
 // Template substitution.
 
 /// Variable map threaded through a run. Seeded from `vars { }`; shell
