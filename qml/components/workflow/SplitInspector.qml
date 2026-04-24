@@ -265,7 +265,7 @@ Item {
                             // upstream primary changes — keyed on a synthetic
                             // property so user typing doesn't fight the binding
                             // (text is a plain assignment, not a declarative binding).
-                            readonly property var _syncKey: [root.selectedIndex,
+                            readonly property var syncKey: [root.selectedIndex,
                                 valueSection.sel ? valueSection.sel.rawPrimary : ""]
                             onSyncKeyChanged: {
                                 const v = valueSection.sel ? (valueSection.sel.rawPrimary || "") : ""
