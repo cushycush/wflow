@@ -39,7 +39,7 @@ Item {
             wrapMode: Text.WordWrap
         }
 
-        Button {
+        PrimaryButton {
             visible: root.actionLabel.length > 0
             text: root.actionLabel
             anchors.horizontalCenter: parent.horizontalCenter
@@ -48,19 +48,6 @@ Item {
             leftPadding: 20
             rightPadding: 20
             onClicked: root.actionClicked()
-
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: parent.hovered ? Theme.accentHi : Theme.accent
-            }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.accentText
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontSm
-                font.weight: Font.DemiBold
-                horizontalAlignment: Text.AlignHCenter
-            }
         }
     }
 }
