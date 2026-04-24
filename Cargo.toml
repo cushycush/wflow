@@ -27,6 +27,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 kdl = "6"
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 
 [build-dependencies]
 cxx-qt-build = "0.8"
