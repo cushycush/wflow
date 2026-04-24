@@ -15,6 +15,11 @@ Item {
     property var stepStatuses: ({})
 
     signal valueEdited(int stepIndex, string newPrimary)
+    // Emitted when an option editor commits a change. `path` is one of
+    // "enabled", "on_error", or "action.<field>" (delay_ms, clear_modifiers,
+    // retries, backoff_ms, timeout_ms). Empty-string / null values signal
+    // "reset to default".
+    signal optionEdited(int stepIndex, string path, var value)
 
     implicitHeight: 520
 
@@ -342,10 +347,16 @@ Item {
                     }
                 }
 
-                // Mock option rows
+                // Real option editors, bound to the selected step's fields.
                 Column {
+                    id: optionsSection
                     width: parent.width
-                    spacing: 8
+                    spacing: 10
+
+                    readonly property var sel: parent.parent.sel
+                    readonly property color catColor: parent.parent.catColor
+                    readonly property var act: sel ? sel.rawAction : null
+                    readonly property string rawKind: sel ? sel.rawKind : ""
 
                     Text {
                         text: "OPTIONS"
@@ -355,39 +366,222 @@ Item {
                         font.weight: Font.Bold
                         font.letterSpacing: 1.0
                     }
-                    Repeater {
-                        model: ["Run async", "Abort on error", "Retry up to 3 times"]
-                        delegate: Row {
-                            width: parent.width
-                            height: 32
-                            spacing: 12
 
-                            Rectangle {
-                                width: 16; height: 16; radius: 4
-                                color: index === 0 ? parent.parent.parent.parent.catColor
-                                                   : "transparent"
-                                border.color: index === 0 ? parent.parent.parent.parent.catColor
-                                                          : Theme.lineSoft
-                                border.width: 1
-                                anchors.verticalCenter: parent.verticalCenter
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: index === 0
-                                    text: "✓"
-                                    color: Theme.accentText
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
+                    // Skip this step — inverse of `enabled`.
+                    Row {
+                        width: parent.width
+                        height: 28
+                        spacing: 12
+                        visible: optionsSection.sel != null
+
+                        Rectangle {
+                            id: skipBox
+                            readonly property bool checked: optionsSection.sel
+                                && optionsSection.sel.enabled === false
+                            width: 16; height: 16; radius: 4
+                            color: skipBox.checked ? optionsSection.catColor : "transparent"
+                            border.color: skipBox.checked ? optionsSection.catColor : Theme.line
+                            border.width: 1
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: skipBox.checked
+                                text: "✓"; color: Theme.accentText
+                                font.family: Theme.familyBody; font.pixelSize: 11; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const next = !skipBox.checked
+                                    root.optionEdited(root.selectedIndex, "enabled", !next)
                                 }
                             }
-                            Text {
-                                text: modelData
-                                color: Theme.text2
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontSm
-                                anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "Skip this step"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    // On error — Stop / Continue segmented control.
+                    Row {
+                        width: parent.width
+                        height: 28
+                        spacing: 12
+                        visible: optionsSection.sel != null
+
+                        Text {
+                            text: "On error"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 110
+                        }
+                        Rectangle {
+                            height: 24
+                            width: segRow.implicitWidth + 6
+                            radius: 4
+                            color: Theme.surface2
+                            border.color: Theme.line
+                            border.width: 1
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Row {
+                                id: segRow
+                                anchors.centerIn: parent
+                                spacing: 0
+                                Repeater {
+                                    model: [{ label: "Stop", value: "stop" },
+                                            { label: "Continue", value: "continue" }]
+                                    delegate: Rectangle {
+                                        readonly property bool active: optionsSection.sel
+                                            && (optionsSection.sel.onError || "stop") === modelData.value
+                                        width: cellLbl.implicitWidth + 18
+                                        height: 20
+                                        radius: 3
+                                        color: active
+                                            ? Qt.rgba(optionsSection.catColor.r, optionsSection.catColor.g, optionsSection.catColor.b, 0.18)
+                                            : (cellArea.containsMouse ? Theme.surface3 : "transparent")
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                        Text {
+                                            id: cellLbl
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: active ? optionsSection.catColor : Theme.text2
+                                            font.family: Theme.familyBody
+                                            font.pixelSize: Theme.fontXs
+                                            font.weight: active ? Font.DemiBold : Font.Medium
+                                        }
+                                        MouseArea {
+                                            id: cellArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.optionEdited(root.selectedIndex, "on_error", modelData.value)
+                                        }
+                                    }
+                                }
                             }
                         }
+                    }
+
+                    // --- Kind-specific option rows below ---
+                    // Each row is a labelled numeric or boolean editor.
+                    // Visibility is gated on `rawKind` so only the relevant
+                    // options appear for the selected action.
+
+                    // Key: clear-modifiers checkbox.
+                    Row {
+                        width: parent.width
+                        height: 28
+                        spacing: 12
+                        visible: optionsSection.rawKind === "wdo_key"
+
+                        Rectangle {
+                            id: clearBox
+                            readonly property bool checked: optionsSection.act
+                                && optionsSection.act.clear_modifiers === true
+                            width: 16; height: 16; radius: 4
+                            color: clearBox.checked ? optionsSection.catColor : "transparent"
+                            border.color: clearBox.checked ? optionsSection.catColor : Theme.line
+                            border.width: 1
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Text {
+                                anchors.centerIn: parent
+                                visible: clearBox.checked
+                                text: "✓"; color: Theme.accentText
+                                font.family: Theme.familyBody; font.pixelSize: 11; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const next = !clearBox.checked
+                                    root.optionEdited(root.selectedIndex,
+                                        "action.clear_modifiers", next ? true : null)
+                                }
+                            }
+                        }
+                        Text {
+                            text: "Clear held modifiers first"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    // Type: delay-ms numeric (per-character).
+                    OptionNumberRow {
+                        width: parent.width
+                        visible: optionsSection.rawKind === "wdo_type"
+                        label: "Delay per character"
+                        unit: "ms"
+                        catColor: optionsSection.catColor
+                        value: optionsSection.act && optionsSection.act.delay_ms !== undefined
+                            ? optionsSection.act.delay_ms : null
+                        placeholder: "0"
+                        onCommitted: (n) => root.optionEdited(root.selectedIndex, "action.delay_ms", n)
+                    }
+
+                    // Shell: retries.
+                    OptionNumberRow {
+                        width: parent.width
+                        visible: optionsSection.rawKind === "shell"
+                        label: "Retries on failure"
+                        unit: ""
+                        catColor: optionsSection.catColor
+                        value: optionsSection.act && optionsSection.act.retries !== undefined
+                            ? optionsSection.act.retries : null
+                        placeholder: "0"
+                        integer: true
+                        onCommitted: (n) => root.optionEdited(root.selectedIndex, "action.retries",
+                            n === null ? 0 : n)
+                    }
+                    // Shell: backoff-ms between retries.
+                    OptionNumberRow {
+                        width: parent.width
+                        visible: optionsSection.rawKind === "shell"
+                        label: "Backoff between retries"
+                        unit: "ms"
+                        catColor: optionsSection.catColor
+                        value: optionsSection.act && optionsSection.act.backoff_ms !== undefined
+                            ? optionsSection.act.backoff_ms : null
+                        placeholder: "500"
+                        onCommitted: (n) => root.optionEdited(root.selectedIndex, "action.backoff_ms", n)
+                    }
+                    // Shell: timeout-ms (per attempt wall clock).
+                    OptionNumberRow {
+                        width: parent.width
+                        visible: optionsSection.rawKind === "shell"
+                        label: "Timeout"
+                        unit: "ms"
+                        catColor: optionsSection.catColor
+                        value: optionsSection.act && optionsSection.act.timeout_ms !== undefined
+                            ? optionsSection.act.timeout_ms : null
+                        placeholder: "no limit"
+                        onCommitted: (n) => root.optionEdited(root.selectedIndex, "action.timeout_ms", n)
+                    }
+
+                    // Wait-window: timeout-ms.
+                    OptionNumberRow {
+                        width: parent.width
+                        visible: optionsSection.rawKind === "wdo_await_window"
+                        label: "Timeout"
+                        unit: "ms"
+                        catColor: optionsSection.catColor
+                        value: optionsSection.act && optionsSection.act.timeout_ms !== undefined
+                            ? optionsSection.act.timeout_ms : 5000
+                        placeholder: "5000"
+                        onCommitted: (n) => root.optionEdited(root.selectedIndex, "action.timeout_ms", n)
                     }
                 }
             }

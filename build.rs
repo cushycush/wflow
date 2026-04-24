@@ -26,6 +26,7 @@ fn main() {
             // Stack / Timeline / Grouped / Cards are archived under
             // qml/components/workflow/_archive (excluded from the build).
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
+            QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
             // Record
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Explore

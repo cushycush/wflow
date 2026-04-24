@@ -57,30 +57,39 @@ Item {
     function _stepToAction(step) {
         const act = step.action || {}
         const kind = act.kind || "note"
+        let shaped
         switch (kind) {
-        case "wdo_type":            return { kind: "type",     summary: "Type text",         value: act.text,                              rawPrimary: act.text,        editable: true }
-        case "wdo_key":             return { kind: "key",      summary: "Press key chord",   value: act.chord,                             rawPrimary: act.chord,       editable: true }
-        case "wdo_key_down":        return { kind: "key",      summary: "Hold key",          value: act.chord,                             rawPrimary: act.chord,       editable: true }
-        case "wdo_key_up":          return { kind: "key",      summary: "Release key",       value: act.chord,                             rawPrimary: act.chord,       editable: true }
-        case "wdo_click":           return { kind: "click",    summary: "Mouse click",       value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }
-        case "wdo_mouse_down":      return { kind: "click",    summary: "Hold button",       value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }
-        case "wdo_mouse_up":        return { kind: "click",    summary: "Release button",    value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }
-        case "wdo_mouse_move":      return { kind: "move",     summary: "Move cursor",       value: "(" + act.x + ", " + act.y + ")",      rawPrimary: act.x + ", " + act.y, editable: false }
-        case "wdo_scroll":          return { kind: "scroll",   summary: "Scroll",            value: "dx " + act.dx + " dy " + act.dy,      rawPrimary: act.dx + ", " + act.dy, editable: false }
-        case "wdo_activate_window": return { kind: "focus",    summary: "Focus window",      value: act.name,                              rawPrimary: act.name,        editable: true }
-        case "wdo_await_window":    return { kind: "wait",     summary: "Wait for window",   value: act.name,                              rawPrimary: act.name,        editable: true }
-        case "delay":               return { kind: "wait",     summary: "Wait",              value: act.ms + " ms",                        rawPrimary: String(act.ms),  editable: true, intOnly: true, unit: "ms" }
-        case "shell":               return { kind: "shell",    summary: "Run shell command", value: act.command,                           rawPrimary: act.command,     editable: true }
-        case "notify":              return { kind: "notify",   summary: "Notify",            value: act.title,                             rawPrimary: act.title,       editable: true }
-        case "clipboard":           return { kind: "clipboard",summary: "Copy to clipboard", value: act.text,                              rawPrimary: act.text,        editable: true }
-        case "note":                return { kind: "note",     summary: "Note",              value: act.text,                              rawPrimary: act.text,        editable: true }
+        case "wdo_type":            shaped = { kind: "type",     summary: "Type text",         value: act.text,                              rawPrimary: act.text,        editable: true }; break
+        case "wdo_key":             shaped = { kind: "key",      summary: "Press key chord",   value: act.chord,                             rawPrimary: act.chord,       editable: true }; break
+        case "wdo_key_down":        shaped = { kind: "key",      summary: "Hold key",          value: act.chord,                             rawPrimary: act.chord,       editable: true }; break
+        case "wdo_key_up":          shaped = { kind: "key",      summary: "Release key",       value: act.chord,                             rawPrimary: act.chord,       editable: true }; break
+        case "wdo_click":           shaped = { kind: "click",    summary: "Mouse click",       value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }; break
+        case "wdo_mouse_down":      shaped = { kind: "click",    summary: "Hold button",       value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }; break
+        case "wdo_mouse_up":        shaped = { kind: "click",    summary: "Release button",    value: "button " + act.button,                rawPrimary: String(act.button), editable: true, intOnly: true }; break
+        case "wdo_mouse_move":      shaped = { kind: "move",     summary: "Move cursor",       value: "(" + act.x + ", " + act.y + ")",      rawPrimary: act.x + ", " + act.y, editable: false }; break
+        case "wdo_scroll":          shaped = { kind: "scroll",   summary: "Scroll",            value: "dx " + act.dx + " dy " + act.dy,      rawPrimary: act.dx + ", " + act.dy, editable: false }; break
+        case "wdo_activate_window": shaped = { kind: "focus",    summary: "Focus window",      value: act.name,                              rawPrimary: act.name,        editable: true }; break
+        case "wdo_await_window":    shaped = { kind: "wait",     summary: "Wait for window",   value: act.name,                              rawPrimary: act.name,        editable: true }; break
+        case "delay":               shaped = { kind: "wait",     summary: "Wait",              value: act.ms + " ms",                        rawPrimary: String(act.ms),  editable: true, intOnly: true, unit: "ms" }; break
+        case "shell":               shaped = { kind: "shell",    summary: "Run shell command", value: act.command,                           rawPrimary: act.command,     editable: true }; break
+        case "notify":              shaped = { kind: "notify",   summary: "Notify",            value: act.title,                             rawPrimary: act.title,       editable: true }; break
+        case "clipboard":           shaped = { kind: "clipboard",summary: "Copy to clipboard", value: act.text,                              rawPrimary: act.text,        editable: true }; break
+        case "note":                shaped = { kind: "note",     summary: "Note",              value: act.text,                              rawPrimary: act.text,        editable: true }; break
         // Flow-control actions — read-only in the GUI for now. They round-trip through the KDL file but edit via $EDITOR.
-        case "repeat":              return { kind: "wait",     summary: "Repeat " + act.count + "×", value: (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }
-        case "conditional":         return { kind: "wait",     summary: (act.negate ? "Unless" : "When"), value: _condSummary(act.cond),                 rawPrimary: "", editable: false }
-        case "include":             return { kind: "shell",    summary: "Include",           value: act.path,                              rawPrimary: act.path,        editable: true }
-        case "use":                 return { kind: "shell",    summary: "Use import",        value: act.name,                              rawPrimary: act.name,        editable: true }
+        case "repeat":              shaped = { kind: "wait",     summary: "Repeat " + act.count + "×", value: (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }; break
+        case "conditional":         shaped = { kind: "wait",     summary: (act.negate ? "Unless" : "When"), value: _condSummary(act.cond),                 rawPrimary: "", editable: false }; break
+        case "include":             shaped = { kind: "shell",    summary: "Include",           value: act.path,                              rawPrimary: act.path,        editable: true }; break
+        case "use":                 shaped = { kind: "shell",    summary: "Use import",        value: act.name,                              rawPrimary: act.name,        editable: true }; break
+        default:                    shaped = { kind: "note", summary: kind, value: "", rawPrimary: "", editable: false }
         }
-        return { kind: "note", summary: kind, value: "", rawPrimary: "", editable: false }
+        // Expose the raw Step + Action so the inspector can bind option editors
+        // (disabled, on-error, delay-ms, clear-modifiers, retries, backoff-ms,
+        // timeout-ms) directly to their canonical fields.
+        shaped.rawKind = kind
+        shaped.enabled = step.enabled !== false
+        shaped.onError = step.on_error || "stop"
+        shaped.rawAction = act
+        return shaped
     }
 
     function _condSummary(cond) {
@@ -128,6 +137,43 @@ Item {
         default: return oldAction
         }
         return out
+    }
+
+    // Apply a per-step option edit. `path` is one of:
+    //   "enabled"           — bool
+    //   "on_error"          — "stop" | "continue"
+    //   "action.<field>"    — kind-specific action field (delay_ms,
+    //                         clear_modifiers, retries, backoff_ms, timeout_ms)
+    // A null / empty value on an Option<T> action field deletes the key so
+    // the serde default kicks in on round-trip.
+    function _commitOption(stepIndex, path, value) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const step = steps[stepIndex]
+        if (path === "enabled") {
+            if (step.enabled === value) return
+            step.enabled = value
+        } else if (path === "on_error") {
+            if ((step.on_error || "stop") === value) return
+            step.on_error = value
+        } else if (path.startsWith("action.")) {
+            const key = path.slice(7)
+            if (!step.action) return
+            const isEmpty = value === null || value === undefined || value === ""
+            if (isEmpty) {
+                if (!(key in step.action)) return
+                delete step.action[key]
+            } else {
+                if (step.action[key] === value) return
+                step.action[key] = value
+            }
+        } else {
+            return
+        }
+        wf.steps = steps
+        root.workflow = wf
+        _scheduleSave()
     }
 
     function _commitStepEdit(stepIndex, newPrimary) {
@@ -356,6 +402,7 @@ Item {
                 running: root.running
                 stepStatuses: root.stepStatuses
                 onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
+                onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
             }
         }
     }
