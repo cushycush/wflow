@@ -288,6 +288,9 @@ pub enum Action {
         /// If set, the shell's stdout is captured into a variable of
         #[serde(default)]
         capture_as: Option<String>,
+        /// `None` = no timeout. On elapse the child is killed.
+        #[serde(default)]
+        timeout_ms: Option<u64>,
     },
     /// notify-send.
     Notify {

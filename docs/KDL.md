@@ -336,6 +336,19 @@ shell "echo $0" with="/bin/bash"
 Older prop name `shell="/bin/bash"` still decodes for backwards
 compatibility, but `with=` avoids the awkward `shell shell=` reading.
 
+**Timeout.** Cap a shell step's wall-clock time. On elapse, wflow
+sends SIGKILL to the child and the step errors. Pair with
+`on-error="continue"` if you want the workflow to keep going after a
+hung command:
+
+```kdl
+shell "ping -c 3 api.example.com" timeout="10s"
+shell "some-flaky-probe"           timeout="2s" on-error="continue"
+```
+
+Both `timeout-ms=30000` and `timeout="30s"` are accepted. Specifying
+both at once is a hard error.
+
 ### notify
 
 Convenience wrapper over `notify-send`. Equivalent to
