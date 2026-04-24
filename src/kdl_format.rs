@@ -158,7 +158,7 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_int(*ms as i128));
             n
         }
-        Action::Shell { command, shell, capture_as } => {
+        Action::Shell { command, shell, capture_as, timeout_ms } => {
             let mut n = KdlNode::new("shell");
             n.push(arg_str(command));
             if let Some(s) = shell {
@@ -166,6 +166,9 @@ fn encode_step(step: &Step) -> KdlNode {
             }
             if let Some(name) = capture_as {
                 n.push(prop_str("as", name));
+            }
+            if let Some(ms) = timeout_ms {
+                n.push(prop_int("timeout-ms", *ms as i128));
             }
             n
         }
@@ -523,7 +526,20 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 (None, None) => None,
             };
             let capture_as = prop_string(node, "as").filter(|s| !s.is_empty());
-            Action::Shell { command, shell, capture_as }
+            // Accept both `timeout-ms=30000` and `timeout="30s"`; both at
+            // once is a user mistake (same shape as wait-window).
+            let tms = prop_integer(node, "timeout-ms");
+            let ts = prop_string(node, "timeout");
+            let timeout_ms = match (tms, ts) {
+                (Some(_), Some(_)) => bail!(
+                    "`shell`: specify the timeout once, as either \
+                     `timeout-ms=30000` or `timeout=\"30s\"` — not both"
+                ),
+                (Some(v), None) => Some(v as u64),
+                (None, Some(s)) => Some(parse_duration_ms(&s)?),
+                (None, None) => None,
+            };
+            Action::Shell { command, shell, capture_as, timeout_ms }
         }
         "notify" => {
             let title = first_string(node)?;
@@ -652,7 +668,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "focus" => &["window"],
         "wait-window" => &["timeout-ms", "timeout"],
         "wait" => &["ms"],
-        "shell" => &["shell", "with", "as"],
+        "shell" => &["shell", "with", "as", "timeout", "timeout-ms"],
         "notify" => &["body"],
         "clipboard" => &[],
         "note" => &[],
@@ -907,6 +923,33 @@ mod tests {
     }
 
     #[test]
+    fn shell_timeout_accepts_both_forms() {
+        // Bare-int ms, string form, and no-timeout all decode.
+        let src = wrap(
+            "shell \"a\" timeout-ms=5000\n\
+             shell \"b\" timeout=\"10s\"\n\
+             shell \"c\"",
+        );
+        let wf = decode(&src).unwrap();
+        let timeouts: Vec<Option<u64>> = wf
+            .steps
+            .iter()
+            .map(|s| match &s.action {
+                Action::Shell { timeout_ms, .. } => *timeout_ms,
+                _ => None,
+            })
+            .collect();
+        assert_eq!(timeouts, vec![Some(5_000), Some(10_000), None]);
+
+        // Both forms at once is a user mistake.
+        let err = decode(&wrap(
+            r#"shell "x" timeout-ms=5000 timeout="10s""#,
+        ))
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("not both"), "got: {err:#}");
+    }
+
+    #[test]
     fn on_error_round_trips_and_defaults_stop() {
         // Default = stop → not serialized.
         let mut wf = Workflow::new("t");
@@ -916,6 +959,7 @@ mod tests {
                 command: "false".into(),
                 shell: None,
                 capture_as: None,
+                timeout_ms: None,
             });
             s.on_error = OnError::Continue;
             s
@@ -1062,6 +1106,7 @@ mod tests {
             command: "echo hi".into(),
             shell: Some("/bin/bash".into()),
             capture_as: None,
+            timeout_ms: None,
         }));
         let text = encode(&wf);
         // KDL autoformat drops quotes when strings are bareword-safe, so
@@ -1204,7 +1249,10 @@ mod tests {
         let err = decode(src).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("unknown property `retries`"), "got: {msg}");
-        assert!(msg.contains("shell, with, as, disabled, comment"), "got: {msg}");
+        assert!(
+            msg.contains("shell, with, as, timeout, timeout-ms, disabled, comment"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -1307,8 +1355,8 @@ mod tests {
             Step::new(Action::WdoActivateWindow { name: "Firefox".into() }),
             Step::new(Action::WdoAwaitWindow { name: "Firefox".into(), timeout_ms: 7500 }),
             Step::new(Action::Delay { ms: 500 }),
-            Step::new(Action::Shell { command: "echo hi".into(), shell: None, capture_as: None }),
-            Step::new(Action::Shell { command: "date +%F".into(), shell: None, capture_as: Some("today".into()) }),
+            Step::new(Action::Shell { command: "echo hi".into(), shell: None, capture_as: None, timeout_ms: None }),
+            Step::new(Action::Shell { command: "date +%F".into(), shell: None, capture_as: Some("today".into()), timeout_ms: Some(30_000) }),
             Step::new(Action::Notify { title: "done".into(), body: Some("all good".into()) }),
             Step::new(Action::Clipboard { text: "copied".into() }),
             Step::new(Action::Note { text: "remember to disable VPN".into() }),

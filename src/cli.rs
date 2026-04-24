@@ -869,13 +869,19 @@ fn explain_lines(action: &Action) -> Vec<String> {
             )]
         }
         Action::Delay { ms } => vec![format!("{head} # sleep {ms}ms (in-process)")],
-        Action::Shell { command, shell, capture_as } => {
+        Action::Shell { command, shell, capture_as, timeout_ms } => {
             let sh = shell
                 .clone()
                 .or_else(|| std::env::var("SHELL").ok())
                 .unwrap_or_else(|| "/bin/sh".into());
             let a = [sh, "-c".into(), command.clone()];
             let mut line = format!("{head} $ {}", join_argv(&a));
+            if let Some(ms) = timeout_ms {
+                line.push_str(&format!(
+                    "  (timeout {})",
+                    crate::actions::fmt_duration_ms(*ms)
+                ));
+            }
             if let Some(name) = capture_as {
                 line.push_str(&format!("  → stdout captured as {{{{{name}}}}}"));
             }

@@ -158,10 +158,11 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             timeout_ms: *timeout_ms,
         },
         Action::Delay { ms } => Action::Delay { ms: *ms },
-        Action::Shell { command, shell, capture_as } => Action::Shell {
+        Action::Shell { command, shell, capture_as, timeout_ms } => Action::Shell {
             command: sub(command)?,
             shell: shell.clone(),
             capture_as: capture_as.clone(),
+            timeout_ms: *timeout_ms,
         },
         Action::Notify { title, body } => Action::Notify {
             title: sub(title)?,
@@ -202,7 +203,9 @@ async fn run_action_value(action: &Action) -> StepOutcome {
             tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
             Ok(None)
         }
-        Action::Shell { command, shell, .. } => shell_run(command, shell.as_deref()).await,
+        Action::Shell { command, shell, timeout_ms, .. } => {
+            shell_run(command, shell.as_deref(), *timeout_ms).await
+        }
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
@@ -369,23 +372,64 @@ async fn run_wdotool(args: &[String]) -> Result<Option<String>> {
 
 // ----------------------------- system helpers -----------------------------
 
-async fn shell_run(command: &str, shell: Option<&str>) -> Result<Option<String>> {
+async fn shell_run(
+    command: &str,
+    shell: Option<&str>,
+    timeout_ms: Option<u64>,
+) -> Result<Option<String>> {
+    use tokio::io::AsyncReadExt;
+
     let sh = shell
         .map(String::from)
         .or_else(|| std::env::var("SHELL").ok())
         .unwrap_or_else(|| "/bin/sh".into());
-    let output = Command::new(&sh)
+
+    let mut child = Command::new(&sh)
         .arg("-c")
         .arg(command)
-        .output()
-        .await
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .with_context(|| format!("failed to spawn {sh}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    if !output.status.success() {
+
+    // Take the io handles up front so the wait future only borrows
+    // the child's status machinery; that way select! can drop the
+    // wait branch cleanly on timeout and we still reach child.kill.
+    let mut stdout_h = child.stdout.take().unwrap();
+    let mut stderr_h = child.stderr.take().unwrap();
+
+    let status = match timeout_ms {
+        Some(ms) => {
+            let timer = tokio::time::sleep(std::time::Duration::from_millis(ms));
+            tokio::select! {
+                biased;
+                res = child.wait() => res?,
+                _ = timer => {
+                    let _ = child.start_kill();
+                    let _ = child.wait().await;
+                    return Err(anyhow!(
+                        "`shell` timed out after {} (command: `{}`)",
+                        crate::actions::fmt_duration_ms(ms),
+                        truncate_cmd(command)
+                    ));
+                }
+            }
+        }
+        None => child.wait().await?,
+    };
+
+    let mut stdout_buf = String::new();
+    let mut stderr_buf = String::new();
+    stdout_h.read_to_string(&mut stdout_buf).await.ok();
+    stderr_h.read_to_string(&mut stderr_buf).await.ok();
+    let stdout = stdout_buf;
+    let stderr = stderr_buf;
+    let output_status = status;
+    if !output_status.success() {
         return Err(anyhow!(
             "{sh} exit {}: {}",
-            output.status,
+            output_status,
             stderr.trim()
         ));
     }
@@ -399,6 +443,17 @@ async fn shell_run(command: &str, shell: Option<&str>) -> Result<Option<String>>
     } else {
         Some(combined.trim().to_string())
     })
+}
+
+fn truncate_cmd(s: &str) -> String {
+    const MAX: usize = 48;
+    let single_line = s.replace('\n', " ↵ ");
+    if single_line.chars().count() > MAX {
+        let t: String = single_line.chars().take(MAX).collect();
+        format!("{t}…")
+    } else {
+        single_line
+    }
 }
 
 async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {

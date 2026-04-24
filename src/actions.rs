@@ -329,6 +329,11 @@ pub enum Action {
         /// this name, substitutable as `{{name}}` in later steps.
         #[serde(default)]
         capture_as: Option<String>,
+        /// Per-step wall-clock timeout. On elapse the child is killed
+        /// and the step errors instead of hanging the workflow.
+        /// `None` = no limit (inherit prior behaviour).
+        #[serde(default)]
+        timeout_ms: Option<u64>,
     },
     /// Send a desktop notification via `notify-send`.
     Notify {
