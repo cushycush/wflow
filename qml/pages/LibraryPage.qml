@@ -190,6 +190,8 @@ Item {
                             width: variantLoader.width
                             workflows: root.workflows
                             onOpenWorkflow: (id) => root.openWorkflow(id)
+                            onDeleteRequested: (id) => libCtrl.remove(id)
+                            onDuplicateRequested: (id) => libCtrl.duplicate(id)
                         }
                     }
                     Component {
@@ -199,6 +201,8 @@ Item {
                             workflows: root.workflows
                             onOpenWorkflow: (id) => root.openWorkflow(id)
                             onReorderRequested: (from, to) => root.moveWorkflow(from, to)
+                            onDeleteRequested: (id) => libCtrl.remove(id)
+                            onDuplicateRequested: (id) => libCtrl.duplicate(id)
                         }
                     }
                 }

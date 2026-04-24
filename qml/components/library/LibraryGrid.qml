@@ -8,6 +8,8 @@ Item {
     id: root
     property var workflows: []
     signal openWorkflow(string id)
+    signal deleteRequested(string id)
+    signal duplicateRequested(string id)
 
     // Auto-column — each column wants ~300px minimum.
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
@@ -52,7 +54,50 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.openWorkflow(card.wf.id)
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: (mouse) => {
+                    if (mouse.button === Qt.RightButton) cardMenu.popup()
+                    else root.openWorkflow(card.wf.id)
+                }
+            }
+
+            // ⋯ affordance, visible on hover so right-click isn't the only
+            // discoverable path to the context menu.
+            Rectangle {
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 6
+                anchors.rightMargin: 6
+                width: 24; height: 24; radius: 4
+                color: moreArea.containsMouse ? Theme.surface3 : "transparent"
+                opacity: cardArea.containsMouse || moreArea.containsMouse ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "⋯"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 16
+                }
+                MouseArea {
+                    id: moreArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: cardMenu.popup()
+                }
+            }
+
+            Menu {
+                id: cardMenu
+                MenuItem {
+                    text: "Duplicate"
+                    onTriggered: root.duplicateRequested(card.wf.id)
+                }
+                MenuItem {
+                    text: "Delete"
+                    onTriggered: root.deleteRequested(card.wf.id)
+                }
             }
 
             Column {

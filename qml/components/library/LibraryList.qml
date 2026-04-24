@@ -12,6 +12,8 @@ Item {
     property int rowHeight: 52
     signal openWorkflow(string id)
     signal reorderRequested(int from, int to)
+    signal deleteRequested(string id)
+    signal duplicateRequested(string id)
 
     height: list.contentHeight
 
@@ -72,10 +74,26 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    acceptedButtons: Qt.LeftButton
-                    onClicked: if (!card.dragging) root.openWorkflow(card.wf.id)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: (mouse) => {
+                        if (card.dragging) return
+                        if (mouse.button === Qt.RightButton) rowMenu.popup()
+                        else root.openWorkflow(card.wf.id)
+                    }
                     // Don't swallow events originating on the drag handle.
                     propagateComposedEvents: true
+                }
+
+                Menu {
+                    id: rowMenu
+                    MenuItem {
+                        text: "Duplicate"
+                        onTriggered: root.duplicateRequested(card.wf.id)
+                    }
+                    MenuItem {
+                        text: "Delete"
+                        onTriggered: root.deleteRequested(card.wf.id)
+                    }
                 }
 
                 Row {
