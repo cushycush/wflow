@@ -304,13 +304,35 @@ pub enum Action {
     /// Pure annotation, never executes.
     Note { text: String },
 
-    // ------------------------------ Flow control -------------------------
-    /// Repeat a nested sequence of steps `count` times. Flattened at run
-    /// time so the engine's per-step signals fire once per
-    /// iteration-step; the KDL round-trip keeps the block form.
+    /// Expanded at dispatch so inner steps emit per-iteration signals.
     Repeat {
         count: u32,
         steps: Vec<Step>,
+    },
+    /// Conditionally run a nested sequence. Condition is evaluated at
+    /// dispatch time (not pre-run) so it can reference state created
+    /// by earlier steps in the same workflow. `negate=true` implements
+    /// `unless`.
+    Conditional {
+        cond: Condition,
+        #[serde(default)]
+        negate: bool,
+        steps: Vec<Step>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Condition {
+    /// A window whose title contains `name` is present.
+    Window { name: String },
+    /// Path exists. Leading `~/` expands against $HOME.
+    File { path: String },
+    /// Env var is set and non-empty. `equals` matches exactly.
+    Env {
+        name: String,
+        #[serde(default)]
+        equals: Option<String>,
     },
 }
 
@@ -337,6 +359,8 @@ impl Action {
             Action::Clipboard { .. } => "clipboard",
             Action::Note { .. } => "note",
             Action::Repeat { .. } => "repeat",
+            Action::Conditional { negate: false, .. } => "when",
+            Action::Conditional { negate: true, .. } => "unless",
         }
     }
 
@@ -379,6 +403,28 @@ impl Action {
                 steps.len(),
                 if steps.len() == 1 { "" } else { "s" }
             ),
+            Action::Conditional { cond, negate, steps } => {
+                let verb = if *negate { "unless" } else { "when" };
+                format!(
+                    "{verb} {} ({} step{})",
+                    cond.describe(),
+                    steps.len(),
+                    if steps.len() == 1 { "" } else { "s" }
+                )
+            }
+        }
+    }
+}
+
+impl Condition {
+    pub fn describe(&self) -> String {
+        match self {
+            Condition::Window { name } => format!("window={}", quote_short(name)),
+            Condition::File { path } => format!("file={}", quote_short(path)),
+            Condition::Env { name, equals: None } => format!("env.{name}"),
+            Condition::Env { name, equals: Some(v) } => {
+                format!("env.{name}={}", quote_short(v))
+            }
         }
     }
 }
