@@ -206,10 +206,23 @@ pub fn decode(src: &str) -> Result<Workflow> {
     let mut modified = None;
     let mut last_run = None;
     let mut steps: Vec<Step> = Vec::new();
+    let mut recipe_seen = false;
 
     for node in doc.nodes() {
         match node.name().value() {
-            "schema" => { /* we only support one version; ignore for now */ }
+            "schema" => {
+                // Reject unknown schema versions rather than silently
+                // running a file meant for a newer wflow. `schema 1` is
+                // the only accepted value today.
+                let v = first_int_opt(node)
+                    .ok_or_else(|| anyhow!("`schema` needs an integer (try `schema 1`)"))?;
+                if v != SCHEMA_VERSION {
+                    bail!(
+                        "schema {v} is not supported (this wflow reads schema {SCHEMA_VERSION}). \
+                         upgrade wflow or convert the file"
+                    );
+                }
+            }
             "id" => id = Some(first_string(node)?),
             "title" => title = Some(first_string(node)?),
             "subtitle" => subtitle = Some(first_string(node)?),
@@ -217,6 +230,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
             "modified" => modified = parse_ts_opt(&first_string(node)?),
             "last-run" => last_run = parse_ts_opt(&first_string(node)?),
             "recipe" => {
+                recipe_seen = true;
                 let children = node
                     .children()
                     .ok_or_else(|| anyhow!("`recipe` must have a block {{ ... }}"))?;
@@ -225,14 +239,38 @@ pub fn decode(src: &str) -> Result<Workflow> {
                 }
             }
             other => {
-                tracing::debug!("skipping unknown top-level node `{other}`");
+                // An unknown top-level node is almost always a typo — say
+                // so loudly instead of dropping it silently.
+                let valid = [
+                    "schema", "id", "title", "subtitle", "created",
+                    "modified", "last-run", "recipe",
+                ];
+                let hint = suggest(other, &valid)
+                    .map(|s| format!(". did you mean `{s}`?"))
+                    .unwrap_or_default();
+                bail!(
+                    "unknown top-level node `{other}`. valid: {}{hint}",
+                    valid.join(", ")
+                );
             }
         }
     }
 
+    // Required fields: id, title, recipe. `subtitle` and timestamps stay
+    // optional. Missing `recipe` was previously a silent empty workflow.
+    let id = id.ok_or_else(|| {
+        anyhow!("missing required `id \"...\"` at the top of the file (e.g. `id \"morning-setup\"`)")
+    })?;
+    let title = title.ok_or_else(|| {
+        anyhow!("missing required `title \"...\"` at the top of the file")
+    })?;
+    if !recipe_seen {
+        bail!("missing required `recipe {{ ... }}` block");
+    }
+
     Ok(Workflow {
-        id: id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-        title: title.unwrap_or_default(),
+        id,
+        title,
         subtitle,
         steps,
         created,
@@ -552,6 +590,51 @@ fn parse_ts_opt(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 mod tests {
     use super::*;
     use crate::actions::{Action, Step};
+
+    #[test]
+    fn missing_required_fields_are_rejected() {
+        // Missing id
+        let src = r#"schema 1
+            title "t"
+            recipe { }"#;
+        let msg = format!("{:#}", decode(src).unwrap_err());
+        assert!(msg.contains("missing required `id"), "got: {msg}");
+
+        // Missing title
+        let src = r#"schema 1
+            id "t"
+            recipe { }"#;
+        let msg = format!("{:#}", decode(src).unwrap_err());
+        assert!(msg.contains("missing required `title"), "got: {msg}");
+
+        // Missing recipe
+        let src = r#"schema 1
+            id "t"
+            title "t""#;
+        let msg = format!("{:#}", decode(src).unwrap_err());
+        assert!(msg.contains("missing required `recipe"), "got: {msg}");
+    }
+
+    #[test]
+    fn unknown_schema_version_is_rejected() {
+        let src = r#"schema 42
+            id "t"
+            title "t"
+            recipe { }"#;
+        let msg = format!("{:#}", decode(src).unwrap_err());
+        assert!(msg.contains("schema 42 is not supported"), "got: {msg}");
+    }
+
+    #[test]
+    fn unknown_top_level_node_is_rejected_with_hint() {
+        let src = r#"schema 1
+            id "t"
+            title "t"
+            recipie { }"#; // typo
+        let msg = format!("{:#}", decode(src).unwrap_err());
+        assert!(msg.contains("unknown top-level node `recipie`"), "got: {msg}");
+        assert!(msg.contains("did you mean `recipe`"), "got: {msg}");
+    }
 
     #[test]
     fn unknown_props_are_rejected_with_suggestion() {
