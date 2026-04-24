@@ -94,44 +94,16 @@ Item {
                 visible: root.workflows.length > 0
             }
 
-            Button {
+            PrimaryButton {
                 text: "+ New workflow"
-                topPadding: 8; bottomPadding: 8
-                leftPadding: 14; rightPadding: 14
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: parent.hovered ? Theme.accentHi : Theme.accent
-                }
-                contentItem: Text {
-                    text: parent.text
-                    color: Theme.accentText
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontSm
-                    font.weight: Font.DemiBold
-                }
                 onClicked: {
                     const id = libCtrl.new_workflow("Untitled")
                     if (id && id.length > 0) root.openWorkflow(id)
                     else root.newWorkflow()
                 }
             }
-            Button {
+            SecondaryButton {
                 text: "● Record"
-                topPadding: 8; bottomPadding: 8
-                leftPadding: 14; rightPadding: 14
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: parent.hovered ? Theme.surface3 : Theme.surface2
-                    border.color: Theme.line
-                    border.width: 1
-                }
-                contentItem: Text {
-                    text: parent.text
-                    color: Theme.text
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontSm
-                    font.weight: Font.Medium
-                }
                 onClicked: root.recordRequested()
             }
         }

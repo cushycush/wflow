@@ -131,23 +131,14 @@ Rectangle {
             }
         }
 
-        Button {
+        PrimaryButton {
             id: importBtn
             text: "Import →"
             anchors.verticalCenter: parent.verticalCenter
-            topPadding: 12; bottomPadding: 12
-            leftPadding: 20; rightPadding: 20
-            background: Rectangle {
-                radius: Theme.radiusSm
-                color: parent.hovered ? Theme.accentHi : Theme.accent
-            }
-            contentItem: Text {
-                text: parent.text
-                color: Theme.accentText
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontSm
-                font.weight: Font.DemiBold
-            }
+            topPadding: 12
+            bottomPadding: 12
+            leftPadding: 20
+            rightPadding: 20
             onClicked: if (root.wf) root.activated(root.wf.id)
         }
     }

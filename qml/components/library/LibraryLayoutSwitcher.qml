@@ -4,66 +4,11 @@ import Wflow
 
 // Segmented control for the library's layout preference. Lives in the
 // library page header. Ctrl+, cycles.
-Rectangle {
-    id: root
-    width: seg.implicitWidth + 4
-    height: 30
-    radius: Theme.radiusSm
-    color: Theme.surface2
-    border.color: Theme.line
-    border.width: 1
-
-    Row {
-        id: seg
-        anchors.centerIn: parent
-        spacing: 0
-
-        Repeater {
-            model: LibraryLayout.labels
-            delegate: Rectangle {
-                id: cell
-                readonly property bool active: index === LibraryLayout.variant
-                width: cellLbl.implicitWidth + 18
-                height: 24
-                radius: 4
-                color: active
-                    ? Theme.accentWash(0.16)
-                    : (cellArea.containsMouse ? Theme.surface3 : "transparent")
-                anchors.verticalCenter: parent.verticalCenter
-
-                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-                activeFocusOnTab: true
-                Keys.onReturnPressed: LibraryLayout.set(index)
-                Keys.onEnterPressed:  LibraryLayout.set(index)
-                Keys.onSpacePressed:  LibraryLayout.set(index)
-                FocusRing { }
-
-                Text {
-                    id: cellLbl
-                    anchors.centerIn: parent
-                    text: modelData
-                    color: active ? Theme.accent : Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontSm
-                    font.weight: active ? Font.DemiBold : Font.Medium
-                }
-
-                ToolTip.visible: cellArea.containsMouse
-                ToolTip.delay: 600
-                ToolTip.text: LibraryLayout.hints[index] + "  ·  Ctrl+,"
-
-                MouseArea {
-                    id: cellArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        cell.forceActiveFocus()
-                        LibraryLayout.set(index)
-                    }
-                }
-            }
-        }
-    }
+SegmentedControl {
+    items: LibraryLayout.labels.map((label, i) => ({
+        label: label,
+        value: i
+    }))
+    selected: LibraryLayout.variant
+    onActivated: (v) => LibraryLayout.set(v)
 }

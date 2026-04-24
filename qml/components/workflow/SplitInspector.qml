@@ -555,52 +555,15 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 110
                         }
-                        Rectangle {
-                            height: 24
-                            width: segRow.implicitWidth + 6
-                            radius: 4
-                            color: Theme.surface2
-                            border.color: Theme.line
-                            border.width: 1
+                        SegmentedControl {
                             anchors.verticalCenter: parent.verticalCenter
-
-                            Row {
-                                id: segRow
-                                anchors.centerIn: parent
-                                spacing: 0
-                                Repeater {
-                                    model: [{ label: "Stop", value: "stop" },
-                                            { label: "Continue", value: "continue" }]
-                                    delegate: Rectangle {
-                                        readonly property bool active: optionsSection.sel
-                                            && (optionsSection.sel.onError || "stop") === modelData.value
-                                        width: cellLbl.implicitWidth + 18
-                                        height: 20
-                                        radius: 3
-                                        color: active
-                                            ? Qt.rgba(optionsSection.catColor.r, optionsSection.catColor.g, optionsSection.catColor.b, 0.18)
-                                            : (cellArea.containsMouse ? Theme.surface3 : "transparent")
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                                        Text {
-                                            id: cellLbl
-                                            anchors.centerIn: parent
-                                            text: modelData.label
-                                            color: active ? optionsSection.catColor : Theme.text2
-                                            font.family: Theme.familyBody
-                                            font.pixelSize: Theme.fontXs
-                                            font.weight: active ? Font.DemiBold : Font.Medium
-                                        }
-                                        MouseArea {
-                                            id: cellArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.optionEdited(root.selectedIndex, "on_error", modelData.value)
-                                        }
-                                    }
-                                }
-                            }
+                            accent: optionsSection.catColor
+                            items: [
+                                { label: "Stop",     value: "stop" },
+                                { label: "Continue", value: "continue" }
+                            ]
+                            selected: optionsSection.sel ? (optionsSection.sel.onError || "stop") : "stop"
+                            onActivated: (v) => root.optionEdited(root.selectedIndex, "on_error", v)
                         }
                     }
 

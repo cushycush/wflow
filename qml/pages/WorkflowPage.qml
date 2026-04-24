@@ -398,36 +398,15 @@ Item {
                 }
             }
 
-            Button {
+            SecondaryButton {
                 text: "↗ Share"
-                topPadding: 8; bottomPadding: 8; leftPadding: 14; rightPadding: 14
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: parent.hovered ? Theme.surface3 : Theme.surface2
-                    border.color: Theme.line
-                    border.width: 1
-                }
-                contentItem: Text {
-                    text: parent.text; color: Theme.text
-                    font.family: Theme.familyBody; font.pixelSize: Theme.fontSm; font.weight: Font.Medium
-                }
             }
-            Button {
+            PrimaryButton {
                 id: runBtn
                 text: root.running ? "⏸ Running…" : "▶ Run"
-                topPadding: 8; bottomPadding: 8; leftPadding: 18; rightPadding: 18
+                leftPadding: 18
+                rightPadding: 18
                 enabled: (root.actions || []).length > 0 && !root.running
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: parent.enabled
-                        ? (parent.hovered ? Theme.accentHi : Theme.accent)
-                        : Theme.surface3
-                }
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.enabled ? Theme.accentText : Theme.text3
-                    font.family: Theme.familyBody; font.pixelSize: Theme.fontSm; font.weight: Font.DemiBold
-                }
                 onClicked: wfCtrl.run()
             }
         }

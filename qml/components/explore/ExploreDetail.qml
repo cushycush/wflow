@@ -391,43 +391,23 @@ FocusScope {
                 spacing: 10
                 layoutDirection: Qt.RightToLeft
 
-                Button {
+                PrimaryButton {
                     text: "Import"
                     anchors.verticalCenter: parent.verticalCenter
-                    topPadding: 12; bottomPadding: 12
-                    leftPadding: 24; rightPadding: 24
-                    background: Rectangle {
-                        radius: Theme.radiusSm
-                        color: parent.hovered ? Theme.accentHi : Theme.accent
-                    }
-                    contentItem: Text {
-                        text: parent.text
-                        color: Theme.accentText
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontSm
-                        font.weight: Font.DemiBold
-                    }
+                    topPadding: 12
+                    bottomPadding: 12
+                    leftPadding: 24
+                    rightPadding: 24
                     onClicked: if (root.wf) root.imported(root.wf.id)
                 }
 
-                Button {
+                SecondaryButton {
                     text: "Dry run"
                     anchors.verticalCenter: parent.verticalCenter
-                    topPadding: 12; bottomPadding: 12
-                    leftPadding: 18; rightPadding: 18
-                    background: Rectangle {
-                        radius: Theme.radiusSm
-                        color: parent.hovered ? Theme.surface3 : Theme.surface2
-                        border.color: Theme.line
-                        border.width: 1
-                    }
-                    contentItem: Text {
-                        text: parent.text
-                        color: Theme.text
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontSm
-                        font.weight: Font.Medium
-                    }
+                    topPadding: 12
+                    bottomPadding: 12
+                    leftPadding: 18
+                    rightPadding: 18
                     onClicked: if (root.wf) root.dryRunRequested(root.wf.id)
                 }
 

@@ -80,18 +80,11 @@ Item {
                     : recCtrl.state === "stopped" ? "review and save the capture"
                     : "perform once, wflow transcribes it into a workflow"
 
-            Button {
+            PrimaryButton {
                 visible: recCtrl.state === "stopped" && root.events.length > 0
                 text: "Save as workflow"
-                topPadding: 8; bottomPadding: 8; leftPadding: 18; rightPadding: 18
-                background: Rectangle {
-                    radius: Theme.radiusSm
-                    color: parent.hovered ? Theme.accentHi : Theme.accent
-                }
-                contentItem: Text {
-                    text: parent.text; color: Theme.accentText
-                    font.family: Theme.familyBody; font.pixelSize: Theme.fontSm; font.weight: Font.DemiBold
-                }
+                leftPadding: 18
+                rightPadding: 18
                 onClicked: root._finalize()
             }
         }
