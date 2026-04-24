@@ -20,6 +20,28 @@ Item {
     // retries, backoff_ms, timeout_ms). Empty-string / null values signal
     // "reset to default".
     signal optionEdited(int stepIndex, string path, var value)
+    // Emitted when the user picks a kind from the add-step picker; parent
+    // decides the default action body.
+    signal addStepRequested(string kind)
+    signal deleteStepRequested(int stepIndex)
+    signal moveStepRequested(int from, int to)
+
+    // Kinds exposed in the add-step picker. Flow-control (repeat, conditional,
+    // include, use) is intentionally excluded — those need a richer editor
+    // and live in `wflow edit` for now.
+    readonly property var _pickableKinds: [
+        { kind: "key",       label: "Key chord" },
+        { kind: "type",      label: "Type text" },
+        { kind: "click",     label: "Click" },
+        { kind: "move",      label: "Move cursor" },
+        { kind: "scroll",    label: "Scroll" },
+        { kind: "focus",     label: "Focus window" },
+        { kind: "wait",      label: "Wait" },
+        { kind: "shell",     label: "Shell command" },
+        { kind: "notify",    label: "Notification" },
+        { kind: "clipboard", label: "Clipboard" },
+        { kind: "note",      label: "Note" }
+    ]
 
     implicitHeight: 520
 
@@ -125,7 +147,9 @@ Item {
                             }
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 20 - 12 - 26 - 12
+                                // Reserve 78px on the right for the hover controls
+                                // so layout doesn't shift on mouseover.
+                                width: parent.width - 20 - 12 - 26 - 12 - 78
                                 spacing: 1
                                 Text {
                                     text: modelData.summary
@@ -156,6 +180,131 @@ Item {
                             x: 0
                             anchors.verticalCenter: parent.verticalCenter
                             color: stepRow.catColor
+                        }
+
+                        // Hover controls — ↑ ↓ × on the right edge. Visible
+                        // when the row (or its sub-areas) has the mouse or is
+                        // selected so keyboard-only users still see them.
+                        Row {
+                            id: ctrlRow
+                            anchors.right: parent.right
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 2
+                            opacity: (rowArea.containsMouse
+                                      || upArea.containsMouse
+                                      || downArea.containsMouse
+                                      || delArea.containsMouse
+                                      || stepRow.isSelected) ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+
+                            Rectangle {
+                                width: 22; height: 22; radius: 3
+                                color: upArea.containsMouse ? Theme.surface3 : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "↑"
+                                    color: model.index === 0 ? Theme.text3 : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: upArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: model.index > 0
+                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: root.moveStepRequested(model.index, model.index - 1)
+                                }
+                            }
+                            Rectangle {
+                                width: 22; height: 22; radius: 3
+                                color: downArea.containsMouse ? Theme.surface3 : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "↓"
+                                    color: model.index === root.actions.length - 1
+                                        ? Theme.text3 : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 14
+                                }
+                                MouseArea {
+                                    id: downArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: model.index < root.actions.length - 1
+                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: root.moveStepRequested(model.index, model.index + 1)
+                                }
+                            }
+                            Rectangle {
+                                width: 22; height: 22; radius: 3
+                                color: delArea.containsMouse
+                                    ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                    : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "×"
+                                    color: delArea.containsMouse ? Theme.err : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 16
+                                }
+                                MouseArea {
+                                    id: delArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.deleteStepRequested(model.index)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Add-step footer — opens a Menu of kinds.
+                Rectangle {
+                    width: parent.width
+                    height: 40
+                    color: addArea.containsMouse ? Theme.surface2 : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        Text {
+                            text: "+"
+                            color: Theme.accent
+                            font.family: Theme.familyBody
+                            font.pixelSize: 16
+                            font.weight: Font.Bold
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "Add step"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.Medium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: addArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: kindMenu.popup()
+                    }
+
+                    Menu {
+                        id: kindMenu
+                        Repeater {
+                            model: root._pickableKinds
+                            delegate: MenuItem {
+                                text: modelData.label
+                                onTriggered: root.addStepRequested(modelData.kind)
+                            }
                         }
                     }
                 }

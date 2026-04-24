@@ -176,6 +176,84 @@ Item {
         _scheduleSave()
     }
 
+    function _uuid() {
+        // RFC-4122 v4-ish; good enough for a local step id. The Rust side
+        // doesn't validate UUID shape, only that `id` is a unique string.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0
+            const v = c === 'x' ? r : (r & 0x3 | 0x8)
+            return v.toString(16)
+        })
+    }
+
+    function _defaultActionForKind(kind) {
+        switch (kind) {
+        case "key":       return { kind: "wdo_key",             chord: "Return" }
+        case "type":      return { kind: "wdo_type",            text:  "hello" }
+        case "click":     return { kind: "wdo_click",           button: 1 }
+        case "move":      return { kind: "wdo_mouse_move",      x: 0, y: 0, relative: false }
+        case "scroll":    return { kind: "wdo_scroll",          dx: 0, dy: 0 }
+        case "focus":     return { kind: "wdo_activate_window", name: "firefox" }
+        case "wait":      return { kind: "delay",               ms: 500 }
+        case "shell":     return { kind: "shell",               command: "echo hello" }
+        case "notify":    return { kind: "notify",              title: "Done" }
+        case "clipboard": return { kind: "clipboard",           text: "" }
+        case "note":      return { kind: "note",                text: "" }
+        }
+        return { kind: "note", text: "" }
+    }
+
+    function _addStep(kind) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        steps.push({
+            id: _uuid(),
+            enabled: true,
+            on_error: "stop",
+            action: _defaultActionForKind(kind)
+        })
+        wf.steps = steps
+        root.workflow = wf
+        splitInspector.selectedIndex = steps.length - 1
+        _scheduleSave()
+    }
+
+    function _deleteStep(stepIndex) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        steps.splice(stepIndex, 1)
+        wf.steps = steps
+        root.workflow = wf
+        // Keep a valid selection: clamp to the last remaining step.
+        if (splitInspector.selectedIndex >= steps.length) {
+            splitInspector.selectedIndex = Math.max(0, steps.length - 1)
+        }
+        _scheduleSave()
+    }
+
+    function _moveStep(from, to) {
+        if (from === to) return
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (from < 0 || from >= steps.length) return
+        if (to < 0 || to >= steps.length) return
+        const [moved] = steps.splice(from, 1)
+        steps.splice(to, 0, moved)
+        wf.steps = steps
+        root.workflow = wf
+        // Follow the moved step with the selection so the inspector keeps
+        // looking at the same thing the user just dragged.
+        if (splitInspector.selectedIndex === from) {
+            splitInspector.selectedIndex = to
+        } else if (from < splitInspector.selectedIndex && to >= splitInspector.selectedIndex) {
+            splitInspector.selectedIndex -= 1
+        } else if (from > splitInspector.selectedIndex && to <= splitInspector.selectedIndex) {
+            splitInspector.selectedIndex += 1
+        }
+        _scheduleSave()
+    }
+
     function _commitStepEdit(stepIndex, newPrimary) {
         // Clone the whole workflow so the QML binding system notices the
         // change; mutating a nested array in place doesn't always trigger.
@@ -386,9 +464,9 @@ Item {
 
             EmptyState {
                 anchors.fill: parent
-                visible: (root.actions || []).length === 0
-                title: "No steps yet"
-                description: "Add actions below or hit Record to capture keystrokes, clicks, and shell commands into a ready-to-run workflow."
+                visible: !root.workflowId
+                title: "No workflow loaded"
+                description: "Pick one from the library, or create a new one."
                 actionLabel: ""
             }
 
@@ -396,13 +474,16 @@ Item {
                 id: splitInspector
                 anchors.fill: parent
                 anchors.margins: 24
-                visible: (root.actions || []).length > 0
+                visible: root.workflowId.length > 0
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 running: root.running
                 stepStatuses: root.stepStatuses
                 onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                 onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
+                onAddStepRequested: (kind) => root._addStep(kind)
+                onDeleteStepRequested: (stepIndex) => root._deleteStep(stepIndex)
+                onMoveStepRequested: (from, to) => root._moveStep(from, to)
             }
         }
     }
