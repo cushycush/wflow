@@ -210,6 +210,12 @@ pub struct Workflow {
     /// `{{name}}` substitution at run time. Overridable via CLI.
     #[serde(default)]
     pub vars: std::collections::BTreeMap<String, String>,
+    /// Named imports, maps short name → fragment-file path. Resolved
+    /// at decode time by `kdl_format::expand_includes` when the step
+    /// tree contains `Action::Use { name }`. Empty by the time the
+    /// engine runs, so not serialized.
+    #[serde(skip, default)]
+    pub imports: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub created: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
@@ -227,6 +233,7 @@ impl Workflow {
             subtitle: None,
             steps: Vec::new(),
             vars: Default::default(),
+            imports: Default::default(),
             created: Some(now),
             modified: Some(now),
             last_run: None,
@@ -328,6 +335,10 @@ pub enum Action {
     /// file. Expanded at decode time by `kdl_format::expand_includes`,
     /// so the engine never sees this variant at dispatch.
     Include { path: String },
+    /// Splice-in a named import declared in the workflow's top-level
+    /// `imports { ... }` block. Expanded at decode time against the
+    /// imports map, same splicing rules as `Include`.
+    Use { name: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -371,6 +382,7 @@ impl Action {
             Action::Conditional { negate: false, .. } => "when",
             Action::Conditional { negate: true, .. } => "unless",
             Action::Include { .. } => "include",
+            Action::Use { .. } => "use",
         }
     }
 
@@ -423,6 +435,7 @@ impl Action {
                 )
             }
             Action::Include { path } => format!("include {}", quote_short(path)),
+            Action::Use { name } => format!("use {name}"),
         }
     }
 }

@@ -67,6 +67,17 @@ pub fn encode(wf: &Workflow) -> String {
         doc.nodes_mut().push(vars_node);
     }
 
+    // Optional imports block. Same emit-only-if-present rule.
+    if !wf.imports.is_empty() {
+        let mut imports_node = KdlNode::new("imports");
+        let mut inner = KdlDocument::new();
+        for (k, v) in &wf.imports {
+            inner.nodes_mut().push(kv_str(k, v));
+        }
+        imports_node.set_children(inner);
+        doc.nodes_mut().push(imports_node);
+    }
+
     let mut recipe = KdlNode::new("recipe");
     let mut inner = KdlDocument::new();
     for step in &wf.steps {
@@ -218,6 +229,11 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_str(path));
             n
         }
+        Action::Use { name } => {
+            let mut n = KdlNode::new("use");
+            n.push(arg_str(name));
+            n
+        }
         Action::Conditional { cond, negate, steps } => {
             let mut n = KdlNode::new(if *negate { "unless" } else { "when" });
             match cond {
@@ -304,7 +320,13 @@ pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
     if let Ok(canon) = path.canonicalize() {
         visited.insert(canon);
     }
-    expand_includes(&mut wf.steps, &base_dir, &mut visited)?;
+    // Clone imports so the expansion pass can resolve `use name` without
+    // taking a mutable-vs-shared borrow on wf all at once.
+    let imports = wf.imports.clone();
+    expand_includes(&mut wf.steps, &base_dir, &imports, &mut visited)?;
+    // Imports have been fully resolved — clear them so re-encoding the
+    // workflow doesn't emit a now-redundant `imports {}` block.
+    wf.imports.clear();
     Ok(wf)
 }
 
@@ -318,6 +340,7 @@ pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
 pub fn expand_includes(
     steps: &mut Vec<Step>,
     base_dir: &std::path::Path,
+    imports: &std::collections::BTreeMap<String, String>,
     visited: &mut std::collections::HashSet<std::path::PathBuf>,
 ) -> Result<()> {
     use std::collections::HashSet;
@@ -326,44 +349,30 @@ pub fn expand_includes(
     for mut step in old {
         match step.action {
             Action::Include { path } => {
-                let resolved = resolve_include_path(&path, base_dir)?;
-                if visited.contains(&resolved) {
-                    bail!(
-                        "include cycle detected: `{}` already in the include chain",
-                        resolved.display()
-                    );
-                }
-                let text = std::fs::read_to_string(&resolved)
-                    .with_context(|| format!("read include `{}`", resolved.display()))?;
-                let doc: KdlDocument = text
-                    .parse()
-                    .with_context(|| format!("parse include `{}`", resolved.display()))?;
-                let mut inner: Vec<Step> = Vec::new();
-                for node in doc.nodes() {
-                    inner.push(
-                        decode_step(node).with_context(|| {
-                            format!("in include `{}`", resolved.display())
-                        })?,
-                    );
-                }
-                // Recurse into nested includes with the new base dir
-                // (the included file's directory).
-                let inner_base = resolved
-                    .parent()
-                    .map(|p| p.to_path_buf())
-                    .unwrap_or_else(|| base_dir.to_path_buf());
-                let mut nested_visited: HashSet<std::path::PathBuf> = visited.clone();
-                nested_visited.insert(resolved.clone());
-                expand_includes(&mut inner, &inner_base, &mut nested_visited)?;
-                expanded.extend(inner);
+                splice_fragment(&path, base_dir, imports, visited, &mut expanded)?;
+            }
+            Action::Use { name } => {
+                let path = imports.get(&name).ok_or_else(|| {
+                    let known: Vec<&str> = imports.keys().map(String::as_str).collect();
+                    let hint = suggest(&name, &known)
+                        .map(|s| format!(". did you mean `{s}`?"))
+                        .unwrap_or_default();
+                    let list = if known.is_empty() {
+                        "(no imports declared — add `imports {{ name \"path\" }}` at the top of the file)".to_string()
+                    } else {
+                        format!("known: {}", known.join(", "))
+                    };
+                    anyhow!("unknown import `{name}`. {list}{hint}")
+                })?;
+                splice_fragment(path, base_dir, imports, visited, &mut expanded)?;
             }
             Action::Repeat { count, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, visited)?;
+                expand_includes(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Repeat { count, steps: inner };
                 expanded.push(step);
             }
             Action::Conditional { cond, negate, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, visited)?;
+                expand_includes(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Conditional { cond, negate, steps: inner };
                 expanded.push(step);
             }
@@ -371,6 +380,47 @@ pub fn expand_includes(
         }
     }
     *steps = expanded;
+    Ok(())
+}
+
+/// Load a fragment file, decode its top-level nodes as steps, recurse
+/// into further includes/uses, and extend `out` with the result. Shared
+/// between `include "path"` and `use name`.
+fn splice_fragment(
+    path: &str,
+    base_dir: &std::path::Path,
+    imports: &std::collections::BTreeMap<String, String>,
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+    out: &mut Vec<Step>,
+) -> Result<()> {
+    use std::collections::HashSet;
+    let resolved = resolve_include_path(path, base_dir)?;
+    if visited.contains(&resolved) {
+        bail!(
+            "include cycle detected: `{}` already in the include chain",
+            resolved.display()
+        );
+    }
+    let text = std::fs::read_to_string(&resolved)
+        .with_context(|| format!("read include `{}`", resolved.display()))?;
+    let doc: KdlDocument = text
+        .parse()
+        .with_context(|| format!("parse include `{}`", resolved.display()))?;
+    let mut inner: Vec<Step> = Vec::new();
+    for node in doc.nodes() {
+        inner.push(
+            decode_step(node)
+                .with_context(|| format!("in include `{}`", resolved.display()))?,
+        );
+    }
+    let inner_base = resolved
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| base_dir.to_path_buf());
+    let mut nested_visited: HashSet<std::path::PathBuf> = visited.clone();
+    nested_visited.insert(resolved.clone());
+    expand_includes(&mut inner, &inner_base, imports, &mut nested_visited)?;
+    out.extend(inner);
     Ok(())
 }
 
@@ -410,6 +460,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
     let mut last_run = None;
     let mut steps: Vec<Step> = Vec::new();
     let mut vars: std::collections::BTreeMap<String, String> = Default::default();
+    let mut imports: std::collections::BTreeMap<String, String> = Default::default();
     let mut recipe_seen = false;
 
     for node in doc.nodes() {
@@ -453,6 +504,24 @@ pub fn decode(src: &str) -> Result<Workflow> {
                     vars.insert(key, value);
                 }
             }
+            "imports" => {
+                // `imports { name "path" ... }` — named references to
+                // fragment files, splice-able as `use name` inside recipe
+                // (or any nested block).
+                let children = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`imports` must have a block {{ ... }}"))?;
+                for imp_node in children.nodes() {
+                    let key = imp_node.name().value().to_string();
+                    let path = first_string(imp_node).with_context(|| {
+                        format!("`imports {{ {key} ... }}` needs a path string")
+                    })?;
+                    if imports.contains_key(&key) {
+                        bail!("duplicate import name `{key}`");
+                    }
+                    imports.insert(key, path);
+                }
+            }
             "recipe" => {
                 recipe_seen = true;
                 let children = node
@@ -467,7 +536,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
                 // so loudly instead of dropping it silently.
                 let valid = [
                     "schema", "id", "title", "subtitle", "created",
-                    "modified", "last-run", "vars", "recipe",
+                    "modified", "last-run", "vars", "imports", "recipe",
                 ];
                 let hint = suggest(other, &valid)
                     .map(|s| format!(". did you mean `{s}`?"))
@@ -498,6 +567,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
         subtitle,
         steps,
         vars,
+        imports,
         created,
         modified,
         last_run,
@@ -744,6 +814,15 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
             let path = first_string(node)?;
             Action::Include { path }
         }
+        "use" => {
+            // Unquoted bareword, `use dev-setup`, parses as a single
+            // string arg in KDL v2 — same path as quoted form.
+            let name = first_string(node).with_context(|| {
+                "`use` needs an import name — try `use dev-setup` after declaring \
+                 it in the top-level `imports { ... }` block"
+            })?;
+            Action::Use { name }
+        }
         "when" | "unless" => {
             let verb = name; // already canonical (no alias today)
             let cond = decode_condition(node, verb)?;
@@ -916,6 +995,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         "when" => &["window", "file", "env", "equals"],
         "unless" => &["window", "file", "env", "equals"],
         "include" => &[],
+        "use" => &[],
         _ => &[],
     }
 }
@@ -1182,6 +1262,90 @@ recipe {
         assert_eq!(wf.steps.len(), 2);
 
         let _: HashSet<()> = Default::default(); // keep import pattern obvious
+    }
+
+    #[test]
+    fn imports_and_use_splice_like_include() {
+        let dir = tempfile::tempdir().unwrap();
+        let dev = dir.path().join("dev.kdl");
+        std::fs::write(&dev, "shell \"dev-step\"\nkey \"ctrl+l\"").unwrap();
+        let standup = dir.path().join("standup.kdl");
+        std::fs::write(&standup, "shell \"standup-step\"").unwrap();
+
+        let main = dir.path().join("main.kdl");
+        // Note: unquoted form `use dev-setup` — verifies bare-ident
+        // parsing, mirrors the syntax users will write.
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+
+imports {
+    dev-setup "dev.kdl"
+    standup   "standup.kdl"
+}
+
+recipe {
+    use dev-setup
+    shell "mid"
+    use dev-setup
+    use standup
+}"#,
+        )
+        .unwrap();
+
+        let wf = decode_from_file(&main).unwrap();
+        // dev.kdl (2) + mid (1) + dev.kdl (2) + standup.kdl (1) = 6
+        assert_eq!(wf.steps.len(), 6);
+        assert!(wf.imports.is_empty(), "imports should be cleared after expand");
+
+        // Unknown import → helpful error with a did-you-mean hint.
+        let bad = dir.path().join("bad.kdl");
+        std::fs::write(
+            &bad,
+            r#"schema 1
+id "b"
+title "B"
+imports { dev-setup "dev.kdl" }
+recipe { use dev-setpu }"#,
+        )
+        .unwrap();
+        let err = decode_from_file(&bad).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("unknown import `dev-setpu`"), "got: {msg}");
+        assert!(msg.contains("did you mean `dev-setup`"), "got: {msg}");
+
+        // No imports at all but `use X` → helpful error.
+        let empty = dir.path().join("empty.kdl");
+        std::fs::write(
+            &empty,
+            "schema 1\nid \"e\"\ntitle \"E\"\nrecipe { use something }\n",
+        )
+        .unwrap();
+        let err = decode_from_file(&empty).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("no imports declared"),
+            "got: {msg}"
+        );
+
+        // Duplicate import name → error.
+        let dup = dir.path().join("dup.kdl");
+        std::fs::write(
+            &dup,
+            r#"schema 1
+id "d"
+title "D"
+imports {
+    dev-setup "dev.kdl"
+    dev-setup "standup.kdl"
+}
+recipe { }"#,
+        )
+        .unwrap();
+        let err = decode_from_file(&dup).unwrap_err();
+        assert!(format!("{err:#}").contains("duplicate import"));
     }
 
     #[test]
