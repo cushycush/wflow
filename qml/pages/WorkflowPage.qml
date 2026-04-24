@@ -23,6 +23,8 @@ Item {
     // idle → dirty → saving → saved → idle, or error on failure.
     property string saveState: "idle"
 
+    property var stepStatuses: ({})
+
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
     readonly property int activeStepIndex: wfCtrl.active_step
@@ -198,6 +200,14 @@ Item {
                 root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
             }
         }
+        function onRunningChanged() {
+            if (wfCtrl.running) root.stepStatuses = ({})
+        }
+        function onStep_done(index, status, message) {
+            const next = Object.assign({}, root.stepStatuses)
+            next[index] = status
+            root.stepStatuses = next
+        }
     }
 
     Column {
@@ -321,6 +331,7 @@ Item {
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 running: root.running
+                stepStatuses: root.stepStatuses
                 onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
             }
         }
