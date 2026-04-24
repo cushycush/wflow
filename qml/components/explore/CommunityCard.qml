@@ -12,27 +12,19 @@ Rectangle {
     property real cardH: 150
     signal activated(string id)
 
-    readonly property color catColor: {
-        const k = wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait"
-        const t = ({
-            "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-            "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-            "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-            "clipboard": Theme.catClip, "note": Theme.catNote
-        })
-        return t[k] || Theme.catWait
-    }
+    readonly property color catColor: Theme.catFor(
+        wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
 
     width: cardW
     height: cardH
     radius: Theme.radiusMd
     color: cardArea.containsMouse ? Theme.surface2 : Theme.surface
     border.color: cardArea.containsMouse
-        ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.42)
+        ? Theme.wash(catColor, 0.42)
         : Theme.lineSoft
     border.width: 1
-    Behavior on color { ColorAnimation { duration: Theme.durFast } }
-    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
     MouseArea {
         id: cardArea

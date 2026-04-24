@@ -8,25 +8,12 @@ Rectangle {
     id: root
     property string kind: "wait"
 
-    readonly property var _colors: ({
-        "key": Theme.catKey,
-        "type": Theme.catType,
-        "click": Theme.catClick,
-        "move": Theme.catMove,
-        "scroll": Theme.catScroll,
-        "focus": Theme.catFocus,
-        "wait": Theme.catWait,
-        "shell": Theme.catShell,
-        "notify": Theme.catNotify,
-        "clipboard": Theme.catClip,
-        "note": Theme.catNote
-    })
-    readonly property color _c: _colors[kind] || Theme.catWait
+    readonly property color _c: Theme.catFor(kind)
 
     implicitWidth: label.implicitWidth + 16
     implicitHeight: 20
     radius: 4
-    color: Qt.rgba(_c.r, _c.g, _c.b, 0.16)
+    color: Theme.wash(_c, 0.16)
 
     Text {
         id: label

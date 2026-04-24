@@ -34,7 +34,7 @@ Item {
         opacity: 0.9
 
         SequentialAnimation on scale {
-            running: true
+            running: !Theme.reduceMotion
             loops: Animation.Infinite
             NumberAnimation { to: 1.06; duration: 4200; easing.type: Easing.InOutSine }
             NumberAnimation { to: 1.0;  duration: 4200; easing.type: Easing.InOutSine }
@@ -52,7 +52,7 @@ Item {
         y: parent.height * 0.25 - width / 2
 
         SequentialAnimation on scale {
-            running: true
+            running: !Theme.reduceMotion
             loops: Animation.Infinite
             NumberAnimation { to: 1.08; duration: 5500; easing.type: Easing.InOutSine }
             NumberAnimation { to: 0.95; duration: 5500; easing.type: Easing.InOutSine }
@@ -100,7 +100,7 @@ Item {
             }
 
             SequentialAnimation on scale {
-                running: root.phase === "armed"
+                running: root.phase === "armed" && !Theme.reduceMotion
                 loops: Animation.Infinite
                 NumberAnimation { to: 1.05; duration: 900; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 1.0;  duration: 900; easing.type: Easing.InOutSine }
@@ -165,7 +165,7 @@ Item {
                     color: Theme.err
                     anchors.verticalCenter: parent.verticalCenter
                     SequentialAnimation on opacity {
-                        running: root.hot
+                        running: root.hot && !Theme.reduceMotion
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.2; duration: 500 }
                         NumberAnimation { to: 1.0; duration: 500 }

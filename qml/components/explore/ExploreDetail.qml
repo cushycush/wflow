@@ -143,20 +143,12 @@ FocusScope {
                     spacing: 8
 
                     Rectangle {
-                        readonly property color catColor: {
-                            const k = root.wf && root.wf.kinds && root.wf.kinds.length > 0 ? root.wf.kinds[0] : "wait"
-                            const t = ({
-                                "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-                                "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-                                "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-                                "clipboard": Theme.catClip, "note": Theme.catNote
-                            })
-                            return t[k] || Theme.catWait
-                        }
+                        readonly property color catColor: Theme.catFor(
+                            root.wf && root.wf.kinds && root.wf.kinds.length > 0 ? root.wf.kinds[0] : "wait")
                         width: chipLbl.implicitWidth + 14
                         height: 22
                         radius: 11
-                        color: Qt.rgba(catColor.r, catColor.g, catColor.b, 0.14)
+                        color: Theme.wash(catColor, 0.14)
                         border.color: Qt.rgba(catColor.r, catColor.g, catColor.b, 0.5)
                         border.width: 1
                         Text {

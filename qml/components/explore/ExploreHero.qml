@@ -26,22 +26,15 @@ Rectangle {
             })
             if (pals[wf.heroPalette]) return pals[wf.heroPalette]
         }
-        const k = wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait"
-        const t = ({
-            "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-            "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-            "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-            "clipboard": Theme.catClip, "note": Theme.catNote
-        })
-        return t[k] || Theme.catWait
+        return Theme.catFor(wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
     }
 
     height: 180
     radius: Theme.radiusLg
-    color: Qt.rgba(catColor.r, catColor.g, catColor.b, heroArea.containsMouse ? 0.18 : 0.12)
-    border.color: Qt.rgba(catColor.r, catColor.g, catColor.b, 0.45)
+    color: Theme.wash(catColor, heroArea.containsMouse ? 0.18 : 0.12)
+    border.color: Theme.wash(catColor, 0.45)
     border.width: 1
-    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
     MouseArea {
         id: heroArea

@@ -91,8 +91,54 @@ QtObject {
     readonly property string familyMono: "Geist Mono"
 
     // ============ Motion ============
+    // `reduceMotion` zeroes every duration returned by `dur()`, which is what
+    // every Behavior / NumberAnimation / ColorAnimation should read instead of
+    // the raw constants. Infinite animations (pulses, shimmers, ambient washes)
+    // should gate their `running` flag on `!Theme.reduceMotion`.
+    property bool reduceMotion: false
     readonly property int durFast: 120
     readonly property int durBase: 160
     readonly property int durSlow: 220
     readonly property int easingStd: Easing.OutCubic
+    function dur(ms) { return reduceMotion ? 0 : ms }
+
+    // ============ Category helpers ============
+    // Single source of truth for the kind → color + kind → glyph maps that
+    // used to be copy-pasted in every action-aware component.
+    function catFor(kind) {
+        switch (kind) {
+        case "key":       return catKey
+        case "type":      return catType
+        case "click":     return catClick
+        case "move":      return catMove
+        case "scroll":    return catScroll
+        case "focus":     return catFocus
+        case "wait":      return catWait
+        case "shell":     return catShell
+        case "notify":    return catNotify
+        case "clipboard": return catClip
+        case "note":      return catNote
+        }
+        return catWait
+    }
+    function catGlyph(kind) {
+        switch (kind) {
+        case "key":       return "⌘"
+        case "type":      return "T"
+        case "click":     return "◉"
+        case "move":      return "↔"
+        case "scroll":    return "⇅"
+        case "focus":     return "⊡"
+        case "wait":      return "⏱"
+        case "shell":     return "›"
+        case "notify":    return "◐"
+        case "clipboard": return "⎘"
+        case "note":      return "¶"
+        }
+        return "•"
+    }
+    // Translucent wash of the accent (or any color) at a named alpha. Saves
+    // call sites from copy-pasting `Qt.rgba(c.r, c.g, c.b, 0.xx)` constants.
+    function wash(c, alpha) { return Qt.rgba(c.r, c.g, c.b, alpha) }
+    function accentWash(alpha) { return wash(accent, alpha) }
 }

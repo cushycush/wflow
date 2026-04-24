@@ -76,15 +76,7 @@ Item {
                             const v = s[model.index]
                             return v === undefined ? "" : v
                         }
-                        readonly property color catColor: {
-                            const t = ({
-                                "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-                                "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-                                "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-                                "clipboard": Theme.catClip, "note": Theme.catNote
-                            })
-                            return t[modelData.kind] || Theme.catWait
-                        }
+                        readonly property color catColor: Theme.catFor(modelData.kind)
 
                         width: parent.width
                         height: 48
@@ -322,16 +314,7 @@ Item {
 
             readonly property var sel: (root.selectedIndex >= 0 && root.selectedIndex < root.actions.length)
                 ? root.actions[root.selectedIndex] : null
-            readonly property color catColor: {
-                if (!sel) return Theme.accent
-                const t = ({
-                    "key": Theme.catKey, "type": Theme.catType, "click": Theme.catClick,
-                    "move": Theme.catMove, "scroll": Theme.catScroll, "focus": Theme.catFocus,
-                    "wait": Theme.catWait, "shell": Theme.catShell, "notify": Theme.catNotify,
-                    "clipboard": Theme.catClip, "note": Theme.catNote
-                })
-                return t[sel.kind] || Theme.catWait
-            }
+            readonly property color catColor: sel ? Theme.catFor(sel.kind) : Theme.accent
 
             Column {
                 anchors.fill: parent
