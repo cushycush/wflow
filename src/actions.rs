@@ -161,8 +161,14 @@ pub enum Action {
         #[serde(default)]
         clear_modifiers: bool,
     },
+    /// Press and hold; pair with `key-up`.
+    WdoKeyDown { chord: String },
+    WdoKeyUp { chord: String },
     /// 1=left, 2=middle, 3=right, 8=back, 9=forward.
     WdoClick { button: u8 },
+    /// Press and hold; pair with `mouse-up`.
+    WdoMouseDown { button: u8 },
+    WdoMouseUp { button: u8 },
     WdoMouseMove {
         x: i32,
         y: i32,
@@ -224,7 +230,11 @@ impl Action {
         match self {
             Action::WdoType { .. } => "type",
             Action::WdoKey { .. } => "key",
+            Action::WdoKeyDown { .. } => "key",
+            Action::WdoKeyUp { .. } => "key",
             Action::WdoClick { .. } => "click",
+            Action::WdoMouseDown { .. } => "click",
+            Action::WdoMouseUp { .. } => "click",
             Action::WdoMouseMove { .. } => "move",
             Action::WdoScroll { .. } => "scroll",
             Action::WdoActivateWindow { .. } => "focus",
@@ -243,7 +253,11 @@ impl Action {
         match self {
             Action::WdoType { text, .. } => format!("type {}", quote_short(text)),
             Action::WdoKey { chord, .. } => format!("key {chord}"),
+            Action::WdoKeyDown { chord } => format!("key-down {chord}"),
+            Action::WdoKeyUp { chord } => format!("key-up {chord}"),
             Action::WdoClick { button } => format!("click button {button}"),
+            Action::WdoMouseDown { button } => format!("mouse-down button {button}"),
+            Action::WdoMouseUp { button } => format!("mouse-up button {button}"),
             Action::WdoMouseMove { x, y, relative } => {
                 if *relative {
                     format!("move +{x},+{y}")
