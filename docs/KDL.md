@@ -117,6 +117,7 @@ last in any order.
 | [`when`](#when--unless) | `when window="Firefox" { ... }` | runs the block only if the condition holds |
 | [`unless`](#when--unless) | `unless file="/tmp/lock" { ... }` | runs the block only if the condition fails |
 | [`include`](#include) | `include "lib/frag.kdl"` | splices in the target fragment's steps |
+| [`use`](#imports--use) | `use dev-setup` | splices a fragment named in the top-level `imports { ... }` block |
 
 Every action accepts the common step properties:
 
@@ -441,13 +442,68 @@ The condition is evaluated **each time** the block is reached, not at
 workflow start. A `when file="/tmp/marker"` guarding the second half
 of a workflow will pick up a marker file created by the first half.
 
+### imports + use
+
+When the same fragment shows up in 3+ places, scattered `include`
+statements get noisy. Declare the fragments once at the top of the
+file and reference them by name:
+
+```kdl
+schema 1
+id "morning"
+title "Morning routine"
+
+imports {
+    dev-setup "~/.config/wflow/lib/open-dev.kdl"
+    standup   "~/.config/wflow/lib/standup.kdl"
+    cleanup   "~/.config/wflow/lib/close-day.kdl"
+}
+
+recipe {
+    use dev-setup
+    shell "cd ~/projects && ls"
+    use standup
+    // … some work later …
+    use cleanup
+}
+```
+
+**`imports { name "path" ... }`** maps short names to fragment file
+paths. Duplicate names error at decode. The block is evaluated once
+and erased — re-encoding the workflow produces the inlined form (same
+behavior as raw `include`).
+
+**`use name`** (unquoted) is a step verb. At decode time it looks up
+`name` in the imports table and splices the target fragment in place.
+Everything that works for `include` also works for `use`: nesting,
+relative paths (resolved against the *including* file), cycle
+detection, `use` inside repeat / when / unless.
+
+Unknown names get a helpful error:
+
+```
+error: unknown import `dev-setpu`. known: dev-setup, standup. did you mean `dev-setup`?
+```
+
+Either form — `use dev-setup` (bareword) or `use "dev-setup"` (quoted)
+— works; the bareword is the canonical form.
+
 ### include
 
 Splice in the steps from a **fragment file** — a separate `.kdl`
 file whose contents are a bare list of step nodes (no
 `schema`/`id`/`title`/`recipe` wrapper). Useful for sharing the same
 opening-the-IDE / entering-the-password / whatever preamble across
-multiple workflows.
+multiple workflows. Inline, one-shot form:
+
+```kdl
+recipe {
+    include "~/.config/wflow/lib/open-dev.kdl"
+}
+```
+
+For repeated references, prefer the [imports + use](#imports--use)
+pattern — it keeps the recipe body readable.
 
 ```kdl
 // ~/.config/wflow/lib/open-dev.kdl (fragment file)

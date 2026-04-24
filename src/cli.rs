@@ -798,10 +798,10 @@ fn collect_tool_needs(
                 }
                 collect_tool_needs(inner, needed);
             }
-            // `include` should be expanded by load_file; if it
-            // survived to here, the preflight has nothing to report
-            // but shouldn't crash.
-            Action::Include { .. } => {}
+            // `include` / `use` should be expanded by load_file; if one
+            // survived here, preflight has nothing to report but should
+            // not crash.
+            Action::Include { .. } | Action::Use { .. } => {}
             Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
         }
     }
@@ -955,10 +955,13 @@ fn explain_lines(action: &Action) -> Vec<String> {
             lines
         }
         Action::Include { path } => {
-            // Include would normally be expanded away by decode_from_file
-            // before explain runs. If one survives, print a single line
-            // so the user can tell.
+            // Normally expanded away by decode_from_file before explain
+            // runs. If one survives, print a single line so the user
+            // can tell.
             vec![format!("{head} # include {}", path)]
+        }
+        Action::Use { name } => {
+            vec![format!("{head} # use {}", name)]
         }
     }
 }
