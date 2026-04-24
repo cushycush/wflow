@@ -116,6 +116,7 @@ last in any order.
 | [`repeat`](#repeat) | `repeat 3 { key "Tab" }` | flattened into 3× `key "Tab"` at run time |
 | [`when`](#when--unless) | `when window="Firefox" { ... }` | runs the block only if the condition holds |
 | [`unless`](#when--unless) | `unless file="/tmp/lock" { ... }` | runs the block only if the condition fails |
+| [`include`](#include) | `include "lib/frag.kdl"` | splices in the target fragment's steps |
 
 Every action accepts the common step properties:
 
@@ -439,6 +440,54 @@ Condition types:
 The condition is evaluated **each time** the block is reached, not at
 workflow start. A `when file="/tmp/marker"` guarding the second half
 of a workflow will pick up a marker file created by the first half.
+
+### include
+
+Splice in the steps from a **fragment file** — a separate `.kdl`
+file whose contents are a bare list of step nodes (no
+`schema`/`id`/`title`/`recipe` wrapper). Useful for sharing the same
+opening-the-IDE / entering-the-password / whatever preamble across
+multiple workflows.
+
+```kdl
+// ~/.config/wflow/lib/open-dev.kdl (fragment file)
+shell "hyprctl dispatch exec 'kitty'"
+wait-window "kitty" timeout="5s"
+key "ctrl+shift+t"
+```
+
+```kdl
+// A workflow using it:
+schema 1
+id "dev-setup"
+title "Open dev setup"
+
+recipe {
+    include "~/.config/wflow/lib/open-dev.kdl"
+    type "cd ~/projects && ls"
+    key "Return"
+}
+```
+
+Path resolution:
+
+- **Absolute** paths are used as-is.
+- **Relative** paths resolve against the directory containing the
+  *including* file (not the current working directory).
+- **`~/`** expands against `$HOME`.
+
+Includes can nest (included fragment can itself `include` another).
+Cycles (`a.kdl → b.kdl → a.kdl`) are detected and rejected with a
+"include cycle detected" error.
+
+`include` is expanded at **decode time**, not dispatch time — by the
+time the engine sees the workflow, the included steps have been
+spliced in place. As a consequence: encoding a workflow that was
+loaded from a file with includes produces the inlined form. If you
+re-save such a workflow (via `wflow edit` + save, or the GUI), the
+`include` lines become concrete steps. Don't hand-round-trip
+library files through the encoder if you want to keep the source
+shape.
 
 ### repeat
 

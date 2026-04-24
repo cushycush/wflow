@@ -324,6 +324,10 @@ pub enum Action {
         negate: bool,
         steps: Vec<Step>,
     },
+    /// Splice-in the top-level step nodes from another KDL fragment
+    /// file. Expanded at decode time by `kdl_format::expand_includes`,
+    /// so the engine never sees this variant at dispatch.
+    Include { path: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -366,6 +370,7 @@ impl Action {
             Action::Repeat { .. } => "repeat",
             Action::Conditional { negate: false, .. } => "when",
             Action::Conditional { negate: true, .. } => "unless",
+            Action::Include { .. } => "include",
         }
     }
 
@@ -417,6 +422,7 @@ impl Action {
                     if steps.len() == 1 { "" } else { "s" }
                 )
             }
+            Action::Include { path } => format!("include {}", quote_short(path)),
         }
     }
 }

@@ -213,6 +213,11 @@ fn encode_step(step: &Step) -> KdlNode {
             n.set_children(inner);
             n
         }
+        Action::Include { path } => {
+            let mut n = KdlNode::new("include");
+            n.push(arg_str(path));
+            n
+        }
         Action::Conditional { cond, negate, steps } => {
             let mut n = KdlNode::new(if *negate { "unless" } else { "when" });
             match cond {
@@ -282,6 +287,117 @@ fn kv_int(name: &str, v: i128) -> KdlNode {
 }
 
 // ---------------------------------------------------------- Decoding --------
+
+/// Parse a KDL file and expand any `include "path.kdl"` nodes inside.
+/// Wraps `decode` + `expand_includes(&wf.steps, path.parent(), ...)`.
+/// Use this (or `store::load_path`) whenever you have a file on disk;
+/// reserve `decode(text)` for in-memory content that shouldn't reach
+/// the filesystem.
+pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("read {}", path.display()))?;
+    let mut wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
+    let base_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let mut visited = std::collections::HashSet::new();
+    // Canonicalize the top-level path too so a later include back to
+    // the same file is caught as a cycle.
+    if let Ok(canon) = path.canonicalize() {
+        visited.insert(canon);
+    }
+    expand_includes(&mut wf.steps, &base_dir, &mut visited)?;
+    Ok(wf)
+}
+
+/// Walk a step list and splice every `Action::Include` with the
+/// decoded top-level nodes of the target fragment file. Recurses
+/// into `repeat` / `when` / `unless` blocks so nested includes
+/// resolve. Cycles are detected via a visited-set of canonicalized
+/// paths; the current file is removed from the set after its subtree
+/// is expanded so the same file can be included in multiple sibling
+/// branches without false-positive cycle errors.
+pub fn expand_includes(
+    steps: &mut Vec<Step>,
+    base_dir: &std::path::Path,
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+) -> Result<()> {
+    use std::collections::HashSet;
+    let old = std::mem::take(steps);
+    let mut expanded: Vec<Step> = Vec::with_capacity(old.len());
+    for mut step in old {
+        match step.action {
+            Action::Include { path } => {
+                let resolved = resolve_include_path(&path, base_dir)?;
+                if visited.contains(&resolved) {
+                    bail!(
+                        "include cycle detected: `{}` already in the include chain",
+                        resolved.display()
+                    );
+                }
+                let text = std::fs::read_to_string(&resolved)
+                    .with_context(|| format!("read include `{}`", resolved.display()))?;
+                let doc: KdlDocument = text
+                    .parse()
+                    .with_context(|| format!("parse include `{}`", resolved.display()))?;
+                let mut inner: Vec<Step> = Vec::new();
+                for node in doc.nodes() {
+                    inner.push(
+                        decode_step(node).with_context(|| {
+                            format!("in include `{}`", resolved.display())
+                        })?,
+                    );
+                }
+                // Recurse into nested includes with the new base dir
+                // (the included file's directory).
+                let inner_base = resolved
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| base_dir.to_path_buf());
+                let mut nested_visited: HashSet<std::path::PathBuf> = visited.clone();
+                nested_visited.insert(resolved.clone());
+                expand_includes(&mut inner, &inner_base, &mut nested_visited)?;
+                expanded.extend(inner);
+            }
+            Action::Repeat { count, steps: mut inner } => {
+                expand_includes(&mut inner, base_dir, visited)?;
+                step.action = Action::Repeat { count, steps: inner };
+                expanded.push(step);
+            }
+            Action::Conditional { cond, negate, steps: mut inner } => {
+                expand_includes(&mut inner, base_dir, visited)?;
+                step.action = Action::Conditional { cond, negate, steps: inner };
+                expanded.push(step);
+            }
+            _ => expanded.push(step),
+        }
+    }
+    *steps = expanded;
+    Ok(())
+}
+
+fn resolve_include_path(
+    path: &str,
+    base_dir: &std::path::Path,
+) -> Result<std::path::PathBuf> {
+    // `~/` → $HOME.
+    let expanded = if let Some(rest) = path.strip_prefix("~/") {
+        match dirs::home_dir() {
+            Some(h) => h.join(rest),
+            None => bail!("can't expand `~/` — no home directory"),
+        }
+    } else if path == "~" {
+        dirs::home_dir().ok_or_else(|| anyhow!("no home directory"))?
+    } else {
+        std::path::PathBuf::from(path)
+    };
+    let combined = if expanded.is_absolute() {
+        expanded
+    } else {
+        base_dir.join(expanded)
+    };
+    combined
+        .canonicalize()
+        .with_context(|| format!("resolving include `{path}` relative to {}", base_dir.display()))
+}
 
 pub fn decode(src: &str) -> Result<Workflow> {
     let doc: KdlDocument = src.parse().context("parsing KDL")?;
@@ -624,6 +740,10 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 steps,
             }
         }
+        "include" => {
+            let path = first_string(node)?;
+            Action::Include { path }
+        }
         "when" | "unless" => {
             let verb = name; // already canonical (no alias today)
             let cond = decode_condition(node, verb)?;
@@ -795,6 +915,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         // required. `env` may pair with `equals`.
         "when" => &["window", "file", "env", "equals"],
         "unless" => &["window", "file", "env", "equals"],
+        "include" => &[],
         _ => &[],
     }
 }
@@ -980,6 +1101,119 @@ mod tests {
             chords,
             vec!["Return", "Escape", "super+shift+T", "alt", "Page_Down"]
         );
+    }
+
+    #[test]
+    fn include_splices_fragment_and_detects_cycles() {
+        use std::collections::HashSet;
+        let dir = tempfile::tempdir().unwrap();
+        let frag_a = dir.path().join("a.kdl");
+        let frag_b = dir.path().join("b.kdl");
+
+        // a.kdl: three step nodes (a valid fragment — no schema/id/title wrapper).
+        std::fs::write(&frag_a, r#"key "a1"
+type "a2"
+include "b.kdl""#).unwrap();
+        // b.kdl: one step node.
+        std::fs::write(&frag_b, r#"key "b1""#).unwrap();
+
+        // Main workflow including a.
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "main"
+title "Main"
+recipe {
+    include "a.kdl"
+    key "end"
+}"#,
+        )
+        .unwrap();
+
+        let wf = decode_from_file(&main).unwrap();
+        // a's two leaf steps + b's one step (via a's include b) + "end" = 4.
+        assert_eq!(wf.steps.len(), 4);
+        let chords: Vec<String> = wf
+            .steps
+            .iter()
+            .filter_map(|s| match &s.action {
+                Action::WdoKey { chord, .. } => Some(chord.clone()),
+                Action::WdoType { text, .. } => Some(format!("type:{text}")),
+                _ => None,
+            })
+            .collect();
+        // "end" normalizes to the X11 keysym "End".
+        assert_eq!(chords, vec!["a1", "type:a2", "b1", "End"]);
+
+        // Cycle: c.kdl includes itself.
+        let c = dir.path().join("c.kdl");
+        std::fs::write(&c, r#"include "c.kdl""#).unwrap();
+        let main_c = dir.path().join("main_c.kdl");
+        std::fs::write(
+            &main_c,
+            r#"schema 1
+id "mc"
+title "MC"
+recipe { include "c.kdl" }"#,
+        )
+        .unwrap();
+        let err = decode_from_file(&main_c).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("cycle"),
+            "got: {err:#}"
+        );
+
+        // The same fragment used twice in different sibling branches is
+        // fine — visited is reset per branch.
+        let twice = dir.path().join("twice.kdl");
+        std::fs::write(
+            &twice,
+            r#"schema 1
+id "twice"
+title "Twice"
+recipe {
+    include "b.kdl"
+    include "b.kdl"
+}"#,
+        )
+        .unwrap();
+        let wf = decode_from_file(&twice).unwrap();
+        assert_eq!(wf.steps.len(), 2);
+
+        let _: HashSet<()> = Default::default(); // keep import pattern obvious
+    }
+
+    #[test]
+    fn include_inside_repeat_and_when() {
+        let dir = tempfile::tempdir().unwrap();
+        let frag = dir.path().join("frag.kdl");
+        std::fs::write(&frag, r#"key "inner""#).unwrap();
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+recipe {
+    repeat 2 {
+        include "frag.kdl"
+    }
+    when env="HOME" {
+        include "frag.kdl"
+    }
+}"#,
+        )
+        .unwrap();
+        let wf = decode_from_file(&main).unwrap();
+        match &wf.steps[0].action {
+            Action::Repeat { steps, .. } => assert_eq!(steps.len(), 1),
+            _ => panic!("expected repeat"),
+        }
+        match &wf.steps[1].action {
+            Action::Conditional { steps, .. } => assert_eq!(steps.len(), 1),
+            _ => panic!("expected when"),
+        }
     }
 
     #[test]
