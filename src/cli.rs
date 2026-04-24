@@ -403,12 +403,14 @@ const BASH_DYNAMIC: &str = r#"
 # Dynamic library-id completion (added by `wflow completions bash`).
 # Wraps the clap-generated `_wflow` so subcommands taking a workflow id
 # tab-complete from `wflow ids` instead of falling through to filenames.
+# Falls through to `_wflow` for flags (cur starts with `-`) and for any
+# position other than the subcommand argument.
 _wflow_with_ids() {
-    if [ "${COMP_CWORD}" -eq 2 ]; then
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [ "${COMP_CWORD}" -eq 2 ] && [[ "${cur}" != -* ]]; then
         case "${COMP_WORDS[1]}" in
             run|show|validate|edit|rm)
-                local cur ids
-                cur="${COMP_WORDS[COMP_CWORD]}"
+                local ids
                 ids=$(wflow ids 2>/dev/null | cut -f1)
                 COMPREPLY=( $(compgen -W "${ids}" -- "${cur}") )
                 return 0
