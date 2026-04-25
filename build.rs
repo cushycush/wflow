@@ -49,6 +49,7 @@ fn main() {
         ]),
     )
     .file("src/bridge/library.rs")
+    .file("src/bridge/state.rs")
     .file("src/bridge/workflow.rs")
     .file("src/bridge/recorder.rs")
     .qt_module("Quick")
