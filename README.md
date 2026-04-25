@@ -1,14 +1,19 @@
 # wflow
 
-A workflow engine for Wayland automation.
+**Shortcuts for Linux — GUI + KDL workflow files.**
 
-wflow executes KDL workflow files — declarative sequences of keystrokes,
-clicks, shell commands, delays, notifications, and window-focus events —
-on top of [wdotool](https://github.com/cushycush/wdotool). Think `make`
-for your desktop.
+wflow records, edits, and replays sequences of keystrokes, clicks, shell
+commands, delays, and notifications on Wayland. There's a Qt Quick GUI
+for visual editing and a CLI for cron / keybind / scripting. Both run
+the same engine.
 
-There's also a Qt Quick GUI (Library / Editor / Record), but the CLI is
-the first-class surface and ships first.
+Workflows are plain text in [KDL](https://kdl.dev) format — diffable in
+git, hand-authorable in `$EDITOR`, includable into other workflows,
+shareable as a single file. Think macOS Shortcuts, but the workflow file
+*is* the artifact: no proprietary container, no binary blob.
+
+Built on [wdotool](https://github.com/cushycush/wdotool) for input
+injection.
 
 ## Install
 
