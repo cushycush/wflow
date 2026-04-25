@@ -14,9 +14,6 @@ use sha2::{Digest, Sha256};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrustMode {
     Cli,
-    /// GUI caller will route the prompt through Qt. Wired in a follow-up
-    /// pass; allowed-dead until WorkflowController emits the signal.
-    #[allow(dead_code)]
     Gui,
     /// Skip the check (--yes, cron, explain, dry-run).
     Yes,

@@ -1,6 +1,7 @@
 //! WorkflowController. The currently-open workflow as JSON, plus the
 //! run / debug / trust-prompt machinery the editor binds against.
 
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -8,7 +9,7 @@ use cxx_qt::Threading;
 use cxx_qt_lib::QString;
 
 use crate::actions::{RunEvent, StepOutcome, Workflow};
-use crate::{engine, store};
+use crate::{engine, security, store};
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -33,11 +34,16 @@ pub mod qobject {
         #[qinvokable]
         fn save(self: Pin<&mut WorkflowController>, json: QString) -> QString;
 
-        /// Run the current workflow. Returns immediately; progress is
-        /// surfaced via step_done / run_finished signals and the
-        /// active_step / running properties.
+        /// Returns immediately. Trusted workflows run; untrusted ones
+        /// fire `trust_prompt_required` and wait for confirm/cancel.
         #[qinvokable]
         fn run(self: Pin<&mut WorkflowController>);
+
+        #[qinvokable]
+        fn confirm_trust(self: Pin<&mut WorkflowController>);
+
+        #[qinvokable]
+        fn cancel_trust(self: Pin<&mut WorkflowController>);
 
         /// Signalled after each step completes.
         /// `status` is one of "ok" | "skipped" | "error".
@@ -51,6 +57,14 @@ pub mod qobject {
 
         #[qsignal]
         fn run_finished(self: Pin<&mut WorkflowController>, ok: bool);
+
+        /// `summary` is multi-line human text the QML dialog renders
+        /// verbatim. The engine waits for confirm_trust / cancel_trust.
+        #[qsignal]
+        fn trust_prompt_required(
+            self: Pin<&mut WorkflowController>,
+            summary: QString,
+        );
     }
 
     impl cxx_qt::Threading for WorkflowController {}
@@ -61,6 +75,14 @@ pub struct WorkflowControllerRust {
     pub active_step: i32,
     pub running: bool,
     pub last_error: QString,
+    /// Held between `run()` and `confirm_trust` / `cancel_trust`.
+    pending_trust: Option<PendingTrust>,
+}
+
+struct PendingTrust {
+    path: PathBuf,
+    hash: String,
+    workflow: Workflow,
 }
 
 impl Default for WorkflowControllerRust {
@@ -70,6 +92,7 @@ impl Default for WorkflowControllerRust {
             active_step: -1,
             running: false,
             last_error: QString::from(""),
+            pending_trust: None,
         }
     }
 }
@@ -116,6 +139,8 @@ impl qobject::WorkflowController {
     }
 
     fn run(mut self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+
         if self.running {
             return;
         }
@@ -129,6 +154,57 @@ impl qobject::WorkflowController {
             }
         };
 
+        // path_of failing = unsaved workflow. Run without a trust check.
+        let path = match store::path_of(&wf.id) {
+            Ok(p) => Some(p),
+            Err(_) => None,
+        };
+
+        match path {
+            Some(p) => match security::check_trust(&p, security::TrustMode::Gui) {
+                Ok(security::TrustDecision::Trusted) => {
+                    self.as_mut()._start_engine(wf);
+                }
+                Ok(security::TrustDecision::Untrusted { canonical_path, hash }) => {
+                    let summary = build_trust_summary(&wf);
+                    self.as_mut().rust_mut().pending_trust = Some(PendingTrust {
+                        path: canonical_path,
+                        hash,
+                        workflow: wf,
+                    });
+                    self.as_mut().trust_prompt_required(QString::from(&summary));
+                }
+                Err(e) => {
+                    tracing::warn!(?e, "trust check failed");
+                    self.as_mut().set_last_error(QString::from(&format!("{e:#}")));
+                }
+            },
+            None => {
+                self.as_mut()._start_engine(wf);
+            }
+        }
+    }
+
+    fn confirm_trust(mut self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+
+        let pending = self.as_mut().rust_mut().pending_trust.take();
+        let pt = match pending {
+            Some(pt) => pt,
+            None => return, // nothing to confirm
+        };
+        if let Err(e) = security::mark_trusted(&pt.path, &pt.hash) {
+            tracing::warn!(?e, "mark_trusted after confirm");
+        }
+        self.as_mut()._start_engine(pt.workflow);
+    }
+
+    fn cancel_trust(mut self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        self.as_mut().rust_mut().pending_trust = None;
+    }
+
+    fn _start_engine(mut self: Pin<&mut Self>, wf: Workflow) {
         self.as_mut().set_running(true);
         self.as_mut().set_active_step(-1);
         self.as_mut().set_last_error(QString::from(""));
@@ -183,4 +259,34 @@ impl qobject::WorkflowController {
             store::touch_last_run(&wf_id);
         });
     }
+}
+
+/// Multi-line summary for the trust prompt. Matches `cli::cmd_run`.
+fn build_trust_summary(wf: &Workflow) -> String {
+    let mut out = String::new();
+    out.push_str("This workflow will:\n");
+    let mut shown = 0usize;
+    for step in &wf.steps {
+        if !step.enabled {
+            continue;
+        }
+        let kind = step.action.category();
+        let marker = match kind {
+            "shell" | "clipboard" => "•",
+            _ => "·",
+        };
+        out.push_str(&format!(
+            "  {marker} {kind:<9} {desc}\n",
+            desc = step.action.describe()
+        ));
+        shown += 1;
+        if shown >= 12 && wf.steps.len() > 12 {
+            out.push_str(&format!(
+                "  · ... and {} more\n",
+                wf.steps.len() - shown
+            ));
+            break;
+        }
+    }
+    out
 }
