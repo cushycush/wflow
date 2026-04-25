@@ -80,7 +80,17 @@ fn load_path(p: &Path) -> Result<Workflow> {
     }
     // KDL path: go through the include-expanding loader so
     // `include "other.kdl"` resolves relative to this file.
-    kdl_format::decode_from_file(p)
+    let mut wf = kdl_format::decode_from_file(p)?;
+    // The new format puts the id in the filename, not in the file.
+    // The decoder leaves wf.id empty in that case; fill it from the
+    // basename here. Legacy files still set id during decode and we
+    // keep that one.
+    if wf.id.is_empty() {
+        if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+            wf.id = stem.to_string();
+        }
+    }
+    Ok(wf)
 }
 
 pub fn save(mut wf: Workflow) -> Result<Workflow> {
