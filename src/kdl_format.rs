@@ -449,9 +449,199 @@ fn resolve_include_path(
         .with_context(|| format!("resolving include `{path}` relative to {}", base_dir.display()))
 }
 
+/// Top-level decode. Detects which file format we're reading and
+/// dispatches. Two shapes are accepted:
+///
+/// - **New** (default since v0.4):
+///   ```kdl
+///   workflow "Open dev setup" {
+///       subtitle "..."
+///       vars { ... }
+///       shell "..."
+///       ...
+///   }
+///   ```
+///
+/// - **Legacy** (everything before v0.4):
+///   ```kdl
+///   schema 1
+///   id "..."
+///   title "..."
+///   recipe { ... }
+///   ```
+///
+/// Files in the legacy format keep parsing forever. The encoder emits
+/// the new shape, so legacy files round-trip into the new shape on the
+/// next save. `wflow migrate` does the conversion explicitly for users
+/// who don't want to wait for the GUI editor's lazy migration.
 pub fn decode(src: &str) -> Result<Workflow> {
     let doc: KdlDocument = src.parse().context("parsing KDL")?;
 
+    let workflow_nodes: Vec<&KdlNode> = doc
+        .nodes()
+        .iter()
+        .filter(|n| n.name().value() == "workflow")
+        .collect();
+
+    let mixed = !workflow_nodes.is_empty()
+        && doc.nodes().iter().any(|n| {
+            matches!(
+                n.name().value(),
+                "schema"
+                    | "id"
+                    | "title"
+                    | "subtitle"
+                    | "created"
+                    | "modified"
+                    | "last-run"
+                    | "vars"
+                    | "imports"
+                    | "recipe"
+            )
+        });
+    if mixed {
+        bail!(
+            "file mixes the legacy top-level layout (`schema 1`, `id`, `title`, `recipe`) \
+             with a `workflow {{ ... }}` block. Pick one format. \
+             Run `wflow migrate` to convert legacy files in place."
+        );
+    }
+
+    if workflow_nodes.len() > 1 {
+        bail!(
+            "file has {} `workflow` blocks. Multiple workflows per file is reserved for a \
+             future release; for now, one workflow per file",
+            workflow_nodes.len()
+        );
+    }
+
+    if workflow_nodes.len() == 1 {
+        decode_workflow_block(workflow_nodes[0])
+    } else {
+        decode_legacy(&doc)
+    }
+}
+
+/// New-format decoder: a single root `workflow "title" { ... }` node.
+/// `id` is intentionally NOT set here — the caller fills it from the
+/// filename. (For `wflow run <path>` against a hand-written file the
+/// id stays empty, which is fine since we never write back.)
+fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
+    let title = first_string(wf_node).with_context(|| {
+        "`workflow \"...\"` needs a title in quotes (e.g. `workflow \"Morning standup\" { ... }`)"
+            .to_string()
+    })?;
+    // The workflow node itself takes no properties today.
+    validate_props(wf_node, "workflow", &[])?;
+
+    let children = wf_node.children().ok_or_else(|| {
+        anyhow!(
+            "`workflow {:?}` must have a {{ ... }} body containing the steps and any `subtitle` / \
+             `vars` / `imports` blocks",
+            title
+        )
+    })?;
+
+    let mut subtitle: Option<String> = None;
+    let mut created = None;
+    let mut modified = None;
+    let mut last_run = None;
+    let mut vars: std::collections::BTreeMap<String, String> = Default::default();
+    let mut imports: std::collections::BTreeMap<String, String> = Default::default();
+    let mut steps: Vec<Step> = Vec::new();
+    let mut subtitle_seen = false;
+
+    for node in children.nodes() {
+        match node.name().value() {
+            "subtitle" => {
+                if subtitle_seen {
+                    bail!("`subtitle` appears twice; one per workflow");
+                }
+                subtitle_seen = true;
+                subtitle = Some(first_string(node)?);
+            }
+            // Timestamps are accepted as children for the brief window
+            // between the format change and the metadata-sidecar move,
+            // and to support legacy files that the migrator hasn't
+            // touched yet. Once `wflow migrate` runs and the encoder
+            // strips them, they don't reappear.
+            "created" => created = parse_ts_opt(&first_string(node)?),
+            "modified" => modified = parse_ts_opt(&first_string(node)?),
+            "last-run" => last_run = parse_ts_opt(&first_string(node)?),
+            "vars" => {
+                let inner = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`vars` must have a block {{ ... }}"))?;
+                for var_node in inner.nodes() {
+                    let key = var_node.name().value().to_string();
+                    if key.starts_with("env.") {
+                        bail!(
+                            "`vars` can't define `{key}` — the `env.*` namespace is reserved \
+                             for process environment lookups"
+                        );
+                    }
+                    let value = first_string(var_node).with_context(|| {
+                        format!("`vars {{ {key} ... }}` needs a string value")
+                    })?;
+                    vars.insert(key, value);
+                }
+            }
+            "imports" => {
+                let inner = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`imports` must have a block {{ ... }}"))?;
+                for imp_node in inner.nodes() {
+                    let key = imp_node.name().value().to_string();
+                    let path = first_string(imp_node).with_context(|| {
+                        format!("`imports {{ {key} ... }}` needs a path string")
+                    })?;
+                    if imports.contains_key(&key) {
+                        bail!("duplicate import name `{key}`");
+                    }
+                    imports.insert(key, path);
+                }
+            }
+            // Reserved guard: `id` and `title` and `recipe` are legacy
+            // top-level fields and don't make sense inside the workflow
+            // block. Reject loudly so a half-migrated file gets flagged.
+            "id" => bail!(
+                "`id` doesn't belong inside a `workflow` block — \
+                 the filename is the id in the new format"
+            ),
+            "title" => bail!(
+                "`title` doesn't belong inside a `workflow` block — \
+                 it's the positional arg of `workflow \"...\"`"
+            ),
+            "recipe" => bail!(
+                "`recipe {{ ... }}` is the legacy block name. In the new format, \
+                 step nodes are direct children of the `workflow` block — drop the `recipe` wrapper."
+            ),
+            "schema" => bail!(
+                "`schema` is no longer a per-file field. The format version is implicit \
+                 in the document shape"
+            ),
+            // Anything else is a step verb. decode_step validates it.
+            _ => steps.push(decode_step(node)?),
+        }
+    }
+
+    Ok(Workflow {
+        id: String::new(),
+        title,
+        subtitle,
+        steps,
+        vars,
+        imports,
+        created,
+        modified,
+        last_run,
+    })
+}
+
+/// Legacy-format decoder: `schema 1`, top-level `id` / `title` /
+/// `subtitle` / etc., and a `recipe { ... }` block. Kept verbatim so
+/// older files keep parsing.
+fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
     let mut id: Option<String> = None;
     let mut title: Option<String> = None;
     let mut subtitle: Option<String> = None;
@@ -2011,5 +2201,149 @@ recipe {
             assert_eq!(a.enabled, b.enabled, "enabled flag changed");
             assert_eq!(a.note, b.note, "note changed");
         }
+    }
+
+    // ---------- New (v0.4) workflow-block format -------------------
+
+    #[test]
+    fn new_format_minimal_decodes() {
+        let src = r#"workflow "Hello" {
+            note "first step"
+            shell "echo hi"
+        }
+        "#;
+        let wf = decode(src).expect("minimal new-format file should decode");
+        assert_eq!(wf.title, "Hello");
+        assert_eq!(wf.id, ""); // caller fills from filename
+        assert_eq!(wf.subtitle, None);
+        assert_eq!(wf.steps.len(), 2);
+    }
+
+    #[test]
+    fn new_format_subtitle_as_child_node() {
+        let src = r#"workflow "Morning standup" {
+            subtitle "open slack, paste the standard message"
+            note "step a"
+        }
+        "#;
+        let wf = decode(src).unwrap();
+        assert_eq!(wf.title, "Morning standup");
+        assert_eq!(
+            wf.subtitle.as_deref(),
+            Some("open slack, paste the standard message")
+        );
+        assert_eq!(wf.steps.len(), 1);
+    }
+
+    #[test]
+    fn new_format_with_vars_and_imports() {
+        // The `#` in `#standup` would close an r#"..."# raw string
+        // early, so use r##"..."## to give the delimiter more padding.
+        let src = r##"workflow "Daily standup" {
+            subtitle "templated message"
+            vars {
+                channel "#standup"
+                ticket "DUR-1"
+            }
+            imports {
+                template "./template.kdl"
+            }
+            type "{{channel}}"
+        }
+        "##;
+        let wf = decode(src).unwrap();
+        assert_eq!(wf.vars.get("channel").map(String::as_str), Some("#standup"));
+        assert_eq!(
+            wf.imports.get("template").map(String::as_str),
+            Some("./template.kdl")
+        );
+        assert_eq!(wf.steps.len(), 1);
+    }
+
+    #[test]
+    fn new_format_rejects_legacy_id_inside_workflow() {
+        let src = r#"workflow "X" {
+            id "should-not-be-here"
+            note "x"
+        }
+        "#;
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("filename is the id"),
+            "expected friendly id-doesn't-belong message, got: {err}"
+        );
+    }
+
+    #[test]
+    fn new_format_rejects_legacy_recipe_wrapper() {
+        let src = r#"workflow "X" {
+            recipe {
+                note "x"
+            }
+        }
+        "#;
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("recipe"),
+            "expected recipe-wrapper rejection, got: {err}"
+        );
+    }
+
+    #[test]
+    fn new_format_rejects_mixed_with_legacy_top_level() {
+        let src = r#"schema 1
+id "x"
+workflow "X" {
+    note "x"
+}
+"#;
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("mixes the legacy top-level layout"),
+            "expected mixed-format rejection, got: {err}"
+        );
+    }
+
+    #[test]
+    fn new_format_rejects_multiple_workflow_blocks_with_future_hint() {
+        let src = r#"workflow "A" { note "a" }
+workflow "B" { note "b" }
+"#;
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("future release"),
+            "expected future-feature rejection, got: {err}"
+        );
+    }
+
+    #[test]
+    fn new_format_missing_title_errors_helpfully() {
+        let src = r#"workflow {
+            note "x"
+        }
+        "#;
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("title"),
+            "expected title-required message, got: {err}"
+        );
+    }
+
+    #[test]
+    fn legacy_format_still_decodes() {
+        // Sanity: old files keep working alongside the new path.
+        let src = r#"schema 1
+id "legacy-1"
+title "Legacy Workflow"
+subtitle "from before v0.4"
+recipe {
+    note "still works"
+}
+"#;
+        let wf = decode(src).expect("legacy file should still decode");
+        assert_eq!(wf.id, "legacy-1");
+        assert_eq!(wf.title, "Legacy Workflow");
+        assert_eq!(wf.subtitle.as_deref(), Some("from before v0.4"));
+        assert_eq!(wf.steps.len(), 1);
     }
 }
