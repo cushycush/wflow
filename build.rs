@@ -31,6 +31,7 @@ fn main() {
             // qml/components/workflow/_archive (excluded from the build).
             QmlFile::from("qml/components/workflow/SplitInspector.qml"),
             QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
+            QmlFile::from("qml/components/workflow/NewWorkflowDialog.qml"),
             // Record
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Explore

@@ -16,6 +16,11 @@ Item {
     signal recordRequested()
 
     LibraryController { id: libCtrl }
+    // Drives the first-launch welcome card + the New-workflow dialog's
+    // template list. Per-page instance is fine for v0.3 — the only
+    // mutating call here is mark_first_run_seen, persisted to disk
+    // immediately, and no other page reads is_first_run reactively.
+    StateController { id: stateCtrl }
 
     function _humanizeTs(iso) {
         if (!iso) return "never"
@@ -66,6 +71,17 @@ Item {
         function onWorkflowsChanged() { root._refreshShaped() }
     }
 
+    // Open the New-workflow dialog and feed it the latest template
+    // list. Pulling templates_json on each open keeps a freshly-
+    // installed package's templates discoverable without restarting.
+    function _openNewDialog() {
+        let parsed = []
+        try { parsed = JSON.parse(stateCtrl.templates_json || "[]") }
+        catch (e) { parsed = [] }
+        newDialog.templates = parsed
+        newDialog.open()
+    }
+
     // Drag-to-reorder is local-only until the bridge owns a user-ordered
     // list. For now splicing the shaped array gives the ListView its
     // move/displaced transitions; the on-disk order is by modified-time.
@@ -96,11 +112,7 @@ Item {
 
             PrimaryButton {
                 text: "+ New workflow"
-                onClicked: {
-                    const id = libCtrl.new_workflow("Untitled")
-                    if (id && id.length > 0) root.openWorkflow(id)
-                    else root.newWorkflow()
-                }
+                onClicked: root._openNewDialog()
             }
             SecondaryButton {
                 text: "● Record"
@@ -112,17 +124,64 @@ Item {
             width: parent.width
             height: parent.height - tb.height
 
-            // Empty state — wired for the first-run case where the
-            // workflows directory is empty. No reshuffling required: the
-            // + New workflow button already sits in the top bar, and this
-            // CTA points at it.
+            // Empty state — two variants.
+            //
+            //   - First run (state.toml absent): full welcome card with
+            //     hero glyph, GUI + KDL framing, primary "New" + secondary
+            //     "Record" CTAs.
+            //   - Returning user (library was non-empty, now empty): the
+            //     concise existing copy.
+            //
+            // The kind property switches the hero glyph; the actual copy
+            // is per-variant since the welcome wants to set expectations
+            // and the empty state just wants to point at the next action.
             EmptyState {
                 anchors.fill: parent
                 visible: root.workflows.length === 0
-                title: "No workflows yet"
-                description: "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
-                actionLabel: "● Record a workflow"
-                onActionClicked: root.recordRequested()
+
+                kind: stateCtrl.is_first_run ? "first-run" : "empty"
+
+                title: stateCtrl.is_first_run
+                    ? "Welcome to wflow"
+                    : "No workflows yet"
+
+                description: stateCtrl.is_first_run
+                    ? "wflow runs sequences of keystrokes, clicks, shell commands, and waits — Shortcuts for Linux, with a plain-text workflow file underneath. Pick a starting point or record one from real input."
+                    : "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
+
+                actionLabel: stateCtrl.is_first_run ? "+ New workflow" : "● Record a workflow"
+                secondaryActionLabel: stateCtrl.is_first_run ? "● Record a workflow" : ""
+
+                onActionClicked: {
+                    if (stateCtrl.is_first_run) {
+                        stateCtrl.mark_first_run_seen()
+                        root._openNewDialog()
+                    } else {
+                        root.recordRequested()
+                    }
+                }
+                onSecondaryActionClicked: {
+                    stateCtrl.mark_first_run_seen()
+                    root.recordRequested()
+                }
+            }
+
+            // The New-workflow dialog. Templates list is populated when
+            // the dialog opens so it picks up filesystem changes if the
+            // user installed a templates package mid-session.
+            NewWorkflowDialog {
+                id: newDialog
+                parent: Overlay.overlay
+                onCreateBlankRequested: {
+                    const id = libCtrl.new_workflow("Untitled")
+                    if (id && id.length > 0) root.openWorkflow(id)
+                    else root.newWorkflow()
+                }
+                onCreateFromTemplateRequested: (templateId) => {
+                    const id = stateCtrl.create_from_template(templateId)
+                    if (id && id.length > 0) root.openWorkflow(id)
+                }
+                onRecordRequested: root.recordRequested()
             }
 
             ScrollView {

@@ -114,7 +114,7 @@ impl qobject::StateController {
     }
 
     fn create_from_template(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         template_id: QString,
     ) -> QString {
         let id_s: String = template_id.to_string();
