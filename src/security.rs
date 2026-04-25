@@ -30,9 +30,8 @@ use sha2::{Digest, Sha256};
 pub enum TrustMode {
     /// CLI caller will prompt the user on stdin.
     Cli,
-    /// GUI caller will route the prompt through Qt. Wired in a follow-up
-    /// pass; allowed-dead until WorkflowController emits the signal.
-    #[allow(dead_code)]
+    /// GUI caller will surface the prompt as a modal dialog via the
+    /// `WorkflowController::trust_prompt_required` signal.
     Gui,
     /// Skip the check entirely (--yes / cron / explain / dry-run).
     Yes,

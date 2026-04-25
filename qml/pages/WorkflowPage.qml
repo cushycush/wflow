@@ -39,6 +39,10 @@ Item {
     // Populated by the bridge's step_done signal; cleared when a new run starts.
     property var stepStatuses: ({})
 
+    // Pending trust-prompt body. Populated when wfCtrl emits
+    // `trust_prompt_required(summary)`; trustDialog reads it.
+    property string trustSummary: ""
+
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
     readonly property int activeStepIndex: wfCtrl.active_step
@@ -355,6 +359,10 @@ Item {
             next[index] = status
             root.stepStatuses = next
         }
+        function onTrust_prompt_required(summary) {
+            root.trustSummary = summary
+            trustDialog.open()
+        }
     }
 
     Column {
@@ -463,6 +471,128 @@ Item {
                 onAddStepRequested: (kind) => root._addStep(kind)
                 onDeleteStepRequested: (stepIndex) => root._deleteStep(stepIndex)
                 onMoveStepRequested: (from, to) => root._moveStep(from, to)
+            }
+        }
+    }
+
+    // Trust prompt for workflows wflow didn't author here. Shown
+    // when wfCtrl emits trust_prompt_required; the engine waits for
+    // confirm_trust() or cancel_trust() before doing anything.
+    // Mirrors the CLI prompt's body (see src/security.rs +
+    // src/cli.rs::confirm_untrusted_workflow) and the threat-model
+    // pointer in REVIEW.md.
+    Dialog {
+        id: trustDialog
+        parent: Overlay.overlay
+        modal: true
+        closePolicy: Popup.NoAutoClose
+        title: ""
+
+        width: Math.min(640, parent ? parent.width * 0.9 : 640)
+        height: Math.min(560, parent ? parent.height * 0.85 : 560)
+        anchors.centerIn: parent
+
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusMd
+            border.color: Theme.line
+            border.width: 1
+        }
+
+        contentItem: Item {
+            anchors.fill: parent
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 16
+
+                // Header
+                Column {
+                    width: parent.width
+                    spacing: 6
+
+                    Row {
+                        spacing: 10
+                        // Warning glyph in accent-warm so it reads as
+                        // "stop and look" without alarming red.
+                        Rectangle {
+                            width: 28; height: 28; radius: 14
+                            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                            border.color: Theme.accent
+                            border.width: 1
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                anchors.centerIn: parent
+                                text: "!"
+                                color: Theme.accent
+                                font.family: Theme.familyBody
+                                font.pixelSize: 16
+                                font.weight: Font.Bold
+                            }
+                        }
+                        Text {
+                            text: "Run this workflow?"
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXl
+                            font.weight: Font.DemiBold
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    Text {
+                        text: "This workflow file hasn't run on this machine before. Review what it will execute before confirming. (See REVIEW.md for the trust model.)"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        wrapMode: Text.WordWrap
+                        width: parent.width
+                        lineHeight: 1.4
+                    }
+                }
+
+                // Step summary — scrollable in case the workflow has
+                // more than ~12 enabled steps.
+                ScrollView {
+                    width: parent.width
+                    height: parent.height
+                          - parent.spacing * 2
+                          - 80   // header
+                          - 56   // footer
+                    clip: true
+
+                    Text {
+                        text: root.trustSummary
+                        color: Theme.text2
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        wrapMode: Text.NoWrap
+                        textFormat: Text.PlainText
+                    }
+                }
+
+                // Footer
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                    PrimaryButton {
+                        text: "Confirm and run"
+                        onClicked: {
+                            trustDialog.close()
+                            wfCtrl.confirm_trust()
+                        }
+                    }
+                    SecondaryButton {
+                        text: "Cancel"
+                        onClicked: {
+                            trustDialog.close()
+                            wfCtrl.cancel_trust()
+                        }
+                    }
+                }
             }
         }
     }
