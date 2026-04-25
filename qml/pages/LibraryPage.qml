@@ -11,6 +11,7 @@ Item {
     signal recordRequested()
 
     LibraryController { id: libCtrl }
+    StateController { id: stateCtrl }
 
     function _humanizeTs(iso) {
         if (!iso) return "never"
@@ -61,6 +62,16 @@ Item {
         function onWorkflowsChanged() { root._refreshShaped() }
     }
 
+    // Re-pulls templates_json each open so a freshly-installed
+    // package's templates show up without restarting.
+    function _openNewDialog() {
+        let parsed = []
+        try { parsed = JSON.parse(stateCtrl.templates_json || "[]") }
+        catch (e) { parsed = [] }
+        newDialog.templates = parsed
+        newDialog.open()
+    }
+
     // Local-only until the bridge owns a user-ordered list; on-disk
     // order is still modified-time.
     function moveWorkflow(from, to) {
@@ -90,11 +101,7 @@ Item {
 
             PrimaryButton {
                 text: "+ New workflow"
-                onClicked: {
-                    const id = libCtrl.new_workflow("Untitled")
-                    if (id && id.length > 0) root.openWorkflow(id)
-                    else root.newWorkflow()
-                }
+                onClicked: root._openNewDialog()
             }
             SecondaryButton {
                 text: "● Record"
@@ -106,17 +113,52 @@ Item {
             width: parent.width
             height: parent.height - tb.height
 
-            // Empty state — wired for the first-run case where the
-            // workflows directory is empty. No reshuffling required: the
-            // + New workflow button already sits in the top bar, and this
-            // CTA points at it.
+            // First-run uses a full welcome card; returning-empty uses
+            // the concise variant. kind drives the hero glyph.
             EmptyState {
                 anchors.fill: parent
                 visible: root.workflows.length === 0
-                title: "No workflows yet"
-                description: "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
-                actionLabel: "● Record a workflow"
-                onActionClicked: root.recordRequested()
+
+                kind: stateCtrl.is_first_run ? "first-run" : "empty"
+
+                title: stateCtrl.is_first_run
+                    ? "Welcome to wflow"
+                    : "No workflows yet"
+
+                description: stateCtrl.is_first_run
+                    ? "wflow runs sequences of keystrokes, clicks, shell commands, and waits — Shortcuts for Linux, with a plain-text workflow file underneath. Pick a starting point or record one from real input."
+                    : "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
+
+                actionLabel: stateCtrl.is_first_run ? "+ New workflow" : "● Record a workflow"
+                secondaryActionLabel: stateCtrl.is_first_run ? "● Record a workflow" : ""
+
+                onActionClicked: {
+                    if (stateCtrl.is_first_run) {
+                        stateCtrl.mark_first_run_seen()
+                        root._openNewDialog()
+                    } else {
+                        root.recordRequested()
+                    }
+                }
+                onSecondaryActionClicked: {
+                    stateCtrl.mark_first_run_seen()
+                    root.recordRequested()
+                }
+            }
+
+            NewWorkflowDialog {
+                id: newDialog
+                parent: Overlay.overlay
+                onCreateBlankRequested: {
+                    const id = libCtrl.new_workflow("Untitled")
+                    if (id && id.length > 0) root.openWorkflow(id)
+                    else root.newWorkflow()
+                }
+                onCreateFromTemplateRequested: (templateId) => {
+                    const id = stateCtrl.create_from_template(templateId)
+                    if (id && id.length > 0) root.openWorkflow(id)
+                }
+                onRecordRequested: root.recordRequested()
             }
 
             ScrollView {

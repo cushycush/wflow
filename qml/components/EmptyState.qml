@@ -2,18 +2,38 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// A simple centered empty state with title + description + optional action.
+// kind drives the hero glyph: "empty" | "first-run" | "error".
 Item {
     id: root
     property string title: ""
     property string description: ""
     property string actionLabel: ""
+    property string secondaryActionLabel: ""
+    property string kind: "empty"   // "empty" | "first-run" | "error"
     signal actionClicked()
+    signal secondaryActionClicked()
 
     Column {
         anchors.centerIn: parent
-        spacing: 10
-        width: Math.min(parent.width - 80, 440)
+        spacing: 14
+        width: Math.min(parent.width - 80, 480)
+
+        Rectangle {
+            visible: root.kind === "first-run"
+            width: 56; height: 56; radius: 28
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+            border.color: Theme.accent
+            border.width: 2
+            anchors.horizontalCenter: parent.horizontalCenter
+            Text {
+                anchors.centerIn: parent
+                text: "w"
+                color: Theme.accent
+                font.family: Theme.familyBody
+                font.pixelSize: 28
+                font.weight: Font.DemiBold
+            }
+        }
 
         Text {
             text: root.title
@@ -39,15 +59,28 @@ Item {
             wrapMode: Text.WordWrap
         }
 
-        PrimaryButton {
+        Row {
             visible: root.actionLabel.length > 0
-            text: root.actionLabel
             anchors.horizontalCenter: parent.horizontalCenter
-            topPadding: 10
-            bottomPadding: 10
-            leftPadding: 20
-            rightPadding: 20
-            onClicked: root.actionClicked()
+            spacing: 10
+
+            PrimaryButton {
+                text: root.actionLabel
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 20
+                rightPadding: 20
+                onClicked: root.actionClicked()
+            }
+            SecondaryButton {
+                visible: root.secondaryActionLabel.length > 0
+                text: root.secondaryActionLabel
+                topPadding: 10
+                bottomPadding: 10
+                leftPadding: 20
+                rightPadding: 20
+                onClicked: root.secondaryActionClicked()
+            }
         }
     }
 }
