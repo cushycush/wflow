@@ -7,7 +7,6 @@ use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use tokio::io::AsyncReadExt;
-use tokio::process::Command;
 use uuid::Uuid;
 
 use crate::actions::{substitute, Action, Condition, OnError, RunEvent, Step, StepOutcome, VarMap, Workflow};
@@ -419,7 +418,7 @@ async fn find_window_id(name: &str) -> Result<Option<String>> {
 }
 
 async fn run_wdotool(args: &[String]) -> Result<Option<String>> {
-    let mut cmd = Command::new("wdotool");
+    let mut cmd = crate::host::host_command("wdotool");
     cmd.args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -505,7 +504,7 @@ async fn shell_run(
         .or_else(|| std::env::var("SHELL").ok())
         .unwrap_or_else(|| "/bin/sh".into());
 
-    let mut child = Command::new(&sh)
+    let mut child = crate::host::host_command(&sh)
         .arg("-c")
         .arg(command)
         .stdin(Stdio::null())
@@ -577,7 +576,7 @@ fn truncate_cmd(s: &str) -> String {
 }
 
 async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
-    let mut cmd = Command::new("notify-send");
+    let mut cmd = crate::host::host_command("notify-send");
     cmd.arg(title);
     if let Some(b) = body {
         cmd.arg(b);
@@ -591,7 +590,7 @@ async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
 
 async fn clipboard_copy(text: &str) -> Result<Option<String>> {
     use tokio::io::AsyncWriteExt;
-    let mut child = Command::new("wl-copy")
+    let mut child = crate::host::host_command("wl-copy")
         .stdin(Stdio::piped())
         .spawn()
         .context("failed to spawn wl-copy (is wl-clipboard installed?)")?;
