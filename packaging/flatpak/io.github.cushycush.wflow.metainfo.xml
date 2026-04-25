@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.1" date="2026-04-25">
+      <description>
+        <p>
+          wflow now links wdotool-core in process instead of subprocessing a separate wdotool binary. Input automation works out of the box; no extra package to install.
+        </p>
+        <p>
+          `wflow doctor` reports which input backend it'll use without triggering a portal prompt, and probes the host PATH for notify-send and wl-copy when running inside a Flatpak.
+        </p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-04-25">
       <description>
         <p>First public release. Highlights:</p>
