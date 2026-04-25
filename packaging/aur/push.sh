@@ -40,6 +40,10 @@ git clone "ssh://aur@aur.archlinux.org/wflow.git" "$WORK/wflow"
 cp "$REPO_ROOT/packaging/aur/wflow/PKGBUILD" "$WORK/wflow/"
 (
     cd "$WORK/wflow"
+    # AUR's update hook rejects every branch except master. Recent
+    # git defaults to `main` (or whatever init.defaultBranch is set
+    # to), so force master before any commit happens.
+    git symbolic-ref HEAD refs/heads/master
     updpkgsums
     makepkg --printsrcinfo > .SRCINFO
     git add PKGBUILD .SRCINFO
@@ -47,7 +51,7 @@ cp "$REPO_ROOT/packaging/aur/wflow/PKGBUILD" "$WORK/wflow/"
         echo "    no changes — skipping commit"
     else
         git commit -m "wflow $PKGVER"
-        git push
+        git push origin master
     fi
 )
 
@@ -56,14 +60,16 @@ git clone "ssh://aur@aur.archlinux.org/wflow-git.git" "$WORK/wflow-git"
 cp "$REPO_ROOT/packaging/aur/wflow-git/PKGBUILD" "$WORK/wflow-git/"
 (
     cd "$WORK/wflow-git"
-    # wflow-git uses sha256sums=('SKIP') — no updpkgsums needed
+    # See note above — force master.
+    git symbolic-ref HEAD refs/heads/master
+    # wflow-git uses sha256sums=('SKIP') — no updpkgsums needed.
     makepkg --printsrcinfo > .SRCINFO
     git add PKGBUILD .SRCINFO
     if git diff --cached --quiet; then
         echo "    no changes — skipping commit"
     else
         git commit -m "wflow-git $PKGVER snapshot"
-        git push
+        git push origin master
     fi
 )
 
