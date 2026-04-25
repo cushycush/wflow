@@ -10,12 +10,9 @@
 //
 // Showcases: focus, repeat block, wait, notify.
 
-schema 1
-id "example-loop-tab-thru"
-title "Cycle browser tabs"
-subtitle "advance N tabs with a brief pause between"
+workflow "Cycle browser tabs" {
+    subtitle "advance N tabs with a brief pause between"
 
-recipe {
     focus "Firefox"
 
     repeat 5 {
