@@ -9,8 +9,8 @@
 #   flatpak remote-add --if-not-exists --user flathub \
 #       https://flathub.org/repo/flathub.flatpakrepo
 #   flatpak install --user flathub \
-#       org.kde.Platform//6.7 org.kde.Sdk//6.7 \
-#       org.freedesktop.Sdk.Extension.rust-stable//24.08
+#       org.kde.Platform//6.9 org.kde.Sdk//6.9 \
+#       org.freedesktop.Sdk.Extension.rust-stable//25.08
 #
 # Then from the repo root:
 #   ./packaging/flatpak/build-local.sh
@@ -27,17 +27,27 @@ BUILD_DIR="$REPO_ROOT/target/flatpak-build"
 STATE_DIR="$REPO_ROOT/target/flatpak-state"
 
 # Step 1: regenerate cargo-sources.json from the current Cargo.lock.
-# This is the one tool you must fetch manually because it's not on
-# Flathub. It lives in the flatpak-builder-tools repo and is just a
-# single Python file.
+# flatpak-cargo-generator lives in the flatpak-builder-tools repo as a
+# single Python file. It needs aiohttp + toml at runtime, so we keep a
+# self-contained venv under target/ to avoid system pip / sudo /
+# --break-system-packages contortions.
 GEN_SCRIPT="$PACK_DIR/flatpak-cargo-generator.py"
+GEN_VENV="$REPO_ROOT/target/cargo-gen-venv"
+
 if [ ! -f "$GEN_SCRIPT" ]; then
     echo "==> Fetching flatpak-cargo-generator.py"
     curl -fsSL -o "$GEN_SCRIPT" \
         https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
 fi
+
+if [ ! -x "$GEN_VENV/bin/python" ]; then
+    echo "==> Creating venv for flatpak-cargo-generator dependencies"
+    python3 -m venv "$GEN_VENV"
+    "$GEN_VENV/bin/pip" install --quiet aiohttp tomlkit
+fi
+
 echo "==> Generating cargo-sources.json from Cargo.lock"
-python3 "$GEN_SCRIPT" Cargo.lock -o "$PACK_DIR/cargo-sources.json"
+"$GEN_VENV/bin/python" "$GEN_SCRIPT" Cargo.lock -o "$PACK_DIR/cargo-sources.json"
 
 # Step 2: run flatpak-builder. --user installs into the per-user
 # repo without needing sudo. --install builds and installs in one
