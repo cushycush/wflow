@@ -22,11 +22,14 @@ jobs:
       - name: Cache Qt6 dev packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          # cxx-qt-lib needs base + declarative; pkg-config so the build
-          # script can locate them; libgl-dev because Qt6 headers pull
-          # GL transitively.
-          packages: qt6-base-dev qt6-declarative-dev pkg-config libgl-dev
-          version: v1
+          # cxx-qt-lib needs base + declarative; pkg-config so the
+          # build script can locate them; libgl-dev because Qt6
+          # headers pull GL transitively. libxkbcommon-dev and
+          # libwayland-dev are needed by wdotool-core's libei +
+          # wlroots backends (xkbcommon-rs and wayland-client both
+          # link against the system libs).
+          packages: qt6-base-dev qt6-declarative-dev pkg-config libgl-dev libxkbcommon-dev libwayland-dev
+          version: v2
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
