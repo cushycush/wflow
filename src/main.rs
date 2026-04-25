@@ -13,7 +13,9 @@ mod host;
 mod kdl_format;
 mod recorder;
 mod security;
+mod state;
 mod store;
+mod templates;
 
 use std::process::ExitCode;
 
