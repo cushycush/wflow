@@ -18,6 +18,9 @@ Item {
     signal deleteStepRequested(int stepIndex)
     signal moveStepRequested(int from, int to)
 
+    property bool showTutorial: false
+    signal tutorialDismissed()
+
     // Kinds exposed in the add-step picker. Flow-control (repeat, conditional,
     // include, use) is intentionally excluded — those need a richer editor
     // and live in `wflow edit` for now.
@@ -241,10 +244,21 @@ Item {
                 }
 
                 Rectangle {
+                    id: addStepRow
                     width: parent.width
                     height: 40
                     color: addArea.containsMouse ? Theme.surface2 : "transparent"
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                    TutorialOverlay {
+                        anchors.bottom: parent.top
+                        anchors.bottomMargin: 4
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "Start by adding a step — try Type text or Press key."
+                        visible: root.showTutorial
+                        onDismissed: root.tutorialDismissed()
+                        z: 10
+                    }
 
                     Row {
                         anchors.centerIn: parent
