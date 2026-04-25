@@ -34,9 +34,12 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --filesystem=xdg-config/wflow:create
-  # Host-spawn escape hatch. Justification in REVIEW.md at the repo
-  # root: workflows ARE host commands, so an automation tool that
-  # can't reach the host session is a workflow viewer, not a runner.
+  # Host-spawn for the user's `shell "..."` action and the
+  # `clipboard` action only. Input/window goes through the libei
+  # portal in process; notifications go through the Notification
+  # portal. What's left is exactly the user-facing feature wflow
+  # can't replace with a portal: running arbitrary user commands.
+  # REVIEW.md at the repo root has the threat model.
   - --talk-name=org.freedesktop.Flatpak
 
 modules:

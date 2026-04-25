@@ -460,7 +460,15 @@ fn truncate_cmd(s: &str) -> String {
     }
 }
 
+/// Inside a Flatpak sandbox we use `org.freedesktop.portal.Notification`
+/// directly so we don't have to host-spawn notify-send. Outside the
+/// sandbox, notify-send is universal and one less D-Bus connection
+/// to manage. The two paths are functionally equivalent from the
+/// user's perspective; the engine returns an Ok outcome either way.
 async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
+    if crate::host::in_flatpak() {
+        return notify_via_portal(title, body).await;
+    }
     let mut cmd = crate::host::host_command("notify-send");
     cmd.arg(title);
     if let Some(b) = body {
@@ -470,6 +478,25 @@ async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
     if !status.success() {
         return Err(anyhow!("notify-send exit {status}"));
     }
+    Ok(None)
+}
+
+async fn notify_via_portal(title: &str, body: Option<&str>) -> Result<Option<String>> {
+    use ashpd::desktop::notification::{Notification, NotificationProxy};
+    let proxy = NotificationProxy::new()
+        .await
+        .context("connect to org.freedesktop.portal.Notification")?;
+    let mut n = Notification::new(title);
+    if let Some(b) = body {
+        n = n.body(b);
+    }
+    // Notification id is for later remove_notification calls; we don't
+    // need that, so generate a one-shot id.
+    let id = uuid::Uuid::new_v4().to_string();
+    proxy
+        .add_notification(&id, n)
+        .await
+        .context("portal add_notification")?;
     Ok(None)
 }
 

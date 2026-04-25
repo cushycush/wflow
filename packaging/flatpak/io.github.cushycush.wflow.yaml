@@ -48,11 +48,14 @@ finish-args:
   # see ~/.config/wflow at all.
   - --filesystem=xdg-config/wflow:create
 
-  # The escape hatch: run host commands via flatpak-spawn --host.
-  # Required so wflow can actually execute the shell, key, click,
-  # focus, notify, and clipboard actions on the user's actual session.
-  # Flathub reviewers WILL ask about this; the justification is the
-  # `wflow run` operating principle (see REVIEW.md).
+  # Host-spawn for the user's `shell "..."` action and the
+  # `clipboard` action (wl-copy). Input/window actions go through
+  # the libei portal in process; notifications go through the
+  # Notification portal. The remaining host-spawn surface is
+  # exactly what wflow can't replace with a portal: arbitrary user
+  # commands, which IS the user-facing feature. Flathub reviewers
+  # will ask about this; REVIEW.md at the repo root has the full
+  # justification + threat model.
   - --talk-name=org.freedesktop.Flatpak
 
 modules:

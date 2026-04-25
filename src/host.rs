@@ -1,16 +1,27 @@
 //! Host-command helper for Flatpak-sandboxed builds.
 //!
-//! When wflow ships as a Flatpak (the leg-2 distribution path), the
-//! engine still needs to run a few *host* programs: `notify-send`
-//! talks to the host's notification daemon, `wl-copy` writes to the
-//! host clipboard, and arbitrary `shell "..."` actions are by
-//! definition the user's own host commands. None of those work
-//! inside the sandbox.
+//! Inside a Flatpak sandbox, two surfaces still need to reach the
+//! host: the user's own `shell "..."` action (arbitrary commands
+//! they wrote) and the `clipboard` action (`wl-copy` since the
+//! Clipboard portal needs an active RemoteDesktop session we don't
+//! always have). Both go through `flatpak-spawn --host` via this
+//! module.
 //!
-//! Input/window actions (key, type, click, move, scroll, focus) do
-//! NOT come through here — those go through `wdotool-core` linked in
-//! process, which talks to the libei portal directly without the
-//! `flatpak-spawn` indirection.
+//! What's NOT here, despite earlier versions doing it through this
+//! path:
+//!
+//! - Input / window actions (key, type, click, move, scroll, focus,
+//!   wait-window). Those go through `wdotool-core` linked in
+//!   process, which talks to the libei portal directly.
+//! - Notifications. `engine::notify` calls the Notification portal
+//!   when running inside Flatpak; only the native build still
+//!   subprocesses `notify-send`.
+//!
+//! Narrowing the host-spawn surface matters for Flathub review:
+//! `--talk-name=org.freedesktop.Flatpak` is the broad permission
+//! and reviewers want to see it used only for things wflow can't
+//! replace with a portal. Shell + clipboard remain in that bucket;
+//! everything else moved off.
 //!
 //! Flatpak's escape hatch is the `flatpak-spawn --host -- <argv>`
 //! helper, which uses the `org.freedesktop.Flatpak` D-Bus interface
