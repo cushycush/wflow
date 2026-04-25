@@ -103,3 +103,19 @@ git if you want version-controlled automation.
   xdg-desktop-portal RemoteDesktop interface.
 
 See `CLAUDE.md` for architecture notes and design decisions.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or
+  <https://opensource.org/licenses/MIT>)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in this project, as defined in the Apache 2.0
+license, shall be dual-licensed as above, without any additional terms
+or conditions.
