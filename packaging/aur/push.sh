@@ -16,10 +16,14 @@ WORK="$(mktemp -d -t wflow-aur-XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
 echo "==> Verifying AUR connectivity"
-ssh -T -o ConnectTimeout=10 aur@aur.archlinux.org 2>&1 | head -1 || {
-    echo "AUR SSH unreachable. Try again later (https://status.archlinux.org)."
+# AUR refuses interactive shells, so `ssh -T` exits 1 even on successful
+# auth. The reliable signal is the "Welcome to AUR" banner in stderr.
+if ssh -T -o ConnectTimeout=10 aur@aur.archlinux.org 2>&1 | grep -q "Welcome to AUR"; then
+    echo "    AUR auth ok."
+else
+    echo "AUR SSH unreachable or auth failed. Try again later (https://status.archlinux.org)."
     exit 1
-}
+fi
 
 PKGVER=$(grep -m1 '^pkgver=' "$REPO_ROOT/packaging/aur/wflow/PKGBUILD" | cut -d= -f2)
 echo "==> Pushing wflow $PKGVER (release variant)"
