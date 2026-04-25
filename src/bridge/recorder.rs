@@ -163,11 +163,15 @@ impl qobject::RecorderController {
             }
         });
 
+        let err_qt_thread = self.qt_thread();
         tokio::spawn(async move {
             if let Err(e) = inner.start(sink.clone()).await {
                 tracing::warn!(?e, "recorder::start failed");
-                // No easy way to surface this without an owned &mut Self
-                // here; the state stays "idle" and the user can retry.
+                let msg = format!("{e:#}");
+                let _ = err_qt_thread.queue(move |mut ctrl: Pin<&mut qobject::RecorderController>| {
+                    ctrl.as_mut().set_state(QString::from("idle"));
+                    ctrl.as_mut().set_last_error(QString::from(&msg));
+                });
             }
         });
     }

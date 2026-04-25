@@ -100,12 +100,19 @@ impl Recorder {
 
     /// Start a new recording session. Calls `sink` with each `RecFrame`.
     ///
-    /// Picks the portal backend by default. Set `WFLOW_SIM_RECORDER=1` to
-    /// force the simulated stream (useful when iterating on the UI without
-    /// repeatedly clicking through the portal consent dialog). If the portal
-    /// path fails — no portal, missing RemoteDesktop version 2, user denial —
-    /// we automatically fall back to the simulated stream with a warning so
-    /// the UI still has something to render.
+    /// Goes through the RemoteDesktop portal by default. The simulated
+    /// backend is opt-in via `WFLOW_SIM_RECORDER=1` (used during UI
+    /// iteration so we don't have to click through the portal consent
+    /// dialog every time).
+    ///
+    /// If the portal path fails, the error propagates to the caller.
+    /// We deliberately do NOT silently fall back to simulated, because
+    /// fake events that look real are worse than a clear error: the
+    /// user thinks Record works and then their saved workflow does
+    /// nothing on replay. The bridge surfaces the error string in the
+    /// UI so the user can see exactly what went wrong (most often:
+    /// their compositor's portal doesn't implement RemoteDesktop, or
+    /// they cancelled the consent dialog).
     pub async fn start(&self, sink: FrameSink) -> Result<()> {
         {
             let slot = self.inner.lock().await;
@@ -120,16 +127,15 @@ impl Recorder {
             return self.start_simulated(sink).await;
         }
 
-        match self.start_portal(sink.clone()).await {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                tracing::warn!(
-                    error = %format!("{e:#}"),
-                    "recorder: portal backend unavailable, falling back to simulated"
-                );
-                self.start_simulated(sink).await
-            }
-        }
+        self.start_portal(sink).await.map_err(|e| {
+            tracing::warn!(error = %format!("{e:#}"), "recorder: portal backend failed");
+            e.context(
+                "Record needs xdg-desktop-portal with the RemoteDesktop interface. \
+                 Plasma 6 and GNOME 46+ ship it; xdg-desktop-portal-hyprland and \
+                 xdg-desktop-portal-wlr currently do not. Set WFLOW_SIM_RECORDER=1 \
+                 to test the UI with simulated events.",
+            )
+        })
     }
 
     /// Stop the current session. Returns the captured events in order.

@@ -89,9 +89,48 @@ Item {
             }
         }
 
+        // Portal failure banner. Surfaces the error string the bridge
+        // set on `last_error` (most often: the user's compositor portal
+        // doesn't expose RemoteDesktop, or the consent dialog was
+        // cancelled). Stays visible until the next arm() resets it.
+        Rectangle {
+            visible: recCtrl.last_error !== ""
+            width: parent.width
+            color: Theme.surface2
+            border.color: Theme.err
+            border.width: 1
+            radius: 8
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            implicitHeight: errCol.implicitHeight + 24
+
+            Column {
+                id: errCol
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 4
+
+                Text {
+                    text: "Record can't start"
+                    color: Theme.text
+                    font.family: Theme.fontUi
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                }
+                Text {
+                    text: recCtrl.last_error
+                    color: Theme.text2
+                    font.family: Theme.fontUi
+                    font.pixelSize: 13
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+
         AmbientRec {
             width: parent.width
-            height: parent.height - tb.height
+            height: parent.height - tb.height - (recCtrl.last_error !== "" ? 80 : 0)
             phase: recCtrl.state === "armed" || recCtrl.state === "recording"
                 ? recCtrl.state
                 : (recCtrl.state === "stopped" ? "recording" : "idle")
