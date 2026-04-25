@@ -308,10 +308,21 @@ fn cmd_doctor() -> Result<ExitCode> {
         ("wl-copy", "clipboard (Wayland)"),
     ];
 
+    // Inside a Flatpak sandbox the engine routes every host binary
+    // through `flatpak-spawn --host`, so checking the sandbox PATH would
+    // report missing tools that are actually present on the host. Probe
+    // the host PATH instead and tell the user once which one we're
+    // looking at.
+    let in_flatpak = crate::host::in_flatpak();
+    if in_flatpak {
+        println!("  {}", dim("(probing host PATH via flatpak-spawn)"));
+    }
+
     let mut all_ok = true;
     let path_w = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0).max(8);
+    let missing_label = if in_flatpak { "(not on host PATH)" } else { "(not on PATH)" };
     for (bin, role) in tools {
-        match which(bin) {
+        match which_host(bin) {
             Some(p) => println!(
                 "  {} {:path_w$}  {}  {}",
                 check(),
@@ -326,7 +337,7 @@ fn cmd_doctor() -> Result<ExitCode> {
                     "  {} {:path_w$}  {}  {}",
                     cross(),
                     bin,
-                    dim("(not on PATH)"),
+                    dim(missing_label),
                     dim(role),
                     path_w = path_w
                 );
@@ -595,6 +606,32 @@ fn which(bin: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Like `which`, but in a Flatpak sandbox probes the host's PATH via
+/// `flatpak-spawn --host -- /usr/bin/which <bin>` so doctor reports
+/// what the engine will actually see at run time. Outside a sandbox
+/// this is a plain `which`.
+fn which_host(bin: &str) -> Option<PathBuf> {
+    if !crate::host::in_flatpak() {
+        return which(bin);
+    }
+    // `which` is the canonical lookup tool on every distro Flathub
+    // targets. We don't go through host_command here because that's
+    // tokio-only and doctor is sync.
+    let output = std::process::Command::new("flatpak-spawn")
+        .args(["--host", "--", "which", bin])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let s = std::str::from_utf8(&output.stdout).ok()?.trim();
+    if s.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(s))
+    }
 }
 
 fn cmd_path() -> Result<ExitCode> {
