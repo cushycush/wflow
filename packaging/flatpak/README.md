@@ -79,13 +79,8 @@ the manifest / build script. If verification ever needs to repeat:
   `/app/share/icons/hicolor/scalable/apps/`. AppStream validation
   fails without it.
 
-Two non-blocking caveats worth knowing:
+One non-blocking caveat worth knowing:
 
-- `wflow doctor` reports `wdotool` and `wl-copy` as missing inside
-  the sandbox because it checks the sandbox PATH directly. Host-spawn
-  still works at execution time. Worth a v0.4 fix to make doctor
-  sandbox-aware (probe via `flatpak-spawn --host which X` when
-  `FLATPAK_ID` is set).
 - The library is **shared** between Flatpak and host installs —
   Flatpak's `--filesystem=xdg-config/wflow:create` bind-mounts the
   host's `~/.config/wflow` into the sandbox at both `~/.config/wflow`
