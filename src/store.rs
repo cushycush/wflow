@@ -106,6 +106,13 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     if json.exists() {
         let _ = fs::remove_file(&json);
     }
+
+    // Auto-trust workflows wflow itself authored. The first-run prompt
+    // is for files brought in from outside (downloaded, cloned, edited
+    // by hand). Failures are best-effort — worst case the user gets an
+    // extra prompt next run.
+    crate::security::mark_trusted_from_disk(&kdl_path);
+
     Ok(wf)
 }
 

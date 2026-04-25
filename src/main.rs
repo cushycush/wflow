@@ -11,6 +11,7 @@ mod cli;
 mod engine;
 mod kdl_format;
 mod recorder;
+mod security;
 mod store;
 
 use std::process::ExitCode;

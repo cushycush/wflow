@@ -29,6 +29,7 @@ kdl = "6"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 clap_mangen = "0.2"
+sha2 = "0.10"
 
 # Record Mode — portal + libei
 ashpd = { version = "0.13", default-features = false, features = ["tokio", "tracing", "remote_desktop", "screencast"] }
