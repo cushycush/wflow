@@ -12,13 +12,30 @@ the first-class surface and ships first.
 
 ## Install
 
+### Arch Linux
+
+PKGBUILDs in [`packaging/aur/`](packaging/aur/). Local install:
+
 ```sh
-cargo build --release
-install -Dm755 target/release/wflow ~/.local/bin/wflow
+cd packaging/aur/wflow-git && makepkg -si
 ```
 
-You'll also want [wdotool](https://github.com/cushycush/wdotool) on `PATH`
-for any workflow that types, clicks, or focuses windows. Run
+(Or pull `wflow` / `wflow-git` from the AUR once published.)
+
+### From source
+
+Requires Rust ≥ 1.77 and Qt 6 development headers (`qt6-base`,
+`qt6-declarative` on Arch; `qt6-base-dev`, `qt6-declarative-dev` on
+Debian/Ubuntu).
+
+```sh
+cargo install --path . --locked
+```
+
+This drops `wflow` in `~/.cargo/bin/`. Make sure that's on your `PATH`.
+
+You'll also want [wdotool](https://github.com/cushycush/wdotool) on
+`PATH` for any workflow that types, clicks, or focuses windows. Run
 `wflow doctor` to check.
 
 ## Quickstart
@@ -96,11 +113,13 @@ git if you want version-controlled automation.
 
 ## Status
 
-- **v0.1 (shipping)** — CLI runner, KDL format, GUI as a viewer /
-  single-workflow launcher. Record mode is a simulated placeholder.
-- **v0.2** — Full GUI step editing.
-- **v0.3** — Real input capture via libei receiver through the
-  xdg-desktop-portal RemoteDesktop interface.
+- **v0.1 (shipping)** — CLI runner, full KDL format with vars / flow
+  control / includes / imports / retries / timeouts; GUI editor with
+  value, title, and option editing plus add / delete / reorder / library
+  delete + duplicate; Record Mode backed by a real ashpd portal + libei
+  receiver (with a simulated fallback when the portal is unavailable).
+- **next** — packaging (AUR + GitHub releases), Record-mode coalescing
+  policy, surfacing flow-control editing in the GUI.
 
 See `CLAUDE.md` for architecture notes and design decisions.
 
