@@ -113,13 +113,17 @@ git if you want version-controlled automation.
 
 ## Status
 
-- **v0.1 (shipping)** — CLI runner, full KDL format with vars / flow
-  control / includes / imports / retries / timeouts; GUI editor with
-  value, title, and option editing plus add / delete / reorder / library
-  delete + duplicate; Record Mode backed by a real ashpd portal + libei
-  receiver (with a simulated fallback when the portal is unavailable).
-- **next** — packaging (AUR + GitHub releases), Record-mode coalescing
-  policy, surfacing flow-control editing in the GUI.
+- **v0.1.0** — CLI runner, KDL format, GUI as a viewer / single-workflow
+  launcher, simulated Record Mode placeholder.
+- **v0.2.0 (shipping)** — full KDL language (vars / flow control /
+  includes / imports / retries / timeouts); GUI editor with value, title,
+  and option editing plus add / delete / reorder / library delete +
+  duplicate; Record Mode backed by a real ashpd portal + libei receiver
+  (with a simulated fallback when the portal is unavailable); man pages,
+  AUR PKGBUILDs, dual MIT/Apache-2.0 license.
+- **next** — Record-mode event coalescing (collapse Move floods, merge
+  text events into Type, build chords from modifier+key); flow-control
+  editing in the GUI (currently `wflow edit` only).
 
 See `CLAUDE.md` for architecture notes and design decisions.
 
