@@ -68,6 +68,19 @@ You can also run a KDL file directly without putting it in the library:
 wflow run ./some-workflow.kdl
 ```
 
+## Examples
+
+[`examples/`](examples/) has seven hand-authored workflows that cover every
+feature of the language — `dev-setup`, `screenshot-and-share`, `daily-standup`,
+`loop-tab-thru`, `if-vpn-then`, `flaky-deploy-trigger`, `record-replay-export`.
+Read a file, copy it, edit the paths to match your system, then run.
+
+```sh
+wflow show examples/dev-setup.kdl       # read it
+wflow run --explain examples/dev-setup.kdl  # see what it'd run, no execute
+wflow run examples/dev-setup.kdl        # run it (you'll be prompted the first time)
+```
+
 ## Commands
 
 | Command | What it does |
