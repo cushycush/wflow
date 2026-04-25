@@ -190,6 +190,12 @@ fn xdg_data_dirs() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // WFLOW_TEMPLATES_DIR_OVERRIDE is process-wide env state; tests
+    // that mutate it must run serially or they race each other's
+    // setup/teardown.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn bundled_returns_seven_templates() {
@@ -212,6 +218,7 @@ mod tests {
 
     #[test]
     fn discover_falls_back_to_bundled_when_no_xdg() {
+        let _g = ENV_LOCK.lock().unwrap();
         std::env::set_var("WFLOW_TEMPLATES_DIR_OVERRIDE", "/nonexistent/xyz/wflow");
         let t = discover();
         assert_eq!(t.len(), 7);
@@ -220,6 +227,7 @@ mod tests {
 
     #[test]
     fn discover_uses_xdg_when_present() {
+        let _g = ENV_LOCK.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let examples = dir.path().join("wflow").join("examples");
         std::fs::create_dir_all(&examples).unwrap();
@@ -240,6 +248,7 @@ mod tests {
 
     #[test]
     fn bad_xdg_files_are_skipped_not_errored() {
+        let _g = ENV_LOCK.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let examples = dir.path().join("wflow").join("examples");
         std::fs::create_dir_all(&examples).unwrap();

@@ -26,6 +26,12 @@ Item {
     signal deleteStepRequested(int stepIndex)
     signal moveStepRequested(int from, int to)
 
+    // True when the parent wants to show the first-time tutorial
+    // tooltip anchored to the + Add step footer. The parent owns the
+    // "have we shown this before" state; the inspector just renders.
+    property bool showTutorial: false
+    signal tutorialDismissed()
+
     // Kinds exposed in the add-step picker. Flow-control (repeat, conditional,
     // include, use) is intentionally excluded — those need a richer editor
     // and live in `wflow edit` for now.
@@ -255,10 +261,26 @@ Item {
 
                 // Add-step footer — opens a Menu of kinds.
                 Rectangle {
+                    id: addStepRow
                     width: parent.width
                     height: 40
                     color: addArea.containsMouse ? Theme.surface2 : "transparent"
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                    // First-time tutorial tooltip. Shown when the
+                    // parent flips `showTutorial` true — typically on
+                    // a blank workflow that's never been opened on
+                    // this machine. Auto-dismisses after 4.5s for
+                    // screen readers; users can also × it.
+                    TutorialOverlay {
+                        anchors.bottom: parent.top
+                        anchors.bottomMargin: 4
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "Start by adding a step — try Type text or Press key."
+                        visible: root.showTutorial
+                        onDismissed: root.tutorialDismissed()
+                        z: 10   // float above any neighboring rows
+                    }
 
                     Row {
                         anchors.centerIn: parent

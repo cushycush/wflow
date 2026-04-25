@@ -20,6 +20,10 @@ Item {
     signal backRequested()
 
     WorkflowController { id: wfCtrl }
+    // Owns the blank-workflow tutorial dismissal flag (and the
+    // future tutorials map). Shared across pages but always reads
+    // state.toml on construction, so per-page instantiation is safe.
+    StateController { id: stateCtrl }
 
     // Decoded workflow object. Kept as a local property so the editor can
     // present placeholder text before load() returns AND so in-flight edits
@@ -42,6 +46,18 @@ Item {
     // Pending trust-prompt body. Populated when wfCtrl emits
     // `trust_prompt_required(summary)`; trustDialog reads it.
     property string trustSummary: ""
+
+    // True while the blank-workflow tutorial is being shown. Once the
+    // user dismisses (or auto-dismiss fires), we don't re-show it
+    // even if the user undoes/clears all steps in the same session.
+    // The disk flag (state.toml `tutorials.blank_workflow_seen`) is
+    // the long-term memory; this is just session pacing.
+    property bool _tutorialDismissedThisSession: false
+    readonly property bool _shouldShowBlankTutorial:
+        root.workflowId.length > 0
+        && (root.workflow.steps || []).length === 0
+        && !root._tutorialDismissedThisSession
+        && !stateCtrl.tutorial_seen("blank_workflow")
 
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
@@ -466,6 +482,19 @@ Item {
                 activeStepIndex: root.activeStepIndex
                 running: root.running
                 stepStatuses: root.stepStatuses
+
+                // First-time tutorial tooltip on the + Add step
+                // footer. Shown only when (a) the workflow has no
+                // steps, AND (b) the user hasn't dismissed it on
+                // this machine before. Cached at activation time so
+                // it doesn't flicker off the moment the user adds
+                // their first step.
+                showTutorial: _shouldShowBlankTutorial
+                onTutorialDismissed: {
+                    stateCtrl.mark_tutorial_seen("blank_workflow")
+                    root._tutorialDismissedThisSession = true
+                }
+
                 onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                 onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
                 onAddStepRequested: (kind) => root._addStep(kind)
