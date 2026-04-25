@@ -114,6 +114,24 @@ pub enum Command {
     /// Stable interface for shell completion (`wflow completions ...`)
     /// and external tooling. Use `wflow list` for human-readable output.
     Ids,
+    /// Convert legacy-format workflow files in the library to the
+    /// current format in place.
+    ///
+    /// The current format wraps each workflow in a single
+    /// `workflow "Title" { ... }` node and stores `created` /
+    /// `modified` / `last-run` timestamps in a sidecar TOML
+    /// (`~/.config/wflow/workflows.toml`) instead of inside the file.
+    /// Legacy files still parse (the decoder accepts both shapes), and
+    /// they migrate lazily on the next save anyway. This subcommand is
+    /// the explicit one-shot version for users who don't want to wait
+    /// for lazy migration.
+    ///
+    /// Pass `--dry-run` to see what would change without writing.
+    Migrate {
+        /// Print the conversion plan without rewriting any files.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Generate the wflow(1) man page (and one page per subcommand).
     ///
     /// With no flags, writes the top-level page to stdout — fine for
@@ -153,6 +171,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Doctor => cmd_doctor(),
         Command::Completions { shell } => cmd_completions(shell),
         Command::Ids => cmd_ids(),
+        Command::Migrate { dry_run } => cmd_migrate(dry_run),
         Command::Man { output } => cmd_man(output.as_deref()),
     };
 
@@ -396,6 +415,84 @@ fn cmd_completions(shell: Shell) -> Result<ExitCode> {
         _ => {
             out.write_all(&buf)?;
         }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
+    let workflows = store::list().context("listing workflows")?;
+    if workflows.is_empty() {
+        println!("library is empty — nothing to migrate");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut to_migrate: Vec<(String, String)> = Vec::new(); // (id, current_path)
+    let mut already_new: Vec<String> = Vec::new();
+
+    for wf in &workflows {
+        let path = match store::path_of(&wf.id) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        // Detect by reading the raw text for the legacy shape — `recipe {`
+        // or top-level `id "..."` / `schema 1` / etc. The decoder also
+        // works as an oracle but reading the bytes is faster and lets us
+        // print the path without re-decoding.
+        let body = std::fs::read_to_string(&path).unwrap_or_default();
+        let is_legacy = body.contains("\nrecipe ")
+            || body.starts_with("recipe ")
+            || body.contains("\nschema ")
+            || body.starts_with("schema ");
+        if is_legacy {
+            to_migrate.push((wf.id.clone(), path.display().to_string()));
+        } else {
+            already_new.push(wf.id.clone());
+        }
+    }
+
+    println!(
+        "{} {} workflows total — {} legacy, {} already in the new format",
+        arrow(),
+        workflows.len(),
+        to_migrate.len(),
+        already_new.len()
+    );
+
+    if to_migrate.is_empty() {
+        println!("{} nothing to do", check());
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    for (id, path) in &to_migrate {
+        println!("  {} {} ({})", dim("→"), id, path);
+    }
+
+    if dry_run {
+        println!();
+        println!("{} dry run — pass without --dry-run to actually convert", arrow());
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut converted = 0usize;
+    let mut errors: Vec<(String, String)> = Vec::new();
+    for (id, _path) in &to_migrate {
+        match store::load(id) {
+            Ok(wf) => match store::save(wf) {
+                Ok(_) => converted += 1,
+                Err(e) => errors.push((id.clone(), format!("{e:#}"))),
+            },
+            Err(e) => errors.push((id.clone(), format!("{e:#}"))),
+        }
+    }
+
+    println!();
+    println!("{} converted {}/{}", check(), converted, to_migrate.len());
+    if !errors.is_empty() {
+        println!("{} {} failures:", cross(), errors.len());
+        for (id, msg) in &errors {
+            println!("  {} {} — {}", cross(), id, msg);
+        }
+        return Ok(ExitCode::from(1));
     }
     Ok(ExitCode::SUCCESS)
 }
