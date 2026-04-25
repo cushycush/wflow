@@ -133,15 +133,20 @@ git if you want version-controlled automation.
 
 - **v0.1.0** — CLI runner, KDL format, GUI as a viewer / single-workflow
   launcher, simulated Record Mode placeholder.
-- **v0.2.0 (shipping)** — full KDL language (vars / flow control /
-  includes / imports / retries / timeouts); GUI editor with value, title,
-  and option editing plus add / delete / reorder / library delete +
-  duplicate; Record Mode backed by a real ashpd portal + libei receiver
-  (with a simulated fallback when the portal is unavailable); man pages,
-  AUR PKGBUILDs, dual MIT/Apache-2.0 license.
+- **v0.2.0** — full KDL language; GUI editor with value, title, and option
+  editing plus add / delete / reorder / library delete + duplicate; real
+  ashpd + libei Record backend (simulated fallback when the portal is
+  unavailable); man pages, AUR PKGBUILDs, dual MIT/Apache-2.0 license.
+- **v0.3.0 (shipping)** — first public release. Welcome card + New-workflow
+  dialog with seven hand-authored example templates; first-run trust prompt
+  for unfamiliar workflow files (CLI + GUI, see [`REVIEW.md`](REVIEW.md));
+  Flatpak manifest with host-spawn redirect; GitHub Actions CI + draft-
+  release-on-tag; AUR `wflow` + `wflow-git` packages live.
 - **next** — Record-mode event coalescing (collapse Move floods, merge
   text events into Type, build chords from modifier+key); flow-control
-  editing in the GUI (currently `wflow edit` only).
+  editing in the GUI (currently `wflow edit` only); cross-platform CI
+  matrix (macOS, Windows, aarch64); Flathub submission once host-machine
+  verification is green.
 
 See `CLAUDE.md` for architecture notes and design decisions.
 
