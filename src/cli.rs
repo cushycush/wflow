@@ -108,6 +108,19 @@ pub enum Command {
     /// Stable interface for shell completion (`wflow completions ...`)
     /// and external tooling. Use `wflow list` for human-readable output.
     Ids,
+    /// Generate the wflow(1) man page (and one page per subcommand).
+    ///
+    /// With no flags, writes the top-level page to stdout — fine for
+    /// `wflow man | gzip > /usr/share/man/man1/wflow.1.gz`. Pass
+    /// `--output DIR` to also emit per-subcommand pages
+    /// (`wflow-run.1`, `wflow-list.1`, …) into DIR; packagers want this
+    /// form.
+    Man {
+        /// Directory to write `wflow.1` plus one page per subcommand.
+        /// When omitted, the top-level page is written to stdout.
+        #[arg(long, value_name = "DIR")]
+        output: Option<PathBuf>,
+    },
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -134,6 +147,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Doctor => cmd_doctor(),
         Command::Completions { shell } => cmd_completions(shell),
         Command::Ids => cmd_ids(),
+        Command::Man { output } => cmd_man(output.as_deref()),
     };
 
     match result {
@@ -388,6 +402,48 @@ fn cmd_completions(shell: Shell) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_man(output: Option<&Path>) -> Result<ExitCode> {
+    use std::io::Write;
+    let cmd = Cli::command();
+
+    match output {
+        None => {
+            // Top-level page only, on stdout. The common
+            // `wflow man | gzip > /usr/share/man/man1/wflow.1.gz` flow.
+            // EPIPE (downstream `head` / `less` closed early) is normal
+            // for a shell tool — exit 0 instead of an "error: Broken pipe".
+            let mut out = std::io::stdout().lock();
+            if let Err(e) = clap_mangen::Man::new(cmd).render(&mut out) {
+                if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    return Err(e.into());
+                }
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        Some(dir) => {
+            std::fs::create_dir_all(dir)
+                .with_context(|| format!("creating man output dir {}", dir.display()))?;
+            // generate_to writes wflow.1 plus wflow-<sub>.1 for every subcommand.
+            clap_mangen::generate_to(cmd, dir)
+                .with_context(|| format!("writing man pages to {}", dir.display()))?;
+            // Print the list of generated files so the caller (PKGBUILD,
+            // Makefile) can sanity-check what landed.
+            let mut entries: Vec<_> = std::fs::read_dir(dir)
+                .with_context(|| format!("reading {}", dir.display()))?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "1"))
+                .collect();
+            entries.sort();
+            let mut out = std::io::stdout().lock();
+            for path in entries {
+                writeln!(out, "{}", path.display())?;
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+    }
 }
 
 // Subcommands that take a library id as their first positional. Kept
