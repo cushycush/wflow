@@ -146,8 +146,13 @@ Item {
                     spacing: 6
                     width: parent.width
 
+                    readonly property int kindsCount: card.wf.kinds ? card.wf.kinds.length : 0
+                    readonly property int kindsCap: 6
+                    readonly property int kindsShown: Math.min(kindsCount, kindsCap)
+                    readonly property int kindsHidden: Math.max(0, kindsCount - kindsCap)
+
                     Repeater {
-                        model: card.wf.kinds || []
+                        model: (card.wf.kinds || []).slice(0, parent.kindsCap)
                         delegate: CategoryIcon {
                             kind: modelData
                             size: 20
@@ -155,9 +160,33 @@ Item {
                         }
                     }
 
+                    // "+N" pill shows that more steps exist beyond the
+                    // visible fingerprint, so a 14-step workflow doesn't
+                    // overflow the card or pretend it has 6 steps.
+                    Rectangle {
+                        visible: parent.kindsHidden > 0
+                        width: moreText.implicitWidth + 10
+                        height: 20
+                        radius: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: "transparent"
+                        border.color: Theme.lineSoft
+                        border.width: 1
+
+                        Text {
+                            id: moreText
+                            anchors.centerIn: parent
+                            text: "+" + parent.parent.kindsHidden
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                        }
+                    }
+
                     Item { width: Math.max(0, parent.width
-                            - (card.wf.kinds ? card.wf.kinds.length : 0) * 20
-                            - Math.max(0, (card.wf.kinds ? card.wf.kinds.length : 0) - 1) * 6
+                            - parent.kindsShown * 20
+                            - Math.max(0, parent.kindsShown - 1) * 6
+                            - (parent.kindsHidden > 0 ? 30 : 0)
                             - (card.wf.importedFrom ? importedPill.width + 6 : 0))
                           height: 1 }
 
