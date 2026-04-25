@@ -9,6 +9,7 @@ mod actions;
 mod bridge;
 mod cli;
 mod engine;
+mod host;
 mod kdl_format;
 mod recorder;
 mod security;

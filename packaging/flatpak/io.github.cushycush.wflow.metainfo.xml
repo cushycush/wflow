@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.cushycush.wflow</id>
+
+  <name>wflow</name>
+  <summary>Shortcuts for Linux — GUI + KDL workflow files</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+
+  <developer id="io.github.cushycush">
+    <name>Matthew Cushing</name>
+  </developer>
+
+  <description>
+    <p>
+      wflow records, edits, and replays sequences of keystrokes, clicks,
+      shell commands, delays, and notifications on Wayland. There's a
+      Qt Quick GUI for visual editing and a CLI for cron and scripts;
+      both run the same engine.
+    </p>
+    <p>
+      Workflows are plain text in KDL format — diffable in git,
+      hand-authorable in your editor, includable into other workflows,
+      shareable as a single file. Think macOS Shortcuts, but the
+      workflow file is the artifact: no proprietary container, no
+      binary blob.
+    </p>
+    <p>
+      Built on wdotool for input injection on Wayland.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.cushycush.wflow.desktop</launchable>
+
+  <url type="homepage">https://github.com/cushycush/wflow</url>
+  <url type="bugtracker">https://github.com/cushycush/wflow/issues</url>
+  <url type="vcs-browser">https://github.com/cushycush/wflow</url>
+
+  <categories>
+    <category>Utility</category>
+    <category>Qt</category>
+  </categories>
+
+  <keywords>
+    <keyword>automation</keyword>
+    <keyword>workflow</keyword>
+    <keyword>shortcuts</keyword>
+    <keyword>wayland</keyword>
+    <keyword>macro</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <provides>
+    <binary>wflow</binary>
+  </provides>
+
+  <releases>
+    <release version="0.3.0" date="2026-04-25">
+      <description>
+        <p>v0.3 placeholder — replace with the real release notes when v0.3 ships.</p>
+      </description>
+    </release>
+  </releases>
+</component>

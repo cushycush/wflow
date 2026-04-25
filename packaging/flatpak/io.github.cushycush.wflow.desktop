@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=wflow
+GenericName=Workflow Editor
+Comment=Shortcuts for Linux — GUI + KDL workflow files
+Icon=io.github.cushycush.wflow
+Exec=wflow
+Categories=Utility;Qt;
+Keywords=automation;workflow;shortcuts;wayland;macro;
+StartupNotify=true
+StartupWMClass=wflow
