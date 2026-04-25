@@ -17,8 +17,8 @@ paths and program names to match your system, then run.
 The fragment imported by `daily-standup.kdl` lives at
 [`lib/standup-message.kdl`](lib/standup-message.kdl). Fragments are
 separate `.kdl` files holding a bare list of step nodes (no
-`schema`/`id`/`title`/`recipe` wrapper) — see
-[`docs/KDL.md`](../docs/KDL.md#imports--use) for the spec.
+`workflow` wrapper) — see [`docs/KDL.md`](../docs/KDL.md#imports--use)
+for the spec.
 
 ## Try one
 
@@ -39,7 +39,7 @@ wflow run examples/dev-setup.kdl
 The hardcoded paths (`/home/you/projects/wflow`, etc.) are deliberately
 fake. Swap them for your real values, or — better — define them once in
 each file's `vars { }` block and reference via `{{name}}`. That way the
-rest of the recipe stays portable.
+rest of the workflow stays portable.
 
 Programs called by `shell "..."` assume Hyprland (`hyprctl dispatch
 exec`), Firefox, kitty, and Slack. If your stack differs, swap those

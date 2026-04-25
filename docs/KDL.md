@@ -2,7 +2,8 @@
 
 A wflow workflow is a [KDL](https://kdl.dev) document. KDL is whitespace-
 sensitive, bracket-free for the most part, and reads like a configuration
-file. One workflow per file. One `recipe { ... }` block holds the steps.
+file. One workflow per file. The whole file is one `workflow "Title" { ... }`
+block; everything else (steps, `vars`, `imports`, `subtitle`) goes inside it.
 
 ## Starting from a scaffold
 
@@ -12,15 +13,10 @@ is a safe no-op:
 
 ```kdl
 // A wflow workflow. See `docs/KDL.md` for the full action vocabulary.
-schema 1
-id "a1b2c3d4-..."
-title "My workflow"
-created "..."
-modified "..."
-
-recipe {
-    // Starter steps — marked `disabled=#true` so `wflow run` is a no-op
-    // until you turn them on. Delete these lines and write your own.
+workflow "My workflow" {
+    // Starter steps. `disabled=#true` keeps them inert so a fresh
+    // `wflow run` is a no-op. Flip the flag off (or delete the line)
+    // when you want a step to actually fire.
     notify "hello from wflow" disabled=#true
     shell "echo 'wflow ran at ' \"$(date)\"" disabled=#true
     wait-window "Firefox" timeout="5s" disabled=#true
@@ -30,18 +26,15 @@ recipe {
 
 Flip `disabled=#true` off on the steps you want, or delete the whole
 block and write your own. `wflow new "<title>" --stdout` prints the
-template without persisting — pipe it somewhere else if you'd rather
-name the file yourself.
+template without persisting, so you can pipe it somewhere else if you
+want to name the file yourself.
 
 ## Quick example
 
 ```kdl
-schema 1
-id "morning-standup"
-title "Morning standup"
-subtitle "open slack, zoom, and the notes doc"
+workflow "Morning standup" {
+    subtitle "open slack, zoom, and the notes doc"
 
-recipe {
     shell "hyprctl dispatch exec 'slack'"
     wait-window "Slack" timeout="10s"
 
@@ -55,26 +48,48 @@ recipe {
 }
 ```
 
-Run with `wflow run morning-standup` or `wflow run ./path/to/file.kdl`.
+Run with `wflow run morning-standup` (the file's basename is the id) or
+`wflow run ./path/to/file.kdl` if it's not in your library.
 
 ## Document structure
 
 Every workflow file has the same shape:
 
 ```kdl
-schema 1               // required; only value 1 today
-id "some-stable-id"    // required; filename is derived from it
-title "Human title"    // required
-subtitle "one line"    // optional; shown in list and editor
-
-recipe {
+workflow "Human title" {        // required; positional arg is the title
+    subtitle "one line"         // optional; shown in list and editor
+    vars { ... }                // optional; workflow-level variables
+    imports { ... }             // optional; named fragment files
     // steps here, one per line, top-to-bottom execution
 }
 ```
 
-The file can also carry `created`, `modified`, and `last-run` timestamps
-(RFC 3339). `wflow run` writes `last-run` back after a successful run;
-you generally don't hand-write these.
+The id is the filename without `.kdl`. `wflow new` generates a UUID
+filename; you can rename the file to anything path-safe and the new
+basename becomes the id.
+
+`created`, `modified`, and `last-run` timestamps live in
+`~/.config/wflow/workflows.toml` (a sidecar TOML), not in the workflow
+file itself, so editing the file in git doesn't churn on every run.
+
+### Migrating from older files
+
+Files written before v0.4 used a different shape:
+
+```kdl
+schema 1
+id "morning-standup"
+title "Morning standup"
+
+recipe {
+    ...
+}
+```
+
+The decoder still reads those, so legacy files keep working. Run
+`wflow migrate` to convert them in place. Lazy migration also kicks
+in on the next save (via the GUI editor, `wflow run` writing
+`last-run`, or any other path that calls `store::save`).
 
 ### A note on booleans: `#true` and `#false`
 
@@ -91,9 +106,10 @@ key "Return" clear-modifiers=true     // wrong — decodes as the string "true"
 
 ## Actions
 
-Every line inside `recipe { ... }` is one step. The first word picks the
-action; positional arguments come next; properties (`key=value`) come
-last in any order.
+Every line inside the `workflow { ... }` block (other than `subtitle`,
+`vars`, and `imports`) is one step. The first word picks the action;
+positional arguments come next; properties (`key=value`) come last in
+any order.
 
 | Kind | Syntax | Runs |
 |---|---|---|
@@ -391,7 +407,7 @@ Older verb `clip` still decodes.
 ### note
 
 A step that does nothing at runtime — a comment that shows up in the
-UI and in `wflow show`. Useful for annotating stretches of a recipe.
+UI and in `wflow show`. Useful for annotating stretches of a workflow.
 
 ```kdl
 note "the next two steps unlock the keychain"
@@ -445,21 +461,17 @@ of a workflow will pick up a marker file created by the first half.
 ### imports + use
 
 When the same fragment shows up in 3+ places, scattered `include`
-statements get noisy. Declare the fragments once at the top of the
-file and reference them by name:
+statements get noisy. Declare the fragments once near the top of the
+workflow block and reference them by name:
 
 ```kdl
-schema 1
-id "morning"
-title "Morning routine"
+workflow "Morning routine" {
+    imports {
+        dev-setup "~/.config/wflow/lib/open-dev.kdl"
+        standup   "~/.config/wflow/lib/standup.kdl"
+        cleanup   "~/.config/wflow/lib/close-day.kdl"
+    }
 
-imports {
-    dev-setup "~/.config/wflow/lib/open-dev.kdl"
-    standup   "~/.config/wflow/lib/standup.kdl"
-    cleanup   "~/.config/wflow/lib/close-day.kdl"
-}
-
-recipe {
     use dev-setup
     shell "cd ~/projects && ls"
     use standup
@@ -491,19 +503,19 @@ Either form — `use dev-setup` (bareword) or `use "dev-setup"` (quoted)
 ### include
 
 Splice in the steps from a **fragment file** — a separate `.kdl`
-file whose contents are a bare list of step nodes (no
-`schema`/`id`/`title`/`recipe` wrapper). Useful for sharing the same
+file whose contents are a bare list of step nodes (no `workflow`
+wrapper, no `schema` line). Useful for sharing the same
 opening-the-IDE / entering-the-password / whatever preamble across
 multiple workflows. Inline, one-shot form:
 
 ```kdl
-recipe {
+workflow "..." {
     include "~/.config/wflow/lib/open-dev.kdl"
 }
 ```
 
 For repeated references, prefer the [imports + use](#imports--use)
-pattern — it keeps the recipe body readable.
+pattern — it keeps the workflow body readable.
 
 ```kdl
 // ~/.config/wflow/lib/open-dev.kdl (fragment file)
@@ -514,11 +526,7 @@ key "ctrl+shift+t"
 
 ```kdl
 // A workflow using it:
-schema 1
-id "dev-setup"
-title "Open dev setup"
-
-recipe {
+workflow "Open dev setup" {
     include "~/.config/wflow/lib/open-dev.kdl"
     type "cd ~/projects && ls"
     key "Return"
@@ -592,16 +600,12 @@ at run time. Three sources:
    process environment.
 
 ```kdl
-schema 1
-id "daily-note"
-title "Create today's note"
+workflow "Create today's note" {
+    vars {
+        notes-dir "~/notes/daily"
+        template "daily.md.tmpl"
+    }
 
-vars {
-    notes-dir "~/notes/daily"
-    template "daily.md.tmpl"
-}
-
-recipe {
     shell "date +%F"                        as="today"
     shell "cp {{notes-dir}}/{{template}} {{notes-dir}}/{{today}}.md"
     shell "hyprctl dispatch exec 'nvim {{notes-dir}}/{{today}}.md'"
@@ -644,16 +648,13 @@ together — a workflow that opens today's daily note, with a scratchpad
 ready for the clipboard contents:
 
 ```kdl
-schema 1
-id "scratch-from-clip"
-title "Scratch from clipboard"
-subtitle "open today's note in nvim, drop a timestamped clip block at the end"
+workflow "Scratch from clipboard" {
+    subtitle "open today's note in nvim, drop a timestamped clip block at the end"
 
-vars {
-    notes-dir "/home/cush/notes"
-}
+    vars {
+        notes-dir "/home/cush/notes"
+    }
 
-recipe {
     // Grab the clipboard into a variable so we can reference it by
     // name in later steps rather than relying on paste state.
     shell "wl-paste --no-newline" as="clip"
@@ -695,9 +696,10 @@ Sample error messages you'll see from `wflow run` / `wflow validate`:
 | `click buton=1` | ``unknown property `buton` on `click`. valid: button, disabled, comment. did you mean `button`?`` |
 | `wait "forever"` | ``unknown duration unit `forever` in `forever` (use ms, s, m, or h)`` |
 | `shell "cmd" retries=3` | ``unknown property `retries` on `shell`. valid: shell, with, as, disabled, comment`` |
-| `schema 2` | `schema 2 is not supported (this wflow reads schema 1). upgrade wflow or convert the file` |
-| missing `title` | ``missing required `title "..."` at the top of the file`` |
-| `recipie { ... }` | ``unknown top-level node `recipie`. valid: schema, id, title, subtitle, created, modified, last-run, vars, recipe. did you mean `recipe`?`` |
+| `workflow { ... }` (no title) | ``\`workflow "..."\` needs a title in quotes`` |
+| `workflow "X" { id "y" }` | ``\`id\` doesn't belong inside a \`workflow\` block — the filename is the id in the new format`` |
+| Two `workflow` blocks in one file | ``file has 2 \`workflow\` blocks. Multiple workflows per file is reserved for a future release; for now, one workflow per file`` |
+| Mixed legacy + new shapes | ``file mixes the legacy top-level layout … with a \`workflow {}\` block. Pick one format. Run \`wflow migrate\` to convert legacy files in place.`` |
 | `{{nope}}` in a string | `unknown variable `{{nope}}`. known: name, fruit` |
 | `move 640 480 x=0 y=0` | ``move: specify coordinates as `move 640 480` OR `move x=640 y=480`, not both`` |
 | `await-window "X" timeout-ms=5000 timeout="10s"` | ``wait-window: specify the timeout once ... — not both`` |
@@ -735,11 +737,17 @@ run` exits with code 2. A `disabled` step or a `note` is reported as
 Run-level error handling (retry, continue-on-error, branching) is not
 yet expressible in the format — it lives in the roadmap.
 
-## Schema version
+## Format version
 
-`schema 1` is the only supported version today. If a future release
-changes the document shape in a way that breaks existing files, the
-schema number bumps and the decoder learns to read both.
+The current format is the `workflow "Title" { ... }` shape. Files
+written before v0.4 used a flat layout with `schema 1`, top-level
+`id`/`title`/`subtitle` fields, and a `recipe { ... }` block; the
+decoder still reads those, and `wflow migrate` converts a whole
+library in place.
+
+If a future release breaks the document shape in a way the decoder
+can't bridge, a new top-level marker (or a multi-workflow file rule
+when that lands) signals the change.
 
 ## Round-trip stability
 

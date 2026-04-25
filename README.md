@@ -102,11 +102,7 @@ runtime.
 The workflow format is KDL. A minimal file:
 
 ```kdl
-schema 1
-id "dev-setup"
-title "Open dev setup"
-
-recipe {
+workflow "Open dev setup" {
     shell "hyprctl dispatch exec 'kitty'"
     wait-window "kitty" timeout="5s"
     key "ctrl+shift+t"
@@ -114,6 +110,10 @@ recipe {
     key "Return"
 }
 ```
+
+The filename is the workflow's id (so `dev-setup.kdl` is `wflow run
+dev-setup`). Timestamps live in `~/.config/wflow/workflows.toml`, not
+in the file itself.
 
 The full vocabulary — every action, every property, and how each one
 translates to a wdotool / shell invocation — is in
