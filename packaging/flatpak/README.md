@@ -129,18 +129,35 @@ The script regenerates `cargo-sources.json` against the current
 
 ## Submitting to Flathub
 
+There are two manifests in this directory:
+
+- `io.github.cushycush.wflow.yaml` — local-dev variant. Uses a `dir`
+  source so `build-local.sh` can build the working tree.
+- `io.github.cushycush.wflow.flathub.yaml` — submission variant. Uses
+  a `git`+`tag` source so reviewers and end-users build from a
+  verifiable revision. **This is the file that gets copied into the
+  Flathub per-app repo.**
+
 Flathub apps live as one repository per app at
 `github.com/flathub/<app-id>`. The submission process:
 
-1. Tag a release in this repo (e.g. `v0.3.0`).
-2. Switch the manifest's `sources` to a `git`+`tag` entry pointing at
-   the tag — the dir-based source in this file is for local testing
-   only.
+1. Tag a release in this repo (e.g. `v0.3.0`) and verify the
+   `tag` field in `io.github.cushycush.wflow.flathub.yaml` matches.
+   Optionally pin the `commit` SHA below the tag for reproducibility
+   (`git rev-parse v0.3.0`).
+2. Bump `<release>` in `metainfo.xml` if cutting a new version, and
+   regenerate `cargo-sources.json` from the current `Cargo.lock`
+   (`build-local.sh` does this automatically; otherwise run
+   `flatpak-cargo-generator.py Cargo.lock -o packaging/flatpak/cargo-sources.json`).
 3. Open a PR against `github.com/flathub/flathub` adding
-   `io.github.cushycush.wflow` to `flathub.json`.
-4. After review, Flathub creates `github.com/flathub/io.github.cushycush.wflow`
-   for ongoing maintenance — every new release is a PR there.
+   `io.github.cushycush.wflow` to `flathub.json`. Submit the
+   `*.flathub.yaml` manifest plus the metainfo, desktop, and icon
+   files as the seed for the per-app repo.
+4. After review, Flathub creates
+   `github.com/flathub/io.github.cushycush.wflow` for ongoing
+   maintenance — every new release is a PR there with the same set
+   of files.
 
-Per-version release upkeep: bump `<release>` in `metainfo.xml`, regenerate
-`cargo-sources.json` from the new `Cargo.lock`, point the `git` source at
-the new tag, open a PR to the per-app Flathub repo.
+Per-version release upkeep: bump `<release>` in `metainfo.xml`,
+regenerate `cargo-sources.json`, bump the `tag` in
+`*.flathub.yaml`, open a PR to the per-app Flathub repo.

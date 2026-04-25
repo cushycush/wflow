@@ -52,6 +52,13 @@
 
   <content_rating type="oars-1.1" />
 
+  <screenshots>
+    <screenshot type="default">
+      <caption>Library page — seven example workflows, each tagged with its action types</caption>
+      <image>https://raw.githubusercontent.com/cushycush/wflow/main/assets/screenshots/wflow-library.png</image>
+    </screenshot>
+  </screenshots>
+
   <provides>
     <binary>wflow</binary>
   </provides>
