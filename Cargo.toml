@@ -37,6 +37,11 @@ ashpd = { version = "0.13", default-features = false, features = ["tokio", "trac
 reis = { version = "0.6", features = ["tokio"] }
 futures-util = "0.3"
 
+# Input/window engine. Linked in-process (no subprocess shell-out to a
+# `wdotool` binary). Default features enable libei + wlroots + kde +
+# gnome + uinput; that matches the compositor coverage wflow targets.
+wdotool-core = "0.2"
+
 [build-dependencies]
 cxx-qt-build = "0.8"
 
