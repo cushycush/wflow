@@ -16,6 +16,7 @@ mod security;
 mod state;
 mod store;
 mod templates;
+mod workflows_meta;
 
 use std::process::ExitCode;
 
