@@ -1,14 +1,18 @@
 # Flatpak manifest for wflow.
 #
-# Builds against the KDE Platform 6.7 (Qt 6.7) — cxx-qt 0.8 compatible.
+# Builds against KDE Platform 6.9 (Qt 6.9, freedesktop 25.08 base) —
+# cxx-qt 0.8 compatible, and the matching rust-stable extension 25.08
+# ships a Rust toolchain new enough for edition2024 (1.86+), which
+# transitive deps via ashpd → zbus → zvariant_utils require.
+#
 # Host-side commands (wdotool, notify-send, wl-copy, and arbitrary
 # shell "..." actions) are routed through `flatpak-spawn --host`,
 # which the sandbox is allowed to invoke via the
 # `org.freedesktop.Flatpak` D-Bus interface granted below.
 #
 # To test locally (requires flatpak-builder + the runtimes installed):
-#   flatpak install --user flathub org.kde.Sdk//6.7 org.kde.Platform//6.7 \
-#                                  org.freedesktop.Sdk.Extension.rust-stable//24.08
+#   flatpak install --user flathub org.kde.Sdk//6.9 org.kde.Platform//6.9 \
+#                                  org.freedesktop.Sdk.Extension.rust-stable//25.08
 #   ./packaging/flatpak/build-local.sh
 #
 # To submit to Flathub: see packaging/flatpak/README.md.
@@ -16,7 +20,7 @@
 id: io.github.cushycush.wflow
 
 runtime: org.kde.Platform
-runtime-version: "6.7"
+runtime-version: "6.9"
 sdk: org.kde.Sdk
 
 sdk-extensions:
@@ -79,6 +83,10 @@ modules:
       # Desktop integration files.
       - install -Dm644 packaging/flatpak/io.github.cushycush.wflow.desktop /app/share/applications/io.github.cushycush.wflow.desktop
       - install -Dm644 packaging/flatpak/io.github.cushycush.wflow.metainfo.xml /app/share/metainfo/io.github.cushycush.wflow.metainfo.xml
+      # Scalable app icon. Path is the canonical Freedesktop hicolor
+      # location; AppStream metadata + the .desktop file's
+      # `Icon=io.github.cushycush.wflow` resolve here automatically.
+      - install -Dm644 packaging/flatpak/io.github.cushycush.wflow.svg /app/share/icons/hicolor/scalable/apps/io.github.cushycush.wflow.svg
 
       # License files (Flathub requires them in /app/share/licenses).
       - install -Dm644 LICENSE-MIT /app/share/licenses/io.github.cushycush.wflow/LICENSE-MIT

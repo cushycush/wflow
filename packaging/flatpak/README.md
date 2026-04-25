@@ -53,36 +53,52 @@ If the review goes badly, the fallback is documented in the v0.3 plan:
 demote Flathub to a stretch goal, ship v0.3 to AUR + cargo-install
 only, retry Flathub for v0.4.
 
-### What's NOT verified yet
+### Verification status (2026-04-25)
 
-This whole spike was authored on a machine without `flatpak-builder`
-installed. The following needs final verification on a Flatpak-enabled
-machine before submitting:
+Verified end-to-end on a real Arch host. Four of five items confirmed,
+one user-interactive item pending:
 
-1. **Build**: `./packaging/flatpak/build-local.sh` runs without error
-   and produces a working `flatpak run io.github.cushycush.wflow`.
-2. **GUI launches**: Qt 6.7 from KDE Platform 6.7 starts cleanly under
-   Wayland and XWayland fallback.
-3. **Host-spawn round trip**: a workflow whose only step is
-   `shell "id > /tmp/wflow-flatpak-test"` succeeds, and the file appears
-   *on the host* at `/tmp/wflow-flatpak-test` with the user's real
-   uid (not the sandbox uid).
-4. **cxx-qt at runtime**: the GUI's QML modules load (no `Cannot find
-   QML module` errors from the sandboxed Qt resolver).
-5. **Record Mode portal**: ashpd's RemoteDesktop request opens the
-   host's xdg-desktop-portal dialog (sandboxed apps reach the portal
-   automatically; no extra `--talk-name` needed).
+| # | Item | Status |
+|---|---|---|
+| 1 | `build-local.sh` produces a working install | ✅ |
+| 2 | Qt 6.9 GUI launches under Wayland | ✅ (clean launch, zero stderr) |
+| 3 | Host-spawn round trip writes to host fs with real uid | ✅ uid=1000 on host, FLATPAK_ID unset in spawned shell |
+| 4 | cxx-qt's QML modules resolve at runtime | ✅ (no QML errors in launch log) |
+| 5 | ashpd RemoteDesktop portal opens host dialog | ⏳ click `● Record` and confirm portal prompt |
 
-If any of those fail, the manifest needs another iteration — start by
-reading `flatpak-builder` build logs and Flathub's quick-launcher
-checks (`flatpak-builder-checks.sh` from
-`flathub/flatpak-external-data-checker`).
+Three real issues surfaced during verification and have been fixed in
+the manifest / build script. If verification ever needs to repeat:
+
+- The `flatpak-cargo-generator.py` Python deps (`aiohttp`, `tomlkit`)
+  live in a self-contained venv at `target/cargo-gen-venv/` that
+  `build-local.sh` creates automatically.
+- The **`25.08` SDK extension is required** (Rust 1.95+). Older
+  `24.08` ships Rust 1.81 which lacks edition2024 — required by
+  ashpd's transitive deps via zbus → zvariant_utils.
+- An icon at `io.github.cushycush.wflow.svg` is installed to
+  `/app/share/icons/hicolor/scalable/apps/`. AppStream validation
+  fails without it.
+
+Two non-blocking caveats worth knowing:
+
+- `wflow doctor` reports `wdotool` and `wl-copy` as missing inside
+  the sandbox because it checks the sandbox PATH directly. Host-spawn
+  still works at execution time. Worth a v0.4 fix to make doctor
+  sandbox-aware (probe via `flatpak-spawn --host which X` when
+  `FLATPAK_ID` is set).
+- The library is **shared** between Flatpak and host installs —
+  Flatpak's `--filesystem=xdg-config/wflow:create` bind-mounts the
+  host's `~/.config/wflow` into the sandbox at both `~/.config/wflow`
+  AND `~/.var/app/<id>/config/wflow`. Same files either way. *Good*
+  news for users who switch install methods. `wflow path` reports
+  the per-app alias path, which is technically correct (it resolves
+  to the same files) but cosmetically misleading.
 
 ### Files in this directory
 
 | File | Purpose |
 |---|---|
-| `io.github.cushycush.wflow.yaml` | The Flatpak manifest. KDE Platform 6.7 + Rust SDK extension. |
+| `io.github.cushycush.wflow.yaml` | The Flatpak manifest. KDE Platform 6.9 + Rust SDK extension 25.08. |
 | `io.github.cushycush.wflow.desktop` | Desktop entry installed into the Flatpak. |
 | `io.github.cushycush.wflow.metainfo.xml` | AppStream component metadata. Required by Flathub. |
 | `cargo-config.toml` | Vendored-source mapping copied into `.cargo/config.toml` at build time. |
@@ -97,8 +113,8 @@ Install the runtimes (one-time setup):
 flatpak remote-add --if-not-exists --user flathub \
     https://flathub.org/repo/flathub.flatpakrepo
 flatpak install --user flathub \
-    org.kde.Platform//6.7 org.kde.Sdk//6.7 \
-    org.freedesktop.Sdk.Extension.rust-stable//24.08
+    org.kde.Platform//6.9 org.kde.Sdk//6.9 \
+    org.freedesktop.Sdk.Extension.rust-stable//25.08
 ```
 
 Then from the repo root:

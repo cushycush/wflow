@@ -3,3 +3,9 @@
 /.cache
 /.gstack
 *.pro.user
+
+# Flatpak build artifacts — regenerated on every run of build-local.sh.
+# cargo-sources.json is computed from Cargo.lock; flatpak-cargo-generator.py
+# is fetched from upstream flatpak-builder-tools.
+/packaging/flatpak/cargo-sources.json
+/packaging/flatpak/flatpak-cargo-generator.py

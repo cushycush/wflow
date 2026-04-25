@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- wflow application icon.
+       Brand wordmark: a single warm-amber 'w' inside a rounded
+       dark surface that matches Theme.bg / Theme.accent from
+       CLAUDE.md (oklch 0.17 / oklch 0.74 60° hue, hex-approximated
+       since SVG doesn't ship oklch in viewer-safe color spaces). -->
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#21242c"/>
+      <stop offset="1" stop-color="#161922"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded dark surface, ~16% radius — matches the brand's 8px
+       container radius scaled up. -->
+  <rect x="8" y="8" width="240" height="240" rx="40" fill="url(#bg-grad)"/>
+
+  <!-- Subtle 2px accent ring just inside the rounded edge, echoing
+       the 2px focus rings used across the GUI. -->
+  <rect x="9" y="9" width="238" height="238" rx="39"
+        fill="none" stroke="#e8a04f" stroke-width="2" opacity="0.55"/>
+
+  <!-- The 'w' as a single stroked zigzag. Geometric, not typographic
+       — sidesteps font-availability concerns and reads as a mark
+       even when scaled to a 16x16 tray-icon size. -->
+  <path d="M 56 84 L 92 176 L 128 104 L 164 176 L 200 84"
+        fill="none"
+        stroke="#e8a04f"
+        stroke-width="22"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>
