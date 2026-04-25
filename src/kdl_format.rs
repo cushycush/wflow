@@ -55,15 +55,10 @@ pub fn encode(wf: &Workflow) -> String {
             inner.nodes_mut().push(kv_str("subtitle", s));
         }
     }
-    if let Some(t) = wf.created {
-        inner.nodes_mut().push(kv_str("created", &t.to_rfc3339()));
-    }
-    if let Some(t) = wf.modified {
-        inner.nodes_mut().push(kv_str("modified", &t.to_rfc3339()));
-    }
-    if let Some(t) = wf.last_run {
-        inner.nodes_mut().push(kv_str("last-run", &t.to_rfc3339()));
-    }
+    // Timestamps (`created` / `modified` / `last_run`) live in the
+    // workflows.toml sidecar now; the encoder no longer touches them.
+    // Decoder still reads them from legacy / pre-migration files so
+    // those keep parsing.
 
     // Variables block — emitted only when present so empty files stay tidy.
     if !wf.vars.is_empty() {

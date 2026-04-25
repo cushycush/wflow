@@ -119,8 +119,28 @@ fn parse_template(id: &str, kdl_text: &str) -> Result<Template, String> {
     let doc: KdlDocument = kdl_text
         .parse()
         .map_err(|e: kdl::KdlError| format!("kdl parse: {e}"))?;
-    let title = read_top_string(&doc, "title").unwrap_or_else(|| id.to_string());
-    let subtitle = read_top_string(&doc, "subtitle").unwrap_or_default();
+
+    // New: title on `workflow "..."`, subtitle inside the block.
+    // Legacy: both are top-level nodes.
+    let (title, subtitle) =
+        if let Some(wf_node) = doc.nodes().iter().find(|n| n.name().value() == "workflow") {
+            let title = wf_node
+                .entries()
+                .first()
+                .and_then(|e| e.value().as_string())
+                .map(String::from)
+                .unwrap_or_else(|| id.to_string());
+            let subtitle = wf_node
+                .children()
+                .and_then(|d| read_top_string(d, "subtitle"))
+                .unwrap_or_default();
+            (title, subtitle)
+        } else {
+            let title = read_top_string(&doc, "title").unwrap_or_else(|| id.to_string());
+            let subtitle = read_top_string(&doc, "subtitle").unwrap_or_default();
+            (title, subtitle)
+        };
+
     Ok(Template {
         id: id.to_string(),
         title,
@@ -194,8 +214,8 @@ mod tests {
         let dev = t.iter().find(|t| t.id == "dev-setup").unwrap();
         assert_eq!(dev.title, "Open dev setup");
         assert!(!dev.subtitle.is_empty());
-        // The kdl field is round-trippable.
-        assert!(dev.kdl.contains("schema 1"));
+        // The full kdl source rides through unchanged.
+        assert!(dev.kdl.contains("workflow \"Open dev setup\""));
     }
 
     #[test]

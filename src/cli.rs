@@ -170,18 +170,12 @@ pub fn run(cli: Cli) -> ExitCode {
 fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
     // Hand-written scaffold so we can mix freeform comments in with the
     // canonical KDL. The steps below are `disabled=#true` so running the
-    // fresh workflow is a no-op until the user turns them on.
+    // fresh workflow is a no-op until the user turns them on. Timestamps
+    // live in workflows.toml; the file stays pure spec.
     let wf = Workflow::new(title);
-    let created = wf
-        .created
-        .map(|t| t.to_rfc3339())
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     let template = format!(
         "// A wflow workflow. See `docs/KDL.md` for the full action vocabulary.\n\
          workflow \"{title}\" {{\n    \
-             created \"{created}\"\n    \
-             modified \"{created}\"\n\
-             \n    \
              // Starter steps. `disabled=#true` keeps them inert so a fresh\n    \
              // `wflow run` is a no-op. Flip the flag off (or delete the line)\n    \
              // when you want a step to actually fire.\n    \
@@ -191,7 +185,6 @@ fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
              key \"ctrl+l\" disabled=#true\n\
          }}\n",
         title = title.replace('"', "\\\""),
-        created = created,
     );
     if to_stdout {
         print!("{template}");

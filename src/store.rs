@@ -87,6 +87,23 @@ fn load_path(p: &Path) -> Result<Workflow> {
             wf.id = stem.to_string();
         }
     }
+
+    // Sidecar wins; legacy file values ride through if the sidecar
+    // doesn't carry them yet (next save() will).
+    if !wf.id.is_empty() {
+        if let Some(meta) = crate::workflows_meta::get(&wf.id) {
+            if meta.created.is_some() {
+                wf.created = meta.created;
+            }
+            if meta.modified.is_some() {
+                wf.modified = meta.modified;
+            }
+            if meta.last_run.is_some() {
+                wf.last_run = meta.last_run;
+            }
+        }
+    }
+
     Ok(wf)
 }
 
@@ -98,6 +115,7 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
 
     let kdl_path = kdl_path_for(&wf.id)?;
     let tmp = kdl_path.with_extension("kdl.tmp");
+
     let text = kdl_format::encode(&wf);
     {
         let mut f = fs::File::create(&tmp)
@@ -107,6 +125,18 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     }
     fs::rename(&tmp, &kdl_path)
         .with_context(|| format!("rename {} -> {}", tmp.display(), kdl_path.display()))?;
+
+    // Persist the metadata to the sidecar as the canonical record.
+    // Failures here are logged but don't block save, the file write
+    // above is the durable artifact.
+    crate::workflows_meta::set(
+        &wf.id,
+        crate::workflows_meta::WorkflowMeta {
+            created: wf.created,
+            modified: wf.modified,
+            last_run: wf.last_run,
+        },
+    );
 
     // If a legacy JSON copy existed, retire it now.
     let json = legacy_json_path_for(&wf.id)?;
@@ -142,15 +172,16 @@ pub fn delete(id: &str) -> Result<()> {
             fs::remove_file(&p).with_context(|| format!("rm {}", p.display()))?;
         }
     }
+    // Drop the sidecar entry too. This isn't load-bearing — a stale
+    // entry would just take up a few bytes in workflows.toml and get
+    // ignored on lookup — but cleaning up keeps the file tidy.
+    crate::workflows_meta::remove(id);
     Ok(())
 }
 
 pub fn touch_last_run(id: &str) {
-    let Ok(mut wf) = load(id) else { return };
-    wf.last_run = Some(chrono::Utc::now());
-    if let Err(e) = save(wf) {
-        tracing::warn!(?e, "failed to touch last_run for {id}");
-    }
+    // Sidecar-only; saving the .kdl per run was the churn we left behind.
+    crate::workflows_meta::touch_last_run(id);
 }
 
 // Import/export helpers.
