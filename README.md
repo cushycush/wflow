@@ -2,12 +2,12 @@
 
 **Shortcuts for Linux. GUI editor backed by plain-text workflow files.**
 
-![wflow editor — eight-step workflow with the inspector showing options for the selected step](assets/screenshots/wflow-editor.png)
+![wflow library — seven example workflows in a grid, each tagged with its action types](assets/screenshots/wflow-library.png)
 
 A Qt Quick app for building, editing, recording, and replaying desktop
-workflows on Wayland. Click around to compose a sequence, hit Run, watch
-each step report back. Or skip the editor entirely and hand-write the
-file in `$EDITOR`. Both paths produce the same output.
+workflows on Wayland. Pick a template or start blank, edit the steps,
+hit Run, watch each step report back. Or skip the editor entirely and
+hand-write the file in `$EDITOR`. Both paths produce the same output.
 
 Built on [wdotool](https://github.com/cushycush/wdotool) for input
 injection.
