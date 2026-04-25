@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-flight runs of the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Qt6 dev packages
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          # cxx-qt-lib needs base + declarative; pkg-config so the build
+          # script can locate them; libgl-dev because Qt6 headers pull
+          # GL transitively.
+          packages: qt6-base-dev qt6-declarative-dev pkg-config libgl-dev
+          version: v1
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --all-targets --locked
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Validate example workflows
+        run: |
+          for f in examples/*.kdl; do
+            ./target/debug/wflow validate "$f"
+          done
+
+      - name: Lint AUR PKGBUILDs
+        run: |
+          bash -n packaging/aur/wflow/PKGBUILD
+          bash -n packaging/aur/wflow-git/PKGBUILD
+          # AUR push helper script too while we're here.
+          bash -n packaging/aur/push.sh
