@@ -59,7 +59,23 @@
   <releases>
     <release version="0.3.0" date="2026-04-25">
       <description>
-        <p>v0.3 placeholder — replace with the real release notes when v0.3 ships.</p>
+        <p>First public release. Highlights:</p>
+        <ul>
+          <li>GUI-first leg-2 positioning: a welcome card on first launch, a New-workflow dialog with seven hand-authored example templates baked into the binary, and an inline tutorial overlay anchored to the editor's "+ Add step" footer.</li>
+          <li>Security: first-run trust prompt for any workflow file wflow didn't author here. Both the CLI and the GUI surface the prompt with a categorized step summary; a SHA-256 + path entry persists confirmation. See REVIEW.md for the threat model.</li>
+          <li>Distribution: Flatpak manifest with host-spawn redirect for shell, key, click, focus, notify, and clipboard actions. AUR (wflow + wflow-git) shipped alongside this release.</li>
+          <li>CI / release: GitHub Actions builds + tests on push and produces a draft release tarball on tag.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.0" date="2026-04-25">
+      <description>
+        <p>Full GUI editor (value/title/option editing, add/delete/reorder, library context menu), real libei Record backend with portal handshake, AUR PKGBUILDs, dual MIT/Apache-2.0 license, full KDL language (vars, flow control, includes, imports, retries, timeouts).</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-04-23">
+      <description>
+        <p>Initial release. CLI runner, KDL workflow format, Qt Quick GUI as a viewer + single-workflow launcher.</p>
       </description>
     </release>
   </releases>
