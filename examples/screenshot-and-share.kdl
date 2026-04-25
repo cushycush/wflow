@@ -12,16 +12,13 @@
 //
 // Showcases: shell as= (capture), variable substitution, clipboard, notify.
 
-schema 1
-id "example-screenshot-share"
-title "Screenshot a region and copy the path"
-subtitle "grim + slurp -> wl-copy -> notify"
+workflow "Screenshot a region and copy the path" {
+    subtitle "grim + slurp -> wl-copy -> notify"
 
-vars {
-    out-dir "/home/you/Pictures/screenshots"
-}
+    vars {
+        out-dir "/home/you/Pictures/screenshots"
+    }
 
-recipe {
     shell "mkdir -p {{out-dir}}"
 
     // ISO-8601 filename gets us a stable sort + no name collisions.

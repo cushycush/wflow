@@ -34,57 +34,67 @@ pub const SCHEMA_VERSION: i128 = 1;
 
 // ---------------------------------------------------------- Encoding --------
 
+/// Emit a workflow as KDL. Always uses the v0.4 `workflow "title" { ... }`
+/// shape — legacy files round-trip into this form on first save.
+///
+/// `id` is no longer in the file; the filename is the id. Timestamps
+/// (`created` / `modified` / `last-run`) still ride along inside the
+/// block for now and move to a sidecar in a follow-up commit, at which
+/// point this function stops emitting them. Decoder keeps reading them
+/// regardless so old files don't break.
 pub fn encode(wf: &Workflow) -> String {
     let mut doc = KdlDocument::new();
 
-    doc.nodes_mut().push(kv_int("schema", SCHEMA_VERSION));
-    doc.nodes_mut().push(kv_str("id", &wf.id));
-    doc.nodes_mut().push(kv_str("title", &wf.title));
+    let mut wf_node = KdlNode::new("workflow");
+    wf_node.push(arg_str(&wf.title));
+
+    let mut inner = KdlDocument::new();
+
     if let Some(s) = &wf.subtitle {
         if !s.is_empty() {
-            doc.nodes_mut().push(kv_str("subtitle", s));
+            inner.nodes_mut().push(kv_str("subtitle", s));
         }
     }
     if let Some(t) = wf.created {
-        doc.nodes_mut().push(kv_str("created", &t.to_rfc3339()));
+        inner.nodes_mut().push(kv_str("created", &t.to_rfc3339()));
     }
     if let Some(t) = wf.modified {
-        doc.nodes_mut().push(kv_str("modified", &t.to_rfc3339()));
+        inner.nodes_mut().push(kv_str("modified", &t.to_rfc3339()));
     }
     if let Some(t) = wf.last_run {
-        doc.nodes_mut().push(kv_str("last-run", &t.to_rfc3339()));
+        inner.nodes_mut().push(kv_str("last-run", &t.to_rfc3339()));
     }
 
-    // Optional variables block. Only emitted if the workflow actually
-    // carries any — keeps files without vars clean.
+    // Variables block — emitted only when present so empty files stay tidy.
     if !wf.vars.is_empty() {
         let mut vars_node = KdlNode::new("vars");
-        let mut inner = KdlDocument::new();
+        let mut vars_inner = KdlDocument::new();
         for (k, v) in &wf.vars {
-            inner.nodes_mut().push(kv_str(k, v));
+            vars_inner.nodes_mut().push(kv_str(k, v));
         }
-        vars_node.set_children(inner);
-        doc.nodes_mut().push(vars_node);
+        vars_node.set_children(vars_inner);
+        inner.nodes_mut().push(vars_node);
     }
 
-    // Optional imports block. Same emit-only-if-present rule.
+    // Imports block — same emit-only-if-present rule.
     if !wf.imports.is_empty() {
         let mut imports_node = KdlNode::new("imports");
-        let mut inner = KdlDocument::new();
+        let mut imports_inner = KdlDocument::new();
         for (k, v) in &wf.imports {
-            inner.nodes_mut().push(kv_str(k, v));
+            imports_inner.nodes_mut().push(kv_str(k, v));
         }
-        imports_node.set_children(inner);
-        doc.nodes_mut().push(imports_node);
+        imports_node.set_children(imports_inner);
+        inner.nodes_mut().push(imports_node);
     }
 
-    let mut recipe = KdlNode::new("recipe");
-    let mut inner = KdlDocument::new();
+    // Step nodes are direct children of the workflow block; no more
+    // `recipe { }` wrapper.
     for step in &wf.steps {
         inner.nodes_mut().push(encode_step(step));
     }
-    recipe.set_children(inner);
-    doc.nodes_mut().push(recipe);
+
+    wf_node.set_children(inner);
+    doc.nodes_mut().push(wf_node);
 
     doc.autoformat();
     doc.to_string()

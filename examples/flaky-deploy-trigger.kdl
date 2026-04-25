@@ -13,17 +13,14 @@
 // Showcases: shell timeout / retries / backoff / on-error, capture (`as=`),
 // notify with body referencing captured stdout.
 
-schema 1
-id "example-flaky-deploy-trigger"
-title "Trigger a deploy with retries"
-subtitle "demo of shell timeout + retries + backoff + on-error"
+workflow "Trigger a deploy with retries" {
+    subtitle "demo of shell timeout + retries + backoff + on-error"
 
-vars {
-    deploy-cmd "curl -fsS -X POST https://ci.example.com/api/deploy"
-    fallback-channel "#oncall"
-}
+    vars {
+        deploy-cmd "curl -fsS -X POST https://ci.example.com/api/deploy"
+        fallback-channel "#oncall"
+    }
 
-recipe {
     // First attempt: 30s wall clock, 3 retries with 5s backoff between.
     // On final failure, log and continue (don't halt the workflow).
     shell "{{deploy-cmd}}" \

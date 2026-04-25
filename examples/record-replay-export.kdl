@@ -15,12 +15,9 @@
 //
 // Showcases: drag primitives, absolute / relative move, paste sequence.
 
-schema 1
-id "example-record-replay-export"
-title "Recorded: drag-select and copy"
-subtitle "faithful replay of a small browser interaction"
+workflow "Recorded: drag-select and copy" {
+    subtitle "faithful replay of a small browser interaction"
 
-recipe {
     note "Replay assumes a Firefox window is already focused with text on screen."
 
     // Click into the document, then ctrl-drag a word selection.

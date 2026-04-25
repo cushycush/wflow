@@ -11,17 +11,14 @@
 // Showcases: when env=, unless file=, and how to write a workflow that
 // does the right thing in either of two states.
 
-schema 1
-id "example-if-vpn-then"
-title "Open work resources (VPN-gated)"
-subtitle "mount the share + open the wiki only if VPN is up"
+workflow "Open work resources (VPN-gated)" {
+    subtitle "mount the share + open the wiki only if VPN is up"
 
-vars {
-    mount-cmd "sudo mount -t cifs //fileshare.corp/team /mnt/team -o vers=3.0,credentials=/etc/cifs.creds"
-    wiki-url  "https://wiki.corp.example/"
-}
+    vars {
+        mount-cmd "sudo mount -t cifs //fileshare.corp/team /mnt/team -o vers=3.0,credentials=/etc/cifs.creds"
+        wiki-url  "https://wiki.corp.example/"
+    }
 
-recipe {
     when env="WFLOW_VPN" equals="1" {
         // Only mount if we haven't already.
         unless file="/mnt/team/.mounted" {

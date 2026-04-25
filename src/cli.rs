@@ -178,21 +178,18 @@ fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     let template = format!(
         "// A wflow workflow. See `docs/KDL.md` for the full action vocabulary.\n\
-         schema 1\n\
-         id \"{id}\"\n\
-         title \"{title}\"\n\
-         created \"{created}\"\n\
-         modified \"{created}\"\n\
-         \n\
-         recipe {{\n    \
-             // Starter steps — marked `disabled=#true` so `wflow run` is a no-op\n    \
-             // until you turn them on. Delete these lines and write your own.\n    \
+         workflow \"{title}\" {{\n    \
+             created \"{created}\"\n    \
+             modified \"{created}\"\n\
+             \n    \
+             // Starter steps. `disabled=#true` keeps them inert so a fresh\n    \
+             // `wflow run` is a no-op. Flip the flag off (or delete the line)\n    \
+             // when you want a step to actually fire.\n    \
              notify \"hello from wflow\" disabled=#true\n    \
              shell \"echo 'wflow ran at ' \\\"$(date)\\\"\" disabled=#true\n    \
              wait-window \"Firefox\" timeout=\"5s\" disabled=#true\n    \
              key \"ctrl+l\" disabled=#true\n\
          }}\n",
-        id = wf.id,
         title = title.replace('"', "\\\""),
         created = created,
     );

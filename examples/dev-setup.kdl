@@ -12,17 +12,14 @@
 //
 // Showcases: vars, shell, wait-window, focus, key, notify.
 
-schema 1
-id "example-dev-setup"
-title "Open dev setup"
-subtitle "kitty + nvim + firefox tiled side by side"
+workflow "Open dev setup" {
+    subtitle "kitty + nvim + firefox tiled side by side"
 
-vars {
-    project-dir "/home/you/projects/wflow"
-    project-url "https://github.com/cushycush/wflow"
-}
+    vars {
+        project-dir "/home/you/projects/wflow"
+        project-url "https://github.com/cushycush/wflow"
+    }
 
-recipe {
     shell "hyprctl dispatch exec 'kitty --working-directory={{project-dir}} -e nvim'"
     wait-window "kitty" timeout="10s"
 
