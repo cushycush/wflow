@@ -1,0 +1,45 @@
+// Open Slack, focus the standup channel, paste a prepared message.
+//
+// Demonstrates fragment imports — the message body lives in
+// `lib/standup-message.kdl` and is spliced in via `use standup-message`.
+// You can reuse that fragment across multiple workflows (Monday vs Friday,
+// different teams) and only edit the templated values here.
+//
+// Edit before running:
+//   - set `slack-channel`, `ticket`, and `eta` in the `vars` block
+//   - swap `slack` for whatever launcher you use (rofi, dmenu, etc.)
+//
+// Showcases: imports + use, variable substitution, focus, key, type.
+
+schema 1
+id "example-daily-standup"
+title "Daily standup"
+subtitle "open slack, paste the standard message"
+
+vars {
+    slack-channel "#standup-team-x"
+    ticket        "DUR-142"
+    eta           "Friday EOD"
+}
+
+imports {
+    standup-message "./lib/standup-message.kdl"
+}
+
+recipe {
+    shell "hyprctl dispatch exec 'slack'"
+    wait-window "Slack" timeout="20s"
+    focus "Slack"
+
+    // Slack's "jump to channel" picker.
+    key "ctrl+k"
+    type "{{slack-channel}}"
+    key "Return"
+    wait "300ms"
+
+    // Splice in the message body. shift+Return inside Slack creates a
+    // newline without sending; the final Return submits the message.
+    use standup-message
+
+    notify "standup posted" body="message dropped in {{slack-channel}}"
+}

@@ -1,0 +1,27 @@
+// Cycle through the next 5 browser tabs with a brief pause between each.
+//
+// Useful as a "rotate through dashboards" workflow — bind it to a keybind
+// and let it advance through Grafana, Datadog, GitHub Actions, etc., one
+// at a time so you can read each.
+//
+// Edit before running:
+//   - change `repeat 5` to however many tabs your dashboard rotation has
+//   - swap `Firefox` to `Chromium`, `Brave`, or your browser of choice
+//
+// Showcases: focus, repeat block, wait, notify.
+
+schema 1
+id "example-loop-tab-thru"
+title "Cycle browser tabs"
+subtitle "advance N tabs with a brief pause between"
+
+recipe {
+    focus "Firefox"
+
+    repeat 5 {
+        key "ctrl+Tab"
+        wait "1.5s"
+    }
+
+    notify "tab rotation done" body="back to where you started in 5 tabs."
+}

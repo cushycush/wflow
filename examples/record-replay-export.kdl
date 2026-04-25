@@ -1,0 +1,47 @@
+// What Record Mode produces — a faithful replay of a recorded session.
+//
+// This file is what you get if you arm Record, perform a small drag-
+// and-paste interaction in your browser, and stop the recorder. The
+// concrete primitives (`key-down`, `mouse-down`, `move`, `mouse-up`,
+// `key-up`) capture exactly what happened.
+//
+// Real recordings are usually 30-200 steps. v0.3's coalescing pass
+// will collapse mouse-move sequences and merge runs of `type` events,
+// trimming captures by ~80%. Until then, expect verbose output.
+//
+// Edit before running:
+//   - the absolute coordinates (200, 240, etc.) are screen-specific.
+//     Re-record on your own monitor if the geometry is different.
+//
+// Showcases: drag primitives, absolute / relative move, paste sequence.
+
+schema 1
+id "example-record-replay-export"
+title "Recorded: drag-select and copy"
+subtitle "faithful replay of a small browser interaction"
+
+recipe {
+    note "Replay assumes a Firefox window is already focused with text on screen."
+
+    // Click into the document, then ctrl-drag a word selection.
+    move 200 240
+    click 1
+    wait 80
+
+    key-down "ctrl"
+    mouse-down 1
+    move 280 240 relative=#false
+    move 360 240 relative=#false
+    mouse-up 1
+    key-up "ctrl"
+    wait 120
+
+    // Copy + jump to the end of the document + paste.
+    key "ctrl+c"
+    wait 60
+    key "ctrl+End"
+    wait 60
+    key "ctrl+v"
+
+    note "Coalescing will collapse those move/move pairs into a single segment in v0.3."
+}

@@ -1,0 +1,17 @@
+// Fragment file for daily-standup.kdl — the message template steps.
+//
+// A wflow include fragment is a bare list of step nodes (no schema/id/
+// title/recipe wrapper). The including file's recipe block splices these
+// in place at decode time.
+//
+// To customize the message: edit the `type` strings below. Variables
+// like {{ticket}} and {{eta}} are resolved against the including file's
+// vars + captured shell output, so the same fragment can be reused
+// across multiple standup workflows with different bindings.
+
+type "Yesterday: shipped {{ticket}}, reviewed two PRs."
+key "shift+Return"
+type "Today: ETA on the rollout is {{eta}}, then digging into the spike for next week."
+key "shift+Return"
+type "Blockers: none."
+key "Return"

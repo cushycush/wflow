@@ -1,0 +1,37 @@
+// Open a project's dev environment: terminal, editor, browser, side-by-side.
+//
+// What it does:
+//   - launches kitty + opens nvim on the project
+//   - opens Firefox with the project's GitHub page
+//   - tiles the two side by side via hyprctl
+//   - sends a finish notification
+//
+// Edit before running:
+//   - set `project-dir` and `project-url` in the `vars` block
+//   - swap `kitty`/`nvim`/`firefox`/`hyprctl` to whatever you actually use
+//
+// Showcases: vars, shell, wait-window, focus, key, notify.
+
+schema 1
+id "example-dev-setup"
+title "Open dev setup"
+subtitle "kitty + nvim + firefox tiled side by side"
+
+vars {
+    project-dir "/home/you/projects/wflow"
+    project-url "https://github.com/cushycush/wflow"
+}
+
+recipe {
+    shell "hyprctl dispatch exec 'kitty --working-directory={{project-dir}} -e nvim'"
+    wait-window "kitty" timeout="10s"
+
+    shell "hyprctl dispatch exec 'firefox {{project-url}}'"
+    wait-window "Firefox" timeout="15s"
+
+    // Hyprland-only — split the screen with kitty on the left, Firefox on the right.
+    shell "hyprctl dispatch layoutmsg preselect r"
+    focus "kitty"
+
+    notify "dev setup ready" body="kitty + Firefox tiled. happy hacking."
+}

@@ -1,0 +1,39 @@
+// Mount the work fileshare and open the corp wiki, but only if the
+// VPN is connected. The `when env=...` guard means the workflow is
+// safe to run unconditionally — at home it just notifies and exits.
+//
+// Edit before running:
+//   - set `mount-cmd` for your fileshare
+//   - swap the wiki URL
+//   - the env-var name `WFLOW_VPN` is arbitrary; whatever your VPN
+//     client sets (or that you set yourself in a wrapper script).
+//
+// Showcases: when env=, unless file=, and how to write a workflow that
+// does the right thing in either of two states.
+
+schema 1
+id "example-if-vpn-then"
+title "Open work resources (VPN-gated)"
+subtitle "mount the share + open the wiki only if VPN is up"
+
+vars {
+    mount-cmd "sudo mount -t cifs //fileshare.corp/team /mnt/team -o vers=3.0,credentials=/etc/cifs.creds"
+    wiki-url  "https://wiki.corp.example/"
+}
+
+recipe {
+    when env="WFLOW_VPN" equals="1" {
+        // Only mount if we haven't already.
+        unless file="/mnt/team/.mounted" {
+            shell "{{mount-cmd}}"
+        }
+
+        shell "hyprctl dispatch exec 'firefox {{wiki-url}}'"
+        wait-window "Firefox" timeout="15s"
+        notify "work resources ready" body="fileshare mounted, wiki open."
+    }
+
+    unless env="WFLOW_VPN" equals="1" {
+        notify "VPN not connected" body="skipped corporate steps; connect VPN and re-run."
+    }
+}

@@ -1,0 +1,42 @@
+// Trigger a deploy script that occasionally times out or hits a transient
+// API failure. Demonstrates the shell resilience features:
+//
+//   - `timeout`     — kill the child after N seconds, error the step
+//   - `retries`     — re-run on failure, up to N additional times
+//   - `backoff`     — sleep between retries (defaults to 500ms)
+//   - `on-error`    — continue past the step on final failure
+//
+// In real use, you'd usually want `on-error="stop"` (the default) so a
+// failed deploy halts the workflow; this example sets `continue` so the
+// fall-through `notify` always fires, illustrating the policy.
+//
+// Showcases: shell timeout / retries / backoff / on-error, capture (`as=`),
+// notify with body referencing captured stdout.
+
+schema 1
+id "example-flaky-deploy-trigger"
+title "Trigger a deploy with retries"
+subtitle "demo of shell timeout + retries + backoff + on-error"
+
+vars {
+    deploy-cmd "curl -fsS -X POST https://ci.example.com/api/deploy"
+    fallback-channel "#oncall"
+}
+
+recipe {
+    // First attempt: 30s wall clock, 3 retries with 5s backoff between.
+    // On final failure, log and continue (don't halt the workflow).
+    shell "{{deploy-cmd}}" \
+        as="deploy-result" \
+        timeout="30s" \
+        retries=3 \
+        backoff="5s" \
+        on-error="continue"
+
+    notify "deploy triggered" body="result: {{deploy-result}}"
+
+    // Belt-and-braces: drop a heads-up in chat too.
+    shell "echo 'deploy result: {{deploy-result}}' | mattermost-cli post -c {{fallback-channel}}" \
+        on-error="continue" \
+        comment="best-effort heads-up in chat"
+}

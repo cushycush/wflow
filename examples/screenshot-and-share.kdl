@@ -1,0 +1,38 @@
+// Capture a region screenshot, write it to disk, and copy the path to the
+// clipboard so you can paste it directly into chat.
+//
+// Requires:
+//   - grim (Wayland screenshot tool)
+//   - slurp (region picker)
+//   - wl-copy (clipboard, already a wflow optional dep)
+//
+// On run, slurp will draw a region picker — click and drag to select.
+// The path lands on your clipboard; cmd-v / ctrl-v in Slack/Discord
+// pastes the file as an attachment in most clients.
+//
+// Showcases: shell as= (capture), variable substitution, clipboard, notify.
+
+schema 1
+id "example-screenshot-share"
+title "Screenshot a region and copy the path"
+subtitle "grim + slurp -> wl-copy -> notify"
+
+vars {
+    out-dir "/home/you/Pictures/screenshots"
+}
+
+recipe {
+    shell "mkdir -p {{out-dir}}"
+
+    // ISO-8601 filename gets us a stable sort + no name collisions.
+    shell "date +%Y-%m-%d_%H%M%S" as="ts"
+
+    // grim REGION-only. slurp blocks until the user picks an area.
+    shell "grim -g \"$(slurp)\" {{out-dir}}/screenshot-{{ts}}.png"
+
+    // Capture the path so later steps can reference it.
+    shell "echo {{out-dir}}/screenshot-{{ts}}.png" as="path"
+
+    clipboard "{{path}}"
+    notify "screenshot copied" body="path on clipboard: {{path}}"
+}
