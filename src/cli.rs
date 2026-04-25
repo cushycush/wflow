@@ -13,7 +13,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 
 use crate::actions::{Action, RunEvent, StepOutcome, Workflow};
-use crate::{engine, kdl_format, store};
+use crate::{engine, kdl_format, security, store};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -44,6 +44,12 @@ pub enum Command {
         /// invoke, then exit without running. Implies --dry-run.
         #[arg(long)]
         explain: bool,
+        /// Skip the first-run trust prompt for unfamiliar workflow
+        /// files. Required for non-interactive use (cron, scripts).
+        /// Workflows authored on this machine via `wflow new` or the
+        /// GUI editor are always trusted automatically.
+        #[arg(long)]
+        yes: bool,
     },
     /// List workflows in the library.
     List {
@@ -136,7 +142,7 @@ pub fn run(cli: Cli) -> ExitCode {
         .try_init();
 
     let result = match cli.command.expect("run called without a subcommand") {
-        Command::Run { target, dry_run, explain } => cmd_run(&target, dry_run, explain),
+        Command::Run { target, dry_run, explain, yes } => cmd_run(&target, dry_run, explain, yes),
         Command::List { json } => cmd_list(json),
         Command::Validate { target } => cmd_validate(&target),
         Command::Show { target } => cmd_show(&target),
@@ -631,7 +637,7 @@ fn cmd_show(target: &str) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_run(target: &str, dry_run: bool, explain: bool) -> Result<ExitCode> {
+fn cmd_run(target: &str, dry_run: bool, explain: bool, yes: bool) -> Result<ExitCode> {
     let wf = load_target(target)?;
 
     if explain {
@@ -675,6 +681,29 @@ fn cmd_run(target: &str, dry_run: bool, explain: bool) -> Result<ExitCode> {
 
     preflight(&wf)?;
 
+    // Trust check — require explicit confirmation the first time we
+    // run a workflow file we didn't author here. `wflow new` and the
+    // GUI editor mark their own files trusted on save, so this only
+    // fires for files brought in from outside (downloaded, cloned,
+    // hand-edited). --yes bypasses, for cron and scripted use.
+    let trust_path = resolve_trust_path(target, &wf)?;
+    let mode = if yes {
+        security::TrustMode::Yes
+    } else {
+        security::TrustMode::Cli
+    };
+    match security::check_trust(&trust_path, mode)? {
+        security::TrustDecision::Trusted => {}
+        security::TrustDecision::Untrusted { canonical_path, hash } => {
+            if !confirm_untrusted_workflow(&canonical_path, &wf)? {
+                eprintln!("{} cancelled by user", cross());
+                return Ok(ExitCode::from(2));
+            }
+            // User confirmed — remember the choice for next run.
+            security::mark_trusted(&canonical_path, &hash)?;
+        }
+    }
+
     // Build a runtime only when we actually need one.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -702,6 +731,89 @@ fn cmd_run(target: &str, dry_run: bool, explain: bool) -> Result<ExitCode> {
 }
 
 // ------------------------------- helpers ------------------------------------
+
+/// Resolve TARGET to the on-disk file path the trust check should
+/// hash. Mirrors `load_target`'s precedence: path first, library id
+/// second.
+fn resolve_trust_path(target: &str, wf: &Workflow) -> Result<PathBuf> {
+    let path_ish = target.contains('/') || target.ends_with(".kdl");
+    let as_path = PathBuf::from(target);
+    if path_ish || as_path.exists() {
+        return Ok(as_path);
+    }
+    store::path_of(&wf.id).with_context(|| {
+        format!("resolving on-disk path for library workflow `{}`", wf.id)
+    })
+}
+
+/// Print a summary of the workflow's risky steps and ask the user to
+/// confirm. Returns Ok(true) if the user typed yes. Errors out (rather
+/// than silently denying) when stdin is not a TTY — a non-interactive
+/// caller should pass `--yes` instead of hanging on a prompt that
+/// will never resolve.
+fn confirm_untrusted_workflow(path: &Path, wf: &Workflow) -> Result<bool> {
+    use std::io::IsTerminal;
+
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!(
+            "workflow {} hasn't run on this machine before; pass --yes for non-interactive use \
+             (or run `wflow show {}` and `wflow run --explain {}` first to inspect)",
+            path.display(),
+            path.display(),
+            path.display()
+        );
+    }
+
+    eprintln!();
+    eprintln!(
+        "{} {} hasn't run on this machine before.",
+        wrap("33", "!"),
+        bold(&path.display().to_string())
+    );
+    eprintln!("  Title:  {}", wf.title);
+    eprintln!("  Steps:  {}", wf.steps.len());
+    eprintln!();
+    eprintln!("  This workflow will:");
+    let mut shown = 0usize;
+    for step in &wf.steps {
+        if !step.enabled {
+            continue;
+        }
+        let kind = step.action.category();
+        // Highlight shell + clipboard especially — those are the lines
+        // most likely to do something the user shouldn't auto-approve.
+        let marker = match kind {
+            "shell" | "clipboard" => wrap("31", "•"),
+            _ => dim("•"),
+        };
+        eprintln!("    {} {:<9} {}", marker, kind, step.action.describe());
+        shown += 1;
+        if shown >= 12 {
+            eprintln!(
+                "    {} ... and {} more (run `wflow show {}` for the full list)",
+                dim("…"),
+                wf.steps.len() - shown,
+                path.display()
+            );
+            break;
+        }
+    }
+    eprintln!();
+    eprintln!(
+        "  Tip: `wflow run --explain {}` shows the exact subprocess commands.",
+        path.display()
+    );
+    eprintln!();
+    eprint!("Run? [y/N] ");
+    std::io::Write::flush(&mut std::io::stderr()).ok();
+
+    let mut answer = String::new();
+    std::io::stdin()
+        .read_line(&mut answer)
+        .context("reading confirmation from stdin")?;
+    let yes = matches!(answer.trim(), "y" | "Y" | "yes" | "Yes" | "YES");
+    Ok(yes)
+}
 
 /// Resolve TARGET to a `Workflow`. Tries path first — if it contains a
 /// slash, ends in `.kdl`, or exists on disk. Otherwise looks the id up
