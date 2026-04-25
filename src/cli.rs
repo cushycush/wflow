@@ -20,7 +20,7 @@ use crate::{engine, kdl_format, security, store};
     name = "wflow",
     version,
     about = "A workflow engine for Wayland automation.",
-    long_about = "wflow executes KDL workflow files — sequences of keystrokes, clicks, shell commands, delays, and notifications — via wdotool and the system shell. \
+    long_about = "wflow executes KDL workflow files — sequences of keystrokes, clicks, shell commands, delays, and notifications. Input/window actions go through the in-process wdotool-core engine; shell, notify-send, and wl-copy still subprocess to the host. \
 Run `wflow` with no arguments to launch the GUI."
 )]
 pub struct Cli {
@@ -298,22 +298,39 @@ fn cmd_rm(target: &str, force: bool) -> Result<ExitCode> {
 }
 
 fn cmd_doctor() -> Result<ExitCode> {
-    // Tools wflow invokes as subprocesses. Not all workflows need all of
-    // them — wflow itself doesn't fail to launch on a missing notify-send.
-    // This is a preflight so the user knows what the current environment
-    // will support.
+    // Two diagnostics here:
+    //
+    // 1. The input/window backend wflow links from wdotool-core. We
+    //    DON'T actually call `detector::build` because that would
+    //    trigger an XDG portal prompt; we just print the priority
+    //    order so the user knows which backend the engine will try
+    //    first on this compositor.
+    //
+    // 2. Host binaries the engine still subprocesses for (notify-send
+    //    for desktop notifications, wl-copy for clipboard). Inside a
+    //    Flatpak sandbox we probe via `flatpak-spawn --host -- which`
+    //    so the report reflects what the engine will actually see.
+    let in_flatpak = crate::host::in_flatpak();
+
+    // ---- Backend probe (no portal) ----
+    let env = wdotool_core::backend::detector::Environment::detect();
+    let order = wdotool_core::backend::detector::priority(&env);
+    let labels: Vec<&str> = order.iter().map(|k| k.label()).collect();
+    if let Some((preferred, fallbacks)) = labels.split_first() {
+        let trail = if fallbacks.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", dim(&format!("(fallbacks: {})", fallbacks.join(", "))))
+        };
+        println!("  {} backend  preferred = {}{}", check(), preferred, trail);
+    }
+
+    // ---- Host-binary probes ----
     let tools: &[(&str, &str)] = &[
-        ("wdotool", "keyboard / mouse / focus automation"),
         ("notify-send", "desktop notifications"),
         ("wl-copy", "clipboard (Wayland)"),
     ];
 
-    // Inside a Flatpak sandbox the engine routes every host binary
-    // through `flatpak-spawn --host`, so checking the sandbox PATH would
-    // report missing tools that are actually present on the host. Probe
-    // the host PATH instead and tell the user once which one we're
-    // looking at.
-    let in_flatpak = crate::host::in_flatpak();
     if in_flatpak {
         println!("  {}", dim("(probing host PATH via flatpak-spawn)"));
     }
@@ -345,7 +362,7 @@ fn cmd_doctor() -> Result<ExitCode> {
         }
     }
 
-    // Workflow directory / count summary.
+    // ---- Workflow directory / count summary ----
     let base = dirs::config_dir().context("no XDG config dir")?;
     let dir = base.join("wflow").join("workflows");
     let count = std::fs::read_dir(&dir)
@@ -1032,10 +1049,10 @@ fn print_event(
     }
 }
 
-/// Refuse to start a run if the workflow needs a tool that isn't on PATH.
-/// Faster + clearer than letting the per-step subprocess spawn fail —
-/// users see one message pointing at `wflow doctor` instead of N
-/// identical "wdotool: command not found" lines.
+/// Refuse to start a run if the workflow needs a host binary that
+/// isn't on PATH (notify-send, wl-copy). Input/window actions go
+/// through wdotool-core in-process so they don't appear here — their
+/// failure mode is "no backend reachable", caught at first dispatch.
 fn preflight(wf: &Workflow) -> Result<()> {
     use std::collections::BTreeSet;
     let mut needed: BTreeSet<&'static str> = BTreeSet::new();
@@ -1062,6 +1079,9 @@ fn collect_tool_needs(
             continue;
         }
         match &step.action {
+            // Input/window actions go through wdotool-core in-process.
+            // They don't need a binary on PATH; their failure mode is
+            // "no backend reachable", surfaced at first dispatch.
             Action::WdoType { .. }
             | Action::WdoKey { .. }
             | Action::WdoKeyDown { .. }
@@ -1072,9 +1092,7 @@ fn collect_tool_needs(
             | Action::WdoMouseMove { .. }
             | Action::WdoScroll { .. }
             | Action::WdoActivateWindow { .. }
-            | Action::WdoAwaitWindow { .. } => {
-                needed.insert("wdotool");
-            }
+            | Action::WdoAwaitWindow { .. } => {}
             Action::Notify { .. } => {
                 needed.insert("notify-send");
             }
@@ -1084,10 +1102,7 @@ fn collect_tool_needs(
             Action::Repeat { steps: inner, .. } => {
                 collect_tool_needs(inner, needed);
             }
-            Action::Conditional { cond, steps: inner, .. } => {
-                if matches!(cond, crate::actions::Condition::Window { .. }) {
-                    needed.insert("wdotool");
-                }
+            Action::Conditional { steps: inner, .. } => {
                 collect_tool_needs(inner, needed);
             }
             // `include` / `use` should be expanded by load_file; if one

@@ -10,10 +10,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
-use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
 use crate::actions::{substitute, Action, Condition, OnError, RunEvent, Step, StepOutcome, VarMap, Workflow};
+use crate::wdo::LazyBackend;
 
 /// A thread-safe event sink. Implemented by the bridge layer so the Qt
 /// signal path owns the threading concerns; the engine stays pure Rust.
@@ -31,6 +31,11 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
     let mut vars: VarMap = wf.vars.clone();
     let mut index = 0usize;
     let mut any_failed = false;
+    // One backend handle for the whole run. Initialization is deferred
+    // until the first input action so workflows that don't touch
+    // input (pure shell / notify / clipboard / wait pipelines) never
+    // hit the libei portal prompt.
+    let backend = LazyBackend::new();
 
     run_steps(
         &wf.steps,
@@ -38,6 +43,7 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
         &mut vars,
         &mut index,
         &mut any_failed,
+        &backend,
     )
     .await?;
 
@@ -61,6 +67,7 @@ fn run_steps<'a>(
     vars: &'a mut VarMap,
     index: &'a mut usize,
     any_failed: &'a mut bool,
+    backend: &'a LazyBackend,
 ) -> BoxFuture<'a, Result<Flow>> {
     Box::pin(async move {
         for step in steps {
@@ -69,18 +76,18 @@ fn run_steps<'a>(
             match &step.action {
                 Action::Repeat { count, steps: inner } if step.enabled => {
                     for _ in 0..*count {
-                        if run_steps(inner, sink, vars, index, any_failed).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
                     continue;
                 }
                 Action::Conditional { cond, negate, steps: inner } if step.enabled => {
-                    let cond_holds = evaluate_condition(cond, vars)
+                    let cond_holds = evaluate_condition(cond, vars, backend)
                         .await
                         .unwrap_or(false);
                     if cond_holds ^ *negate {
-                        if run_steps(inner, sink, vars, index, any_failed).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
@@ -104,7 +111,7 @@ fn run_steps<'a>(
             } else {
                 match expand(&step.action, vars) {
                     Ok(expanded) => {
-                        let outcome = run_action_value(&expanded).await;
+                        let outcome = run_action_value(&expanded, backend).await;
                         // Bind stdout to the `as=` var on shell success.
                         if let (
                             StepOutcome::Ok { output, .. },
@@ -153,12 +160,12 @@ enum Flow {
 
 /// Test a `Condition` against live system state. Errors surface as
 /// `Ok(false)` — we treat "can't tell" as "not true" so `unless
-/// window="X"` does the right thing when wdotool is missing.
-async fn evaluate_condition(cond: &Condition, vars: &VarMap) -> Result<bool> {
+/// window="X"` does the right thing when no backend is available.
+async fn evaluate_condition(cond: &Condition, vars: &VarMap, backend: &LazyBackend) -> Result<bool> {
     match cond {
         Condition::Window { name } => {
             let name = substitute(name, vars)?;
-            Ok(find_window_id(&name).await?.is_some())
+            Ok(crate::wdo::find_window_id(backend, &name).await?.is_some())
         }
         Condition::File { path } => {
             let path = substitute(path, vars)?;
@@ -261,23 +268,24 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
 /// Dispatch a single (already-expanded) action. Measures wall-time.
 /// Never panics. `run_action_value` is the post-substitution path;
 /// callers that still have a raw Step should go through `run_workflow`.
-async fn run_action_value(action: &Action) -> StepOutcome {
+async fn run_action_value(action: &Action, backend: &LazyBackend) -> StepOutcome {
+    use crate::wdo;
     let start = Instant::now();
     let result: Result<Option<String>> = match action {
-        Action::WdoType { text, delay_ms } => wdo_type(text, *delay_ms).await,
+        Action::WdoType { text, delay_ms } => wdo::wdo_type(backend, text, *delay_ms).await,
         Action::WdoKey {
             chord,
             clear_modifiers,
-        } => wdo_key(chord, *clear_modifiers).await,
-        Action::WdoKeyDown { chord } => wdo_key_down(chord).await,
-        Action::WdoKeyUp { chord } => wdo_key_up(chord).await,
-        Action::WdoClick { button } => wdo_click(*button).await,
-        Action::WdoMouseDown { button } => wdo_mouse_down(*button).await,
-        Action::WdoMouseUp { button } => wdo_mouse_up(*button).await,
-        Action::WdoMouseMove { x, y, relative } => wdo_mousemove(*x, *y, *relative).await,
-        Action::WdoScroll { dx, dy } => wdo_scroll(*dx, *dy).await,
-        Action::WdoActivateWindow { name } => wdo_activate(name).await,
-        Action::WdoAwaitWindow { name, timeout_ms } => wdo_await_window(name, *timeout_ms).await,
+        } => wdo::wdo_key(backend, chord, *clear_modifiers).await,
+        Action::WdoKeyDown { chord } => wdo::wdo_key_down(backend, chord).await,
+        Action::WdoKeyUp { chord } => wdo::wdo_key_up(backend, chord).await,
+        Action::WdoClick { button } => wdo::wdo_click(backend, *button).await,
+        Action::WdoMouseDown { button } => wdo::wdo_mouse_down(backend, *button).await,
+        Action::WdoMouseUp { button } => wdo::wdo_mouse_up(backend, *button).await,
+        Action::WdoMouseMove { x, y, relative } => wdo::wdo_mousemove(backend, *x, *y, *relative).await,
+        Action::WdoScroll { dx, dy } => wdo::wdo_scroll(backend, *dx, *dy).await,
+        Action::WdoActivateWindow { name } => wdo::wdo_activate(backend, name).await,
+        Action::WdoAwaitWindow { name, timeout_ms } => wdo::wdo_await_window(backend, name, *timeout_ms).await,
         Action::Delay { ms } => {
             tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
             Ok(None)
@@ -324,147 +332,6 @@ async fn run_action_value(action: &Action) -> StepOutcome {
             duration_ms,
         },
     }
-}
-
-// ----------------------------- wdotool subprocess helpers ------------------
-
-async fn wdo_type(text: &str, delay_ms: Option<u32>) -> Result<Option<String>> {
-    let mut args = vec!["type".to_string()];
-    if let Some(d) = delay_ms {
-        args.push("--delay".into());
-        args.push(d.to_string());
-    }
-    args.push("--".into()); // stop option parsing so a leading - is literal
-    args.push(text.to_string());
-    run_wdotool(&args).await
-}
-
-async fn wdo_key(chord: &str, clear_modifiers: bool) -> Result<Option<String>> {
-    let mut args = vec!["key".to_string()];
-    if clear_modifiers {
-        args.push("--clearmodifiers".into());
-    }
-    args.push(chord.to_string());
-    run_wdotool(&args).await
-}
-
-async fn wdo_click(button: u8) -> Result<Option<String>> {
-    run_wdotool(&["click".into(), button.to_string()]).await
-}
-
-async fn wdo_key_down(chord: &str) -> Result<Option<String>> {
-    run_wdotool(&["keydown".into(), chord.to_string()]).await
-}
-
-async fn wdo_key_up(chord: &str) -> Result<Option<String>> {
-    run_wdotool(&["keyup".into(), chord.to_string()]).await
-}
-
-async fn wdo_mouse_down(button: u8) -> Result<Option<String>> {
-    run_wdotool(&["mousedown".into(), button.to_string()]).await
-}
-
-async fn wdo_mouse_up(button: u8) -> Result<Option<String>> {
-    run_wdotool(&["mouseup".into(), button.to_string()]).await
-}
-
-async fn wdo_mousemove(x: i32, y: i32, relative: bool) -> Result<Option<String>> {
-    let mut args = vec!["mousemove".to_string()];
-    if relative {
-        args.push("--relative".into());
-    }
-    args.push(x.to_string());
-    args.push(y.to_string());
-    run_wdotool(&args).await
-}
-
-async fn wdo_scroll(dx: i32, dy: i32) -> Result<Option<String>> {
-    run_wdotool(&["scroll".into(), dx.to_string(), dy.to_string()]).await
-}
-
-async fn wdo_activate(name: &str) -> Result<Option<String>> {
-    // Search, then activate the first match.
-    let id = find_window_id(name)
-        .await?
-        .ok_or_else(|| anyhow!("no window matching {name:?}"))?;
-    run_wdotool(&["windowactivate".into(), id]).await
-}
-
-/// Poll wdotool for a matching window until it appears or the timeout
-/// elapses. Returns Ok on success; on timeout returns an error so the
-/// engine halts (the user's next step almost certainly relies on the
-/// window being real).
-async fn wdo_await_window(name: &str, timeout_ms: u64) -> Result<Option<String>> {
-    use std::time::{Duration, Instant};
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-    let poll_every = Duration::from_millis(100);
-    loop {
-        if let Some(id) = find_window_id(name).await? {
-            return Ok(Some(format!("window `{name}` at id {id}")));
-        }
-        if Instant::now() >= deadline {
-            return Err(anyhow!(
-                "no window matching {name:?} appeared within {timeout_ms}ms"
-            ));
-        }
-        tokio::time::sleep(poll_every).await;
-    }
-}
-
-async fn find_window_id(name: &str) -> Result<Option<String>> {
-    // `wdotool search` prints one id per match; "no match" surfaces as a
-    // non-zero exit, so treat NotFound / exit-error as "not yet there"
-    // instead of a hard failure.
-    let args = [
-        "search".into(),
-        "--limit".into(),
-        "1".into(),
-        "--name".into(),
-        name.to_string(),
-    ];
-    match run_wdotool(&args).await {
-        Ok(out) => Ok(out
-            .as_deref()
-            .and_then(|s| s.lines().next())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())),
-        Err(_) => Ok(None),
-    }
-}
-
-async fn run_wdotool(args: &[String]) -> Result<Option<String>> {
-    let mut cmd = crate::host::host_command("wdotool");
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .with_context(|| format!("failed to spawn wdotool {}", args.join(" ")))?;
-
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    if let Some(mut o) = child.stdout.take() {
-        o.read_to_string(&mut stdout).await.ok();
-    }
-    if let Some(mut e) = child.stderr.take() {
-        e.read_to_string(&mut stderr).await.ok();
-    }
-    let status = child.wait().await?;
-    if !status.success() {
-        return Err(anyhow!(
-            "wdotool {} failed ({}): {}",
-            args.join(" "),
-            status,
-            stderr.trim()
-        ));
-    }
-    Ok(if stdout.is_empty() {
-        None
-    } else {
-        Some(stdout.trim().to_string())
-    })
 }
 
 // ----------------------------- system helpers -----------------------------
