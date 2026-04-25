@@ -9,8 +9,9 @@ workflows on Wayland. Pick a template or start blank, edit the steps,
 hit Run, watch each step report back. Or skip the editor entirely and
 hand-write the file in `$EDITOR`. Both paths produce the same output.
 
-Built on [wdotool](https://github.com/cushycush/wdotool) for input
-injection.
+Built on [wdotool-core](https://github.com/cushycush/wdotool) for
+input injection — linked in process, no `wdotool` binary required at
+runtime.
 
 ## Install
 
@@ -33,8 +34,11 @@ Debian/Ubuntu).
 cargo install --path . --locked
 ```
 
-You'll also want [wdotool](https://github.com/cushycush/wdotool) on
-`PATH` for any workflow that types, clicks, or focuses windows.
+For desktop notifications and clipboard actions, install
+`libnotify` (for `notify-send`) and `wl-clipboard` (for `wl-copy`)
+through your distro. Input/window automation goes through
+`wdotool-core` linked into wflow itself — no separate binary to
+install.
 
 ### Prebuilt tarball
 
