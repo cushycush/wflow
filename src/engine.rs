@@ -438,7 +438,12 @@ fn truncate_cmd(s: &str) -> String {
     }
 }
 
+/// In Flatpak we go straight to `org.freedesktop.portal.Notification`.
+/// Outside, notify-send is one less D-Bus connection.
 async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
+    if crate::host::in_flatpak() {
+        return notify_via_portal(title, body).await;
+    }
     let mut cmd = crate::host::host_command("notify-send");
     cmd.arg(title);
     if let Some(b) = body {
@@ -448,6 +453,24 @@ async fn notify(title: &str, body: Option<&str>) -> Result<Option<String>> {
     if !status.success() {
         return Err(anyhow!("notify-send exit {status}"));
     }
+    Ok(None)
+}
+
+async fn notify_via_portal(title: &str, body: Option<&str>) -> Result<Option<String>> {
+    use ashpd::desktop::notification::{Notification, NotificationProxy};
+    let proxy = NotificationProxy::new()
+        .await
+        .context("connect to org.freedesktop.portal.Notification")?;
+    let mut n = Notification::new(title);
+    if let Some(b) = body {
+        n = n.body(b);
+    }
+    // One-shot id; we don't track these for later removal.
+    let id = uuid::Uuid::new_v4().to_string();
+    proxy
+        .add_notification(&id, n)
+        .await
+        .context("portal add_notification")?;
     Ok(None)
 }
 
