@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import Wflow
 
 // Record Mode — ambient layout.
@@ -60,10 +61,60 @@ Item {
         recCtrl.stop()
     }
     function _finalize() {
-        const id = recCtrl.finalize("Recorded workflow")
+        // Open the name dialog. The actual finalize call happens in
+        // saveDialog.onAccepted so the user gets to title their
+        // workflow before the file lands on disk.
+        nameField.text = "Recorded workflow"
+        saveDialog.open()
+        Qt.callLater(function() {
+            nameField.forceActiveFocus()
+            nameField.selectAll()
+        })
+    }
+
+    function _commitFinalize(title) {
+        const t = (title || "").trim() || "Recorded workflow"
+        const id = recCtrl.finalize(t)
         if (id && id.length > 0) {
             root.events = []
             root.openWorkflow(id)
+        }
+    }
+
+    Dialog {
+        id: saveDialog
+        modal: true
+        anchors.centerIn: parent
+        width: 420
+        title: "Save recorded workflow"
+        standardButtons: Dialog.Save | Dialog.Cancel
+        onAccepted: root._commitFinalize(nameField.text)
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+            Text {
+                text: "Workflow name"
+                color: Theme.text2
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+            }
+            TextField {
+                id: nameField
+                Layout.fillWidth: true
+                placeholderText: "Recorded workflow"
+                color: Theme.text
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontMd
+                selectByMouse: true
+                onAccepted: saveDialog.accept()
+            }
+            Text {
+                text: "Saved as a new workflow in your library."
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontXs
+            }
         }
     }
 

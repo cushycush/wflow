@@ -420,6 +420,20 @@ impl Recorder {
             });
         }
 
+        // Compositor event subscriber, if we recognize one. Runs in
+        // the same JoinSet so it stops with the rest of the recording.
+        // Today: Hyprland only. Sway / KWin / Mutter equivalents go
+        // here as users hit them.
+        if let Some(path) = hyprland_socket_path() {
+            let events_h = events.clone();
+            let sink_h = sink.clone();
+            joinset.spawn(async move {
+                if let Err(e) = hyprland_subscribe(&path, started_at, events_h, sink_h).await {
+                    tracing::warn!(error = %format!("{e:#}"), "hyprland subscriber exited");
+                }
+            });
+        }
+
         // Coordinator: just keeps the JoinSet alive. On stop(), the
         // outer code aborts this handle, which drops the JoinSet,
         // which aborts every device task.
@@ -815,6 +829,72 @@ fn evdev_to_rec(
         }
         _ => None,
     }
+}
+
+// --------------------------- Compositor events ------------------------------
+
+/// Hyprland's IPC event socket. Returns None when not running under
+/// Hyprland (env var unset) or when the expected socket file is
+/// missing for whatever reason.
+fn hyprland_socket_path() -> Option<std::path::PathBuf> {
+    let his = std::env::var("HYPRLAND_INSTANCE_SIGNATURE").ok()?;
+    let runtime = std::env::var("XDG_RUNTIME_DIR").ok()?;
+    let path = std::path::PathBuf::from(runtime)
+        .join("hypr")
+        .join(&his)
+        .join(".socket2.sock");
+    if !path.exists() {
+        return None;
+    }
+    Some(path)
+}
+
+/// Subscribe to Hyprland's `.socket2.sock` event stream and convert
+/// the events we care about into `RecEvent`s pushed to the same
+/// recording the input backends are writing to. Window focus changes
+/// and new windows opening become `WindowFocus` events; everything
+/// else (workspace switches, monitor add/remove, layouts) is dropped.
+///
+/// Dedupes consecutive WindowFocus events by class so alt-tabbing
+/// between two windows doesn't flood the recording with redundant
+/// frames.
+async fn hyprland_subscribe(
+    path: &std::path::Path,
+    started_at: std::time::Instant,
+    events: Arc<Mutex<Vec<RecEvent>>>,
+    sink: FrameSink,
+) -> anyhow::Result<()> {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    use tokio::net::UnixStream;
+    let stream = UnixStream::connect(path)
+        .await
+        .with_context(|| format!("connect Hyprland event socket {}", path.display()))?;
+    let reader = BufReader::new(stream);
+    let mut lines = reader.lines();
+    let mut last_class = String::new();
+    while let Some(line) = lines.next_line().await? {
+        // Format: "eventname>>data1,data2,..."
+        let Some((name, data)) = line.split_once(">>") else { continue };
+        let t_ms = started_at.elapsed().as_millis() as u64;
+        let class = match name {
+            // activewindow data: "class,title". Title shifts as the
+            // app updates its window title (kitty showing nvim's
+            // current file, etc.); class is what the user typed.
+            "activewindow" => data.split_once(',').map(|(c, _t)| c.to_string()),
+            // openwindow data: "address,workspace,class,title".
+            "openwindow" => data.splitn(4, ',').nth(2).map(|s| s.to_string()),
+            _ => None,
+        };
+        let Some(class) = class else { continue };
+        if class.is_empty() || class == last_class {
+            continue;
+        }
+        last_class = class.clone();
+        let rec = RecEvent::WindowFocus { t_ms, name: class };
+        events.lock().await.push(rec.clone());
+        sink(RecFrame::Event { event: rec });
+    }
+    Ok(())
 }
 
 // --------------------------- Events → Workflow ------------------------------

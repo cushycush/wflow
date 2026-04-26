@@ -212,9 +212,14 @@ Item {
             }
 
             // ListView so the latest event stays in view as the
-            // recording grows. positionViewAtEnd on count change is
-            // the auto-scroll-to-bottom behavior the user expects
-            // from a live event log.
+            // recording grows. positionViewAtIndex(count-1, End)
+            // is more robust than positionViewAtEnd() because End
+            // mode pins the LAST item at the bottom of the visible
+            // area rather than just scrolling roughly there. Wrap
+            // the call in Qt.callLater so it runs after the new
+            // delegate is laid out — without it, the position
+            // change fires before the new row exists and gets
+            // clamped to the previous bottom.
             ListView {
                 id: eventList
                 width: parent.width
@@ -222,8 +227,11 @@ Item {
                 clip: true
                 spacing: 3
                 model: root.events
-                onCountChanged: positionViewAtEnd()
-                Component.onCompleted: positionViewAtEnd()
+                onCountChanged: Qt.callLater(_pinToEnd)
+                Component.onCompleted: Qt.callLater(_pinToEnd)
+                function _pinToEnd() {
+                    if (count > 0) positionViewAtIndex(count - 1, ListView.End)
+                }
 
                 ScrollBar.vertical: ScrollBar { active: true }
 
