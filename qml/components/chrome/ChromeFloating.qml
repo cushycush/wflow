@@ -17,6 +17,15 @@ Item {
     signal newWorkflow()
     signal recordRequested()
 
+    // App-wide dot-grid backdrop. Pages render on top; the ones
+    // built as transparent Items (Library / Explore / Workflow) let
+    // the dots show through their gaps, while RecordPage paints its
+    // own ambient background and covers it.
+    DotGrid {
+        anchors.fill: parent
+        z: -1
+    }
+
     // Full-bleed pages
     StackLayout {
         anchors.fill: parent
