@@ -11,6 +11,7 @@ Item {
 
     WorkflowController { id: wfCtrl }
     StateController { id: stateCtrl }
+    LibraryController { id: libCtrl }
 
     // Held locally so the editor has a live target to mutate before
     // load() returns and during in-flight edits.
@@ -278,6 +279,27 @@ Item {
         saveTimer.restart()
     }
 
+    function _askDelete() {
+        if (!root.workflowId || root.workflowId === "new-draft") {
+            root.backRequested()
+            return
+        }
+        deleteDialog.open()
+    }
+
+    WfConfirmDialog {
+        id: deleteDialog
+        title: "Delete workflow?"
+        message: "This permanently deletes “" + (root.title || "Untitled workflow")
+            + "” from your library. The KDL file is removed from disk."
+        confirmText: "Delete"
+        destructive: true
+        onConfirmed: {
+            libCtrl.remove(root.workflowId)
+            root.backRequested()
+        }
+    }
+
     function _saveNow() {
         root.saveState = "saving"
         const json = JSON.stringify(root.workflow)
@@ -385,6 +407,40 @@ Item {
                 }
             }
 
+            // Workflow-level actions menu. Right now Delete is the
+            // only entry; rename / export / duplicate could land
+            // here later.
+            Rectangle {
+                id: kebabBtn
+                width: 32; height: 32; radius: 16
+                anchors.verticalCenter: parent.verticalCenter
+                color: kebabArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "⋯"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 18
+                }
+
+                MouseArea {
+                    id: kebabArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: editorMenu.popup()
+                }
+
+                WfMenu {
+                    id: editorMenu
+                    WfMenuItem {
+                        text: "Delete workflow"
+                        onTriggered: root._askDelete()
+                    }
+                }
+            }
             SecondaryButton {
                 text: "↗ Share"
             }
