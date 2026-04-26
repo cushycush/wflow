@@ -49,7 +49,7 @@ Should bring up the GUI. Run a workflow with the `shell` action to
 confirm host-spawn still works inside the sandbox. Click ● Record
 to confirm the portal handshake actually fires (or, on
 Hyprland/Sway, that the "Record can't start" error message renders
-gracefully — that's the expected behavior since the compositor's
+gracefully. That's the expected behavior since the compositor's
 portal doesn't ship RemoteDesktop).
 
 ## Step 2: prepare the Flathub PR branch
