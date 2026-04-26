@@ -228,6 +228,43 @@ pub enum OnError {
     Continue,
 }
 
+/// A binding that fires the workflow on an external event. AHK-style
+/// hotkeys today; hotstrings, file-watch, schedule, and per-window
+/// conditions land in later releases. The runner ignores triggers
+/// (workflows still execute via GUI / CLI / library card the same way
+/// they always have); the v0.4 daemon is what actually subscribes to
+/// the configured triggers and dispatches workflows on activation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Trigger {
+    pub kind: TriggerKind,
+    /// Optional context predicate. v0.5 and later — the daemon gates
+    /// activation on whether the condition holds at fire time. v0.4
+    /// parses the field but doesn't act on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<TriggerCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TriggerKind {
+    /// Global keyboard chord, AHK-style. e.g. "ctrl+alt+d".
+    Chord { chord: String },
+    /// Text-expansion trigger. The user types `text`; the daemon
+    /// backspaces it out and runs the workflow body. v0.5+.
+    Hotstring { text: String },
+}
+
+/// Per-trigger context predicate. Mirrors the structure of the
+/// existing `Condition` enum on workflow-level when/unless blocks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TriggerCondition {
+    /// Window class (Wayland app_id) substring match, case-insensitive.
+    WindowClass { class: String },
+    /// Window title substring match, case-insensitive.
+    WindowTitle { title: String },
+}
+
 /// The recipe itself.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
@@ -247,6 +284,11 @@ pub struct Workflow {
     /// engine runs, so not serialized.
     #[serde(skip, default)]
     pub imports: std::collections::BTreeMap<String, String>,
+    /// Triggers that fire this workflow. Empty for hand-launched
+    /// workflows; populated for ones the daemon should bind. Not yet
+    /// wired into a daemon as of v0.3.x — parsing only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub triggers: Vec<Trigger>,
     #[serde(default)]
     pub created: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
@@ -265,6 +307,7 @@ impl Workflow {
             steps: Vec::new(),
             vars: Default::default(),
             imports: Default::default(),
+            triggers: Vec::new(),
             created: Some(now),
             modified: Some(now),
             last_run: None,

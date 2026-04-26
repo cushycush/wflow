@@ -60,9 +60,49 @@ workflow "Human title" {        // required; positional arg is the title
     subtitle "one line"         // optional; shown in list and editor
     vars { ... }                // optional; workflow-level variables
     imports { ... }             // optional; named fragment files
+    trigger { ... }             // optional; binds a hotkey or hotstring (v0.4+)
     // steps here, one per line, top-to-bottom execution
 }
 ```
+
+### trigger
+
+A `trigger { }` block binds the workflow to an external event. The
+runner ignores triggers; the wflow daemon (v0.4+) is what actually
+subscribes to them and dispatches the workflow on activation. A
+workflow can have multiple `trigger { }` blocks if you want more
+than one binding.
+
+```kdl
+workflow "dev setup" {
+    trigger { chord "super+alt+d" }   // global hotkey, AHK-style
+    shell "kitty -e nvim"
+}
+
+workflow "btw expand" {
+    trigger { hotstring "btw" }       // text expansion (v0.5+)
+    type "by the way"
+}
+
+workflow "firefox copy url" {
+    trigger {
+        chord "ctrl+shift+u"
+        when window-class="firefox"   // only fires when Firefox is focused
+    }
+    key "ctrl+l"
+    key "ctrl+c"
+    key "Escape"
+}
+```
+
+Each trigger needs exactly one of `chord` (a wdotool-style key chord)
+or `hotstring` (a plain text expansion trigger). The optional
+`when window-class="..."` or `when window-title="..."` gates
+activation on the focused window.
+
+`trigger` blocks parse and round-trip through KDL today; the runner
+ignores them in v0.3.x and the daemon picks them up in v0.4. Files
+authored against v0.3.x with triggers are forward-compatible.
 
 The id is the filename without `.kdl`. `wflow new` generates a UUID
 filename; you can rename the file to anything path-safe and the new

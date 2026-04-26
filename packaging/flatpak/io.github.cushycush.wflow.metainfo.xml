@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.21" date="2026-04-26">
+      <description>
+        <p>
+          v0.4 groundwork. Workflows can now declare `trigger { chord "..." }` blocks alongside their steps, parsing and round-tripping through KDL. The runner ignores triggers in v0.3.x — they're inert metadata until the v0.4 daemon ships and starts subscribing to them. Files authored today with triggers stay forward-compatible.
+        </p>
+        <p>
+          Hotstring triggers (`trigger { hotstring "btw" }`) and per-window context (`when window-class="firefox"`) are forward-compatible KDL keys we parse today so future builds don't break old files.
+        </p>
+      </description>
+    </release>
     <release version="0.3.20" date="2026-04-26">
       <description>
         <p>
