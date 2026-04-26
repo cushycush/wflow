@@ -16,6 +16,7 @@ mod security;
 mod state;
 mod store;
 mod templates;
+mod triggers;
 mod wdo;
 mod workflows_meta;
 

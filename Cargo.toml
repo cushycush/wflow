@@ -1,6 +1,6 @@
 [package]
 name = "wflow"
-version = "0.3.22"
+version = "0.3.23"
 edition = "2021"
 description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"
@@ -29,6 +29,9 @@ kdl = "6"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 clap_mangen = "0.2"
+# Cross-platform Ctrl+C / SIGTERM handler — used by `wflow daemon`
+# to clean up Hyprland bindings before exit.
+ctrlc = "3"
 sha2 = "0.10"
 toml = "0.9"
 
