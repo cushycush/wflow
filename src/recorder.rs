@@ -840,28 +840,32 @@ fn evdev_to_rec(
 
 // --------------------------- Trim trailing stop input -----------------------
 
-/// Drop trailing Click / Move / WindowFocus events that happened
-/// within the last 300ms of the recording. The user's final
-/// click-to-stop and the window switch to wflow always land on
-/// the tail of the buffer; without this trim every saved workflow
-/// ends with a focus + click on the wflow window which the user
-/// definitely doesn't want to replay.
+/// The user always stops a recording by switching to wflow's own
+/// window and clicking the Stop button. That switch lands as a
+/// `WindowFocus { name: "wflow" }` event from the Hyprland
+/// subscriber, followed by the mouse-to-button motion + click
+/// from the evdev backend. Any user-meaningful workflow won't
+/// have wflow focused mid-recording (because if it did, you
+/// couldn't be operating the target app), so the rule is:
+/// truncate at the LAST `focus wflow` event.
 ///
-/// Key events are left alone — sometimes the user intentionally
-/// ends with a keystroke (Enter to submit a form, Escape to close
-/// a dialog) and we shouldn't second-guess those.
-fn trim_stop_tail(events: &mut Vec<RecEvent>, total_ms: u64) {
-    const TAIL_MS: u64 = 300;
-    while let Some(last) = events.last() {
-        if total_ms.saturating_sub(last.t_ms()) > TAIL_MS {
-            break;
-        }
-        match last {
-            RecEvent::Click { .. } | RecEvent::Move { .. } | RecEvent::WindowFocus { .. } => {
-                events.pop();
+/// The earlier 300ms time-window trim missed the natural-paced
+/// case (user takes ~800ms to alt-tab and click), so move to the
+/// semantic signal instead. `total_ms` stays in the signature
+/// for future heuristics.
+fn trim_stop_tail(events: &mut Vec<RecEvent>, _total_ms: u64) {
+    let mut cut: Option<usize> = None;
+    for (i, ev) in events.iter().enumerate() {
+        if let RecEvent::WindowFocus { name, .. } = ev {
+            if name.eq_ignore_ascii_case("wflow") {
+                cut = Some(i);
+                // Keep iterating — we want the LAST switch to
+                // wflow, not the first.
             }
-            _ => break,
         }
+    }
+    if let Some(i) = cut {
+        events.truncate(i);
     }
 }
 
@@ -870,51 +874,58 @@ mod trim_tests {
     use super::*;
 
     #[test]
-    fn trims_a_trailing_stop_click() {
-        let total_ms = 1500;
+    fn truncates_at_focus_wflow_and_drops_everything_after() {
         let mut events = vec![
             RecEvent::Key { t_ms: 800, chord: "a".into() },
-            RecEvent::Click { t_ms: 1450, button: 1 },
+            RecEvent::WindowFocus { t_ms: 1500, name: "wflow".into() },
+            RecEvent::Move { t_ms: 1700, x: 5, y: 5 },
+            RecEvent::Click { t_ms: 1900, button: 1 },
         ];
-        trim_stop_tail(&mut events, total_ms);
+        trim_stop_tail(&mut events, 2000);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], RecEvent::Key { .. }));
     }
 
     #[test]
-    fn trims_focus_then_click_at_the_end() {
-        let total_ms = 2000;
+    fn matches_wflow_focus_case_insensitively() {
         let mut events = vec![
-            RecEvent::Key { t_ms: 800, chord: "a".into() },
-            RecEvent::WindowFocus { t_ms: 1850, name: "wflow".into() },
-            RecEvent::Click { t_ms: 1900, button: 1 },
+            RecEvent::Key { t_ms: 100, chord: "a".into() },
+            RecEvent::WindowFocus { t_ms: 200, name: "Wflow".into() },
+            RecEvent::Click { t_ms: 300, button: 1 },
         ];
-        trim_stop_tail(&mut events, total_ms);
+        trim_stop_tail(&mut events, 400);
         assert_eq!(events.len(), 1);
     }
 
     #[test]
-    fn keeps_a_click_that_isnt_recent() {
-        let total_ms = 5000;
+    fn cuts_at_last_wflow_focus_not_first() {
+        // Earlier glance at wflow (mid-recording) shouldn't truncate
+        // the whole capture — only the FINAL switch counts.
         let mut events = vec![
-            RecEvent::Click { t_ms: 100, button: 1 },
-            RecEvent::Key { t_ms: 4900, chord: "Return".into() },
+            RecEvent::WindowFocus { t_ms: 100, name: "wflow".into() },
+            RecEvent::Key { t_ms: 200, chord: "a".into() },
+            RecEvent::WindowFocus { t_ms: 800, name: "firefox".into() },
+            RecEvent::Key { t_ms: 900, chord: "b".into() },
+            RecEvent::WindowFocus { t_ms: 1500, name: "wflow".into() },
+            RecEvent::Click { t_ms: 1600, button: 1 },
         ];
-        trim_stop_tail(&mut events, total_ms);
-        // Trailing Key isn't trimmed; loop stops there. The early
-        // Click is left alone.
-        assert_eq!(events.len(), 2);
+        trim_stop_tail(&mut events, 1700);
+        // Truncated at the LAST wflow focus (index 4): keeps
+        // indices 0..4, dropping the wflow-focus and the click.
+        assert_eq!(events.len(), 4);
+        match &events[3] {
+            RecEvent::Key { chord, .. } => assert_eq!(chord, "b"),
+            _ => panic!("expected last surviving event to be Key 'b'"),
+        }
     }
 
     #[test]
-    fn keeps_a_trailing_keystroke() {
-        let total_ms = 1500;
+    fn no_wflow_focus_means_no_trim() {
         let mut events = vec![
-            RecEvent::Click { t_ms: 800, button: 1 },
-            RecEvent::Key { t_ms: 1450, chord: "Return".into() },
+            RecEvent::Key { t_ms: 100, chord: "a".into() },
+            RecEvent::Click { t_ms: 200, button: 1 },
         ];
-        trim_stop_tail(&mut events, total_ms);
-        // Trailing Key blocks the trim loop immediately.
+        trim_stop_tail(&mut events, 300);
         assert_eq!(events.len(), 2);
     }
 }
