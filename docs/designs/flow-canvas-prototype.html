@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>wflow — Flow Canvas (prototype)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+    /* Surfaces. Cool deep navy that lets the gradient pills sing. */
+    --bg-0: oklch(0.14 0.012 260);
+    --bg-1: oklch(0.17 0.012 260);
+    --bg-2: oklch(0.20 0.014 260);
+    --bg-3: oklch(0.24 0.014 260);
+
+    --surface-card: oklch(0.21 0.014 260);
+    --surface-card-hi: oklch(0.24 0.014 260);
+    --surface-card-input: oklch(0.16 0.012 260);
+
+    --line: oklch(0.30 0.012 260);
+    --line-soft: oklch(0.25 0.012 260);
+    --line-hairline: oklch(0.22 0.012 260);
+
+    --text: oklch(0.96 0.004 260);
+    --text-2: oklch(0.74 0.010 260);
+    --text-3: oklch(0.54 0.012 260);
+
+    /* Connector + node-edge accent. Cool cyan, the wire color. */
+    --wire: oklch(0.80 0.13 215);
+    --wire-soft: oklch(0.65 0.10 215);
+
+    /* Gradient pills — one per category. The whole language of the
+       design lives here; these aren't decoration, they're the
+       category color used as a fill instead of a chip tint. */
+    --grad-blue: linear-gradient(135deg, oklch(0.78 0.15 230), oklch(0.55 0.22 260));
+    --grad-cyan: linear-gradient(135deg, oklch(0.85 0.13 210), oklch(0.55 0.18 230));
+    --grad-amber: linear-gradient(135deg, oklch(0.85 0.14 75), oklch(0.55 0.18 50));
+    --grad-magenta: linear-gradient(135deg, oklch(0.75 0.20 320), oklch(0.45 0.25 290));
+    --grad-coral: linear-gradient(135deg, oklch(0.82 0.13 25), oklch(0.62 0.20 20));
+    --grad-violet: linear-gradient(135deg, oklch(0.70 0.20 295), oklch(0.45 0.25 285));
+    --grad-emerald: linear-gradient(135deg, oklch(0.80 0.16 155), oklch(0.55 0.18 165));
+
+    /* Drop shadows — three layers. Dense, slightly bluish, never gray. */
+    --shadow-card:
+        0 1px 2px oklch(0.05 0.01 260 / 0.5),
+        0 8px 20px oklch(0.05 0.01 260 / 0.4),
+        0 24px 48px oklch(0.05 0.01 260 / 0.3);
+
+    --shadow-card-hover:
+        0 1px 2px oklch(0.05 0.01 260 / 0.5),
+        0 12px 28px oklch(0.05 0.01 260 / 0.5),
+        0 36px 72px oklch(0.05 0.01 260 / 0.4);
+
+    --radius-card: 14px;
+    --radius-pill: 8px;
+    --radius-input: 10px;
+
+    --font-body: "Hanken Grotesk", system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-0);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    height: 100%;
+    /* Slight noise texture so the dark surfaces don't read flat. */
+    background-image:
+        radial-gradient(ellipse 1200px 600px at 80% 0%, oklch(0.20 0.04 260 / 0.4), transparent 70%),
+        radial-gradient(ellipse 1000px 500px at 0% 100%, oklch(0.18 0.04 220 / 0.3), transparent 70%);
+    background-attachment: fixed;
+}
+
+::selection { background: oklch(0.55 0.22 260 / 0.5); }
+
+/* ---------------- Layout shell ---------------- */
+
+.app {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+    gap: 0;
+}
+
+.app-sidebar { grid-column: 1; grid-row: 1 / 3; }
+.app-header  { grid-column: 2; grid-row: 1; }
+.app-canvas  { grid-column: 2; grid-row: 2; }
+
+/* ---------------- Sidebar ---------------- */
+
+.sidebar {
+    background: var(--bg-1);
+    border-right: 1px solid var(--line-hairline);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-brand {
+    height: 56px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--line-hairline);
+}
+
+.brand-mark {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--grad-amber);
+    display: grid; place-items: center;
+    font-weight: 700;
+    color: oklch(0.15 0.02 60);
+    font-size: 12px;
+    letter-spacing: -0.5px;
+}
+
+.brand-text {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: -0.2px;
+}
+
+.sidebar-section {
+    padding: 14px 12px 4px 12px;
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+}
+
+.sidebar-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-2);
+    transition: background 120ms ease, color 120ms ease;
+    font-size: 13px;
+}
+.sidebar-item:hover {
+    background: var(--bg-2);
+    color: var(--text);
+}
+.sidebar-item.active {
+    background: var(--bg-3);
+    color: var(--text);
+}
+
+.sidebar-item .si-icon {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    font-size: 11px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    flex-shrink: 0;
+}
+
+.sidebar-item.active .si-icon {
+    background: var(--grad-cyan);
+    color: oklch(0.10 0.02 230);
+}
+
+.sidebar-item .si-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-item .si-meta {
+    font-size: 10px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+
+.sidebar-cta {
+    margin: 14px 12px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--line-hairline);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.sidebar-cta:hover {
+    background: var(--bg-3);
+    border-color: var(--line);
+    color: var(--text);
+}
+
+.sidebar-cta .kbd {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-3);
+    background: var(--bg-1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line-hairline);
+}
+
+.sidebar-spacer { flex: 1; }
+
+.sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--line-hairline);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--text-3);
+}
+
+.sidebar-footer .dot {
+    width: 6px; height: 6px; border-radius: 3px;
+    background: oklch(0.7 0.18 145);
+    box-shadow: 0 0 8px oklch(0.7 0.18 145 / 0.7);
+}
+
+/* ---------------- Header ---------------- */
+
+.header {
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line-hairline);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+}
+
+.crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.crumb {
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+.crumb:hover { background: var(--bg-2); color: var(--text); }
+.crumb.current { color: var(--text); font-weight: 600; }
+
+.crumb-divider {
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.crumb-add {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--line-hairline);
+    display: grid; place-items: center;
+    background: var(--bg-2);
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 120ms ease;
+}
+.crumb-add:hover {
+    background: var(--bg-3);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+.header-action {
+    padding: 8px 16px;
+    background: var(--grad-cyan);
+    color: oklch(0.10 0.04 230);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12.5px;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 12px oklch(0.55 0.18 230 / 0.35), inset 0 1px 0 oklch(1 0 0 / 0.18);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.1px;
+}
+.header-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px oklch(0.55 0.18 230 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.18);
+}
+.header-action .ha-arrow { font-size: 13px; }
+
+.header-search {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--line-hairline);
+    background: var(--bg-2);
+    display: grid; place-items: center;
+    color: var(--text-2);
+    cursor: pointer;
+}
+.header-search:hover { color: var(--text); border-color: var(--line); }
+
+/* ---------------- Canvas ---------------- */
+
+.canvas {
+    overflow: auto;
+    position: relative;
+    /* Subtle dot grid so the eye knows it's a canvas, not a doc. */
+    background-image:
+        radial-gradient(circle at 1px 1px, oklch(0.30 0.012 260 / 0.7) 1px, transparent 1.5px);
+    background-size: 28px 28px;
+    background-position: -1px -1px;
+}
+
+.canvas-meta {
+    position: absolute;
+    top: 18px;
+    left: 24px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.2px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.canvas-inner {
+    position: relative;
+    width: 1280px;
+    height: 1280px;
+    margin: 0 auto;
+}
+
+/* SVG wires layer beneath nodes. */
+.wires {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.wire {
+    fill: none;
+    stroke: var(--wire);
+    stroke-width: 1.5;
+    opacity: 0.7;
+    /* The wires "pulse" subtly to suggest live data flow. */
+    stroke-dasharray: 1 0;
+    filter: drop-shadow(0 0 6px oklch(0.55 0.18 215 / 0.3));
+}
+
+.wire.dim {
+    opacity: 0.35;
+    filter: none;
+}
+
+/* ---------------- Nodes ---------------- */
+
+.node {
+    position: absolute;
+    width: 256px;
+    background: var(--surface-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow-card);
+    z-index: 2;
+    transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease;
+}
+.node:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--line);
+}
+
+.node.selected {
+    border-color: var(--wire);
+    box-shadow:
+        0 0 0 1px var(--wire),
+        var(--shadow-card-hover);
+}
+
+.node-head {
+    padding: 12px 14px 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--line-hairline);
+}
+
+.node-kind {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--text-3);
+    flex: 1;
+}
+
+.node-num {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-3);
+    background: var(--bg-2);
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--line-hairline);
+}
+
+.node-body {
+    padding: 12px 14px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Pill — the gradient-filled action chip from the reference image. */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-pill);
+    color: oklch(0.99 0 0);
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: -0.1px;
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.18),
+        0 6px 14px oklch(0.05 0.01 260 / 0.35);
+    text-shadow: 0 1px 1px oklch(0.05 0.02 260 / 0.4);
+}
+.pill .pill-icon {
+    font-size: 12px;
+    opacity: 0.9;
+}
+.pill .pill-arrow {
+    margin-left: auto;
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    border-radius: 4px;
+    background: oklch(1 0 0 / 0.15);
+}
+
+.pill.cyan    { background: var(--grad-cyan); }
+.pill.blue    { background: var(--grad-blue); }
+.pill.amber   { background: var(--grad-amber); }
+.pill.coral   { background: var(--grad-coral); }
+.pill.violet  { background: var(--grad-violet); }
+.pill.magenta { background: var(--grad-magenta); }
+.pill.emerald { background: var(--grad-emerald); }
+
+/* Inline mono input — the dark recessed field inside cards. */
+.field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--surface-card-input);
+    border: 1px solid var(--line-hairline);
+    border-radius: var(--radius-input);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-2);
+    box-shadow: inset 0 1px 0 oklch(0 0 0 / 0.2);
+}
+.field .field-label {
+    color: var(--text-3);
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+.field .field-value {
+    flex: 1;
+    color: var(--text);
+}
+.field .field-affix {
+    color: var(--text-3);
+    font-size: 11px;
+}
+
+/* Kbd-style chord chip for trigger node. */
+.chord {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
+.chord .key {
+    background: var(--bg-3);
+    color: var(--text);
+    padding: 3px 7px;
+    border-radius: 5px;
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 0 oklch(0 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.05);
+    line-height: 1;
+}
+
+.chord .key.warm {
+    background: var(--grad-amber);
+    color: oklch(0.15 0.02 60);
+    border-color: oklch(0.55 0.18 50 / 0.5);
+}
+
+/* Node port dots — where wires meet the card. */
+.port {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 5px;
+    background: var(--bg-1);
+    border: 2px solid var(--wire);
+    z-index: 3;
+}
+.port.top    { top: -6px;    left: 50%; transform: translateX(-50%); }
+.port.bottom { bottom: -6px; left: 50%; transform: translateX(-50%); }
+.port.left   { left: -6px;   top: 50%;  transform: translateY(-50%); }
+.port.right  { right: -6px;  top: 50%;  transform: translateY(-50%); }
+
+/* ---------------- Specific nodes ---------------- */
+
+/* Trigger card has its own treatment — the "entry point" of the
+   graph reads as the most important node. */
+.node.trigger {
+    background:
+        linear-gradient(180deg, oklch(0.32 0.10 60 / 0.18), oklch(0.21 0.014 260) 60%),
+        var(--surface-card);
+    border-color: oklch(0.55 0.15 60 / 0.4);
+}
+.node.trigger .node-kind {
+    color: oklch(0.85 0.14 65);
+}
+.node.trigger::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: var(--radius-card);
+    padding: 1px;
+    background: linear-gradient(180deg, oklch(0.75 0.15 60 / 0.6), transparent 50%);
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Conditional fork — shorter card, two output ports left/right. */
+.node.fork {
+    width: 220px;
+}
+.node.fork .node-body {
+    padding-bottom: 10px;
+}
+.node.fork .branches {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+.node.fork .branch {
+    flex: 1;
+    text-align: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    border: 1px solid var(--line-hairline);
+}
+.node.fork .branch.yes { color: oklch(0.85 0.14 150); border-color: oklch(0.55 0.15 150 / 0.4); }
+.node.fork .branch.no  { color: oklch(0.85 0.14 25);  border-color: oklch(0.55 0.18 25 / 0.4);  }
+
+/* Status dot strip at top-right of body. */
+.node-status {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-left: auto;
+}
+.status-dot {
+    width: 6px; height: 6px; border-radius: 3px;
+    background: var(--bg-3);
+}
+.status-dot.ok   { background: oklch(0.78 0.16 150); box-shadow: 0 0 6px oklch(0.78 0.16 150 / 0.55); }
+.status-dot.run  { background: oklch(0.80 0.14 215); box-shadow: 0 0 6px oklch(0.80 0.14 215 / 0.55); }
+.status-dot.err  { background: oklch(0.68 0.20 28);  }
+
+/* Inline note below a pill (e.g. "delay 50ms"). */
+.subnote {
+    color: var(--text-3);
+    font-size: 11px;
+    line-height: 1.4;
+    font-family: var(--font-mono);
+}
+
+/* "Running" badge on the active node */
+.node.running .node-kind::after {
+    content: "● running";
+    color: oklch(0.80 0.14 215);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    margin-left: 8px;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+    <!-- ============== Sidebar ============== -->
+    <aside class="sidebar app-sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-mark">w</div>
+            <div class="brand-text">wflow</div>
+        </div>
+
+        <div class="sidebar-section">Library</div>
+        <ul class="sidebar-list">
+            <li class="sidebar-item">
+                <span class="si-icon">⌘</span>
+                <span class="si-label">Morning standup</span>
+                <span class="si-meta">8</span>
+            </li>
+            <li class="sidebar-item active">
+                <span class="si-icon">▶</span>
+                <span class="si-label">Open dev setup</span>
+                <span class="si-meta">11</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon">⌃</span>
+                <span class="si-label">Screenshot to clip</span>
+                <span class="si-meta">2</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon">⏻</span>
+                <span class="si-label">VPN on</span>
+                <span class="si-meta">3</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon">✦</span>
+                <span class="si-label">Close the day</span>
+                <span class="si-meta">6</span>
+            </li>
+        </ul>
+
+        <div class="sidebar-section" style="margin-top: 18px;">Triggers</div>
+        <ul class="sidebar-list">
+            <li class="sidebar-item">
+                <span class="si-icon">⌨</span>
+                <span class="si-label">⌘⌥D · open dev</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon">⌨</span>
+                <span class="si-label">⌘⌥T · screenshot</span>
+            </li>
+        </ul>
+
+        <div class="sidebar-cta">
+            <span>+ New workflow</span>
+            <span class="kbd">⌘ N</span>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+
+        <div class="sidebar-footer">
+            <span class="dot"></span>
+            <span>daemon · 2 bound</span>
+        </div>
+    </aside>
+
+    <!-- ============== Header ============== -->
+    <header class="header app-header">
+        <div class="crumbs">
+            <div class="crumb">Library</div>
+            <span class="crumb-divider">›</span>
+            <div class="crumb">Open dev setup</div>
+            <span class="crumb-divider">›</span>
+            <div class="crumb current">Canvas</div>
+            <span class="crumb-divider">›</span>
+            <div class="crumb">List</div>
+            <button class="crumb-add" title="Add step">+</button>
+        </div>
+        <button class="header-action">
+            Run workflow
+            <span class="ha-arrow">▶</span>
+        </button>
+        <button class="header-search" title="Search (⌘K)">⌕</button>
+    </header>
+
+    <!-- ============== Canvas ============== -->
+    <section class="canvas app-canvas">
+        <div class="canvas-meta">CANVAS · 1.0× · 11 steps</div>
+
+        <div class="canvas-inner">
+            <!-- ===== Wires (drawn before nodes so they sit underneath) ===== -->
+            <svg class="wires" viewBox="0 0 1280 1280" preserveAspectRatio="none">
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="oklch(0.80 0.13 215)"/>
+                    </marker>
+                </defs>
+
+                <!-- Trigger → Step 1 -->
+                <path class="wire" d="M 192,182 C 192,222 192,222 192,262" marker-end="url(#arrow)"/>
+
+                <!-- Step 1 → Step 2 -->
+                <path class="wire" d="M 192,402 C 192,452 192,452 192,500" marker-end="url(#arrow)"/>
+
+                <!-- Step 2 → Step 3 (sideways) -->
+                <path class="wire" d="M 320,562 C 380,562 408,562 472,562" marker-end="url(#arrow)"/>
+
+                <!-- Step 3 → Step 4 -->
+                <path class="wire" d="M 600,640 C 600,690 600,690 600,738" marker-end="url(#arrow)"/>
+
+                <!-- Step 4 (fork) → yes branch (down) -->
+                <path class="wire" d="M 562,890 C 480,920 410,920 360,950" marker-end="url(#arrow)"/>
+                <!-- Step 4 (fork) → no branch (right) -->
+                <path class="wire dim" d="M 720,860 C 800,860 820,860 880,860" marker-end="url(#arrow)"/>
+
+                <!-- Yes branch step → final notify -->
+                <path class="wire" d="M 232,1050 C 360,1100 540,1100 656,1100" marker-end="url(#arrow)"/>
+
+                <!-- No branch shell → final notify (loops back) -->
+                <path class="wire dim" d="M 1010,930 C 1010,1000 880,1100 824,1100" marker-end="url(#arrow)"/>
+
+                <!-- Step 1 → side hint (run history strip) -->
+                <path class="wire dim" d="M 320,322 C 480,322 480,322 540,322" />
+            </svg>
+
+            <!-- ===== Trigger node ===== -->
+            <div class="node trigger" style="left: 64px; top: 36px;">
+                <div class="port bottom"></div>
+                <div class="node-head">
+                    <span class="node-kind">Trigger</span>
+                    <span class="node-num">⌘</span>
+                </div>
+                <div class="node-body">
+                    <div class="chord">
+                        <span class="key warm">Super</span>
+                        <span style="color: var(--text-3)">+</span>
+                        <span class="key warm">Alt</span>
+                        <span style="color: var(--text-3)">+</span>
+                        <span class="key warm">D</span>
+                    </div>
+                    <div class="subnote">Bound globally · hyprland</div>
+                </div>
+            </div>
+
+            <!-- ===== Step 1 — focus ===== -->
+            <div class="node" style="left: 64px; top: 282px;">
+                <div class="port top"></div>
+                <div class="port bottom"></div>
+                <div class="node-head">
+                    <span class="node-kind">Focus</span>
+                    <span class="node-num">01</span>
+                    <div class="node-status">
+                        <span class="status-dot ok"></span>
+                    </div>
+                </div>
+                <div class="node-body">
+                    <div class="pill amber">
+                        <span class="pill-icon">⊕</span>
+                        <span>firefox</span>
+                        <span class="pill-arrow">↗</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">match</span>
+                        <span class="field-value">app_id contains "firefox"</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 2 — wait-window ===== -->
+            <div class="node" style="left: 64px; top: 522px;">
+                <div class="port top"></div>
+                <div class="port right"></div>
+                <div class="node-head">
+                    <span class="node-kind">Wait window</span>
+                    <span class="node-num">02</span>
+                    <div class="node-status">
+                        <span class="status-dot ok"></span>
+                    </div>
+                </div>
+                <div class="node-body">
+                    <div class="pill emerald">
+                        <span class="pill-icon">⏳</span>
+                        <span>kitty</span>
+                        <span class="pill-arrow">→</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">timeout</span>
+                        <span class="field-value">10000</span>
+                        <span class="field-affix">ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 3 — key chord (running) ===== -->
+            <div class="node running" style="left: 472px; top: 482px;">
+                <div class="port left"></div>
+                <div class="port bottom"></div>
+                <div class="node-head">
+                    <span class="node-kind">Key chord</span>
+                    <span class="node-num">03</span>
+                    <div class="node-status">
+                        <span class="status-dot run"></span>
+                    </div>
+                </div>
+                <div class="node-body">
+                    <div class="pill cyan">
+                        <span class="pill-icon">⌨</span>
+                        <span>ctrl + l</span>
+                        <span class="pill-arrow">▷</span>
+                    </div>
+                    <div class="subnote">clear-modifiers off · delay 0ms</div>
+                </div>
+            </div>
+
+            <!-- ===== Step 4 — type ===== -->
+            <div class="node" style="left: 472px; top: 760px;">
+                <div class="port top"></div>
+                <div class="port bottom"></div>
+                <div class="node-head">
+                    <span class="node-kind">Type text</span>
+                    <span class="node-num">04</span>
+                </div>
+                <div class="node-body">
+                    <div class="pill blue">
+                        <span class="pill-icon">⊞</span>
+                        <span>insert text</span>
+                        <span class="pill-arrow">▷</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">value</span>
+                        <span class="field-value">localhost:3000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 5 — fork (when env=DEBUG) ===== -->
+            <div class="node fork" style="left: 538px; top: 884px;">
+                <div class="port top"></div>
+                <div class="port left"></div>
+                <div class="port right"></div>
+                <div class="node-head">
+                    <span class="node-kind">When</span>
+                    <span class="node-num">05</span>
+                </div>
+                <div class="node-body">
+                    <div class="pill magenta">
+                        <span class="pill-icon">?</span>
+                        <span>env DEBUG</span>
+                        <span class="pill-arrow">⊕</span>
+                    </div>
+                    <div class="branches">
+                        <div class="branch yes">↳ yes</div>
+                        <div class="branch no">↦ else</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 6 — shell (yes branch) ===== -->
+            <div class="node" style="left: 64px; top: 962px;">
+                <div class="port top"></div>
+                <div class="port right"></div>
+                <div class="node-head">
+                    <span class="node-kind">Shell</span>
+                    <span class="node-num">06</span>
+                </div>
+                <div class="node-body">
+                    <div class="pill coral">
+                        <span class="pill-icon">▷_</span>
+                        <span>cargo watch run</span>
+                        <span class="pill-arrow">↗</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">retries</span>
+                        <span class="field-value">3</span>
+                        <span class="field-affix">backoff 500ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 7 — shell (else branch) ===== -->
+            <div class="node" style="left: 880px; top: 800px;">
+                <div class="port left"></div>
+                <div class="port bottom"></div>
+                <div class="node-head">
+                    <span class="node-kind">Shell</span>
+                    <span class="node-num">07</span>
+                </div>
+                <div class="node-body">
+                    <div class="pill coral">
+                        <span class="pill-icon">▷_</span>
+                        <span>cargo run --release</span>
+                        <span class="pill-arrow">↗</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">timeout</span>
+                        <span class="field-value">90</span>
+                        <span class="field-affix">s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Step 8 — notify (terminal) ===== -->
+            <div class="node" style="left: 656px; top: 1078px;">
+                <div class="port top"></div>
+                <div class="port left"></div>
+                <div class="node-head">
+                    <span class="node-kind">Notify</span>
+                    <span class="node-num">08</span>
+                </div>
+                <div class="node-body">
+                    <div class="pill violet">
+                        <span class="pill-icon">◉</span>
+                        <span>send notification</span>
+                        <span class="pill-arrow">↑</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">title</span>
+                        <span class="field-value">Dev setup ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Run-history strip (decorative side card, dim) ===== -->
+            <div class="node" style="left: 540px; top: 280px; opacity: 0.85;">
+                <div class="port left"></div>
+                <div class="node-head">
+                    <span class="node-kind">Last run</span>
+                    <span class="node-num">2.6s</span>
+                    <div class="node-status">
+                        <span class="status-dot ok"></span>
+                        <span class="status-dot ok"></span>
+                        <span class="status-dot ok"></span>
+                        <span class="status-dot run"></span>
+                        <span class="status-dot"></span>
+                        <span class="status-dot"></span>
+                        <span class="status-dot"></span>
+                        <span class="status-dot"></span>
+                    </div>
+                </div>
+                <div class="node-body" style="padding-top: 8px;">
+                    <div class="subnote">3 of 8 steps · started 13:42:08</div>
+                    <div class="field">
+                        <span class="field-label">history</span>
+                        <span class="field-value">5 runs · all green</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+</body>
+</html>

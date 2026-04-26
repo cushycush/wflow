@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>wflow — Explore (prototype)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg-0: oklch(0.14 0.012 260);
+    --bg-1: oklch(0.17 0.012 260);
+    --bg-2: oklch(0.20 0.014 260);
+    --bg-3: oklch(0.24 0.014 260);
+
+    --surface-card: oklch(0.21 0.014 260);
+    --surface-card-hi: oklch(0.24 0.014 260);
+    --surface-card-input: oklch(0.16 0.012 260);
+
+    --line: oklch(0.30 0.012 260);
+    --line-soft: oklch(0.25 0.012 260);
+    --line-hairline: oklch(0.22 0.012 260);
+
+    --text: oklch(0.96 0.004 260);
+    --text-2: oklch(0.74 0.010 260);
+    --text-3: oklch(0.54 0.012 260);
+
+    --accent-warm: oklch(0.76 0.15 65);
+    --accent-warm-hi: oklch(0.84 0.13 70);
+    --accent-warm-text: oklch(0.16 0.04 60);
+
+    --wire: oklch(0.80 0.13 215);
+
+    --grad-cyan:    linear-gradient(135deg, oklch(0.85 0.13 210), oklch(0.55 0.18 230));
+    --grad-blue:    linear-gradient(135deg, oklch(0.78 0.15 230), oklch(0.55 0.22 260));
+    --grad-amber:   linear-gradient(135deg, oklch(0.85 0.14 75),  oklch(0.55 0.18 50));
+    --grad-coral:   linear-gradient(135deg, oklch(0.82 0.13 25),  oklch(0.62 0.20 20));
+    --grad-magenta: linear-gradient(135deg, oklch(0.75 0.20 320), oklch(0.45 0.25 290));
+    --grad-violet:  linear-gradient(135deg, oklch(0.70 0.20 295), oklch(0.45 0.25 285));
+    --grad-emerald: linear-gradient(135deg, oklch(0.80 0.16 155), oklch(0.55 0.18 165));
+    --grad-rose:    linear-gradient(135deg, oklch(0.78 0.16 5),   oklch(0.55 0.20 350));
+    --grad-lime:    linear-gradient(135deg, oklch(0.85 0.16 130), oklch(0.60 0.18 145));
+
+    --shadow-card:
+        0 1px 2px oklch(0.05 0.01 260 / 0.5),
+        0 8px 20px oklch(0.05 0.01 260 / 0.4),
+        0 24px 48px oklch(0.05 0.01 260 / 0.3);
+
+    --shadow-card-hover:
+        0 1px 2px oklch(0.05 0.01 260 / 0.5),
+        0 14px 32px oklch(0.05 0.01 260 / 0.55),
+        0 40px 80px oklch(0.05 0.01 260 / 0.4);
+
+    --radius-card: 14px;
+    --radius-pill: 7px;
+
+    --font-body: "Hanken Grotesk", system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-0);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.55;
+    height: 100%;
+    background-image:
+        radial-gradient(ellipse 1400px 700px at 80% -10%, oklch(0.30 0.10 50 / 0.18), transparent 65%),
+        radial-gradient(ellipse 1100px 600px at 0% 100%,  oklch(0.20 0.08 220 / 0.20), transparent 70%);
+    background-attachment: fixed;
+}
+
+::selection { background: oklch(0.55 0.22 260 / 0.5); }
+
+/* ---------------- Layout shell ---------------- */
+
+.app {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+}
+
+.app-sidebar { grid-column: 1; grid-row: 1 / 3; }
+.app-header  { grid-column: 2; grid-row: 1; }
+.app-main    { grid-column: 2; grid-row: 2; overflow: auto; }
+
+/* ---------------- Sidebar (kept consistent with canvas prototype) ---------------- */
+
+.sidebar {
+    background: var(--bg-1);
+    border-right: 1px solid var(--line-hairline);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-brand {
+    height: 56px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--line-hairline);
+}
+.brand-mark {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--grad-amber);
+    display: grid; place-items: center;
+    font-weight: 700;
+    color: oklch(0.15 0.02 60);
+    font-size: 12px;
+}
+.brand-text { font-weight: 700; font-size: 14px; letter-spacing: -0.2px; }
+
+.sidebar-section {
+    padding: 14px 12px 4px 12px;
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+}
+
+.sidebar-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 13px;
+    transition: background 120ms ease, color 120ms ease;
+}
+.sidebar-item:hover { background: var(--bg-2); color: var(--text); }
+.sidebar-item.active { background: var(--bg-3); color: var(--text); }
+
+.sidebar-item .si-icon {
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    border-radius: 5px;
+    font-size: 11px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    flex-shrink: 0;
+}
+.sidebar-item.active .si-icon {
+    background: var(--grad-rose);
+    color: oklch(0.16 0.04 0);
+}
+
+.sidebar-item .si-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sidebar-item .si-meta {
+    font-size: 10px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+
+.sidebar-spacer { flex: 1; }
+
+.sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--line-hairline);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--text-3);
+}
+.sidebar-footer .dot {
+    width: 6px; height: 6px; border-radius: 3px;
+    background: oklch(0.7 0.18 145);
+    box-shadow: 0 0 8px oklch(0.7 0.18 145 / 0.7);
+}
+
+/* ---------------- Header ---------------- */
+
+.header {
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line-hairline);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 14px;
+}
+
+.header-search {
+    flex: 1;
+    max-width: 480px;
+    position: relative;
+}
+.header-search input {
+    width: 100%;
+    background: var(--bg-2);
+    border: 1px solid var(--line-hairline);
+    border-radius: 10px;
+    padding: 9px 14px 9px 38px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+.header-search input::placeholder { color: var(--text-3); }
+.header-search input:focus {
+    border-color: oklch(0.55 0.18 230 / 0.7);
+    background: var(--bg-3);
+}
+.header-search .glyph {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-3);
+    font-size: 14px;
+}
+.header-search .kbd {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-3);
+    background: var(--bg-1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line-hairline);
+}
+
+.header-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+.header-tab {
+    padding: 6px 12px;
+    border-radius: 7px;
+    color: var(--text-3);
+    font-size: 12.5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.header-tab:hover { background: var(--bg-2); color: var(--text-2); }
+.header-tab.active { background: var(--bg-3); color: var(--text); }
+
+.header-cta {
+    padding: 8px 14px;
+    background: var(--grad-rose);
+    color: oklch(0.99 0 0);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12.5px;
+    cursor: pointer;
+    border: none;
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.18),
+        0 4px 14px oklch(0.55 0.20 350 / 0.4);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-shadow: 0 1px 1px oklch(0 0 0 / 0.25);
+}
+.header-cta:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.22),
+        0 8px 20px oklch(0.55 0.20 350 / 0.55);
+}
+
+/* ---------------- Main canvas ---------------- */
+
+.main {
+    padding: 28px 36px 80px;
+    max-width: 1480px;
+    margin: 0 auto;
+}
+
+/* Soft welcome strip — friendly without being saccharine. */
+.welcome {
+    margin-bottom: 28px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 32px;
+}
+.welcome h1 {
+    margin: 0 0 4px 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+.welcome p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 14px;
+}
+.welcome p strong {
+    color: var(--text);
+    font-weight: 600;
+}
+.welcome-stats {
+    display: flex;
+    gap: 24px;
+    font-size: 12px;
+    color: var(--text-3);
+}
+.welcome-stats .stat-num {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: var(--text);
+    font-weight: 500;
+    letter-spacing: -0.3px;
+}
+
+/* ---------------- Hero featured card ---------------- */
+
+.hero {
+    background:
+        linear-gradient(135deg, oklch(0.32 0.12 60 / 0.18), oklch(0.21 0.014 260) 50%),
+        var(--surface-card);
+    border-radius: 18px;
+    border: 1px solid oklch(0.55 0.15 60 / 0.35);
+    padding: 28px;
+    margin-bottom: 36px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 36px;
+    box-shadow: var(--shadow-card);
+    position: relative;
+    overflow: hidden;
+}
+.hero::before {
+    content: "";
+    position: absolute;
+    top: -120px; right: -120px;
+    width: 360px; height: 360px;
+    background: radial-gradient(circle, oklch(0.7 0.18 60 / 0.18), transparent 60%);
+    pointer-events: none;
+}
+
+.hero-eyebrow {
+    color: var(--accent-warm);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.hero-eyebrow .pip {
+    width: 6px; height: 6px;
+    border-radius: 3px;
+    background: var(--accent-warm);
+    box-shadow: 0 0 10px var(--accent-warm-hi);
+}
+
+.hero h2 {
+    margin: 0 0 8px 0;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.7px;
+    line-height: 1.1;
+}
+
+.hero-tagline {
+    color: var(--text-2);
+    font-size: 15px;
+    margin: 0 0 20px 0;
+    max-width: 52ch;
+}
+
+.hero-by {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 22px;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-install {
+    padding: 10px 18px;
+    background: var(--grad-cyan);
+    color: oklch(0.10 0.04 230);
+    border-radius: 9px;
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+    border: none;
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.18),
+        0 6px 18px oklch(0.55 0.18 230 / 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.btn-install:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.22),
+        0 10px 24px oklch(0.55 0.18 230 / 0.55);
+}
+
+.btn-ghost {
+    padding: 10px 16px;
+    background: transparent;
+    color: var(--text-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-ghost:hover { background: var(--bg-2); color: var(--text); }
+
+.hero-stats {
+    display: flex;
+    gap: 22px;
+    margin-top: 22px;
+    color: var(--text-3);
+    font-size: 12px;
+    align-items: center;
+}
+.hero-stats span { display: inline-flex; gap: 6px; align-items: center; }
+.hero-stats strong {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 13px;
+}
+.hero-stats .star { color: var(--accent-warm); }
+
+/* Hero step-strip preview — vertical mini stack of pills with wires. */
+.hero-preview {
+    background: var(--bg-1);
+    border: 1px solid var(--line-hairline);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-preview-title {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-3);
+    margin-bottom: 14px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+}
+
+.mini-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+}
+.mini-stack::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    top: 14px;
+    bottom: 14px;
+    width: 1px;
+    background:
+        linear-gradient(to bottom,
+            transparent,
+            oklch(0.65 0.10 215 / 0.5) 8%,
+            oklch(0.65 0.10 215 / 0.5) 92%,
+            transparent);
+}
+
+/* ---------------- Mini step pill (used in hero + cards) ---------------- */
+
+.mstep {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 8px 8px;
+    background: var(--surface-card);
+    border-radius: 9px;
+    border: 1px solid var(--line-hairline);
+    position: relative;
+    z-index: 1;
+}
+.mstep .mstep-icon {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    display: grid; place-items: center;
+    color: oklch(0.99 0 0);
+    font-size: 10px;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.18);
+}
+.mstep .mstep-kind {
+    font-size: 10.5px;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 1.3px;
+    font-weight: 700;
+    min-width: 56px;
+}
+.mstep .mstep-value {
+    flex: 1;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mstep .mstep-elide {
+    color: var(--text-3);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+}
+
+.mstep-icon.cyan    { background: var(--grad-cyan); }
+.mstep-icon.blue    { background: var(--grad-blue); }
+.mstep-icon.amber   { background: var(--grad-amber); }
+.mstep-icon.coral   { background: var(--grad-coral); }
+.mstep-icon.magenta { background: var(--grad-magenta); }
+.mstep-icon.violet  { background: var(--grad-violet); }
+.mstep-icon.emerald { background: var(--grad-emerald); }
+.mstep-icon.rose    { background: var(--grad-rose); }
+.mstep-icon.lime    { background: var(--grad-lime); }
+
+/* ---------------- Avatars (CSS only — gradient-fill monogram) ---------------- */
+
+.avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: oklch(0.99 0 0);
+    font-weight: 700;
+    font-size: 11px;
+    text-shadow: 0 1px 1px oklch(0 0 0 / 0.25);
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.18),
+        0 2px 5px oklch(0 0 0 / 0.3);
+    flex-shrink: 0;
+}
+.avatar.lg { width: 36px; height: 36px; font-size: 13px; }
+.avatar.sm { width: 22px; height: 22px; font-size: 9px; }
+.avatar.cyan    { background: var(--grad-cyan); }
+.avatar.blue    { background: var(--grad-blue); }
+.avatar.amber   { background: var(--grad-amber); }
+.avatar.coral   { background: var(--grad-coral); }
+.avatar.magenta { background: var(--grad-magenta); }
+.avatar.violet  { background: var(--grad-violet); }
+.avatar.emerald { background: var(--grad-emerald); }
+.avatar.rose    { background: var(--grad-rose); }
+.avatar.lime    { background: var(--grad-lime); }
+
+.byline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-2);
+    font-size: 12.5px;
+}
+.byline .handle { color: var(--text); font-weight: 600; }
+.byline .by { color: var(--text-3); }
+.byline .verified {
+    color: oklch(0.78 0.13 215);
+    font-size: 11px;
+}
+
+/* ---------------- Category pills row ---------------- */
+
+.categories {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 22px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+.cat-pill {
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text-2);
+    background: var(--bg-2);
+    border: 1px solid var(--line-hairline);
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 500;
+    transition: all 120ms ease;
+}
+.cat-pill:hover { background: var(--bg-3); color: var(--text); border-color: var(--line); }
+.cat-pill.active {
+    background: var(--grad-cyan);
+    color: oklch(0.10 0.04 230);
+    border-color: transparent;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.18), 0 4px 12px oklch(0.55 0.18 230 / 0.3);
+}
+.cat-pill .count {
+    margin-left: 6px;
+    color: oklch(0.10 0.04 230 / 0.6);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+}
+.cat-pill:not(.active) .count { color: var(--text-3); }
+
+/* ---------------- Section heading ---------------- */
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 36px 0 18px 0;
+}
+.section-head h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-head .lead-icon {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: grid; place-items: center;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 12px;
+}
+.section-head .more {
+    color: var(--text-3);
+    font-size: 12.5px;
+    cursor: pointer;
+}
+.section-head .more:hover { color: var(--text-2); }
+
+/* ---------------- Workflow grid + cards ---------------- */
+
+.layout {
+    display: grid;
+    grid-template-columns: 1fr 304px;
+    gap: 32px;
+    align-items: flex-start;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 18px;
+}
+
+.wfcard {
+    background: var(--surface-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow-card);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    cursor: pointer;
+    transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease;
+    position: relative;
+}
+.wfcard:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover);
+    border-color: var(--line);
+}
+
+.wfcard-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.wfcard-title {
+    flex: 1;
+    min-width: 0;
+}
+.wfcard-title h4 {
+    margin: 0 0 3px 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wfcard-tagline {
+    margin: 0;
+    color: var(--text-3);
+    font-size: 12.5px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.wfcard-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-3);
+    font-size: 11.5px;
+}
+.wfcard-meta .stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+}
+.wfcard-meta .stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.wfcard-meta .stats strong {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 12px;
+}
+.wfcard-meta .star { color: var(--accent-warm); }
+
+.wfcard-tag {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    color: var(--text-2);
+    background: var(--bg-2);
+    border: 1px solid var(--line-hairline);
+    letter-spacing: 0.3px;
+    font-weight: 500;
+}
+
+/* ---------------- Right column ---------------- */
+
+.side-col {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.panel {
+    background: var(--bg-1);
+    border: 1px solid var(--line-hairline);
+    border-radius: 14px;
+    padding: 18px;
+}
+
+.panel h5 {
+    margin: 0 0 16px 0;
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.panel h5 .lead {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    display: grid; place-items: center;
+    font-size: 10px;
+}
+
+.activity-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 0;
+    border-top: 1px solid var(--line-hairline);
+}
+.activity-row:first-of-type { border-top: 0; padding-top: 4px; }
+.activity-row .av-text {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--text-2);
+    line-height: 1.4;
+}
+.activity-row .av-text strong {
+    color: var(--text);
+    font-weight: 600;
+}
+.activity-row .av-time {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    margin-top: 2px;
+}
+
+.creator-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--line-hairline);
+}
+.creator-row:first-of-type { border-top: 0; padding-top: 4px; }
+.creator-row .cr-meta { flex: 1; }
+.creator-row .cr-name {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+}
+.creator-row .cr-stats {
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    display: flex;
+    gap: 10px;
+    margin-top: 2px;
+}
+.creator-row .cr-rank {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    display: grid; place-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+    background: var(--bg-2);
+}
+.creator-row .cr-rank.gold { background: var(--grad-amber); color: oklch(0.16 0.04 60); font-weight: 700; }
+
+/* ---------------- Submit your workflow card ---------------- */
+
+.submit-card {
+    background:
+        linear-gradient(160deg, oklch(0.30 0.10 0 / 0.16), oklch(0.21 0.014 260) 60%),
+        var(--surface-card);
+    border-radius: 14px;
+    border: 1px solid oklch(0.55 0.18 350 / 0.35);
+    padding: 20px;
+    text-align: center;
+    box-shadow: var(--shadow-card);
+}
+.submit-card .glyph {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--grad-rose);
+    display: grid; place-items: center;
+    margin: 0 auto 12px;
+    color: oklch(0.99 0 0);
+    font-size: 18px;
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.18), 0 6px 16px oklch(0.55 0.20 350 / 0.4);
+}
+.submit-card h6 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+.submit-card p {
+    margin: 0 0 14px 0;
+    font-size: 12.5px;
+    color: var(--text-3);
+    line-height: 1.45;
+}
+.submit-card .btn-submit {
+    padding: 8px 14px;
+    background: var(--grad-rose);
+    color: oklch(0.99 0 0);
+    border: none;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow:
+        inset 0 1px 0 oklch(1 0 0 / 0.18),
+        0 4px 12px oklch(0.55 0.20 350 / 0.4);
+    text-shadow: 0 1px 1px oklch(0 0 0 / 0.25);
+}
+
+/* ---------------- Recent shares (dense list) ---------------- */
+
+.recent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.recent-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-card);
+    border-radius: 10px;
+    border: 1px solid var(--line-hairline);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.recent-row:hover { background: var(--surface-card-hi); border-color: var(--line-soft); }
+.recent-row .recent-meta { flex: 1; min-width: 0; }
+.recent-row .rt {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.recent-row .rs {
+    font-size: 11.5px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+}
+.recent-row .recent-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+
+/* ---------------- Footer-ish "join" strip ---------------- */
+
+.community-strip {
+    margin-top: 50px;
+    padding: 24px 28px;
+    background: var(--bg-1);
+    border: 1px solid var(--line-hairline);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.community-strip .stack {
+    display: flex;
+    align-items: center;
+    margin-right: 8px;
+}
+.community-strip .stack .avatar {
+    margin-right: -8px;
+    border: 2px solid var(--bg-1);
+}
+.community-strip .body { flex: 1; min-width: 240px; }
+.community-strip h4 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+.community-strip p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+    <!-- ============== Sidebar ============== -->
+    <aside class="sidebar app-sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-mark">w</div>
+            <div class="brand-text">wflow</div>
+        </div>
+
+        <div class="sidebar-section">Workspace</div>
+        <ul class="sidebar-list">
+            <li class="sidebar-item">
+                <span class="si-icon">☰</span>
+                <span class="si-label">Library</span>
+                <span class="si-meta">11</span>
+            </li>
+            <li class="sidebar-item active">
+                <span class="si-icon">✦</span>
+                <span class="si-label">Explore</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon">●</span>
+                <span class="si-label">Record</span>
+            </li>
+        </ul>
+
+        <div class="sidebar-section" style="margin-top:18px;">Following</div>
+        <ul class="sidebar-list">
+            <li class="sidebar-item">
+                <span class="si-icon" style="background: var(--grad-cyan); color: oklch(0.10 0.04 230); font-weight: 700;">A</span>
+                <span class="si-label">@alaina</span>
+                <span class="si-meta">3</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon" style="background: var(--grad-violet); color: oklch(0.99 0 0); font-weight: 700;">M</span>
+                <span class="si-label">@mhmd_dev</span>
+                <span class="si-meta">8</span>
+            </li>
+            <li class="sidebar-item">
+                <span class="si-icon" style="background: var(--grad-emerald); color: oklch(0.16 0.02 165); font-weight: 700;">P</span>
+                <span class="si-label">@pixelhugger</span>
+                <span class="si-meta">2</span>
+            </li>
+        </ul>
+
+        <div class="sidebar-spacer"></div>
+
+        <div class="sidebar-footer">
+            <span class="dot"></span>
+            <span>2 trigger bindings live</span>
+        </div>
+    </aside>
+
+    <!-- ============== Header ============== -->
+    <header class="header app-header">
+        <div class="header-search">
+            <span class="glyph">⌕</span>
+            <input type="text" placeholder="Search workflows, authors, tags…">
+            <span class="kbd">⌘ K</span>
+        </div>
+
+        <div class="header-tabs">
+            <span class="header-tab active">Featured</span>
+            <span class="header-tab">Trending</span>
+            <span class="header-tab">Recent</span>
+            <span class="header-tab">Categories</span>
+        </div>
+
+        <button class="header-cta">
+            <span>↑</span>
+            Submit your workflow
+        </button>
+    </header>
+
+    <!-- ============== Main ============== -->
+    <main class="main app-main">
+
+        <!-- Welcome strip -->
+        <section class="welcome">
+            <div>
+                <h1>Workflows from the community</h1>
+                <p>Pick something up, fork it, make it yours. <strong>2,841 workflows</strong> shared by <strong>403 people</strong> who automate Linux for a living.</p>
+            </div>
+            <div class="welcome-stats">
+                <div>
+                    <div class="stat-num">2,841</div>
+                    <div>workflows</div>
+                </div>
+                <div>
+                    <div class="stat-num">403</div>
+                    <div>creators</div>
+                </div>
+                <div>
+                    <div class="stat-num">18.4K</div>
+                    <div>forks this month</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============== Hero featured ============== -->
+        <section class="hero">
+            <div>
+                <div class="hero-eyebrow">
+                    <span class="pip"></span>
+                    Featured today · curated by <span style="color: var(--text-2)">@wflow</span>
+                </div>
+                <h2>The dev environment, in one keystroke.</h2>
+                <p class="hero-tagline">
+                    Press <code style="font-family: var(--font-mono); background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 13px;">⌘⌥D</code>
+                    and your editor, browser, and terminal layout snap into place. Auto-detects your project from <code style="font-family: var(--font-mono); background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 13px;">$PWD</code>; falls back to your last session.
+                </p>
+
+                <div class="hero-by">
+                    <div class="avatar lg cyan">A</div>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 600;">@alaina</span>
+                            <span class="byline verified">✓</span>
+                            <span style="color: var(--text-3); font-size: 11.5px; font-family: var(--font-mono);">Hyprland · KDE</span>
+                        </div>
+                        <div style="color: var(--text-3); font-size: 12px; margin-top: 2px;">Author of 14 workflows · 2.1k stars total</div>
+                    </div>
+                </div>
+
+                <div class="hero-actions">
+                    <button class="btn-install">
+                        <span style="font-size: 13px;">↓</span>
+                        Install workflow
+                    </button>
+                    <button class="btn-ghost">
+                        <span style="font-size: 12px;">⑂</span>
+                        Fork
+                    </button>
+                    <button class="btn-ghost">
+                        <span style="font-size: 12px;">★</span>
+                        Star
+                    </button>
+                </div>
+
+                <div class="hero-stats">
+                    <span><strong class="star">★</strong><strong>1,284</strong> stars</span>
+                    <span><strong>⑂</strong><strong>342</strong> forks</span>
+                    <span><strong>⤓</strong><strong>8.7K</strong> installs</span>
+                    <span><strong>●</strong><strong>23</strong> running now</span>
+                </div>
+            </div>
+
+            <div class="hero-preview">
+                <div class="hero-preview-title">
+                    <span>Steps · 8</span>
+                    <span>0.4 KiB</span>
+                </div>
+                <div class="mini-stack">
+                    <div class="mstep">
+                        <div class="mstep-icon amber">⌘</div>
+                        <div class="mstep-kind">Trigger</div>
+                        <div class="mstep-value">⌘ ⌥ D</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon emerald">⏳</div>
+                        <div class="mstep-kind">Wait</div>
+                        <div class="mstep-value">window kitty · 10s</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon coral">▷_</div>
+                        <div class="mstep-kind">Shell</div>
+                        <div class="mstep-value">kitty -e nvim {{project}}</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon coral">▷_</div>
+                        <div class="mstep-kind">Shell</div>
+                        <div class="mstep-value">firefox {{url}}</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon amber">⊕</div>
+                        <div class="mstep-kind">Focus</div>
+                        <div class="mstep-value">kitty</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon cyan">⌨</div>
+                        <div class="mstep-kind">Key</div>
+                        <div class="mstep-value">ctrl + alt + r</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-icon violet">◉</div>
+                        <div class="mstep-kind">Notify</div>
+                        <div class="mstep-value">"Dev setup ready"</div>
+                    </div>
+                    <div class="mstep">
+                        <div class="mstep-elide" style="margin-left: 38px;">+ 1 more step…</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============== Categories ============== -->
+        <div class="categories">
+            <span class="cat-pill active">All <span class="count">2841</span></span>
+            <span class="cat-pill">Productivity <span class="count">412</span></span>
+            <span class="cat-pill">Window management <span class="count">298</span></span>
+            <span class="cat-pill">Dev environment <span class="count">231</span></span>
+            <span class="cat-pill">Accessibility <span class="count">82</span></span>
+            <span class="cat-pill">Gaming <span class="count">144</span></span>
+            <span class="cat-pill">System admin <span class="count">189</span></span>
+            <span class="cat-pill">Media <span class="count">76</span></span>
+            <span class="cat-pill">Writing <span class="count">53</span></span>
+            <span class="cat-pill">Designer <span class="count">68</span></span>
+        </div>
+
+        <!-- ============== Trending grid + side column ============== -->
+        <div class="layout">
+            <div>
+                <div class="section-head">
+                    <h3><span class="lead-icon" style="background: var(--grad-coral); color: oklch(0.99 0 0);">↗</span> Trending this week</h3>
+                    <span class="more">See all →</span>
+                </div>
+
+                <div class="grid">
+                    <!-- Card 1 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar cyan">A</div>
+                            <div class="wfcard-title">
+                                <h4>Window grid layout</h4>
+                                <p class="wfcard-tagline">Snap focus into a 4-way grid with super+arrow. Works on Hyprland and Sway.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon amber">⌘</div>
+                                <div class="mstep-kind">Trigger</div>
+                                <div class="mstep-value">⌘ + ←</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">hyprctl movewindow l</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-elide" style="margin-left: 38px;">+ 4 more steps</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@alaina</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>912</strong></span>
+                                <span><strong>⑂</strong><strong>184</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">Window management</span>
+                    </div>
+
+                    <!-- Card 2 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar magenta">M</div>
+                            <div class="wfcard-title">
+                                <h4>OBS scene-deck</h4>
+                                <p class="wfcard-tagline">Stream-control hotkeys for OBS. Switch scene, mute mic, toggle camera in one chord.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon amber">⌘</div>
+                                <div class="mstep-kind">Trigger</div>
+                                <div class="mstep-value">F9</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">obs-cmd scene "BRB"</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon violet">◉</div>
+                                <div class="mstep-kind">Notify</div>
+                                <div class="mstep-value">"Now live: BRB"</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@mhmd_dev</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>684</strong></span>
+                                <span><strong>⑂</strong><strong>92</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">Media</span>
+                    </div>
+
+                    <!-- Card 3 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar emerald">P</div>
+                            <div class="wfcard-title">
+                                <h4>Cleanup downloads</h4>
+                                <p class="wfcard-tagline">Sort ~/Downloads into images / archives / docs. Daily cron, with notifications.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">find ~/Downloads -mtime +30…</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon emerald">⏳</div>
+                                <div class="mstep-kind">Wait</div>
+                                <div class="mstep-value">200ms</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon violet">◉</div>
+                                <div class="mstep-kind">Notify</div>
+                                <div class="mstep-value">"Tidied 7 files"</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@pixelhugger</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>421</strong></span>
+                                <span><strong>⑂</strong><strong>58</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">System admin</span>
+                    </div>
+
+                    <!-- Card 4 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar coral">D</div>
+                            <div class="wfcard-title">
+                                <h4>Pomodoro for hyprland</h4>
+                                <p class="wfcard-tagline">25/5 timer that recolors your bar and sends a desktop notification on transition.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon amber">⌘</div>
+                                <div class="mstep-kind">Trigger</div>
+                                <div class="mstep-value">⌘ ⌥ P</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon emerald">⏳</div>
+                                <div class="mstep-kind">Wait</div>
+                                <div class="mstep-value">25 minutes</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon violet">◉</div>
+                                <div class="mstep-kind">Notify</div>
+                                <div class="mstep-value">"Time for a break"</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@dietcache</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>389</strong></span>
+                                <span><strong>⑂</strong><strong>71</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">Productivity</span>
+                    </div>
+
+                    <!-- Card 5 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar violet">S</div>
+                            <div class="wfcard-title">
+                                <h4>Screenshot to clipboard, with redaction</h4>
+                                <p class="wfcard-tagline">Region screenshot, blur faces in /api/redact, copy to clipboard. Hotkey ⌘⇧4.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon amber">⌘</div>
+                                <div class="mstep-kind">Trigger</div>
+                                <div class="mstep-value">⌘ ⇧ 4</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">grim -g "$(slurp)" - | …</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon magenta">?</div>
+                                <div class="mstep-kind">When</div>
+                                <div class="mstep-value">env REDACT</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-elide" style="margin-left: 38px;">+ 2 more steps</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@safegif</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>312</strong></span>
+                                <span><strong>⑂</strong><strong>47</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">Productivity</span>
+                    </div>
+
+                    <!-- Card 6 -->
+                    <div class="wfcard">
+                        <div class="wfcard-head">
+                            <div class="avatar lime">G</div>
+                            <div class="wfcard-title">
+                                <h4>Game-mode toggle</h4>
+                                <p class="wfcard-tagline">Mute Slack, kill notifications, switch audio profile, enable performance governor.</p>
+                            </div>
+                        </div>
+                        <div class="mini-stack">
+                            <div class="mstep">
+                                <div class="mstep-icon amber">⌘</div>
+                                <div class="mstep-kind">Trigger</div>
+                                <div class="mstep-value">⌘ ⌥ G</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">cpupower frequency-set …</div>
+                            </div>
+                            <div class="mstep">
+                                <div class="mstep-icon coral">▷_</div>
+                                <div class="mstep-kind">Shell</div>
+                                <div class="mstep-value">slack-cli set-status away</div>
+                            </div>
+                        </div>
+                        <div class="wfcard-meta">
+                            <span class="byline">
+                                <span class="by">by</span>
+                                <span class="handle">@gpu_kid</span>
+                            </span>
+                            <span class="stats">
+                                <span><strong class="star">★</strong><strong>247</strong></span>
+                                <span><strong>⑂</strong><strong>31</strong></span>
+                            </span>
+                        </div>
+                        <span class="wfcard-tag">Gaming</span>
+                    </div>
+                </div>
+
+                <!-- Recent shares -->
+                <div class="section-head">
+                    <h3><span class="lead-icon" style="background: var(--grad-emerald); color: oklch(0.16 0.02 165);">↻</span> Recently shared</h3>
+                    <span class="more">See all →</span>
+                </div>
+
+                <div class="recent-grid">
+                    <div class="recent-row">
+                        <div class="avatar sm rose">N</div>
+                        <div class="recent-meta">
+                            <div class="rt">Sleep timer with fade-out</div>
+                            <div class="rs">@nightowl · 2 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 12</span>
+                    </div>
+                    <div class="recent-row">
+                        <div class="avatar sm blue">B</div>
+                        <div class="recent-meta">
+                            <div class="rt">Backup home dir to btrfs snapshot</div>
+                            <div class="rs">@btrfsfan · 3 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 7</span>
+                    </div>
+                    <div class="recent-row">
+                        <div class="avatar sm amber">K</div>
+                        <div class="recent-meta">
+                            <div class="rt">Auto-rotate clipboard images</div>
+                            <div class="rs">@klee · 4 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 18</span>
+                    </div>
+                    <div class="recent-row">
+                        <div class="avatar sm magenta">L</div>
+                        <div class="recent-meta">
+                            <div class="rt">Spotify lyrics overlay</div>
+                            <div class="rs">@lyric_machine · 5 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 32</span>
+                    </div>
+                    <div class="recent-row">
+                        <div class="avatar sm emerald">F</div>
+                        <div class="recent-meta">
+                            <div class="rt">Switch DNS profile (home / work / vpn)</div>
+                            <div class="rs">@fizzlerat · 6 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 9</span>
+                    </div>
+                    <div class="recent-row">
+                        <div class="avatar sm violet">Z</div>
+                        <div class="recent-meta">
+                            <div class="rt">Per-monitor wallpaper rotator</div>
+                            <div class="rs">@zenmuse · 8 hours ago</div>
+                        </div>
+                        <span class="recent-stat">★ 14</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right column -->
+            <aside class="side-col">
+
+                <div class="submit-card">
+                    <div class="glyph">✦</div>
+                    <h6>Share what you built.</h6>
+                    <p>Workflows are plain-text KDL files. Drop yours into the registry and someone halfway across the world will fork it tomorrow.</p>
+                    <button class="btn-submit">Submit a workflow</button>
+                </div>
+
+                <div class="panel">
+                    <h5><span class="lead" style="background: var(--grad-cyan); color: oklch(0.10 0.04 230);">●</span> Recent activity</h5>
+                    <div class="activity-row">
+                        <div class="avatar sm cyan">A</div>
+                        <div class="av-text">
+                            <strong>@alaina</strong> updated <span style="color: var(--text);">Window grid layout</span> with sway support
+                            <div class="av-time">12 min ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-row">
+                        <div class="avatar sm coral">D</div>
+                        <div class="av-text">
+                            <strong>@dietcache</strong> forked <span style="color: var(--text);">Pomodoro for hyprland</span> from @nightowl
+                            <div class="av-time">38 min ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-row">
+                        <div class="avatar sm magenta">M</div>
+                        <div class="av-text">
+                            <strong>@mhmd_dev</strong> hit 2k stars on <span style="color: var(--text);">OBS scene-deck</span>
+                            <div class="av-time">1 hr ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-row">
+                        <div class="avatar sm emerald">P</div>
+                        <div class="av-text">
+                            <strong>@pixelhugger</strong> commented on <span style="color: var(--text);">Cleanup downloads</span>: "added a btrfs flag"
+                            <div class="av-time">3 hr ago</div>
+                        </div>
+                    </div>
+                    <div class="activity-row">
+                        <div class="avatar sm violet">S</div>
+                        <div class="av-text">
+                            <strong>@safegif</strong> opened a PR against <span style="color: var(--text);">Screenshot to clipboard</span>
+                            <div class="av-time">6 hr ago</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h5><span class="lead" style="background: var(--grad-amber); color: oklch(0.16 0.04 60);">★</span> Top creators · this month</h5>
+                    <div class="creator-row">
+                        <div class="cr-rank gold">1</div>
+                        <div class="avatar cyan">A</div>
+                        <div class="cr-meta">
+                            <div class="cr-name">@alaina</div>
+                            <div class="cr-stats"><span>14 workflows</span><span>·</span><span>2.1k ★</span></div>
+                        </div>
+                    </div>
+                    <div class="creator-row">
+                        <div class="cr-rank">2</div>
+                        <div class="avatar magenta">M</div>
+                        <div class="cr-meta">
+                            <div class="cr-name">@mhmd_dev</div>
+                            <div class="cr-stats"><span>22 workflows</span><span>·</span><span>1.8k ★</span></div>
+                        </div>
+                    </div>
+                    <div class="creator-row">
+                        <div class="cr-rank">3</div>
+                        <div class="avatar emerald">P</div>
+                        <div class="cr-meta">
+                            <div class="cr-name">@pixelhugger</div>
+                            <div class="cr-stats"><span>9 workflows</span><span>·</span><span>1.2k ★</span></div>
+                        </div>
+                    </div>
+                    <div class="creator-row">
+                        <div class="cr-rank">4</div>
+                        <div class="avatar lime">G</div>
+                        <div class="cr-meta">
+                            <div class="cr-name">@gpu_kid</div>
+                            <div class="cr-stats"><span>6 workflows</span><span>·</span><span>820 ★</span></div>
+                        </div>
+                    </div>
+                    <div class="creator-row">
+                        <div class="cr-rank">5</div>
+                        <div class="avatar coral">D</div>
+                        <div class="cr-meta">
+                            <div class="cr-name">@dietcache</div>
+                            <div class="cr-stats"><span>11 workflows</span><span>·</span><span>740 ★</span></div>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+
+        <!-- Community-strip footer -->
+        <section class="community-strip">
+            <div class="stack">
+                <div class="avatar cyan">A</div>
+                <div class="avatar magenta">M</div>
+                <div class="avatar emerald">P</div>
+                <div class="avatar coral">D</div>
+                <div class="avatar violet">S</div>
+                <div class="avatar lime">G</div>
+                <div class="avatar amber">+</div>
+            </div>
+            <div class="body">
+                <h4>403 people automate Linux for a living.</h4>
+                <p>Workflow files are plain text. Diff them in git, share them with a teammate, fork them when someone has a better idea.</p>
+            </div>
+            <button class="btn-install" style="background: var(--grad-cyan);">
+                <span style="font-size: 13px;">→</span>
+                Open the registry
+            </button>
+        </section>
+
+    </main>
+</div>
+
+</body>
+</html>
