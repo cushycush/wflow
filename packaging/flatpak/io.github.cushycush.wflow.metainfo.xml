@@ -64,6 +64,22 @@
   </provides>
 
   <releases>
+    <release version="0.3.19" date="2026-04-26">
+      <description>
+        <p>
+          Esc stops a recording. The previous "switch to wflow and click Stop" pattern was getting captured into the saved workflow even with the trim heuristic; now the recorder watches the evdev stream for an Esc keypress and triggers stop directly without any focus change. The Esc itself isn't recorded.
+        </p>
+        <p>
+          Library has bulk-delete. Click "Select" in the toolbar to enter selection mode, click cards to add them to the selection, then "Delete N" with one confirmation. Esc cancels selection. The per-card kebab → Delete still works for one-offs.
+        </p>
+        <p>
+          Editor's Delete moved out of the kebab menu into a direct toolbar button.
+        </p>
+        <p>
+          Record buttons are red. The Record tab in the floating nav pill and the central button in the Record page (idle / armed / recording states) all use the err palette so they read as record affordances at a glance instead of generic actions.
+        </p>
+      </description>
+    </release>
     <release version="0.3.18" date="2026-04-26">
       <description>
         <p>

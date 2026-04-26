@@ -84,6 +84,43 @@ Item {
         onConfirmed: libCtrl.remove(deleteDialog.targetId)
     }
 
+    property bool selectMode: false
+    property var selectedIds: ({})
+    readonly property int selectedCount: Object.keys(root.selectedIds).length
+
+    function _enterSelect() {
+        root.selectedIds = ({})
+        root.selectMode = true
+    }
+    function _exitSelect() {
+        root.selectedIds = ({})
+        root.selectMode = false
+    }
+    function _toggleSelected(id) {
+        const next = Object.assign({}, root.selectedIds)
+        if (next[id]) delete next[id]
+        else next[id] = true
+        root.selectedIds = next
+    }
+    function _askBulkDelete() {
+        if (root.selectedCount === 0) return
+        bulkDeleteDialog.open()
+    }
+
+    WfConfirmDialog {
+        id: bulkDeleteDialog
+        title: root.selectedCount === 1
+            ? "Delete 1 workflow?"
+            : "Delete " + root.selectedCount + " workflows?"
+        message: "This permanently deletes the selected workflows from your library. KDL files are removed from disk."
+        confirmText: "Delete " + root.selectedCount
+        destructive: true
+        onConfirmed: {
+            for (const id of Object.keys(root.selectedIds)) libCtrl.remove(id)
+            root._exitSelect()
+        }
+    }
+
     // Re-pulls templates_json each open so a freshly-installed
     // package's templates show up without restarting.
     function _openNewDialog() {
@@ -111,24 +148,57 @@ Item {
         TopBar {
             id: tb
             width: parent.width
-            title: "Library"
-            subtitle: root.workflows.length === 1
-                ? "1 workflow"
-                : root.workflows.length + " workflows"
+            title: root.selectMode
+                ? (root.selectedCount + " selected")
+                : "Library"
+            subtitle: root.selectMode
+                ? "click cards to select, Esc to cancel"
+                : (root.workflows.length === 1
+                    ? "1 workflow"
+                    : root.workflows.length + " workflows")
+
+            // Select-mode actions: Cancel + Delete N. Hide layout
+            // switcher / + New / Record while selecting so the
+            // toolbar stays focused on the bulk action.
+            SecondaryButton {
+                visible: root.selectMode
+                text: "Cancel"
+                onClicked: root._exitSelect()
+            }
+            PrimaryButton {
+                visible: root.selectMode
+                enabled: root.selectedCount > 0
+                text: root.selectedCount > 0
+                    ? "🗑 Delete " + root.selectedCount
+                    : "🗑 Delete"
+                onClicked: root._askBulkDelete()
+            }
 
             LibraryLayoutSwitcher {
                 anchors.verticalCenter: parent.verticalCenter
-                visible: root.workflows.length > 0
+                visible: !root.selectMode && root.workflows.length > 0
             }
-
+            SecondaryButton {
+                visible: !root.selectMode && root.workflows.length > 0
+                text: "Select"
+                onClicked: root._enterSelect()
+            }
             PrimaryButton {
+                visible: !root.selectMode
                 text: "+ New workflow"
                 onClicked: root._openNewDialog()
             }
             SecondaryButton {
+                visible: !root.selectMode
                 text: "● Record"
                 onClicked: root.recordRequested()
             }
+        }
+
+        Shortcut {
+            sequence: "Escape"
+            enabled: root.visible && root.selectMode
+            onActivated: root._exitSelect()
         }
 
         Item {
@@ -219,9 +289,12 @@ Item {
                         LibraryGrid {
                             width: variantLoader.width
                             workflows: root.workflows
+                            selectMode: root.selectMode
+                            selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
+                            onToggleSelected: (id) => root._toggleSelected(id)
                         }
                     }
                     Component {
@@ -229,10 +302,13 @@ Item {
                         LibraryList {
                             width: variantLoader.width
                             workflows: root.workflows
+                            selectMode: root.selectMode
+                            selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
                             onReorderRequested: (from, to) => root.moveWorkflow(from, to)
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
+                            onToggleSelected: (id) => root._toggleSelected(id)
                         }
                     }
                 }

@@ -407,39 +407,11 @@ Item {
                 }
             }
 
-            // Workflow-level actions menu. Right now Delete is the
-            // only entry; rename / export / duplicate could land
-            // here later.
-            Rectangle {
-                id: kebabBtn
-                width: 32; height: 32; radius: 16
-                anchors.verticalCenter: parent.verticalCenter
-                color: kebabArea.containsMouse ? Theme.surface2 : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "⋯"
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 18
-                }
-
-                MouseArea {
-                    id: kebabArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: editorMenu.popup()
-                }
-
-                WfMenu {
-                    id: editorMenu
-                    WfMenuItem {
-                        text: "Delete workflow"
-                        onTriggered: root._askDelete()
-                    }
-                }
+            // Unicode × instead of 🗑 emoji; the emoji glyph rendered
+            // taller than its sibling buttons.
+            SecondaryButton {
+                text: "🗑 Delete"
+                onClicked: root._askDelete()
             }
             SecondaryButton {
                 text: "↗ Share"

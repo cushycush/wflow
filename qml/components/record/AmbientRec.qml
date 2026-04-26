@@ -16,7 +16,9 @@ Item {
     readonly property color moodColor: {
         if (phase === "recording") return Theme.err
         if (phase === "armed") return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.8)
-        return Theme.accent
+        // Idle uses the err palette (desaturated) so the button still
+        // reads as Record, not a generic primary action.
+        return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.55)
     }
 
     Rectangle {
