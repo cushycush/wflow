@@ -38,6 +38,8 @@ Dialog {
     signal recordRequested()
 
     // Bespoke chrome — Dialog's default header doesn't fit the brand.
+    header: Item { width: 0; height: 0 }
+    footer: Item { width: 0; height: 0 }
     background: Rectangle {
         color: Theme.surface
         radius: Theme.radiusMd

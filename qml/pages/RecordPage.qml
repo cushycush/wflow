@@ -84,6 +84,11 @@ Item {
         width: 420
         anchors.centerIn: parent
 
+        // Suppress the system header / footer bars; the contentItem
+        // renders our own header text and the footer Row of buttons.
+        header: Item { width: 0; height: 0 }
+        footer: Item { width: 0; height: 0 }
+
         background: Rectangle {
             color: Theme.surface
             radius: Theme.radiusMd

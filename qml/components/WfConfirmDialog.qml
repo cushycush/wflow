@@ -31,6 +31,12 @@ Dialog {
 
     signal confirmed()
 
+    // Suppress Dialog's default system-styled header bar — we render
+    // our own inside contentItem and don't want the light bar
+    // sitting above it.
+    header: Item { width: 0; height: 0 }
+    footer: Item { width: 0; height: 0 }
+
     background: Rectangle {
         color: Theme.surface
         radius: Theme.radiusMd
