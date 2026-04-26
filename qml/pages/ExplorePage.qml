@@ -139,7 +139,7 @@ Item {
 
                     ScrollView {
                         width: parent.width
-                        height: 162
+                        height: 212
                         contentHeight: height
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
@@ -152,7 +152,7 @@ Item {
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 150
+                                    cardH: 200
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
@@ -187,7 +187,7 @@ Item {
 
                     ScrollView {
                         width: parent.width
-                        height: 162
+                        height: 212
                         contentHeight: height
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
@@ -200,7 +200,7 @@ Item {
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 150
+                                    cardH: 200
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
@@ -238,7 +238,7 @@ Item {
                         readonly property int cols: Math.max(2, Math.floor(width / 300))
                         readonly property real gap: 12
                         readonly property real cardW: (width - gap * (cols - 1)) / cols
-                        readonly property real cardH: 150
+                        readonly property real cardH: 200
                         readonly property int rows: Math.ceil(root.filtered.length / cols)
                         height: rows * cardH + Math.max(0, rows - 1) * gap
 
