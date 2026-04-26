@@ -445,12 +445,16 @@ Item {
                                 ? intValidator : null
                             IntValidator { id: intValidator; bottom: 0 }
 
-                            onEditingFinished: {
+                            // Commits per-keystroke; the page's 600ms save
+                            // debounce coalesces.
+                            function _commit() {
                                 if (!valueSection.sel || !valueSection.sel.editable) return
                                 if (text !== valueSection.sel.rawPrimary) {
                                     root.valueEdited(root.selectedIndex, text)
                                 }
                             }
+                            onTextEdited: _commit()
+                            onEditingFinished: _commit()
                             Keys.onReturnPressed: editingFinished()
                             Keys.onEnterPressed:  editingFinished()
                         }

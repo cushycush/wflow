@@ -69,9 +69,12 @@ Rectangle {
                 // Don't clobber in-progress typing on upstream changes.
                 property string upstream: root.title
                 onUpstreamChanged: if (!activeFocus) text = upstream
-                onEditingFinished: {
+                // Per-keystroke; the page's save is debounced.
+                function _commit() {
                     if (text !== root.title) root.titleCommitted(text)
                 }
+                onTextEdited: _commit()
+                onEditingFinished: _commit()
             }
 
             // Subtitle.
@@ -106,9 +109,11 @@ Rectangle {
                 }
                 property string upstream: root.subtitle
                 onUpstreamChanged: if (!activeFocus) text = upstream
-                onEditingFinished: {
+                function _commit() {
                     if (text !== root.subtitle) root.subtitleCommitted(text)
                 }
+                onTextEdited: _commit()
+                onEditingFinished: _commit()
             }
         }
 
