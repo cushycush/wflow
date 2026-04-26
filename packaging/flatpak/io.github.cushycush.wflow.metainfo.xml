@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.15" date="2026-04-26">
+      <description>
+        <p>
+          Dialogs no longer render the system-styled title/footer bars on top of our custom chrome. The Delete prompt was showing a light header strip with the title text duplicated above the dialog's own header. Suppressed the system header and footer on every wflow Dialog (Delete confirmation, recorder save prompt, New workflow).
+        </p>
+      </description>
+    </release>
     <release version="0.3.14" date="2026-04-26">
       <description>
         <p>

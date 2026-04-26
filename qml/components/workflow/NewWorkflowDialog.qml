@@ -19,6 +19,8 @@ Dialog {
     signal createFromTemplateRequested(string templateId)
     signal recordRequested()
 
+    header: Item { width: 0; height: 0 }
+    footer: Item { width: 0; height: 0 }
     background: Rectangle {
         color: Theme.surface
         radius: Theme.radiusMd
