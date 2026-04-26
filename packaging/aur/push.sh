@@ -55,6 +55,25 @@ cp "$REPO_ROOT/packaging/aur/wflow/PKGBUILD" "$WORK/wflow/"
     fi
 )
 
+echo "==> Pushing wflow-bin $PKGVER (prebuilt-binary variant)"
+git clone "ssh://aur@aur.archlinux.org/wflow-bin.git" "$WORK/wflow-bin"
+cp "$REPO_ROOT/packaging/aur/wflow-bin/PKGBUILD" "$WORK/wflow-bin/"
+(
+    cd "$WORK/wflow-bin"
+    git symbolic-ref HEAD refs/heads/master
+    # wflow-bin uses sha256sums=('SKIP') for the binary tarball
+    # since GitHub releases are HTTPS-trusted; updpkgsums would
+    # try to compute hashes for sources we deliberately skip.
+    makepkg --printsrcinfo > .SRCINFO
+    git add PKGBUILD .SRCINFO
+    if git diff --cached --quiet; then
+        echo "    no changes — skipping commit"
+    else
+        git commit -m "wflow-bin $PKGVER"
+        git push origin master
+    fi
+)
+
 echo "==> Pushing wflow-git (VCS variant)"
 git clone "ssh://aur@aur.archlinux.org/wflow-git.git" "$WORK/wflow-git"
 cp "$REPO_ROOT/packaging/aur/wflow-git/PKGBUILD" "$WORK/wflow-git/"
@@ -75,4 +94,5 @@ cp "$REPO_ROOT/packaging/aur/wflow-git/PKGBUILD" "$WORK/wflow-git/"
 
 echo "==> Done. View at:"
 echo "      https://aur.archlinux.org/packages/wflow"
+echo "      https://aur.archlinux.org/packages/wflow-bin"
 echo "      https://aur.archlinux.org/packages/wflow-git"

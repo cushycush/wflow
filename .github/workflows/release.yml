@@ -103,13 +103,14 @@ jobs:
           echo "name=${NAME}"         >> "${GITHUB_OUTPUT}"
           echo "stage=${STAGE}"       >> "${GITHUB_OUTPUT}"
 
-      - name: Create draft release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          # Drafts let the maintainer review release notes before publish.
-          # Subsequent commits to the tag overwrite the draft, not the
-          # published release.
-          draft: true
+          # Publish immediately. The wflow-bin AUR package downloads
+          # from /releases/download/v<ver>/, which 404s on draft
+          # releases — auto-publish so the bin package can install
+          # the same minute the tag lands.
+          draft: false
           name: "wflow ${{ steps.stage.outputs.version }}"
           body: |
             Prebuilt x86_64 Linux binary tarball for wflow ${{ steps.stage.outputs.version }}.
