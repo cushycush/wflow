@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.6" date="2026-04-25">
+      <description>
+        <p>
+          Record's evdev fallback now time-throttles mouse motion events. Previously the raw 1000Hz mouse stream saturated the Qt thread queue, the GUI froze, and keyboard events starved on the shared event mutex. Default emit interval is 1000ms (one Move sentinel per second); tune with `WFLOW_REC_MOVE_INTERVAL_MS` for finer or coarser cadence.
+        </p>
+        <p>
+          The chord builder learned the US-en QWERTY letter, digit, and punctuation keys. Recordings used to encode plain letters as `key30` etc., which isn't a valid wdotool keysym and would have failed on replay. Letters now record as `a`, `b`, etc. and chords compose normally (`ctrl+a`, `shift+1`, etc.). Non-US layouts still need editor cleanup; layout-aware mapping is a future polish.
+        </p>
+      </description>
+    </release>
     <release version="0.3.5" date="2026-04-25">
       <description>
         <p>
