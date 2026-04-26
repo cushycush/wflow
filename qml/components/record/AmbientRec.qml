@@ -19,7 +19,10 @@ Item {
     readonly property color moodColor: {
         if (phase === "recording") return Theme.err
         if (phase === "armed") return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.8)
-        return Theme.accent
+        // Idle state still uses the err palette (a desaturated red)
+        // so the button reads as a Record button at a glance instead
+        // of a generic primary action.
+        return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.55)
     }
 
     // Ambient wash layer — large radial tint centered on the button

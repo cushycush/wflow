@@ -7,9 +7,16 @@ import Wflow
 Item {
     id: root
     property var workflows: []
+    // Selection mode: in v1 this is a "manage" toggle on the page.
+    // When selectMode is true, clicking a card toggles its membership
+    // in selectedIds via toggleSelected(id) instead of opening the
+    // editor.
+    property bool selectMode: false
+    property var selectedIds: ({})
     signal openWorkflow(string id)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
+    signal toggleSelected(string id)
 
     // Auto-column — each column wants ~300px minimum.
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
@@ -49,6 +56,8 @@ Item {
             Keys.onDeletePressed: root.deleteRequested(card.wf.id)
             FocusRing { }
 
+            readonly property bool selected: root.selectedIds[card.wf.id] === true
+
             MouseArea {
                 id: cardArea
                 anchors.fill: parent
@@ -57,8 +66,37 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: (mouse) => {
                     card.forceActiveFocus()
-                    if (mouse.button === Qt.RightButton) cardMenu.popup()
-                    else root.openWorkflow(card.wf.id)
+                    if (mouse.button === Qt.RightButton) {
+                        cardMenu.popup()
+                    } else if (root.selectMode) {
+                        root.toggleSelected(card.wf.id)
+                    } else {
+                        root.openWorkflow(card.wf.id)
+                    }
+                }
+            }
+
+            // Selection checkmark, shown only in selectMode. Sits in
+            // the top-left so it doesn't fight the kebab menu in the
+            // top-right.
+            Rectangle {
+                visible: root.selectMode
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.topMargin: 8
+                anchors.leftMargin: 8
+                width: 22; height: 22; radius: 11
+                color: card.selected ? Theme.err : Theme.surface3
+                border.color: card.selected ? Theme.err : Theme.line
+                border.width: 1
+                Text {
+                    visible: card.selected
+                    anchors.centerIn: parent
+                    text: "✓"
+                    color: "white"
+                    font.family: Theme.familyBody
+                    font.pixelSize: 13
+                    font.weight: Font.Bold
                 }
             }
 

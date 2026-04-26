@@ -10,10 +10,13 @@ Item {
     id: root
     property var workflows: []
     property int rowHeight: 52
+    property bool selectMode: false
+    property var selectedIds: ({})
     signal openWorkflow(string id)
     signal reorderRequested(int from, int to)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
+    signal toggleSelected(string id)
 
     height: list.contentHeight
 
@@ -77,6 +80,8 @@ Item {
                 Keys.onDeletePressed: root.deleteRequested(card.wf.id)
                 FocusRing { radiusOverride: 4 }
 
+                readonly property bool selected: root.selectedIds[card.wf.id] === true
+
                 MouseArea {
                     id: rowArea
                     anchors.fill: parent
@@ -86,11 +91,38 @@ Item {
                     onClicked: (mouse) => {
                         if (card.dragging) return
                         card.forceActiveFocus()
-                        if (mouse.button === Qt.RightButton) rowMenu.popup()
-                        else root.openWorkflow(card.wf.id)
+                        if (mouse.button === Qt.RightButton) {
+                            rowMenu.popup()
+                        } else if (root.selectMode) {
+                            root.toggleSelected(card.wf.id)
+                        } else {
+                            root.openWorkflow(card.wf.id)
+                        }
                     }
                     // Don't swallow events originating on the drag handle.
                     propagateComposedEvents: true
+                }
+
+                // Selection checkmark (visible only in selectMode).
+                Rectangle {
+                    visible: root.selectMode
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 22; height: 22; radius: 11
+                    color: card.selected ? Theme.err : Theme.surface3
+                    border.color: card.selected ? Theme.err : Theme.line
+                    border.width: 1
+                    z: 5
+                    Text {
+                        visible: card.selected
+                        anchors.centerIn: parent
+                        text: "✓"
+                        color: "white"
+                        font.family: Theme.familyBody
+                        font.pixelSize: 13
+                        font.weight: Font.Bold
+                    }
                 }
 
                 WfMenu {

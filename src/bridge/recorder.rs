@@ -103,6 +103,8 @@ impl qobject::RecorderController {
         };
 
         let inner = self.as_mut().rust_mut().inner.clone();
+        let inner_for_sink = inner.clone();
+        let captured_for_sink = self.as_mut().rust_mut().captured.clone();
         let sink: recorder::FrameSink = Arc::new(move |frame: RecFrame| {
             let thread = qt_thread.clone();
             let captured = captured.clone();
@@ -137,6 +139,43 @@ impl qobject::RecorderController {
                             t_ms,
                             QString::from(&summary),
                         );
+                    });
+                }
+                RecFrame::StopRequested => {
+                    // Esc was pressed in the evdev stream. Trigger
+                    // the same stop sequence the GUI Stop button does
+                    // — a fresh task that calls inner.stop() with a
+                    // stop_sink that updates QML state on Stopped.
+                    let inner = inner_for_sink.clone();
+                    let captured = captured_for_sink.clone();
+                    let thread = qt_thread.clone();
+                    tokio::spawn(async move {
+                        let stop_sink: recorder::FrameSink =
+                            Arc::new(move |frame: RecFrame| {
+                                if let RecFrame::Stopped { total_ms, .. } = frame {
+                                    let total = total_ms as i32;
+                                    let captured = captured.clone();
+                                    let _ = thread.queue(
+                                        move |mut ctrl: Pin<&mut qobject::RecorderController>| {
+                                            ctrl.as_mut().set_state(QString::from("stopped"));
+                                            ctrl.as_mut().set_elapsed_ms(total);
+                                            let captured = captured.clone();
+                                            let thread2 = ctrl.qt_thread();
+                                            tokio::spawn(async move {
+                                                let events = captured.lock().await.clone();
+                                                let json = serde_json::to_string(&events)
+                                                    .unwrap_or_else(|_| "[]".into());
+                                                let _ = thread2.queue(
+                                                    move |mut ctrl: Pin<&mut qobject::RecorderController>| {
+                                                        ctrl.as_mut().set_events_json(QString::from(&json));
+                                                    },
+                                                );
+                                            });
+                                        },
+                                    );
+                                }
+                            });
+                        let _ = inner.stop(stop_sink, "esc").await;
                     });
                 }
                 RecFrame::Stopped { total_ms, .. } => {

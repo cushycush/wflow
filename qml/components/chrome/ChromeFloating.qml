@@ -95,12 +95,18 @@ Item {
                 delegate: Rectangle {
                     id: tab
                     readonly property bool isActive: modelData.id === root.currentPage
+                    // Record gets the err (red) accent across all tab
+                    // states so it reads like a record button rather
+                    // than just another nav entry. Library / Explore
+                    // stay on the warm amber accent.
+                    readonly property bool isRecord: modelData.id === "record"
+                    readonly property color tabAccent: isRecord ? Theme.err : Theme.accent
                     width: lbl.implicitWidth + 24
                     height: 32
                     radius: 16
                     anchors.verticalCenter: parent.verticalCenter
                     color: isActive
-                        ? Theme.accentWash(0.18)
+                        ? Qt.rgba(tabAccent.r, tabAccent.g, tabAccent.b, 0.18)
                         : (tabArea.containsMouse ? Theme.surface2 : "transparent")
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
@@ -114,10 +120,12 @@ Item {
                         id: lbl
                         anchors.centerIn: parent
                         text: modelData.label
-                        color: isActive ? Theme.accent : Theme.text2
+                        color: tab.isRecord
+                            ? (tab.isActive ? Theme.err : Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85))
+                            : (tab.isActive ? Theme.accent : Theme.text2)
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
-                        font.weight: isActive ? Font.DemiBold : Font.Medium
+                        font.weight: tab.isActive ? Font.DemiBold : Font.Medium
                     }
                     MouseArea {
                         id: tabArea

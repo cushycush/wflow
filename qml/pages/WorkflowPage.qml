@@ -451,39 +451,13 @@ Item {
                 }
             }
 
-            // Workflow-level actions menu. Right now Delete is the
-            // only entry; rename / export / duplicate could land
-            // here later.
-            Rectangle {
-                id: kebabBtn
-                width: 32; height: 32; radius: 16
-                anchors.verticalCenter: parent.verticalCenter
-                color: kebabArea.containsMouse ? Theme.surface2 : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "⋯"
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 18
-                }
-
-                MouseArea {
-                    id: kebabArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: editorMenu.popup()
-                }
-
-                WfMenu {
-                    id: editorMenu
-                    WfMenuItem {
-                        text: "Delete workflow"
-                        onTriggered: root._askDelete()
-                    }
-                }
+            // Direct Delete button. Was a kebab → Delete two-click
+            // pattern but for the only entry we have it's friction;
+            // when there's a second editor-level action it can move
+            // back into a menu.
+            SecondaryButton {
+                text: "🗑 Delete"
+                onClicked: root._askDelete()
             }
             SecondaryButton {
                 text: "↗ Share"

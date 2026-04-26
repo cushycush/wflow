@@ -75,6 +75,12 @@ pub enum RecFrame {
     Armed,
     Started,
     Event { event: RecEvent },
+    /// Internally-generated stop request (e.g. user pressed Esc).
+    /// The bridge handles this by calling `Recorder::stop` from a
+    /// fresh task — saves the user from having to switch back to
+    /// wflow and click the Stop button (which itself gets recorded
+    /// as a stray click otherwise).
+    StopRequested,
     Stopped { reason: String, total_ms: u64 },
 }
 
@@ -405,6 +411,18 @@ impl Recorder {
                         Ok(e) => e,
                         Err(_) => break,
                     };
+                    // Esc is the global stop hotkey. Don't record the
+                    // press; just signal the bridge to stop. Without
+                    // this, users have to switch focus to wflow and
+                    // click the Stop button, which itself ends up in
+                    // the recording (and the heuristic to trim it is
+                    // best-effort; this is the deterministic fix).
+                    if let evdev::EventSummary::Key(_, code, value) = ev.destructure() {
+                        if code == evdev::KeyCode::KEY_ESC && value == 1 {
+                            sink_dev(RecFrame::StopRequested);
+                            break;
+                        }
+                    }
                     let t_ms = started_at.elapsed().as_millis() as u64;
                     if let Some(rec) = evdev_to_rec(
                         &ev,
