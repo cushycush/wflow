@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.25" date="2026-04-26">
+      <description>
+        <p>
+          Pulls the v0.3.24 Explore-redesign experiment back out of the published build. The new gradient-pill / avatar / mini-step design language was crashing the GUI for some users; the work continues on a local branch (`design/explore-redesign-wip`) and lands again as a single coherent shipped release once the editor's Canvas view is also done. Functionally identical to 0.3.23 — daemon, recorder, library, editor all unchanged.
+        </p>
+      </description>
+    </release>
     <release version="0.3.23" date="2026-04-26">
       <description>
         <p>
