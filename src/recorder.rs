@@ -177,7 +177,8 @@ impl Recorder {
                 });
         }
         let total_ms = sess.started_at.elapsed().as_millis() as u64;
-        let events = sess.events.lock().await.clone();
+        let mut events = sess.events.lock().await.clone();
+        trim_stop_tail(&mut events, total_ms);
         sink(RecFrame::Stopped {
             reason: reason.into(),
             total_ms,
@@ -828,6 +829,87 @@ fn evdev_to_rec(
             })
         }
         _ => None,
+    }
+}
+
+// --------------------------- Trim trailing stop input -----------------------
+
+/// Drop trailing Click / Move / WindowFocus events that happened
+/// within the last 300ms of the recording. The user's final
+/// click-to-stop and the window switch to wflow always land on
+/// the tail of the buffer; without this trim every saved workflow
+/// ends with a focus + click on the wflow window which the user
+/// definitely doesn't want to replay.
+///
+/// Key events are left alone — sometimes the user intentionally
+/// ends with a keystroke (Enter to submit a form, Escape to close
+/// a dialog) and we shouldn't second-guess those.
+fn trim_stop_tail(events: &mut Vec<RecEvent>, total_ms: u64) {
+    const TAIL_MS: u64 = 300;
+    while let Some(last) = events.last() {
+        if total_ms.saturating_sub(last.t_ms()) > TAIL_MS {
+            break;
+        }
+        match last {
+            RecEvent::Click { .. } | RecEvent::Move { .. } | RecEvent::WindowFocus { .. } => {
+                events.pop();
+            }
+            _ => break,
+        }
+    }
+}
+
+#[cfg(test)]
+mod trim_tests {
+    use super::*;
+
+    #[test]
+    fn trims_a_trailing_stop_click() {
+        let total_ms = 1500;
+        let mut events = vec![
+            RecEvent::Key { t_ms: 800, chord: "a".into() },
+            RecEvent::Click { t_ms: 1450, button: 1 },
+        ];
+        trim_stop_tail(&mut events, total_ms);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], RecEvent::Key { .. }));
+    }
+
+    #[test]
+    fn trims_focus_then_click_at_the_end() {
+        let total_ms = 2000;
+        let mut events = vec![
+            RecEvent::Key { t_ms: 800, chord: "a".into() },
+            RecEvent::WindowFocus { t_ms: 1850, name: "wflow".into() },
+            RecEvent::Click { t_ms: 1900, button: 1 },
+        ];
+        trim_stop_tail(&mut events, total_ms);
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn keeps_a_click_that_isnt_recent() {
+        let total_ms = 5000;
+        let mut events = vec![
+            RecEvent::Click { t_ms: 100, button: 1 },
+            RecEvent::Key { t_ms: 4900, chord: "Return".into() },
+        ];
+        trim_stop_tail(&mut events, total_ms);
+        // Trailing Key isn't trimmed; loop stops there. The early
+        // Click is left alone.
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn keeps_a_trailing_keystroke() {
+        let total_ms = 1500;
+        let mut events = vec![
+            RecEvent::Click { t_ms: 800, button: 1 },
+            RecEvent::Key { t_ms: 1450, chord: "Return".into() },
+        ];
+        trim_stop_tail(&mut events, total_ms);
+        // Trailing Key blocks the trim loop immediately.
+        assert_eq!(events.len(), 2);
     }
 }
 
