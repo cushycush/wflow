@@ -177,8 +177,14 @@ impl Recorder {
                 });
         }
         let total_ms = sess.started_at.elapsed().as_millis() as u64;
-        let mut events = sess.events.lock().await.clone();
-        trim_stop_tail(&mut events, total_ms);
+        // Trim in PLACE on the Mutex'd buffer. The bridge's
+        // finalize() reads back through the same Arc<Mutex>, so a
+        // local clone-and-trim wouldn't persist past this function.
+        let events = {
+            let mut e = sess.events.lock().await;
+            trim_stop_tail(&mut e, total_ms);
+            e.clone()
+        };
         sink(RecFrame::Stopped {
             reason: reason.into(),
             total_ms,
@@ -1052,6 +1058,16 @@ pub fn events_to_workflow(events: &[RecEvent], title: &str) -> Workflow {
                 wf.steps.push(Step::new(Action::WdoActivateWindow {
                     name: name.clone(),
                 }));
+                // Compositor activate-window requests are best-effort
+                // and asynchronous on most Wayland compositors. Without
+                // a small grace period, the next key/click in the
+                // recording fires before focus has actually moved, so
+                // the input lands in whatever was previously focused
+                // (typically wflow itself if the user just clicked
+                // Run). 150ms is enough on Hyprland and KWin in
+                // practice; the user can shorten the inserted Delay
+                // step if their compositor is faster.
+                wf.steps.push(Step::new(Action::Delay { ms: 150 }));
             }
             RecEvent::Gap { ms, .. } => {
                 flush_text(&mut wf, &mut text_acc);

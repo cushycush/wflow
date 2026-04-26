@@ -76,6 +76,26 @@ Item {
         function onWorkflowsChanged() { root._refreshShaped() }
     }
 
+    function _askDelete(id) {
+        const wf = root.workflows.find(w => w.id === id)
+        deleteDialog.targetId = id
+        deleteDialog.targetTitle = wf ? wf.title : id
+        deleteDialog.open()
+    }
+
+    WfConfirmDialog {
+        id: deleteDialog
+        property string targetId: ""
+        property string targetTitle: ""
+
+        title: "Delete workflow?"
+        message: "This permanently deletes “" + deleteDialog.targetTitle
+            + "” from your library. The KDL file is removed from disk."
+        confirmText: "Delete"
+        destructive: true
+        onConfirmed: libCtrl.remove(deleteDialog.targetId)
+    }
+
     // Open the New-workflow dialog and feed it the latest template
     // list. Pulling templates_json on each open keeps a freshly-
     // installed package's templates discoverable without restarting.
@@ -226,7 +246,7 @@ Item {
                             width: variantLoader.width
                             workflows: root.workflows
                             onOpenWorkflow: (id) => root.openWorkflow(id)
-                            onDeleteRequested: (id) => libCtrl.remove(id)
+                            onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
                         }
                     }
@@ -237,7 +257,7 @@ Item {
                             workflows: root.workflows
                             onOpenWorkflow: (id) => root.openWorkflow(id)
                             onReorderRequested: (from, to) => root.moveWorkflow(from, to)
-                            onDeleteRequested: (id) => libCtrl.remove(id)
+                            onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
                         }
                     }

@@ -64,6 +64,19 @@
   </provides>
 
   <releases>
+    <release version="0.3.14" date="2026-04-26">
+      <description>
+        <p>
+          Stop-click trim now actually persists. The 0.3.10 trim was working on a clone of the events buffer, but the bridge's finalize() read back through the original Mutex and saved the untrimmed list anyway. Trim runs in place on the shared buffer.
+        </p>
+        <p>
+          Recordings auto-insert a 150ms Delay after every focus step. Compositor activate-window requests are best-effort and asynchronous, so the next key/click would land in the previous window if there was no pause. This fixes ctrl+l (and other chords) failing to reach Firefox after a focus step.
+        </p>
+        <p>
+          Editor and library both prompt before deleting a workflow now, with a themed red-confirm dialog ("Delete workflow?") instead of an immediate hard delete. The editor's TopBar gains a triple-dot menu with the Delete entry; the library card menu's existing Delete routes through the same dialog.
+        </p>
+      </description>
+    </release>
     <release version="0.3.13" date="2026-04-26">
       <description>
         <p>

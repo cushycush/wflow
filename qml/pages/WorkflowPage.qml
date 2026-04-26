@@ -24,6 +24,10 @@ Item {
     // future tutorials map). Shared across pages but always reads
     // state.toml on construction, so per-page instantiation is safe.
     StateController { id: stateCtrl }
+    // Per-page LibraryController instance is fine — store::delete is
+    // a filesystem op, no shared state to race on. Used by the
+    // editor's Delete-workflow flow.
+    LibraryController { id: libCtrl }
 
     // Decoded workflow object. Kept as a local property so the editor can
     // present placeholder text before load() returns AND so in-flight edits
@@ -311,6 +315,29 @@ Item {
         saveTimer.restart()
     }
 
+    function _askDelete() {
+        // No-op for new-draft workflows that haven't been saved yet:
+        // there's nothing on disk to delete; just navigate back.
+        if (!root.workflowId || root.workflowId === "new-draft") {
+            root.backRequested()
+            return
+        }
+        deleteDialog.open()
+    }
+
+    WfConfirmDialog {
+        id: deleteDialog
+        title: "Delete workflow?"
+        message: "This permanently deletes “" + (root.title || "Untitled workflow")
+            + "” from your library. The KDL file is removed from disk."
+        confirmText: "Delete"
+        destructive: true
+        onConfirmed: {
+            libCtrl.remove(root.workflowId)
+            root.backRequested()
+        }
+    }
+
     function _saveNow() {
         root.saveState = "saving"
         const json = JSON.stringify(root.workflow)
@@ -424,6 +451,40 @@ Item {
                 }
             }
 
+            // Workflow-level actions menu. Right now Delete is the
+            // only entry; rename / export / duplicate could land
+            // here later.
+            Rectangle {
+                id: kebabBtn
+                width: 32; height: 32; radius: 16
+                anchors.verticalCenter: parent.verticalCenter
+                color: kebabArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "⋯"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 18
+                }
+
+                MouseArea {
+                    id: kebabArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: editorMenu.popup()
+                }
+
+                WfMenu {
+                    id: editorMenu
+                    WfMenuItem {
+                        text: "Delete workflow"
+                        onTriggered: root._askDelete()
+                    }
+                }
+            }
             SecondaryButton {
                 text: "↗ Share"
             }
