@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.20" date="2026-04-26">
+      <description>
+        <p>
+          Stop hotkey is Super+Esc, not plain Esc. Plain Esc stays as a recordable keystroke (workflows that close dialogs / cancel inputs need it); Super+Esc is the chord that asks the recorder to stop without itself being captured.
+        </p>
+      </description>
+    </release>
     <release version="0.3.19" date="2026-04-26">
       <description>
         <p>
