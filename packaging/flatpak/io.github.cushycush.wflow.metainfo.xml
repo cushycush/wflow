@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.4" date="2026-04-25">
+      <description>
+        <p>
+          Editor fields auto-save as you type. Title, subtitle, and step value edits commit on every keystroke (debounced 600ms), so you don't have to discover that pressing Enter or clicking out is the commit moment. The dirty pill in the toolbar lights up immediately and clears once the save lands.
+        </p>
+      </description>
+    </release>
     <release version="0.3.3" date="2026-04-25">
       <description>
         <p>

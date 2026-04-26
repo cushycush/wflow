@@ -73,9 +73,14 @@ Rectangle {
                 // Resync from upstream when not actively focused.
                 property string upstream: root.title
                 onUpstreamChanged: if (!activeFocus) text = upstream
-                onEditingFinished: {
+                // Auto-commit on every keystroke. Save is debounced on
+                // the parent page; dirty indicator reflects the change
+                // immediately so the user knows their edit is tracked.
+                function _commit() {
                     if (text !== root.title) root.titleCommitted(text)
                 }
+                onTextEdited: _commit()
+                onEditingFinished: _commit()
             }
 
             // Subtitle.
@@ -110,9 +115,11 @@ Rectangle {
                 }
                 property string upstream: root.subtitle
                 onUpstreamChanged: if (!activeFocus) text = upstream
-                onEditingFinished: {
+                function _commit() {
                     if (text !== root.subtitle) root.subtitleCommitted(text)
                 }
+                onTextEdited: _commit()
+                onEditingFinished: _commit()
             }
         }
 

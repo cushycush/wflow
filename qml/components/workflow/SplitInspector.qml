@@ -477,12 +477,19 @@ Item {
                                 ? intValidator : null
                             IntValidator { id: intValidator; bottom: 0 }
 
-                            onEditingFinished: {
+                            // Commit on every keystroke so the user doesn't
+                            // have to discover that Enter / focus-out is the
+                            // commit moment. The 600ms save debounce on the
+                            // page coalesces the writes; the dirty pill in
+                            // the toolbar lights up immediately.
+                            function _commit() {
                                 if (!valueSection.sel || !valueSection.sel.editable) return
                                 if (text !== valueSection.sel.rawPrimary) {
                                     root.valueEdited(root.selectedIndex, text)
                                 }
                             }
+                            onTextEdited: _commit()
+                            onEditingFinished: _commit()
                             Keys.onReturnPressed: editingFinished()
                             Keys.onEnterPressed:  editingFinished()
                         }
