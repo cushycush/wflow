@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.16" date="2026-04-26">
+      <description>
+        <p>
+          Stop-recording tail trim is now semantic instead of time-based. The previous 300ms window missed the natural-paced case (user takes ~800ms to switch back to wflow and click Stop), so saved recordings still ended with a focus-wflow + mouse-move + click sequence the user didn't want. The new rule: truncate at the LAST `WindowFocus { name: "wflow" }` event in the buffer. Workflows can't legitimately switch to wflow's own window mid-record (you can't operate the target app if you're focused on wflow), so that event is always the stop signal.
+        </p>
+      </description>
+    </release>
     <release version="0.3.15" date="2026-04-26">
       <description>
         <p>
