@@ -575,29 +575,26 @@ fn cmd_man(output: Option<&Path>) -> Result<ExitCode> {
 }
 
 /// Walk the library, collect every workflow's `trigger { }` blocks,
-/// and print what would be bound. Today this is a diagnostic only;
-/// the v0.4 daemon will start subscribing for real via the
-/// GlobalShortcuts portal (KDE / GNOME) or compositor IPC (Hyprland /
-/// Sway).
+/// register them with the compositor (Hyprland today; Sway / KDE /
+/// GNOME / portal in v0.5), and stay alive so chord activations
+/// fire workflows. Ctrl+C or SIGTERM unbinds everything cleanly.
 ///
-/// Usage:
-///
-/// ```text
-/// $ wflow daemon
-/// wflow daemon (dry run)
-///
-/// 3 trigger(s) across 2 workflow(s):
-///   super+alt+d    →  Open dev setup
-///   ctrl+shift+u   →  Firefox copy URL  [when window-class="firefox"]
-///   hotstring btw  →  BTW expand
-///
-/// Daemon doesn't subscribe yet — bindings will fire workflows in v0.4.
-/// ```
+/// On compositors with no backend yet, falls back to a dry-run
+/// listing so the user at least sees what WOULD be bound.
 fn cmd_daemon() -> Result<ExitCode> {
     use crate::actions::{TriggerCondition, TriggerKind};
+    use crate::triggers::Binding;
+
     let workflows = store::list().context("reading library")?;
 
-    let mut rows: Vec<(String, String, Option<String>, String)> = Vec::new();
+    // Collect every (workflow, trigger) pair, with display metadata.
+    struct Row {
+        binding: Binding,
+        label: String,
+        when_label: Option<String>,
+    }
+
+    let mut rows: Vec<Row> = Vec::new();
     let mut wf_count = 0usize;
     for wf in &workflows {
         if wf.triggers.is_empty() {
@@ -617,21 +614,32 @@ fn cmd_daemon() -> Result<ExitCode> {
                     format!("when window-title={title:?}")
                 }
             });
-            rows.push((label, wf.title.clone(), when_label, wf.id.clone()));
+            rows.push(Row {
+                binding: Binding {
+                    workflow_id: wf.id.clone(),
+                    workflow_title: wf.title.clone(),
+                    trigger: t.clone(),
+                },
+                label,
+                when_label,
+            });
         }
     }
 
-    println!("{}", bold("wflow daemon (dry run)"));
+    let backend = crate::triggers::detect();
+    let header = match &backend {
+        Some(b) => format!("wflow daemon ({} backend)", b.name()),
+        None => "wflow daemon (dry run, no backend for this compositor)".into(),
+    };
+    println!("{}", bold(&header));
     println!();
+
     if rows.is_empty() {
-        println!(
-            "  {} no triggers declared in your library",
-            dim("·"),
-        );
+        println!("  {} no triggers declared in your library", dim("·"));
         println!();
         println!(
             "  Add a `trigger {{ chord \"...\" }}` block to a workflow's KDL\n  \
-             to bind it to a global hotkey when the v0.4 daemon ships."
+             to bind it to a global hotkey."
         );
         return Ok(ExitCode::SUCCESS);
     }
@@ -644,26 +652,93 @@ fn cmd_daemon() -> Result<ExitCode> {
         plural_s(wf_count),
     );
     println!();
-    let label_w = rows.iter().map(|(l, _, _, _)| l.len()).max().unwrap_or(0).max(8);
-    for (label, title, when_label, _id) in &rows {
-        let when_suffix = match when_label {
+    let label_w = rows.iter().map(|r| r.label.len()).max().unwrap_or(0).max(8);
+    for r in &rows {
+        let when_suffix = match &r.when_label {
             Some(s) => format!("  {}", dim(&format!("[{s}]"))),
             None => String::new(),
         };
         println!(
             "  {:label_w$}  {}  {}{}",
-            label,
+            r.label,
             arrow(),
-            title,
+            r.binding.workflow_title,
             when_suffix,
             label_w = label_w
         );
     }
     println!();
+
+    let mut backend = match backend {
+        Some(b) => b,
+        None => {
+            println!(
+                "  {} No trigger backend available for this compositor. wflow ships\n  \
+                 a Hyprland backend today; Sway / KDE / GNOME land in a follow-up.",
+                dim("·")
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
+    };
+
+    // Register every dispatchable binding. Skip hotstring + when
+    // predicates with a one-line note — they're forward-compat
+    // metadata in the KDL today.
+    let mut registered: Vec<Binding> = Vec::new();
+    for r in rows {
+        if !r.binding.is_dispatchable_today() {
+            println!("  {} skip {} (not yet supported by the {} backend)",
+                dim("·"), r.label, backend.name());
+            continue;
+        }
+        if r.binding.trigger.when.is_some() {
+            println!(
+                "  {} {} bound globally; per-window `when` predicate ignored for now",
+                dim("·"), r.label
+            );
+        }
+        match backend.bind(&r.binding) {
+            Ok(()) => registered.push(r.binding),
+            Err(e) => println!("  {} bind {} failed: {e:#}", cross(), r.label),
+        }
+    }
+
+    if registered.is_empty() {
+        println!();
+        println!("  {} nothing to subscribe to — exiting", dim("·"));
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    println!();
     println!(
-        "  {} Daemon doesn't subscribe yet — bindings will fire workflows in v0.4.",
-        dim("·")
+        "  {} {} binding{} registered with {}. Press Ctrl+C to unbind and exit.",
+        check(),
+        registered.len(),
+        plural_s(registered.len()),
+        backend.name(),
     );
+
+    // Block until SIGINT / SIGTERM. Keeping it sync (no tokio) since
+    // there's nothing else to drive — Hyprland fires the workflow in
+    // a separate `wflow run` subprocess, so the daemon literally
+    // just sleeps.
+    let term = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let term_for_handler = term.clone();
+    let _ = ctrlc::set_handler(move || {
+        term_for_handler.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+    while !term.load(std::sync::atomic::Ordering::SeqCst) {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+
+    println!();
+    println!("  {} unbinding…", dim("·"));
+    for b in &registered {
+        if let Err(e) = backend.unbind(b) {
+            tracing::warn!(?e, "unbind failed");
+        }
+    }
+    println!("  {} clean shutdown", check());
     Ok(ExitCode::SUCCESS)
 }
 
