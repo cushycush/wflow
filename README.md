@@ -18,9 +18,14 @@ runtime.
 ### Arch Linux
 
 ```sh
-paru -S wflow              # release
-paru -S wflow-git          # tracks main
+paru -S wflow-bin          # prebuilt binary, ~5s install
+paru -S wflow              # builds from source, ~5min on a fast machine
+paru -S wflow-git          # tracks main, builds from source
 ```
+
+`wflow-bin` is the same binary the GitHub release ships. Install
+it if you want to skip the cargo build; install `wflow` if you
+prefer a from-source build with your local rustc + LTO.
 
 PKGBUILDs in [`packaging/aur/`](packaging/aur/) for local builds.
 
