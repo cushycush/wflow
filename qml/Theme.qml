@@ -98,11 +98,10 @@ QtObject {
     property bool reduceMotion: false
 
     // ============ Feature flags ============
-    // Explore is mock data until wflows.com has a real catalog backend. The
-    // page is visually shippable now (gradient pills, mini-stack previews,
-    // avatar bylines) so we flip the tab on while iterating; the imports
-    // are wired to local-route-to-editor placeholders, not network calls.
-    readonly property bool showExplore: true
+    // Explore is 100% mock data until a real catalog backend lands. Flip to
+    // `true` to surface the tab while iterating on the UI. Don't ship `true`
+    // — the nav pill and StackLayout both read this flag.
+    readonly property bool showExplore: false
     readonly property int durFast: 120
     readonly property int durBase: 160
     readonly property int durSlow: 220
@@ -146,78 +145,4 @@ QtObject {
     }
     function wash(c, alpha) { return Qt.rgba(c.r, c.g, c.b, alpha) }
     function accentWash(alpha) { return wash(accent, alpha) }
-
-    // Gradient pairs (A=light, B=deep). Same `gradFor(kind)` reads
-    // as the same hue on either theme (stops differ, hues don't).
-    readonly property color gradCyanA:    isDark ? "#7ed8e8" : "#5cc7e0"
-    readonly property color gradCyanB:    isDark ? "#3a82c0" : "#2a64a8"
-    readonly property color gradBlueA:    isDark ? "#88aaee" : "#6a8edc"
-    readonly property color gradBlueB:    isDark ? "#5a4dcc" : "#3b3aae"
-    readonly property color gradAmberA:   isDark ? "#f5be60" : "#dca243"
-    readonly property color gradAmberB:   isDark ? "#cc6f24" : "#a85a18"
-    readonly property color gradCoralA:   isDark ? "#f29070" : "#dd6b50"
-    readonly property color gradCoralB:   isDark ? "#cc4d3a" : "#a8362a"
-    readonly property color gradMagentaA: isDark ? "#df88d6" : "#c469b8"
-    readonly property color gradMagentaB: isDark ? "#7a45c0" : "#5e2e9c"
-    readonly property color gradVioletA:  isDark ? "#c08be0" : "#a36ec0"
-    readonly property color gradVioletB:  isDark ? "#6745c0" : "#4a2ea0"
-    readonly property color gradEmeraldA: isDark ? "#7ed8a4" : "#5cc188"
-    readonly property color gradEmeraldB: isDark ? "#2f9966" : "#1e7c50"
-    readonly property color gradRoseA:    isDark ? "#ee8896" : "#d96878"
-    readonly property color gradRoseB:    isDark ? "#c04880" : "#a32e60"
-    readonly property color gradLimeA:    isDark ? "#cae870" : "#9fc24a"
-    readonly property color gradLimeB:    isDark ? "#5fa040" : "#4a8030"
-
-    function gradFor(kind) {
-        switch (kind) {
-        case "key":       return [gradCyanA, gradCyanB]
-        case "type":      return [gradBlueA, gradBlueB]
-        case "focus":     return [gradAmberA, gradAmberB]
-        case "shell":     return [gradCoralA, gradCoralB]
-        case "notify":    return [gradVioletA, gradVioletB]
-        case "clipboard": return [gradCyanA, gradCyanB]
-        case "wait":      return [gradEmeraldA, gradEmeraldB]
-        case "click":     return [gradEmeraldA, gradEmeraldB]
-        case "move":      return [gradCyanA, gradCyanB]
-        case "scroll":    return [gradCyanA, gradCyanB]
-        case "trigger":   return [gradAmberA, gradAmberB]
-        case "when":      return [gradMagentaA, gradMagentaB]
-        // explore-only categories
-        case "rose":      return [gradRoseA, gradRoseB]
-        case "lime":      return [gradLimeA, gradLimeB]
-        case "violet":    return [gradVioletA, gradVioletB]
-        case "magenta":   return [gradMagentaA, gradMagentaB]
-        }
-        return [gradCyanA, gradCyanB]
-    }
-
-    // Stable per-handle assignment by first-char hash.
-    function gradForHandle(handle) {
-        if (!handle || handle.length === 0) return [gradCyanA, gradCyanB]
-        const palette = ["key", "rose", "violet", "shell", "wait",
-                         "lime", "type", "magenta", "focus", "notify"]
-        const c = handle.replace(/^@/, "").toLowerCase().charCodeAt(0) || 0
-        return gradFor(palette[c % palette.length])
-    }
-
-    // Text on top of a gradient pair. Amber/lime/cyan want near-black.
-    function gradTextColor(kind) {
-        switch (kind) {
-        case "focus": case "trigger": case "lime": return "#1a1208"
-        case "wait": case "click": case "key": case "move": case "scroll":
-            return isDark ? "#0a1320" : "#ffffff"
-        }
-        return "#ffffff"
-    }
-
-    // Layered card shadow. Apply via `layer.effect: MultiEffect`.
-    readonly property color shadowColor: isDark
-        ? Qt.rgba(0.02, 0.03, 0.06, 0.55)
-        : Qt.rgba(0.10, 0.15, 0.25, 0.18)
-    readonly property real shadowBlurNear: 8
-    readonly property real shadowBlurMid:  20
-    readonly property real shadowBlurFar:  48
-    readonly property real shadowYNear: 1
-    readonly property real shadowYMid:  8
-    readonly property real shadowYFar:  24
 }
