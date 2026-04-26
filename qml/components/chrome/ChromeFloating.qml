@@ -75,17 +75,21 @@ Item {
 
             Item { width: 6; height: 1 }
 
+            // Editor isn't a top-level tab — it's a nested view you
+            // reach by clicking a workflow in Library, with a back
+            // arrow on the page itself. Keeping it as a tab
+            // produced an empty-state page when the user landed
+            // there without a selection, which had no useful
+            // affordances.
             Repeater {
                 model: Theme.showExplore
                     ? [
                         { id: "library",  label: "Library" },
                         { id: "explore",  label: "Explore" },
-                        { id: "workflow", label: "Editor" },
                         { id: "record",   label: "Record" }
                       ]
                     : [
                         { id: "library",  label: "Library" },
-                        { id: "workflow", label: "Editor" },
                         { id: "record",   label: "Record" }
                       ]
                 delegate: Rectangle {

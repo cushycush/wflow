@@ -392,6 +392,8 @@ Item {
             subtitle: root.subtitle
             titleEditable: true
             subtitleEditable: true
+            backVisible: true
+            onBackClicked: root.backRequested()
             onTitleCommitted: (t) => root._commitTitleEdit(t)
             onSubtitleCommitted: (t) => root._commitSubtitleEdit(t)
 

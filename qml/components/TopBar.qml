@@ -14,10 +14,15 @@ Rectangle {
     property string subtitle: ""
     property bool titleEditable: false
     property bool subtitleEditable: false
+    // Show a back arrow on the left. Pages that are reached by
+    // drilling in (e.g. WorkflowPage from Library) opt into this
+    // and connect backClicked to their navigation handler.
+    property bool backVisible: false
     default property alias actions: actionRow.data
 
     signal titleCommitted(string newTitle)
     signal subtitleCommitted(string newSubtitle)
+    signal backClicked()
 
     // Bottom hairline
     Rectangle {
@@ -30,12 +35,45 @@ Rectangle {
 
     Row {
         anchors.fill: parent
-        anchors.leftMargin: 24
+        anchors.leftMargin: 16
         anchors.rightMargin: 16
-        spacing: 16
+        spacing: 12
+
+        // Back arrow. Only rendered when the page opts in via
+        // backVisible; absent on top-level pages so the layout stays
+        // identical for Library/Record/etc.
+        Rectangle {
+            id: backBtn
+            visible: root.backVisible
+            width: visible ? 32 : 0
+            height: 32
+            radius: 6
+            anchors.verticalCenter: parent.verticalCenter
+            color: backArea.containsMouse ? Theme.surface2 : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+            Text {
+                anchors.centerIn: parent
+                text: "←"
+                color: Theme.text2
+                font.family: Theme.familyBody
+                font.pixelSize: 18
+            }
+
+            MouseArea {
+                id: backArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.backClicked()
+                ToolTip.visible: containsMouse
+                ToolTip.delay: 400
+                ToolTip.text: "Back to library"
+            }
+        }
 
         Column {
-            width: parent.width - actionRow.width - 16
+            width: parent.width - backBtn.width - actionRow.width - 28
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
 

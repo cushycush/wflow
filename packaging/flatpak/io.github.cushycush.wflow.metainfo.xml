@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.11" date="2026-04-26">
+      <description>
+        <p>
+          Editor is no longer a top-level tab in the nav pill. Landing on it without a workflow selected showed an empty page with no useful affordances. Click a workflow in Library to open the editor; press the back arrow in the editor's TopBar to return. Keyboard shortcuts (Ctrl+1, Ctrl+2, etc.) shifted to mirror the new pill order.
+        </p>
+      </description>
+    </release>
     <release version="0.3.10" date="2026-04-26">
       <description>
         <p>
