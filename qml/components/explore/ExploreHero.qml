@@ -133,7 +133,7 @@ Rectangle {
                         text: root.wf ? "@" + root.wf.author : ""
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 12.5
+                        font.pixelSize: 13
                         font.weight: Font.DemiBold
                     }
                     Text {
@@ -185,7 +185,7 @@ Rectangle {
                         text: "STEPS · " + (root.wf ? root.wf.steps : 0)
                         color: Theme.text3
                         font.family: Theme.familyBody
-                        font.pixelSize: 9.5
+                        font.pixelSize: 10
                         font.letterSpacing: 1.4
                         font.weight: Font.Bold
                     }
@@ -194,7 +194,7 @@ Rectangle {
                         text: "PREVIEW"
                         color: Theme.text3
                         font.family: Theme.familyMono
-                        font.pixelSize: 9.5
+                        font.pixelSize: 10
                         font.letterSpacing: 1.0
                     }
                 }

@@ -76,7 +76,7 @@ Rectangle {
             text: root.text
             color: root.textColor
             font.family: Theme.familyBody
-            font.pixelSize: 12.5
+            font.pixelSize: 13
             font.weight: Font.DemiBold
             font.letterSpacing: -0.1
             anchors.verticalCenter: parent.verticalCenter

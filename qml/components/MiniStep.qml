@@ -84,7 +84,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.text2
             font.family: Theme.familyMono
-            font.pixelSize: 11.5
+            font.pixelSize: 12
             elide: Text.ElideRight
             width: parent.width
                 - iconBox.width

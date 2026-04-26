@@ -142,7 +142,7 @@ Rectangle {
                         text: root.wf ? root.wf.imports : ""
                         color: Theme.text2
                         font.family: Theme.familyMono
-                        font.pixelSize: 11.5
+                        font.pixelSize: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -158,7 +158,7 @@ Rectangle {
                         text: root.wf ? root.wf.forks : ""
                         color: Theme.text2
                         font.family: Theme.familyMono
-                        font.pixelSize: 11.5
+                        font.pixelSize: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -184,7 +184,7 @@ Rectangle {
                     text: root.wf ? root.wf.category : ""
                     color: Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: 10.5
+                    font.pixelSize: 11
                     font.weight: Font.Medium
                 }
             }
