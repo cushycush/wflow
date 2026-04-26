@@ -1,51 +1,40 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import Wflow
 
-// Featured workflow hero. Warm-amber bezel + a vertical mini-stack of
-// the workflow's first 4 step kinds on the right, mirroring the
-// flow-canvas treatment so users coming from the canvas recognize
-// the visual vocabulary instantly.
+// The featured / editor's pick card for Explore. Adapts the old HeroGrid hero
+// concept to the community context.
 Rectangle {
     id: root
     property var wf
     signal activated(string id)
 
-    readonly property var kinds: root.wf && root.wf.kinds ? root.wf.kinds : []
-    readonly property string firstKind: kinds.length > 0 ? kinds[0] : "wait"
-
-    height: 220
-    radius: 18
-    // Two-layer fill: a warm amber wash drifting in from the top-left
-    // over the regular surface so the bezel reads as light catching
-    // an edge, not a solid tint.
-    color: Theme.surface
-    border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b,
-        heroArea.containsMouse ? 0.55 : 0.35)
-    border.width: 1
-    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-    layer.enabled: true
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: Theme.shadowColor
-        shadowBlur: 1.0
-        shadowVerticalOffset: Theme.shadowYMid
-    }
-
-    // Inner warm wash — restricted to the upper-left so the right
-    // half (where the mini-stack sits) stays neutral.
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: 1
-        radius: 17
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) }
-            GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0) }
+    // Editorial override: wf.heroPalette can pin the hero tint to a curator-
+    // picked palette so the featured slot feels editorial week-to-week rather
+    // than locked to whatever the workflow's first-kind color happens to be.
+    readonly property color catColor: {
+        if (wf && wf.heroPalette) {
+            const pals = ({
+                "amber":  Theme.accent,
+                "purple": Theme.catKey,
+                "blue":   Theme.catType,
+                "green":  Theme.catClick,
+                "teal":   Theme.catClip,
+                "pink":   Theme.catNotify,
+                "orange": Theme.catShell,
+                "gold":   Theme.catFocus
+            })
+            if (pals[wf.heroPalette]) return pals[wf.heroPalette]
         }
+        return Theme.catFor(wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
     }
+
+    height: 180
+    radius: Theme.radiusLg
+    color: Theme.wash(catColor, heroArea.containsMouse ? 0.18 : 0.12)
+    border.color: Theme.wash(catColor, 0.45)
+    border.width: 1
+    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
     MouseArea {
         id: heroArea
@@ -58,37 +47,55 @@ Rectangle {
     Row {
         anchors.fill: parent
         anchors.margins: 28
-        spacing: 32
+        spacing: 24
 
-        // Left column — eyebrow, title, byline, install button.
-        Column {
-            id: leftCol
-            width: parent.width - previewCol.width - 32
+        CategoryIcon {
+            kind: root.wf && root.wf.kinds && root.wf.kinds.length > 0 ? root.wf.kinds[0] : "wait"
+            size: 72
+            hovered: heroArea.containsMouse
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
+        }
+
+        Column {
+            width: parent.width - 72 - 24 - importBtn.width - 24
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
 
             Row {
-                spacing: 8
-                Rectangle {
-                    width: 6; height: 6; radius: 3
-                    color: Theme.accent
-                    anchors.verticalCenter: parent.verticalCenter
-                }
+                spacing: 10
+
                 Text {
-                    text: "FEATURED TODAY"
-                    color: Theme.accent
-                    font.family: Theme.familyBody
+                    text: "EDITOR'S PICK"
+                    color: root.catColor
+                    font.family: Theme.familyMono
                     font.pixelSize: 10
                     font.weight: Font.Bold
-                    font.letterSpacing: 1.6
+                    font.letterSpacing: 0.9
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Rectangle {
+                    width: 3; height: 3; radius: 1.5
+                    color: Theme.text3
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: root.wf ? "·  curated by @wflow  ·  " + (root.wf.category || "uncategorized") : ""
+                    text: root.wf ? (root.wf.category || "uncategorized").toUpperCase() : ""
                     color: Theme.text3
-                    font.family: Theme.familyBody
-                    font.pixelSize: 11
-                    font.letterSpacing: 0.4
+                    font.family: Theme.familyMono
+                    font.pixelSize: 10
+                    font.letterSpacing: 0.9
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Rectangle {
+                    width: 3; height: 3; radius: 1.5
+                    color: Theme.text3
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: root.wf ? (root.wf.imports + " imports") : ""
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 10
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -97,160 +104,42 @@ Rectangle {
                 text: root.wf ? root.wf.title : ""
                 color: Theme.text
                 font.family: Theme.familyBody
-                font.pixelSize: 26
-                font.weight: Font.Bold
-                font.letterSpacing: -0.5
+                font.pixelSize: Theme.fontXl
+                font.weight: Font.DemiBold
                 elide: Text.ElideRight
                 width: parent.width
             }
-
             Text {
-                text: root.wf ? root.wf.subtitle : ""
+                text: root.wf ? (root.wf.subtitle + "  ·  by @" + root.wf.author) : ""
                 color: Theme.text2
                 font.family: Theme.familyBody
                 font.pixelSize: Theme.fontBase
-                wrapMode: Text.WordWrap
-                width: parent.width
-                lineHeight: 1.45
-                maximumLineCount: 2
                 elide: Text.ElideRight
+                width: parent.width
             }
 
-            // Byline row.
             Row {
-                spacing: 10
-                topPadding: 4
-
-                Avatar {
-                    handle: root.wf ? "@" + root.wf.author : ""
-                    size: 32
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Column {
-                    spacing: 1
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        text: root.wf ? "@" + root.wf.author : ""
-                        color: Theme.text
-                        font.family: Theme.familyBody
-                        font.pixelSize: 12.5
-                        font.weight: Font.DemiBold
-                    }
-                    Text {
-                        text: root.wf
-                            ? root.wf.imports + " installs · " + root.wf.forks + " forks · " + root.wf.steps + " steps"
-                            : ""
-                        color: Theme.text3
-                        font.family: Theme.familyMono
-                        font.pixelSize: 11
-                    }
-                }
-            }
-
-            // Action row.
-            Row {
-                spacing: 8
-                topPadding: 4
-
-                PrimaryButton {
-                    text: "↓  Install workflow"
-                    leftPadding: 18
-                    rightPadding: 18
-                    onClicked: if (root.wf) root.activated(root.wf.id)
-                }
-                SecondaryButton { text: "⑂  Fork" }
-                SecondaryButton { text: "★  Star" }
-            }
-        }
-
-        // Right column — vertical mini-stack preview.
-        Rectangle {
-            id: previewCol
-            width: 260
-            anchors.verticalCenter: parent.verticalCenter
-            height: parent.height - 12
-            radius: Theme.radiusMd
-            color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.7)
-            border.color: Theme.lineSoft
-            border.width: 1
-
-            Column {
-                anchors.fill: parent
-                anchors.margins: 14
-                spacing: 8
-
-                Row {
-                    width: parent.width
-                    Text {
-                        text: "STEPS · " + (root.wf ? root.wf.steps : 0)
-                        color: Theme.text3
-                        font.family: Theme.familyBody
-                        font.pixelSize: 9.5
-                        font.letterSpacing: 1.4
-                        font.weight: Font.Bold
-                    }
-                    Item { width: parent.width - 80 - parent.children[0].width - 8; height: 1 }
-                    Text {
-                        text: "PREVIEW"
-                        color: Theme.text3
-                        font.family: Theme.familyMono
-                        font.pixelSize: 9.5
-                        font.letterSpacing: 1.0
-                    }
-                }
-
+                spacing: 6
                 Repeater {
-                    model: Math.min(4, root.kinds.length)
-                    delegate: MiniStep {
-                        width: previewCol.width - 28
-                        kind: root.kinds[index]
-                        label: _kindLabel(root.kinds[index])
-                        value: _kindValue(root.kinds[index], index)
+                    model: root.wf ? (root.wf.kinds || []) : []
+                    delegate: CategoryIcon {
+                        kind: modelData
+                        size: 22
+                        hovered: false
                     }
-                }
-
-                Text {
-                    visible: root.wf && root.wf.steps > 4
-                    text: "+ " + (root.wf ? (root.wf.steps - 4) : 0) + " more step" +
-                        (root.wf && (root.wf.steps - 4) === 1 ? "" : "s")
-                    color: Theme.text3
-                    font.family: Theme.familyMono
-                    font.pixelSize: 11
-                    leftPadding: 28
-                    topPadding: 4
                 }
             }
         }
-    }
 
-    // Sample-text helpers — until each catalog entry carries a real
-    // step preview, fabricate a plausible value per kind so the hero
-    // mini-stack feels populated rather than empty.
-    function _kindLabel(kind) {
-        switch (kind) {
-        case "key":       return "Key"
-        case "type":      return "Type"
-        case "click":     return "Click"
-        case "shell":     return "Shell"
-        case "focus":     return "Focus"
-        case "wait":      return "Wait"
-        case "notify":    return "Notify"
-        case "clipboard": return "Clip"
+        PrimaryButton {
+            id: importBtn
+            text: "Import →"
+            anchors.verticalCenter: parent.verticalCenter
+            topPadding: 12
+            bottomPadding: 12
+            leftPadding: 20
+            rightPadding: 20
+            onClicked: if (root.wf) root.activated(root.wf.id)
         }
-        return kind
-    }
-    function _kindValue(kind, idx) {
-        const samples = ({
-            "key":       ["ctrl + l", "super + space", "alt + tab", "Return"],
-            "type":      ["{{project}}", "localhost:3000", "branch-name", "{{message}}"],
-            "click":     ["primary", "context", "double", "primary"],
-            "shell":     ["kitty -e nvim", "firefox {{url}}", "git status", "cargo run"],
-            "focus":     ["firefox", "kitty", "slack", "obsidian"],
-            "wait":      ["window kitty · 10s", "200ms", "1500ms", "until firefox"],
-            "notify":    ["\"Setup ready\"", "\"Done\"", "\"Sync complete\"", "\"Hi\""],
-            "clipboard": ["{{selection}}", "screenshot.png", "{{url}}", "{{snippet}}"]
-        })
-        const arr = samples[kind] || ["—"]
-        return arr[idx % arr.length]
     }
 }

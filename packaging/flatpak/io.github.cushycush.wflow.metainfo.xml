@@ -64,16 +64,6 @@
   </provides>
 
   <releases>
-    <release version="0.3.24" date="2026-04-26">
-      <description>
-        <p>
-          New design vocabulary lands on the Explore page. Featured workflow gets a warm-amber bezel and a vertical mini-stack preview of its first four step kinds; community cards swap to a richer layout with avatar bylines, multi-layer drop shadows, and the same mini-stack treatment so users see the SHAPE of a workflow before they install it. Theme.qml gains gradient color pairs for every action kind, plus shadow tokens, plus a stable handle → gradient hash so an author always reads as the same color across the app.
-        </p>
-        <p>
-          New reusable QML components: GradientPill, Avatar, MiniStep. The Canvas view that's coming next will reuse all three. The Explore tab is enabled by default now since the visual treatment is shippable; the catalog is still mock data until wflows.com has a real backend.
-        </p>
-      </description>
-    </release>
     <release version="0.3.23" date="2026-04-26">
       <description>
         <p>

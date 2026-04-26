@@ -26,9 +26,6 @@ fn main() {
             QmlFile::from("qml/components/WfMenu.qml"),
             QmlFile::from("qml/components/WfMenuItem.qml"),
             QmlFile::from("qml/components/WfConfirmDialog.qml"),
-            QmlFile::from("qml/components/GradientPill.qml"),
-            QmlFile::from("qml/components/Avatar.qml"),
-            QmlFile::from("qml/components/MiniStep.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
