@@ -326,7 +326,7 @@ impl Recorder {
     /// on compositors whose portal doesn't expose RemoteDesktop.
     async fn start_evdev(&self, sink: FrameSink) -> Result<()> {
         use evdev::EventType;
-        use std::sync::atomic::AtomicU32;
+        use std::sync::atomic::{AtomicU32, AtomicU64};
         use tokio::task::JoinSet;
 
         // Enumerate at start time (no hot-plug). Filter to devices
@@ -355,6 +355,20 @@ impl Recorder {
         // Shared modifier bitmask across all devices, in the same xkb
         // bit positions keycode_to_chord expects.
         let mods = Arc::new(AtomicU32::new(0));
+        // Global mouse-motion throttle. evdev gives us raw REL_X/REL_Y
+        // events at the device's full polling rate (1000Hz on a gaming
+        // mouse), and the libei portal isn't here to coalesce. Without
+        // a throttle the sink/Qt thread saturates and the GUI freezes
+        // while keyboard tasks starve waiting on the events Mutex.
+        // Default 1000ms feels right for a workflow recording (the
+        // Move events are sentinels not high-fidelity traces); tune
+        // via WFLOW_REC_MOVE_INTERVAL_MS if a real workflow needs
+        // finer resolution.
+        let last_move_ms = Arc::new(AtomicU64::new(0));
+        let min_move_interval_ms: u64 = std::env::var("WFLOW_REC_MOVE_INTERVAL_MS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1000);
 
         sink(RecFrame::Armed);
         sink(RecFrame::Started);
@@ -374,6 +388,7 @@ impl Recorder {
             let events_dev = events.clone();
             let sink_dev = sink.clone();
             let mods_dev = mods.clone();
+            let last_move_dev = last_move_ms.clone();
             joinset.spawn(async move {
                 // Per-device accumulators for relative pointer motion.
                 let mut rel_x: i32 = 0;
@@ -384,7 +399,15 @@ impl Recorder {
                         Err(_) => break,
                     };
                     let t_ms = started_at.elapsed().as_millis() as u64;
-                    if let Some(rec) = evdev_to_rec(&ev, t_ms, &mods_dev, &mut rel_x, &mut rel_y) {
+                    if let Some(rec) = evdev_to_rec(
+                        &ev,
+                        t_ms,
+                        &mods_dev,
+                        &mut rel_x,
+                        &mut rel_y,
+                        &last_move_dev,
+                        min_move_interval_ms,
+                    ) {
                         events_dev.lock().await.push(rec.clone());
                         sink_dev(RecFrame::Event { event: rec });
                     }
@@ -597,15 +620,22 @@ fn keycode_to_chord(key: u32, mods: u32) -> Option<String> {
     if mods & MOD_SHIFT != 0 { parts.push("shift"); }
     if mods & MOD_SUPER != 0 { parts.push("super"); }
 
-    // Minimal keycode → name table. Linux input-event-codes (`KEY_*`).
-    // Anything not in this table round-trips as `keyNN` so the user has
-    // something to edit — better than dropping the event.
+    // Linux input-event-codes (`KEY_*`) → wdotool/xdotool keysym name.
+    // The table covers the US-en QWERTY layout; non-US layouts will see
+    // some letters map to the wrong keysym, which the user can fix in
+    // the editor. A proper layout-aware mapping needs xkbcommon and
+    // the compositor's keymap; that's a future polish.
+    //
+    // Anything not in the table falls through to `keyNN` so events are
+    // never silently dropped.
     let name = match key {
+        // Editing / navigation
         1   => "Escape",
         14  => "BackSpace",
         15  => "Tab",
         28  => "Return",
         57  => "space",
+        96  => "Return",   // KP_Enter — keypad Enter
         103 => "Up",
         108 => "Down",
         105 => "Left",
@@ -614,14 +644,40 @@ fn keycode_to_chord(key: u32, mods: u32) -> Option<String> {
         107 => "End",
         104 => "Prior",     // Page Up
         109 => "Next",      // Page Down
+        110 => "Insert",
         111 => "Delete",
+
+        // Function keys
         59..=68 => {
-            // Function keys F1..F10
             static FK: &[&str] = &["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"];
             FK[(key - 59) as usize]
         }
         87 => "F11",
         88 => "F12",
+
+        // Top number row (1234567890 -=)
+        2   => "1",  3  => "2",  4  => "3",  5  => "4",  6  => "5",
+        7   => "6",  8  => "7",  9  => "8", 10  => "9", 11  => "0",
+        12  => "minus",
+        13  => "equal",
+
+        // Letter rows (QWERTY)
+        16 => "q", 17 => "w", 18 => "e", 19 => "r", 20 => "t",
+        21 => "y", 22 => "u", 23 => "i", 24 => "o", 25 => "p",
+        26 => "bracketleft",
+        27 => "bracketright",
+        43 => "backslash",
+        30 => "a", 31 => "s", 32 => "d", 33 => "f", 34 => "g",
+        35 => "h", 36 => "j", 37 => "k", 38 => "l",
+        39 => "semicolon",
+        40 => "apostrophe",
+        41 => "grave",
+        44 => "z", 45 => "x", 46 => "c", 47 => "v", 48 => "b",
+        49 => "n", 50 => "m",
+        51 => "comma",
+        52 => "period",
+        53 => "slash",
+
         _ => {
             let fallback = format!("key{key}");
             if parts.is_empty() {
@@ -639,12 +695,20 @@ fn keycode_to_chord(key: u32, mods: u32) -> Option<String> {
 /// `mods` and the per-device `rel_x`/`rel_y` accumulators in place
 /// for events that don't directly produce a `RecEvent` (modifier
 /// keys, sub-threshold pointer motion, SYN_REPORT framing).
+///
+/// Mouse motion is time-throttled via `last_move_ms` /
+/// `min_move_interval_ms`. Below the interval, REL_X/REL_Y events
+/// accumulate into `rel_x`/`rel_y` and produce no `RecEvent`. At or
+/// above the interval, the accumulator flushes as a single Move and
+/// the throttle clock resets.
 fn evdev_to_rec(
     ev: &evdev::InputEvent,
     t_ms: u64,
     mods: &std::sync::atomic::AtomicU32,
     rel_x: &mut i32,
     rel_y: &mut i32,
+    last_move_ms: &std::sync::atomic::AtomicU64,
+    min_move_interval_ms: u64,
 ) -> Option<RecEvent> {
     use evdev::{EventSummary, KeyCode, RelativeAxisCode};
     use std::sync::atomic::Ordering;
@@ -722,20 +786,27 @@ fn evdev_to_rec(
                 }
                 _ => return None,
             }
-            // Emit a Move once accumulated motion crosses ~4px on
-            // either axis. Below threshold the event drops on the
-            // floor — same policy as the libei path.
-            if rel_x.abs() < 4 && rel_y.abs() < 4 {
+            // Time-throttle Move emission. Without this, every mouse
+            // tick (1000Hz on a gaming mouse) tries to round-trip
+            // through the Qt thread queue and the keyboard tasks
+            // starve waiting on the shared events Mutex. Default
+            // interval is 1000ms — Move events are sentinels for
+            // "user moved here," not high-fidelity traces, so a slow
+            // cadence is fine.
+            let last = last_move_ms.load(std::sync::atomic::Ordering::Relaxed);
+            if t_ms.saturating_sub(last) < min_move_interval_ms {
+                // Keep accumulating into rel_x/rel_y so the eventual
+                // emit reflects the full motion since the last
+                // sample.
                 return None;
             }
-            // x/y are unrecoverable from deltas alone (we don't
-            // have absolute screen position from evdev), so emit
-            // (-1, -1) as a sentinel; the user fixes up the
-            // coordinates in the editor on replay.
+            last_move_ms.store(t_ms, std::sync::atomic::Ordering::Relaxed);
             let dx = std::mem::take(rel_x);
             let dy = std::mem::take(rel_y);
-            // Stash the deltas IN the synthetic move so the user has
-            // some signal of intent; absolute coords stay -1.
+            // Absolute screen position isn't recoverable from
+            // relative deltas; the synthetic Move carries the
+            // accumulated dx/dy as a hint, the user fixes up
+            // coordinates in the editor on replay.
             Some(RecEvent::Move {
                 t_ms,
                 x: dx,
