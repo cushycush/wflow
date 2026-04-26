@@ -204,8 +204,12 @@ pub async fn wdo_await_window(
     }
 }
 
-/// Title-substring search. `Ok(None)` covers both "no matching window"
-/// and "couldn't reach a backend" — see the module-level note on
+/// Search for a window whose title OR app_id contains `name`,
+/// case-insensitive. Matching app_id matters more often than the
+/// docs suggest: a kitty terminal running nvim has title="nvim"
+/// and app_id="kitty", so `wait-window "kitty"` would never match
+/// title alone. `Ok(None)` covers both "no matching window" and
+/// "couldn't reach a backend" — see the module-level note on
 /// failure semantics for `unless window="X"`.
 pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String>> {
     let backend = match b.get().await {
@@ -216,9 +220,17 @@ pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String
         Ok(w) => w,
         Err(_) => return Ok(None),
     };
+    let needle = name.to_lowercase();
     Ok(windows
         .into_iter()
-        .find(|w| w.title.contains(name))
+        .find(|w| {
+            w.title.to_lowercase().contains(&needle)
+                || w
+                    .app_id
+                    .as_deref()
+                    .map(|a| a.to_lowercase().contains(&needle))
+                    .unwrap_or(false)
+        })
         .map(|w| w.id.0))
 }
 
