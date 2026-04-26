@@ -67,7 +67,7 @@
     <release version="0.3.23" date="2026-04-26">
       <description>
         <p>
-          `wflow daemon` actually binds hotkeys on Hyprland now. Walks the library, registers each `trigger { chord "..." }` with Hyprland's IPC (`keyword bind = MODS, KEY, exec, wflow run <id>`), stays alive while you use the chords, unbinds cleanly on Ctrl+C. AutoHotkey-on-Linux v1 is real for Hyprland users today; Sway / KDE / GNOME backends land in v0.5.
+          `wflow daemon` actually binds hotkeys on Hyprland now. Walks the library, registers each `trigger { chord "..." }` with Hyprland's IPC (`keyword bind = MODS, KEY, exec, wflow run &lt;id&gt;`), stays alive while you use the chords, unbinds cleanly on Ctrl+C. AutoHotkey-on-Linux v1 is real for Hyprland users today; Sway / KDE / GNOME backends land in v0.5.
         </p>
         <p>
           Hotstring triggers and per-window `when` predicates parse and round-trip through KDL but the Hyprland backend ignores them for now (compositor-side hotkeys are global; per-window context needs the GlobalShortcuts portal or a global keyboard monitor on top, both v0.5 territory).
