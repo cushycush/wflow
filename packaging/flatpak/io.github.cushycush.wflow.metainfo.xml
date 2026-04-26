@@ -64,6 +64,22 @@
   </provides>
 
   <releases>
+    <release version="0.3.3" date="2026-04-25">
+      <description>
+        <p>
+          `wait-window` and `focus` now match a window's app_id as well as its title (case-insensitive), so `wait-window "kitty"` succeeds when kitty is running with `nvim` showing as the title.
+        </p>
+        <p>
+          Record Mode no longer silently falls back to a simulated event stream when the compositor's portal can't do RemoteDesktop. The Record page surfaces a clear error instead. Plasma 6 and GNOME 46+ ship the interface; xdg-desktop-portal-hyprland and xdg-desktop-portal-wlr currently don't.
+        </p>
+        <p>
+          Notifications go through the Notification portal directly when running inside Flatpak, narrowing the host-spawn surface to just the user's `shell` and `clipboard` actions.
+        </p>
+        <p>
+          AUR install ships a `.desktop` entry and icon, so wflow shows up in rofi, wofi, Krunner, GNOME Activities, and other XDG launchers.
+        </p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-04-25">
       <description>
         <p>

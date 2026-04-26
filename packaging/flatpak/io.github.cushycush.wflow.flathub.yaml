@@ -70,9 +70,9 @@ modules:
     sources:
       - type: git
         url: https://github.com/cushycush/wflow.git
-        tag: v0.3.2
+        tag: v0.3.3
         # commit: pin the SHA at submission time so the build is
         # reproducible even if someone moves the tag. Run
-        # `git rev-parse v0.3.2` in this repo and paste below.
+        # `git rev-parse v0.3.3` in this repo and paste below.
         # commit: 0000000000000000000000000000000000000000
       - cargo-sources.json
