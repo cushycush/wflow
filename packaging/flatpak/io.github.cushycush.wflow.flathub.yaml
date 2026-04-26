@@ -71,7 +71,5 @@ modules:
       - type: git
         url: https://github.com/cushycush/wflow.git
         tag: v0.3.5
-        # commit: filled in after the v0.3.5 tag exists
-        # (run `git rev-parse v0.3.5` in this repo and paste below).
-        # commit: 0000000000000000000000000000000000000000
+        commit: a9bdda075582b69bb3a35dbdf18d09065e74a9c8
       - cargo-sources.json
