@@ -71,5 +71,5 @@ modules:
       - type: git
         url: https://github.com/cushycush/wflow.git
         tag: v0.3.17
-        # commit pinned after v0.3.17 tag exists.
+        commit: 20124ed8799822c3623a3fd2c2d680d3b9d893e0
       - cargo-sources.json
