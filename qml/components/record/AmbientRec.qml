@@ -211,38 +211,40 @@ Item {
                 font.letterSpacing: 1.0
             }
 
-            ScrollView {
+            // ListView so the latest event stays in view as the
+            // recording grows. positionViewAtEnd on count change is
+            // the auto-scroll-to-bottom behavior the user expects
+            // from a live event log.
+            ListView {
+                id: eventList
                 width: parent.width
                 height: parent.height - 24
                 clip: true
-                contentWidth: availableWidth
+                spacing: 3
+                model: root.events
+                onCountChanged: positionViewAtEnd()
+                Component.onCompleted: positionViewAtEnd()
 
-                Column {
-                    width: parent.parent.width
-                    spacing: 3
+                ScrollBar.vertical: ScrollBar { active: true }
 
-                    Repeater {
-                        model: root.events
-                        delegate: Row {
-                            width: parent.width
-                            spacing: 12
-                            Text {
-                                text: (modelData.t_ms / 1000).toFixed(2) + "s"
-                                color: Theme.text3
-                                font.family: Theme.familyMono
-                                font.pixelSize: Theme.fontXs
-                                width: 54
-                            }
-                            CategoryChip { kind: modelData.category }
-                            Text {
-                                text: modelData.body
-                                color: Theme.text
-                                font.family: Theme.familyMono
-                                font.pixelSize: Theme.fontSm
-                                elide: Text.ElideRight
-                                width: parent.width - 54 - 12 - 74 - 12
-                            }
-                        }
+                delegate: Row {
+                    width: eventList.width
+                    spacing: 12
+                    Text {
+                        text: (modelData.t_ms / 1000).toFixed(2) + "s"
+                        color: Theme.text3
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontXs
+                        width: 54
+                    }
+                    CategoryChip { kind: modelData.category }
+                    Text {
+                        text: modelData.body
+                        color: Theme.text
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        elide: Text.ElideRight
+                        width: parent.width - 54 - 12 - 74 - 12
                     }
                 }
             }
