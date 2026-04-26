@@ -1990,7 +1990,7 @@ dependencies = [
 
 [[package]]
 name = "wflow"
-version = "0.3.16"
+version = "0.3.18"
 dependencies = [
  "anyhow",
  "ashpd",
