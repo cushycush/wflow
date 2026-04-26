@@ -1,6 +1,6 @@
 [package]
 name = "wflow"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"
@@ -41,6 +41,11 @@ futures-util = "0.3"
 # `wdotool` binary). Default features enable libei + wlroots + kde +
 # gnome + uinput; that matches the compositor coverage wflow targets.
 wdotool-core = "0.2"
+
+# evdev fallback for Record Mode on compositors whose portal doesn't
+# implement RemoteDesktop (Hyprland, Sway today). Reads /dev/input/event*
+# directly, so the user has to be in the `input` group.
+evdev = { version = "0.13", features = ["tokio", "stream-trait"] }
 
 [build-dependencies]
 cxx-qt-build = "0.8"
