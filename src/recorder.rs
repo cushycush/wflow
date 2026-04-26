@@ -411,16 +411,21 @@ impl Recorder {
                         Ok(e) => e,
                         Err(_) => break,
                     };
-                    // Esc is the global stop hotkey. Don't record the
-                    // press; just signal the bridge to stop. Without
-                    // this, users have to switch focus to wflow and
-                    // click the Stop button, which itself ends up in
-                    // the recording (and the heuristic to trim it is
-                    // best-effort; this is the deterministic fix).
+                    // Super+Esc is the global stop hotkey. Don't
+                    // record the press; signal the bridge to stop.
+                    // Plain Esc stays as a recordable keystroke so
+                    // workflows that close dialogs / cancel inputs
+                    // still capture cleanly. Super was picked because
+                    // it's almost never bound on its own and pairs
+                    // with WM hotkeys the user already trains on.
                     if let evdev::EventSummary::Key(_, code, value) = ev.destructure() {
                         if code == evdev::KeyCode::KEY_ESC && value == 1 {
-                            sink_dev(RecFrame::StopRequested);
-                            break;
+                            const MOD_SUPER: u32 = 1 << 6;
+                            let m = mods_dev.load(std::sync::atomic::Ordering::Relaxed);
+                            if m & MOD_SUPER != 0 {
+                                sink_dev(RecFrame::StopRequested);
+                                break;
+                            }
                         }
                     }
                     let t_ms = started_at.elapsed().as_millis() as u64;
