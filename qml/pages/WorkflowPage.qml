@@ -499,6 +499,7 @@ Item {
         }
 
         Item {
+            id: editorContent
             width: parent.width
             height: parent.height - tb.height
 
@@ -510,11 +511,79 @@ Item {
                 actionLabel: ""
             }
 
+            // ---- View-mode toggle (List | Canvas) ----
+            // The Canvas view is the new node-graph rendering of the
+            // same workflow. List stays the default and the canonical
+            // editing surface; canvas is read-only for selection
+            // today and shares selectedIndex with the list view so
+            // the right inspector keeps working when the user
+            // switches mid-edit.
+            property string viewMode: "list"
+
+            // Floating segmented control in the editor's top-right
+            // corner — small, doesn't compete with Run / Share /
+            // Delete in the TopBar.
+            Rectangle {
+                visible: root.workflowId.length > 0
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 14
+                anchors.rightMargin: 24
+                z: 10
+                width: viewModeRow.implicitWidth + 8
+                height: 30
+                radius: 8
+                color: Theme.surface
+                border.color: Theme.lineSoft
+                border.width: 1
+
+                Row {
+                    id: viewModeRow
+                    anchors.centerIn: parent
+                    spacing: 2
+
+                    Repeater {
+                        model: [
+                            { id: "list",   label: "List" },
+                            { id: "canvas", label: "Canvas" }
+                        ]
+                        delegate: Rectangle {
+                            readonly property bool isOn: editorContent.viewMode === modelData.id
+                            width: tabText.implicitWidth + 18
+                            height: 24
+                            radius: 5
+                            color: isOn
+                                ? Theme.accentWash(0.16)
+                                : (modeArea.containsMouse ? Theme.surface2 : "transparent")
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Text {
+                                id: tabText
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                color: isOn ? Theme.accent : Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: 12
+                                font.weight: isOn ? Font.DemiBold : Font.Medium
+                            }
+                            MouseArea {
+                                id: modeArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: editorContent.viewMode = modelData.id
+                            }
+                        }
+                    }
+                }
+            }
+
             SplitInspector {
                 id: splitInspector
                 anchors.fill: parent
                 anchors.margins: 24
-                visible: root.workflowId.length > 0
+                visible: root.workflowId.length > 0 && editorContent.viewMode === "list"
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 running: root.running
@@ -537,6 +606,16 @@ Item {
                 onAddStepRequested: (kind) => root._addStep(kind)
                 onDeleteStepRequested: (stepIndex) => root._deleteStep(stepIndex)
                 onMoveStepRequested: (from, to) => root._moveStep(from, to)
+            }
+
+            WorkflowCanvas {
+                anchors.fill: parent
+                anchors.margins: 24
+                visible: root.workflowId.length > 0 && editorContent.viewMode === "canvas"
+                actions: root.actions
+                selectedIndex: splitInspector.selectedIndex
+                stepStatuses: root.stepStatuses
+                onSelectStep: (i) => { splitInspector.selectedIndex = i }
             }
         }
     }
