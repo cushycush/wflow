@@ -131,9 +131,15 @@ Item {
         AmbientRec {
             width: parent.width
             height: parent.height - tb.height - (recCtrl.last_error !== "" ? 80 : 0)
+            // After stop the AmbientRec drops back to "idle" so the
+            // central button switches from a square (stop) back to a
+            // circle (arm again) and the "RECORDING" pulse stops. The
+            // stopped-state controls (Save as workflow, event list)
+            // live above this in the TopBar so the user still has a
+            // path to keep the capture.
             phase: recCtrl.state === "armed" || recCtrl.state === "recording"
                 ? recCtrl.state
-                : (recCtrl.state === "stopped" ? "recording" : "idle")
+                : "idle"
             totalMs: recCtrl.elapsed_ms
             events: root.events
             onArmRequested: root._onArm()

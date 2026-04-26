@@ -64,11 +64,19 @@ Item {
             border.color: Theme.lineSoft
             border.width: 1
 
-            Column {
+            // ScrollView so a workflow longer than the panel doesn't
+            // clip past the bottom. Default scroll bar is fine; the
+            // user can wheel or click+drag to reach later steps.
+            ScrollView {
                 anchors.fill: parent
                 anchors.topMargin: 12
                 anchors.bottomMargin: 12
-                spacing: 2
+                clip: true
+                contentWidth: availableWidth
+
+                Column {
+                    width: parent.width
+                    spacing: 2
 
                 Repeater {
                     model: root.actions
@@ -322,6 +330,7 @@ Item {
                         }
                     }
                 }
+                }  // inner Column (steps + add-step footer)
             }
         }
 
