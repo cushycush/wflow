@@ -57,6 +57,8 @@ Item {
     }
 
     Component.onCompleted: _refreshShaped()
+    // Picks up workflows added by the recorder or dropped in by hand.
+    onVisibleChanged: if (visible) libCtrl.refresh()
     Connections {
         target: libCtrl
         function onWorkflowsChanged() { root._refreshShaped() }

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import Wflow
 
 // State machine: idle → armed → recording → stopped → finalize().
@@ -53,15 +52,7 @@ Item {
         recCtrl.stop()
     }
     function _finalize() {
-        // Open the name dialog. The actual finalize call happens in
-        // saveDialog.onAccepted so the user gets to title their
-        // workflow before the file lands on disk.
-        nameField.text = "Recorded workflow"
         saveDialog.open()
-        Qt.callLater(function() {
-            nameField.forceActiveFocus()
-            nameField.selectAll()
-        })
     }
 
     function _commitFinalize(title) {
@@ -73,39 +64,100 @@ Item {
         }
     }
 
+    // Default Dialog chrome inherits the system Qt style and renders
+    // the TextField text unreadably against our dark surface; build
+    // bespoke chrome.
     Dialog {
         id: saveDialog
         modal: true
-        anchors.centerIn: parent
+        closePolicy: Popup.CloseOnEscape
         width: 420
-        title: "Save recorded workflow"
-        standardButtons: Dialog.Save | Dialog.Cancel
+        anchors.centerIn: parent
+
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusMd
+            border.color: Theme.line
+            border.width: 1
+        }
+
+        onAboutToShow: {
+            nameField.text = "Recorded workflow"
+            Qt.callLater(function() {
+                nameField.forceActiveFocus()
+                nameField.selectAll()
+            })
+        }
+
         onAccepted: root._commitFinalize(nameField.text)
 
-        ColumnLayout {
-            width: parent.width
-            spacing: 8
-            Text {
-                text: "Workflow name"
-                color: Theme.text2
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontSm
-            }
-            TextField {
-                id: nameField
-                Layout.fillWidth: true
-                placeholderText: "Recorded workflow"
-                color: Theme.text
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontMd
-                selectByMouse: true
-                onAccepted: saveDialog.accept()
-            }
-            Text {
-                text: "Saved as a new workflow in your library."
-                color: Theme.text3
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontXs
+        contentItem: Item {
+            anchors.fill: parent
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 16
+
+                Column {
+                    width: parent.width
+                    spacing: 4
+                    Text {
+                        text: "Save recorded workflow"
+                        color: Theme.text
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXl
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        text: "Pick a name for the new workflow."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 48
+                    radius: Theme.radiusMd
+                    color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 1)
+                    border.color: nameField.activeFocus ? Theme.accent : Theme.line
+                    border.width: nameField.activeFocus ? 2 : 1
+                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                    TextField {
+                        id: nameField
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: Theme.text
+                        placeholderText: "Recorded workflow"
+                        placeholderTextColor: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontMd
+                        selectByMouse: true
+                        background: Item {}
+                        onAccepted: saveDialog.accept()
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                    PrimaryButton {
+                        text: "Save"
+                        enabled: nameField.text.trim().length > 0
+                        onClicked: saveDialog.accept()
+                    }
+                    SecondaryButton {
+                        text: "Cancel"
+                        onClicked: saveDialog.reject()
+                    }
+                }
             }
         }
     }

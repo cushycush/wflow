@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.12" date="2026-04-26">
+      <description>
+        <p>
+          Recorder save dialog rewritten to match the rest of the app. The previous version inherited Qt's default Dialog chrome, which on most desktops rendered the TextField text in a color so close to the field background that typing looked invisible. The new dialog uses our dark surface, framed input with the accent border on focus, and our PrimaryButton/SecondaryButton in the footer.
+        </p>
+        <p>
+          Library auto-refreshes when you navigate back to it, so a workflow saved by the recorder shows up immediately. Previously a freshly-saved recording would only appear after restarting the app.
+        </p>
+      </description>
+    </release>
     <release version="0.3.11" date="2026-04-26">
       <description>
         <p>
