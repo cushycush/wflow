@@ -22,16 +22,12 @@ ApplicationWindow {
     // Page-header pickers are primary; these are for keyboard users.
     Shortcut { sequence: "Ctrl+,"; onActivated: LibraryLayout.cycle() }
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
-    // Ctrl+N follows the current nav-pill order — the Explore tab only
-    // appears when Theme.showExplore is on, so the shortcut list shifts too.
+    // Mirrors nav-pill order: Library, optional Explore, Record.
     Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
     Shortcut { sequence: "Ctrl+2"
-        onActivated: root.currentPage = Theme.showExplore ? "explore" : "workflow"
+        onActivated: root.currentPage = Theme.showExplore ? "explore" : "record"
     }
     Shortcut { sequence: "Ctrl+3"
-        onActivated: root.currentPage = Theme.showExplore ? "workflow" : "record"
-    }
-    Shortcut { sequence: "Ctrl+4"
         enabled: Theme.showExplore
         onActivated: root.currentPage = "record"
     }

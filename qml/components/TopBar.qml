@@ -12,10 +12,12 @@ Rectangle {
     property string subtitle: ""
     property bool titleEditable: false
     property bool subtitleEditable: false
+    property bool backVisible: false
     default property alias actions: actionRow.data
 
     signal titleCommitted(string newTitle)
     signal subtitleCommitted(string newSubtitle)
+    signal backClicked()
 
     Rectangle {
         height: 1
@@ -27,12 +29,42 @@ Rectangle {
 
     Row {
         anchors.fill: parent
-        anchors.leftMargin: 24
+        anchors.leftMargin: 16
         anchors.rightMargin: 16
-        spacing: 16
+        spacing: 12
+
+        Rectangle {
+            id: backBtn
+            visible: root.backVisible
+            width: visible ? 32 : 0
+            height: 32
+            radius: 6
+            anchors.verticalCenter: parent.verticalCenter
+            color: backArea.containsMouse ? Theme.surface2 : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+            Text {
+                anchors.centerIn: parent
+                text: "←"
+                color: Theme.text2
+                font.family: Theme.familyBody
+                font.pixelSize: 18
+            }
+
+            MouseArea {
+                id: backArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.backClicked()
+                ToolTip.visible: containsMouse
+                ToolTip.delay: 400
+                ToolTip.text: "Back to library"
+            }
+        }
 
         Column {
-            width: parent.width - actionRow.width - 16
+            width: parent.width - backBtn.width - actionRow.width - 28
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
 
