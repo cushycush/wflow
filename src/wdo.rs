@@ -181,9 +181,9 @@ pub async fn wdo_await_window(
     }
 }
 
-/// Title-substring search. `Ok(None)` covers both "no matching window"
-/// and "couldn't reach a backend" — see the module-level note on
-/// failure semantics for `unless window="X"`.
+/// Case-insensitive contains-match against title OR app_id. The app_id
+/// path catches `wait-window "kitty"` against a kitty term running nvim
+/// (title="nvim"). `Ok(None)` includes "couldn't reach a backend".
 pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String>> {
     let backend = match b.get().await {
         Ok(b) => b,
@@ -193,9 +193,17 @@ pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String
         Ok(w) => w,
         Err(_) => return Ok(None),
     };
+    let needle = name.to_lowercase();
     Ok(windows
         .into_iter()
-        .find(|w| w.title.contains(name))
+        .find(|w| {
+            w.title.to_lowercase().contains(&needle)
+                || w
+                    .app_id
+                    .as_deref()
+                    .map(|a| a.to_lowercase().contains(&needle))
+                    .unwrap_or(false)
+        })
         .map(|w| w.id.0))
 }
 
