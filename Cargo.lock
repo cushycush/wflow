@@ -1963,9 +1963,8 @@ dependencies = [
 
 [[package]]
 name = "wdotool-core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bff920bae853ae127fd44ded1139d1994be8e9affbd528d6df53059207f621e1"
+version = "0.3.0"
+source = "git+https://github.com/cushycush/wdotool?rev=fad906ac69b59fa24af5523bbe57f8a6cf915f69#fad906ac69b59fa24af5523bbe57f8a6cf915f69"
 dependencies = [
  "ashpd",
  "async-trait",

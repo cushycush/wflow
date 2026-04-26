@@ -1,6 +1,6 @@
 [package]
 name = "wflow"
-version = "0.3.16"
+version = "0.3.17"
 edition = "2021"
 description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"
@@ -40,7 +40,14 @@ futures-util = "0.3"
 # Input/window engine. Linked in-process (no subprocess shell-out to a
 # `wdotool` binary). Default features enable libei + wlroots + kde +
 # gnome + uinput; that matches the compositor coverage wflow targets.
-wdotool-core = "0.2"
+#
+# Pinned to a git rev rather than the published 0.2 because we depend
+# on the modifier-state fix in cushycush/wdotool@fad906a — wlroots
+# compositors don't auto-derive modifier state from virtual keyboard
+# key events, so chord keys (ctrl+l, super+j, …) need an explicit
+# vk.modifiers() request that 0.2 doesn't send. Switch back to a
+# crates.io version once that fix lands in a published release.
+wdotool-core = { git = "https://github.com/cushycush/wdotool", rev = "fad906ac69b59fa24af5523bbe57f8a6cf915f69" }
 
 # evdev fallback for Record Mode on compositors whose portal doesn't
 # implement RemoteDesktop (Hyprland, Sway today). Reads /dev/input/event*

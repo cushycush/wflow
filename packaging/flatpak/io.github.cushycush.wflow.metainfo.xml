@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.17" date="2026-04-26">
+      <description>
+        <p>
+          Chord keys (ctrl+l, super+j, alt+tab, …) now actually hold their modifier when replayed on Hyprland and other wlroots compositors. The previous wdotool-core release pressed modifier keycodes via virtual-keyboard but never called the protocol's modifiers() request — wlroots compositors don't auto-derive seat modifier state from virtual-keyboard key events, so the focused client received a bare letter with no Ctrl/Super held. The fix lives in wdotool-core (cushycush/wdotool@fad906a) and wflow pins to that revision until it ships in a published wdotool-core release. Symptom: a recorded `ctrl+l → type "hello world"` workflow that typed `lhello world` (literal `l` followed by the text) into the wrong field on replay.
+        </p>
+      </description>
+    </release>
     <release version="0.3.16" date="2026-04-26">
       <description>
         <p>
