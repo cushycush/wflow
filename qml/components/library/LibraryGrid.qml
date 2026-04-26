@@ -89,13 +89,13 @@ Item {
                 }
             }
 
-            Menu {
+            WfMenu {
                 id: cardMenu
-                MenuItem {
+                WfMenuItem {
                     text: "Duplicate"
                     onTriggered: root.duplicateRequested(card.wf.id)
                 }
-                MenuItem {
+                WfMenuItem {
                     text: "Delete"
                     onTriggered: root.deleteRequested(card.wf.id)
                 }

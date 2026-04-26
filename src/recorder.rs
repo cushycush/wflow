@@ -1011,11 +1011,25 @@ pub fn events_to_workflow(events: &[RecEvent], title: &str) -> Workflow {
                 None => text_acc = Some((t, text.clone())),
             },
             RecEvent::Key { chord, .. } => {
-                flush_text(&mut wf, &mut text_acc);
-                wf.steps.push(Step::new(Action::WdoKey {
-                    chord: chord.clone(),
-                    clear_modifiers: false,
-                }));
+                // A bare printable key ("h", "space", "comma", …)
+                // accumulates into the text buffer so a string like
+                // "hello world" coalesces into a single `type` step
+                // instead of 11 separate WdoKey steps that fire
+                // faster than the target app can process. Real
+                // chords (modifier-bearing, function keys, etc.)
+                // flush the text and emit a `key` step.
+                if let Some(ch) = chord_as_typed_char(chord) {
+                    match text_acc.as_mut() {
+                        Some((_, acc)) => acc.push_str(&ch),
+                        None => text_acc = Some((t, ch)),
+                    }
+                } else {
+                    flush_text(&mut wf, &mut text_acc);
+                    wf.steps.push(Step::new(Action::WdoKey {
+                        chord: chord.clone(),
+                        clear_modifiers: false,
+                    }));
+                }
             }
             RecEvent::Click { button, .. } => {
                 flush_text(&mut wf, &mut text_acc);
@@ -1059,5 +1073,88 @@ fn flush_text(wf: &mut Workflow, acc: &mut Option<(u64, String)>) {
                 delay_ms: None,
             }));
         }
+    }
+}
+
+/// Convert a wdotool keysym chord into the literal string a user
+/// would have typed to produce it. Used to coalesce sequential
+/// printable Key events back into a single `type` action on
+/// playback. Returns None for chords that don't have a literal
+/// typed form (modifier-bearing chords, function keys, navigation).
+fn chord_as_typed_char(chord: &str) -> Option<String> {
+    if chord.contains('+') {
+        return None;
+    }
+    let s = match chord {
+        "space" => " ",
+        "comma" => ",",
+        "period" => ".",
+        "slash" => "/",
+        "minus" => "-",
+        "equal" => "=",
+        "bracketleft" => "[",
+        "bracketright" => "]",
+        "backslash" => "\\",
+        "semicolon" => ";",
+        "apostrophe" => "'",
+        "grave" => "`",
+        c if c.len() == 1 && c.chars().next().is_some_and(|ch| ch.is_ascii_alphanumeric()) => c,
+        _ => return None,
+    };
+    Some(s.to_string())
+}
+
+#[cfg(test)]
+mod coalesce_tests {
+    use super::*;
+    use crate::actions::Action;
+
+    fn keys(chords: &[(u64, &str)]) -> Vec<RecEvent> {
+        chords
+            .iter()
+            .map(|(t, c)| RecEvent::Key {
+                t_ms: *t,
+                chord: (*c).into(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn coalesces_letters_into_one_type_action() {
+        let evs = keys(&[
+            (100, "h"), (110, "e"), (120, "l"), (130, "l"),
+            (140, "o"), (150, "space"), (160, "w"), (170, "o"),
+            (180, "r"), (190, "l"), (200, "d"),
+        ]);
+        let wf = events_to_workflow(&evs, "t");
+        assert_eq!(wf.steps.len(), 1);
+        match &wf.steps[0].action {
+            Action::WdoType { text, .. } => assert_eq!(text, "hello world"),
+            other => panic!("expected WdoType, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ctrl_l_then_text_then_return_emits_three_steps() {
+        let evs = keys(&[
+            (100, "ctrl+l"),
+            (200, "h"), (210, "i"),
+            (300, "Return"),
+        ]);
+        let wf = events_to_workflow(&evs, "t");
+        // ctrl+l (key), Delay (gap >= 200 may or may not insert),
+        // hi (type), Return (key). Allow Delay between for now.
+        let mut keys = 0;
+        let mut types = 0;
+        for s in &wf.steps {
+            match &s.action {
+                Action::WdoKey { .. } => keys += 1,
+                Action::WdoType { .. } => types += 1,
+                _ => {}
+            }
+        }
+        // ctrl+l and Return are real chords; "hi" coalesces.
+        assert_eq!(keys, 2);
+        assert_eq!(types, 1);
     }
 }

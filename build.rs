@@ -23,6 +23,8 @@ fn main() {
             QmlFile::from("qml/components/PrimaryButton.qml"),
             QmlFile::from("qml/components/SecondaryButton.qml"),
             QmlFile::from("qml/components/SegmentedControl.qml"),
+            QmlFile::from("qml/components/WfMenu.qml"),
+            QmlFile::from("qml/components/WfMenuItem.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
