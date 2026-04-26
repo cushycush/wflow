@@ -66,6 +66,11 @@ Item {
     }
 
     Component.onCompleted: _refreshShaped()
+    // Refresh whenever the library page comes back into view, so a
+    // workflow saved by the recorder (or hand-dropped into the
+    // library dir) shows up without restarting the app. Cheap —
+    // libCtrl.refresh() reads ~/.config/wflow/workflows once.
+    onVisibleChanged: if (visible) libCtrl.refresh()
     Connections {
         target: libCtrl
         function onWorkflowsChanged() { root._refreshShaped() }
