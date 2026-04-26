@@ -145,6 +145,12 @@ pub enum Command {
         #[arg(long, value_name = "DIR")]
         output: Option<PathBuf>,
     },
+    /// Walk the library, list every trigger declared in a workflow,
+    /// and print what would be bound. Today's implementation is
+    /// dry-run only — the v0.4 daemon will actually register the
+    /// bindings via the GlobalShortcuts portal (or compositor IPC
+    /// fallback) and dispatch workflows on activation.
+    Daemon,
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -173,6 +179,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Ids => cmd_ids(),
         Command::Migrate { dry_run } => cmd_migrate(dry_run),
         Command::Man { output } => cmd_man(output.as_deref()),
+        Command::Daemon => cmd_daemon(),
     };
 
     match result {
@@ -565,6 +572,99 @@ fn cmd_man(output: Option<&Path>) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
     }
+}
+
+/// Walk the library, collect every workflow's `trigger { }` blocks,
+/// and print what would be bound. Today this is a diagnostic only;
+/// the v0.4 daemon will start subscribing for real via the
+/// GlobalShortcuts portal (KDE / GNOME) or compositor IPC (Hyprland /
+/// Sway).
+///
+/// Usage:
+///
+/// ```text
+/// $ wflow daemon
+/// wflow daemon (dry run)
+///
+/// 3 trigger(s) across 2 workflow(s):
+///   super+alt+d    →  Open dev setup
+///   ctrl+shift+u   →  Firefox copy URL  [when window-class="firefox"]
+///   hotstring btw  →  BTW expand
+///
+/// Daemon doesn't subscribe yet — bindings will fire workflows in v0.4.
+/// ```
+fn cmd_daemon() -> Result<ExitCode> {
+    use crate::actions::{TriggerCondition, TriggerKind};
+    let workflows = store::list().context("reading library")?;
+
+    let mut rows: Vec<(String, String, Option<String>, String)> = Vec::new();
+    let mut wf_count = 0usize;
+    for wf in &workflows {
+        if wf.triggers.is_empty() {
+            continue;
+        }
+        wf_count += 1;
+        for t in &wf.triggers {
+            let label = match &t.kind {
+                TriggerKind::Chord { chord } => chord.clone(),
+                TriggerKind::Hotstring { text } => format!("hotstring {text:?}"),
+            };
+            let when_label = t.when.as_ref().map(|c| match c {
+                TriggerCondition::WindowClass { class } => {
+                    format!("when window-class={class:?}")
+                }
+                TriggerCondition::WindowTitle { title } => {
+                    format!("when window-title={title:?}")
+                }
+            });
+            rows.push((label, wf.title.clone(), when_label, wf.id.clone()));
+        }
+    }
+
+    println!("{}", bold("wflow daemon (dry run)"));
+    println!();
+    if rows.is_empty() {
+        println!(
+            "  {} no triggers declared in your library",
+            dim("·"),
+        );
+        println!();
+        println!(
+            "  Add a `trigger {{ chord \"...\" }}` block to a workflow's KDL\n  \
+             to bind it to a global hotkey when the v0.4 daemon ships."
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    println!(
+        "  {} trigger{} across {} workflow{}:",
+        rows.len(),
+        plural_s(rows.len()),
+        wf_count,
+        plural_s(wf_count),
+    );
+    println!();
+    let label_w = rows.iter().map(|(l, _, _, _)| l.len()).max().unwrap_or(0).max(8);
+    for (label, title, when_label, _id) in &rows {
+        let when_suffix = match when_label {
+            Some(s) => format!("  {}", dim(&format!("[{s}]"))),
+            None => String::new(),
+        };
+        println!(
+            "  {:label_w$}  {}  {}{}",
+            label,
+            arrow(),
+            title,
+            when_suffix,
+            label_w = label_w
+        );
+    }
+    println!();
+    println!(
+        "  {} Daemon doesn't subscribe yet — bindings will fire workflows in v0.4.",
+        dim("·")
+    );
+    Ok(ExitCode::SUCCESS)
 }
 
 // Subcommands that take a library id as their first positional. Kept
