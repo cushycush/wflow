@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.7" date="2026-04-25">
+      <description>
+        <p>
+          Two editor fixes. The Record page now drops back to the "ready when you are" idle state when you press Stop instead of leaving the recording animation running and the button stuck on stop. The step list in the editor scrolls when a workflow has more steps than fit in the panel.
+        </p>
+      </description>
+    </release>
     <release version="0.3.6" date="2026-04-25">
       <description>
         <p>
