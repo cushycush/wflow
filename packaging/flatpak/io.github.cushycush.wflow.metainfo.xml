@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.22" date="2026-04-26">
+      <description>
+        <p>
+          New `wflow daemon` subcommand. Walks the library, lists every workflow's `trigger { }` blocks, and prints what would be bound. Today this is dry-run only — the v0.4 release will plug in the GlobalShortcuts portal (KDE / GNOME) and Hyprland IPC fallback to actually subscribe and dispatch. This is the diagnostic that lets users author triggers in v0.3.x and see them collected, before the daemon goes live.
+        </p>
+      </description>
+    </release>
     <release version="0.3.21" date="2026-04-26">
       <description>
         <p>
