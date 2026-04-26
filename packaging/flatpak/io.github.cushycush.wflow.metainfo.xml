@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.8" date="2026-04-25">
+      <description>
+        <p>
+          Record's recent-events drawer auto-scrolls to the bottom as new events come in, so the latest captured action is always visible. Previously the list scrolled past the bottom of the drawer with no way to follow it without scrolling by hand.
+        </p>
+      </description>
+    </release>
     <release version="0.3.7" date="2026-04-25">
       <description>
         <p>
