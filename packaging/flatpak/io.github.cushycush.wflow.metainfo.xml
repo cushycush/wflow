@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.5" date="2026-04-25">
+      <description>
+        <p>
+          Record Mode now works on Hyprland, Sway, and other wlroots compositors whose portal doesn't ship `org.freedesktop.portal.RemoteDesktop` yet. When the portal handshake fails, wflow falls back to reading `/dev/input/event*` directly via `evdev`, which works on any Linux system as long as the user is in the `input` group.
+        </p>
+        <p>
+          Plasma 6 and GNOME 46+ users still get the portal path with the explicit consent dialog. The fallback only kicks in where the portal interface isn't available.
+        </p>
+      </description>
+    </release>
     <release version="0.3.4" date="2026-04-25">
       <description>
         <p>

@@ -100,19 +100,24 @@ impl Recorder {
 
     /// Start a new recording session. Calls `sink` with each `RecFrame`.
     ///
-    /// Goes through the RemoteDesktop portal by default. The simulated
-    /// backend is opt-in via `WFLOW_SIM_RECORDER=1` (used during UI
-    /// iteration so we don't have to click through the portal consent
-    /// dialog every time).
+    /// Backend priority:
+    /// 1. **Portal.** `org.freedesktop.portal.RemoteDesktop` + libei
+    ///    receiver. The "right" path: explicit consent dialog, no
+    ///    /dev/input/* permissions needed. Plasma 6 and GNOME 46+
+    ///    ship the interface; xdg-desktop-portal-hyprland and
+    ///    xdg-desktop-portal-wlr don't (yet).
+    /// 2. **Evdev.** Reads /dev/input/event* directly. Works on any
+    ///    compositor as long as the user is in the `input` group.
+    ///    No per-session consent prompt — the input group membership
+    ///    is the consent.
+    /// 3. **Simulated.** Opt-in via `WFLOW_SIM_RECORDER=1`. UI
+    ///    iteration only.
     ///
-    /// If the portal path fails, the error propagates to the caller.
-    /// We deliberately do NOT silently fall back to simulated, because
-    /// fake events that look real are worse than a clear error: the
-    /// user thinks Record works and then their saved workflow does
-    /// nothing on replay. The bridge surfaces the error string in the
-    /// UI so the user can see exactly what went wrong (most often:
-    /// their compositor's portal doesn't implement RemoteDesktop, or
-    /// they cancelled the consent dialog).
+    /// If portal AND evdev both fail we propagate a combined error
+    /// so the user sees both reasons (typically: "portal interface
+    /// missing" + "permission denied on /dev/input/event*"). We
+    /// deliberately do NOT fall through to simulated on failure;
+    /// fake events that look real are worse than a clear error.
     pub async fn start(&self, sink: FrameSink) -> Result<()> {
         {
             let slot = self.inner.lock().await;
@@ -127,15 +132,27 @@ impl Recorder {
             return self.start_simulated(sink).await;
         }
 
-        self.start_portal(sink).await.map_err(|e| {
-            tracing::warn!(error = %format!("{e:#}"), "recorder: portal backend failed");
-            e.context(
-                "Record needs xdg-desktop-portal with the RemoteDesktop interface. \
-                 Plasma 6 and GNOME 46+ ship it; xdg-desktop-portal-hyprland and \
-                 xdg-desktop-portal-wlr currently do not. Set WFLOW_SIM_RECORDER=1 \
-                 to test the UI with simulated events.",
-            )
-        })
+        let portal_err = match self.start_portal(sink.clone()).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                tracing::info!(error = %format!("{e:#}"), "recorder: portal backend unavailable, trying evdev");
+                e
+            }
+        };
+
+        match self.start_evdev(sink).await {
+            Ok(()) => Ok(()),
+            Err(evdev_err) => {
+                tracing::warn!(error = %format!("{evdev_err:#}"), "recorder: evdev backend failed too");
+                Err(anyhow!(
+                    "Record can't start.\n\nPortal backend: {portal_err:#}\n\nEvdev backend: {evdev_err:#}\n\n\
+                     Pick one of these to fix it:\n  \
+                     • On Plasma 6 or GNOME 46+, install / restart xdg-desktop-portal\n  \
+                     • On Hyprland or Sway, add yourself to the `input` group: \
+                     `sudo usermod -aG input $USER`, log out and back in"
+                ))
+            }
+        }
     }
 
     /// Stop the current session. Returns the captured events in order.
@@ -298,6 +315,102 @@ impl Recorder {
             thread: Some(thread),
             stop_tx: Some(stop_tx),
             started_at: std::time::Instant::now(),
+        });
+        Ok(())
+    }
+
+    /// Open every readable /dev/input/event* device that emits keys
+    /// or pointer events, and merge their streams into the same
+    /// per-recording event log. No portal, no consent dialog — the
+    /// `input` group membership is the consent. Used as a fallback
+    /// on compositors whose portal doesn't expose RemoteDesktop.
+    async fn start_evdev(&self, sink: FrameSink) -> Result<()> {
+        use evdev::EventType;
+        use std::sync::atomic::AtomicU32;
+        use tokio::task::JoinSet;
+
+        // Enumerate at start time (no hot-plug). Filter to devices
+        // that actually emit useful event types — skip power buttons,
+        // lid switches, gpio dummies, etc.
+        let mut devices: Vec<(std::path::PathBuf, evdev::Device)> = Vec::new();
+        for (path, dev) in evdev::enumerate() {
+            let supports_keys = dev.supported_keys().is_some();
+            let supports_rel = dev.supported_relative_axes().is_some();
+            if supports_keys || supports_rel {
+                devices.push((path, dev));
+            }
+        }
+
+        if devices.is_empty() {
+            anyhow::bail!(
+                "no readable input devices at /dev/input/event* — \
+                 check that you're in the `input` group \
+                 (`groups | grep input`); if not, run \
+                 `sudo usermod -aG input $USER` and log out/back in"
+            );
+        }
+
+        let events: Arc<Mutex<Vec<RecEvent>>> = Default::default();
+        let started_at = std::time::Instant::now();
+        // Shared modifier bitmask across all devices, in the same xkb
+        // bit positions keycode_to_chord expects.
+        let mods = Arc::new(AtomicU32::new(0));
+
+        sink(RecFrame::Armed);
+        sink(RecFrame::Started);
+
+        // One tokio task per device; the coordinator owns the JoinSet
+        // so dropping the coordinator on stop() abort tears them all
+        // down.
+        let mut joinset = JoinSet::new();
+        for (path, dev) in devices {
+            let mut stream = match dev.into_event_stream() {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(?path, ?e, "evdev: stream open failed; skipping device");
+                    continue;
+                }
+            };
+            let events_dev = events.clone();
+            let sink_dev = sink.clone();
+            let mods_dev = mods.clone();
+            joinset.spawn(async move {
+                // Per-device accumulators for relative pointer motion.
+                let mut rel_x: i32 = 0;
+                let mut rel_y: i32 = 0;
+                loop {
+                    let ev = match stream.next_event().await {
+                        Ok(e) => e,
+                        Err(_) => break,
+                    };
+                    let t_ms = started_at.elapsed().as_millis() as u64;
+                    if let Some(rec) = evdev_to_rec(&ev, t_ms, &mods_dev, &mut rel_x, &mut rel_y) {
+                        events_dev.lock().await.push(rec.clone());
+                        sink_dev(RecFrame::Event { event: rec });
+                    }
+                    // Skip SYN_REPORT and other framing events without
+                    // accidentally matching them above.
+                    if ev.event_type() == EventType::SYNCHRONIZATION {
+                        continue;
+                    }
+                }
+            });
+        }
+
+        // Coordinator: just keeps the JoinSet alive. On stop(), the
+        // outer code aborts this handle, which drops the JoinSet,
+        // which aborts every device task.
+        let coordinator = tokio::spawn(async move {
+            while joinset.join_next().await.is_some() {}
+        });
+
+        let mut slot = self.inner.lock().await;
+        *slot = Some(Session {
+            events,
+            task: Some(coordinator),
+            thread: None,
+            stop_tx: None,
+            started_at,
         });
         Ok(())
     }
@@ -520,6 +633,117 @@ fn keycode_to_chord(key: u32, mods: u32) -> Option<String> {
     };
     parts.push(name);
     Some(parts.join("+"))
+}
+
+/// Convert a single evdev `InputEvent` into a `RecEvent`. Updates
+/// `mods` and the per-device `rel_x`/`rel_y` accumulators in place
+/// for events that don't directly produce a `RecEvent` (modifier
+/// keys, sub-threshold pointer motion, SYN_REPORT framing).
+fn evdev_to_rec(
+    ev: &evdev::InputEvent,
+    t_ms: u64,
+    mods: &std::sync::atomic::AtomicU32,
+    rel_x: &mut i32,
+    rel_y: &mut i32,
+) -> Option<RecEvent> {
+    use evdev::{EventSummary, KeyCode, RelativeAxisCode};
+    use std::sync::atomic::Ordering;
+
+    // xkb modifier bit positions, matching keycode_to_chord.
+    const MOD_SHIFT: u32 = 1 << 0;
+    const MOD_CTRL: u32 = 1 << 2;
+    const MOD_ALT: u32 = 1 << 3;
+    const MOD_SUPER: u32 = 1 << 6;
+
+    fn modifier_bit(k: KeyCode) -> Option<u32> {
+        Some(match k {
+            KeyCode::KEY_LEFTSHIFT | KeyCode::KEY_RIGHTSHIFT => MOD_SHIFT,
+            KeyCode::KEY_LEFTCTRL | KeyCode::KEY_RIGHTCTRL => MOD_CTRL,
+            KeyCode::KEY_LEFTALT | KeyCode::KEY_RIGHTALT => MOD_ALT,
+            KeyCode::KEY_LEFTMETA | KeyCode::KEY_RIGHTMETA => MOD_SUPER,
+            _ => return None,
+        })
+    }
+
+    match ev.destructure() {
+        EventSummary::Key(_, code, value) => {
+            // value: 0 = release, 1 = press, 2 = repeat. Only emit
+            // on initial press; repeats and releases are discarded
+            // for plain keys (modifiers track release for chord
+            // bookkeeping below).
+            if let Some(bit) = modifier_bit(code) {
+                let m = mods.load(Ordering::Relaxed);
+                let new = match value {
+                    0 => m & !bit,
+                    1 | 2 => m | bit,
+                    _ => m,
+                };
+                mods.store(new, Ordering::Relaxed);
+                return None;
+            }
+
+            // Mouse buttons land here too — KEY_* and BTN_* share
+            // the keycode space.
+            let button = match code {
+                KeyCode::BTN_LEFT => Some(1),
+                KeyCode::BTN_MIDDLE => Some(2),
+                KeyCode::BTN_RIGHT => Some(3),
+                KeyCode::BTN_SIDE => Some(8),
+                KeyCode::BTN_EXTRA => Some(9),
+                _ => None,
+            };
+            if let Some(btn) = button {
+                if value == 1 {
+                    return Some(RecEvent::Click { t_ms, button: btn });
+                }
+                return None;
+            }
+
+            // Plain key: emit on press only.
+            if value != 1 {
+                return None;
+            }
+            let chord = keycode_to_chord(code.0 as u32, mods.load(Ordering::Relaxed))?;
+            Some(RecEvent::Key { t_ms, chord })
+        }
+        EventSummary::RelativeAxis(_, axis, value) => {
+            match axis {
+                RelativeAxisCode::REL_X => {
+                    *rel_x = rel_x.saturating_add(value);
+                }
+                RelativeAxisCode::REL_Y => {
+                    *rel_y = rel_y.saturating_add(value);
+                }
+                RelativeAxisCode::REL_WHEEL | RelativeAxisCode::REL_WHEEL_HI_RES => {
+                    return Some(RecEvent::Scroll { t_ms, dx: 0, dy: value });
+                }
+                RelativeAxisCode::REL_HWHEEL | RelativeAxisCode::REL_HWHEEL_HI_RES => {
+                    return Some(RecEvent::Scroll { t_ms, dx: value, dy: 0 });
+                }
+                _ => return None,
+            }
+            // Emit a Move once accumulated motion crosses ~4px on
+            // either axis. Below threshold the event drops on the
+            // floor — same policy as the libei path.
+            if rel_x.abs() < 4 && rel_y.abs() < 4 {
+                return None;
+            }
+            // x/y are unrecoverable from deltas alone (we don't
+            // have absolute screen position from evdev), so emit
+            // (-1, -1) as a sentinel; the user fixes up the
+            // coordinates in the editor on replay.
+            let dx = std::mem::take(rel_x);
+            let dy = std::mem::take(rel_y);
+            // Stash the deltas IN the synthetic move so the user has
+            // some signal of intent; absolute coords stay -1.
+            Some(RecEvent::Move {
+                t_ms,
+                x: dx,
+                y: dy,
+            })
+        }
+        _ => None,
+    }
 }
 
 // --------------------------- Events → Workflow ------------------------------

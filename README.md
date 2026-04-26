@@ -69,6 +69,16 @@ Launch wflow. The first time, you get a welcome card with two paths:
 - **`● Record`** shortcuts straight to the recorder if you already
   know that's what you want.
 
+Record uses `org.freedesktop.portal.RemoteDesktop` on Plasma 6 and
+GNOME 46+ (explicit consent dialog, no extra permissions). On
+Hyprland, Sway, and other wlroots compositors that don't ship the
+portal interface yet, Record falls back to reading
+`/dev/input/event*` directly via `evdev`. That requires being in
+the `input` group, which you can do with
+`sudo usermod -aG input $USER` (then log out and back in). If
+neither path is available, Record shows a clear setup error
+instead of silently capturing nothing.
+
 The editor is split: step list on the left, inspector on the right.
 The inspector shows the value field plus per-action options (skip,
 on-error, retries / backoff / timeout for shell, clear-modifiers for
