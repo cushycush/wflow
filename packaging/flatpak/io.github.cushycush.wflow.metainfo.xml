@@ -64,6 +64,19 @@
   </provides>
 
   <releases>
+    <release version="0.3.9" date="2026-04-26">
+      <description>
+        <p>
+          Record now picks up window focus changes and new windows opening on Hyprland by subscribing to its IPC event socket. Both event types record as `WindowFocus` events that turn into `focus` steps when you save the workflow, so a recording can capture "user switched to Firefox, then typed something" instead of just the keystrokes. Sway, KDE, and GNOME equivalents are still TODO.
+        </p>
+        <p>
+          Saving a recorded workflow opens a name prompt with the field pre-selected, so you can pick a real title before the file lands in your library.
+        </p>
+        <p>
+          The recent-events drawer's auto-scroll-to-bottom now uses `positionViewAtIndex(count-1, ListView.End)` deferred via `Qt.callLater`, which actually pins the latest event at the bottom (the previous `positionViewAtEnd()` ran before the new row was laid out and missed the mark).
+        </p>
+      </description>
+    </release>
     <release version="0.3.8" date="2026-04-25">
       <description>
         <p>
