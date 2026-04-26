@@ -82,6 +82,12 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(imports_node);
     }
 
+    // Triggers — emitted before steps so the binding is the first
+    // thing a reader sees when scanning a workflow file.
+    for trigger in &wf.triggers {
+        inner.nodes_mut().push(encode_trigger(trigger));
+    }
+
     // Step nodes are direct children of the workflow block; no more
     // `recipe { }` wrapper.
     for step in &wf.steps {
@@ -93,6 +99,34 @@ pub fn encode(wf: &Workflow) -> String {
 
     doc.autoformat();
     doc.to_string()
+}
+
+fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
+    use crate::actions::{TriggerCondition, TriggerKind};
+    let mut node = KdlNode::new("trigger");
+    let mut inner = KdlDocument::new();
+    match &trigger.kind {
+        TriggerKind::Chord { chord } => {
+            inner.nodes_mut().push(kv_str("chord", chord));
+        }
+        TriggerKind::Hotstring { text } => {
+            inner.nodes_mut().push(kv_str("hotstring", text));
+        }
+    }
+    if let Some(cond) = &trigger.when {
+        let mut when = KdlNode::new("when");
+        match cond {
+            TriggerCondition::WindowClass { class } => {
+                when.push(prop_str("window-class", class));
+            }
+            TriggerCondition::WindowTitle { title } => {
+                when.push(prop_str("window-title", title));
+            }
+        }
+        inner.nodes_mut().push(when);
+    }
+    node.set_children(inner);
+    node
 }
 
 fn encode_step(step: &Step) -> KdlNode {
@@ -554,10 +588,12 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
     let mut vars: std::collections::BTreeMap<String, String> = Default::default();
     let mut imports: std::collections::BTreeMap<String, String> = Default::default();
     let mut steps: Vec<Step> = Vec::new();
+    let mut triggers: Vec<crate::actions::Trigger> = Vec::new();
     let mut subtitle_seen = false;
 
     for node in children.nodes() {
         match node.name().value() {
+            "trigger" => triggers.push(decode_trigger(node)?),
             "subtitle" => {
                 if subtitle_seen {
                     bail!("`subtitle` appears twice; one per workflow");
@@ -637,6 +673,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
         steps,
         vars,
         imports,
+        triggers,
         created,
         modified,
         last_run,
@@ -763,6 +800,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
         steps,
         vars,
         imports,
+        triggers: Vec::new(),
         created,
         modified,
         last_run,
@@ -1090,6 +1128,69 @@ fn decode_condition(node: &KdlNode, verb: &str) -> Result<Condition> {
     unreachable!()
 }
 
+/// Decode a `trigger { ... }` child of a workflow. v0.4 ships
+/// `chord "..."` only; `hotstring "..."` and `when window-class=`
+/// / `when window-title=` are forward-compatible KDL keys we parse
+/// today so workflows authored against a future build round-trip
+/// through an older one without losing data.
+fn decode_trigger(node: &KdlNode) -> Result<crate::actions::Trigger> {
+    use crate::actions::{Trigger, TriggerCondition, TriggerKind};
+    validate_props(node, "trigger", &[])?;
+    let inner = node
+        .children()
+        .ok_or_else(|| anyhow!("`trigger` must have a {{ ... }} body"))?;
+
+    let mut kind: Option<TriggerKind> = None;
+    let mut when: Option<TriggerCondition> = None;
+
+    for child in inner.nodes() {
+        match child.name().value() {
+            "chord" => {
+                if kind.is_some() {
+                    bail!("`trigger` can only declare one of `chord` / `hotstring`");
+                }
+                let chord = first_string(child)
+                    .with_context(|| "`chord` needs a string value, e.g. `chord \"ctrl+alt+d\"`")?;
+                kind = Some(TriggerKind::Chord { chord });
+            }
+            "hotstring" => {
+                if kind.is_some() {
+                    bail!("`trigger` can only declare one of `chord` / `hotstring`");
+                }
+                let text = first_string(child)
+                    .with_context(|| "`hotstring` needs a string value, e.g. `hotstring \"btw\"`")?;
+                kind = Some(TriggerKind::Hotstring { text });
+            }
+            "when" => {
+                if when.is_some() {
+                    bail!("`trigger` can only have one `when` condition");
+                }
+                let class = prop_string(child, "window-class");
+                let title = prop_string(child, "window-title");
+                match (class, title) {
+                    (Some(c), None) => when = Some(TriggerCondition::WindowClass { class: c }),
+                    (None, Some(t)) => when = Some(TriggerCondition::WindowTitle { title: t }),
+                    (None, None) => bail!(
+                        "`when` needs `window-class=\"firefox\"` or `window-title=\"...\"`"
+                    ),
+                    (Some(_), Some(_)) => bail!(
+                        "`when` takes one of `window-class=` or `window-title=`, not both"
+                    ),
+                }
+            }
+            other => bail!(
+                "unknown `trigger` child `{other}` — expected `chord`, `hotstring`, or `when`"
+            ),
+        }
+    }
+
+    let kind = kind.ok_or_else(|| {
+        anyhow!("`trigger` needs at least a `chord \"...\"` or `hotstring \"...\"`")
+    })?;
+
+    Ok(Trigger { kind, when })
+}
+
 // ---------------------------------------------------------- Helpers ---------
 
 fn first_string(node: &KdlNode) -> Result<String> {
@@ -1348,6 +1449,59 @@ mod tests {
 
     fn wrap(step: &str) -> String {
         format!("schema 1\nid \"t\"\ntitle \"t\"\nrecipe {{\n{step}\n}}\n")
+    }
+
+    #[test]
+    fn trigger_block_round_trips() {
+        use crate::actions::{Trigger, TriggerCondition, TriggerKind};
+        let src = "workflow \"t\" {\n    \
+            trigger {\n        chord \"super+alt+d\"\n    }\n    \
+            trigger {\n        hotstring \"btw\"\n    }\n    \
+            trigger {\n        chord \"ctrl+l\"\n        when window-class=\"firefox\"\n    }\n    \
+            shell \"kitty\"\n}\n";
+        let wf = decode(src).unwrap();
+        assert_eq!(wf.triggers.len(), 3);
+        assert!(matches!(
+            &wf.triggers[0].kind,
+            TriggerKind::Chord { chord } if chord == "super+alt+d"
+        ));
+        assert!(matches!(
+            &wf.triggers[1].kind,
+            TriggerKind::Hotstring { text } if text == "btw"
+        ));
+        assert!(matches!(
+            &wf.triggers[2].kind,
+            TriggerKind::Chord { chord } if chord == "ctrl+l"
+        ));
+        assert!(matches!(
+            &wf.triggers[2].when,
+            Some(TriggerCondition::WindowClass { class }) if class == "firefox"
+        ));
+
+        // Re-encode and parse again; trigger count + content stable.
+        let again = decode(&encode(&wf)).unwrap();
+        assert_eq!(again.triggers.len(), 3);
+    }
+
+    #[test]
+    fn trigger_rejects_two_kinds() {
+        let src = "workflow \"t\" {\n    \
+            trigger {\n        chord \"ctrl+l\"\n        hotstring \"btw\"\n    }\n}\n";
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("only declare one of"),
+            "expected one-kind error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn trigger_rejects_empty_block() {
+        let src = "workflow \"t\" {\n    trigger { }\n}\n";
+        let err = decode(src).unwrap_err().to_string();
+        assert!(
+            err.contains("at least") || err.contains("chord") || err.contains("hotstring"),
+            "expected missing-kind error, got: {err}"
+        );
     }
 
     #[test]

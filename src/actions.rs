@@ -199,6 +199,40 @@ pub enum OnError {
     Continue,
 }
 
+/// A binding that fires the workflow on an external event. AHK-style
+/// hotkeys today; hotstrings, file-watch, schedule, and per-window
+/// conditions land in later releases. The runner ignores triggers
+/// (workflows still execute via GUI / CLI / library card the same way
+/// they always have); the v0.4 daemon is what actually subscribes to
+/// the configured triggers and dispatches workflows on activation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Trigger {
+    pub kind: TriggerKind,
+    /// Optional context predicate. v0.5 and later — the daemon gates
+    /// activation on whether the condition holds at fire time. v0.4
+    /// parses the field but doesn't act on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<TriggerCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TriggerKind {
+    /// e.g. "ctrl+alt+d".
+    Chord { chord: String },
+    /// v0.5+. Daemon backspaces `text` out and fires the workflow.
+    Hotstring { text: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TriggerCondition {
+    /// Wayland app_id substring match, case-insensitive.
+    WindowClass { class: String },
+    /// Window title substring match, case-insensitive.
+    WindowTitle { title: String },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
     pub id: String,
@@ -216,6 +250,9 @@ pub struct Workflow {
     /// engine runs, so not serialized.
     #[serde(skip, default)]
     pub imports: std::collections::BTreeMap<String, String>,
+    /// Empty for hand-launched workflows, populated for daemon-bound ones.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub triggers: Vec<Trigger>,
     #[serde(default)]
     pub created: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
@@ -234,6 +271,7 @@ impl Workflow {
             steps: Vec::new(),
             vars: Default::default(),
             imports: Default::default(),
+            triggers: Vec::new(),
             created: Some(now),
             modified: Some(now),
             last_run: None,
