@@ -294,11 +294,11 @@ Item {
                         onClicked: kindMenu.popup()
                     }
 
-                    Menu {
+                    WfMenu {
                         id: kindMenu
                         Repeater {
                             model: root._pickableKinds
-                            delegate: MenuItem {
+                            delegate: WfMenuItem {
                                 text: modelData.label
                                 onTriggered: root.addStepRequested(modelData.kind)
                             }

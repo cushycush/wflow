@@ -90,13 +90,13 @@ Item {
                     propagateComposedEvents: true
                 }
 
-                Menu {
+                WfMenu {
                     id: rowMenu
-                    MenuItem {
+                    WfMenuItem {
                         text: "Duplicate"
                         onTriggered: root.duplicateRequested(card.wf.id)
                     }
-                    MenuItem {
+                    WfMenuItem {
                         text: "Delete"
                         onTriggered: root.deleteRequested(card.wf.id)
                     }

@@ -64,6 +64,16 @@
   </provides>
 
   <releases>
+    <release version="0.3.13" date="2026-04-26">
+      <description>
+        <p>
+          Recorded keystrokes coalesce into a `type` action when they're plain printable characters with no modifiers. A recording where you typed "hello world" used to save as 11 separate `key` steps that fired faster than the target app could process; now it's a single `type "hello world"` step that replays cleanly. Real chords (ctrl+l, Return, function keys) still record as `key` steps.
+        </p>
+        <p>
+          The triple-dot menu on workflow cards and the add-step picker in the editor are themed to match the rest of the app instead of inheriting Qt's system menu chrome.
+        </p>
+      </description>
+    </release>
     <release version="0.3.12" date="2026-04-26">
       <description>
         <p>
