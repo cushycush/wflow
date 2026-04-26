@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.18" date="2026-04-26">
+      <description>
+        <p>
+          Re-roll of 0.3.17 with the Cargo.lock update that 0.3.17 missed (CI's `cargo build --locked` refused the mismatched lock and the release tarball never built). Same wdotool-core modifier fix as 0.3.17.
+        </p>
+      </description>
+    </release>
     <release version="0.3.17" date="2026-04-26">
       <description>
         <p>
