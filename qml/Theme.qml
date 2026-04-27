@@ -20,12 +20,12 @@ QtObject {
     readonly property bool isDark: mode === "dark" || (mode === "auto" && _systemDark)
 
     // ============ Surfaces ============
-    // Dark mode runs on a near-black bg (oklch ≈ 0.14, slight blue
-    // tint matching the brand hue) so cards on top read as elevated
-    // surfaces with real contrast — mirrors the canvas + explore
-    // mockups. Surfaces step up by ~0.04 lightness each so a
-    // hovered card / selected row is unambiguous.
-    readonly property color bg:        isDark ? "#15161b" : "#f6f6f8"
+    // Dark mode runs on a near-black bg (#07090E, oklch ≈ 0.08, slight
+    // blue tint matching the brand hue) so cards on top read as
+    // elevated surfaces with real contrast — pulled directly from the
+    // canvas + explore mockups. Surfaces step up by ~0.04 lightness
+    // each so a hovered card / selected row is unambiguous.
+    readonly property color bg:        isDark ? "#07090e" : "#f6f6f8"
     readonly property color surface:   isDark ? "#22232a" : "#ffffff"
     readonly property color surface2:  isDark ? "#2a2b32" : "#eeeef1"
     readonly property color surface3:  isDark ? "#34353d" : "#e2e3e8"
