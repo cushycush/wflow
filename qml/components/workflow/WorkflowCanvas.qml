@@ -23,10 +23,11 @@ Item {
 
     signal selectStep(int index)
 
-    // Layout constants. Single node = 224x108 with 36px gap; the
-    // first node also leaves room for the trigger card if present.
-    readonly property int nodeW: 240
-    readonly property int nodeH: 110
+    // Layout constants. Card grows with chip strip when options
+    // are set (delay, retries, timeout, etc.) — most workflows have
+    // few non-default options, so the average card stays compact.
+    readonly property int nodeW: 260
+    readonly property int nodeH: 132
     readonly property int gap: 36
     readonly property int paddingTop: 36
     readonly property int paddingBottom: 60
@@ -36,45 +37,23 @@ Item {
         + Math.max(0, actions.length - 1) * gap
         + paddingBottom
 
+    // Click on empty canvas area collapses the inspector.
+    signal deselectRequested()
+
     Flickable {
+        id: flick
         anchors.fill: parent
         contentWidth: width
         contentHeight: Math.max(height, root.contentH)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
-        // Subtle dot grid — same trick as the prototype, drawn via a
-        // tiled Image generated from a Canvas at startup. For v1 we
-        // approximate with a Repeater that lays out 1px dots; it
-        // chews a few hundred draw calls but the scene is small.
-        Item {
-            id: gridLayer
+        // Empty-area click → deselect. The cards' own MouseAreas
+        // are above this z-order so they consume their clicks.
+        MouseArea {
             anchors.fill: parent
             z: 0
-
-            // Pre-rendered dot grid via a Canvas. Cheaper than a
-            // Repeater and resamples cleanly when the canvas is
-            // resized.
-            Canvas {
-                id: dotGrid
-                anchors.fill: parent
-                onPaint: {
-                    const ctx = getContext("2d")
-                    ctx.clearRect(0, 0, width, height)
-                    ctx.fillStyle = Theme.isDark
-                        ? Qt.rgba(1, 1, 1, 0.05)
-                        : Qt.rgba(0, 0, 0, 0.05)
-                    const step = 28
-                    for (let y = 4; y < height; y += step) {
-                        for (let x = 4; x < width; x += step) {
-                            ctx.fillRect(x, y, 1.5, 1.5)
-                        }
-                    }
-                }
-                Component.onCompleted: requestPaint()
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-            }
+            onClicked: root.deselectRequested()
         }
 
         // Wires layer — drawn UNDER nodes so the cards visually float
@@ -246,10 +225,62 @@ Item {
                             icon: Theme.catGlyph(card.parent.kind)
                             width: parent.width
                         }
+
+                        // Option chip strip — only shows up when the
+                        // user has set non-default options on the
+                        // step (skip, on-error continue, delay,
+                        // retries, timeout). Keeps the card honest:
+                        // what you see in the inspector shows up here.
+                        Row {
+                            spacing: 6
+                            visible: chipModel.length > 0
+                            width: parent.width
+                            clip: true
+
+                            readonly property var chipModel: _chipsFor(card.parent.act, modelData)
+
+                            Repeater {
+                                model: parent.chipModel
+                                delegate: Rectangle {
+                                    height: 18
+                                    width: chipText.implicitWidth + 12
+                                    radius: 9
+                                    color: Theme.surface3
+                                    border.color: Theme.lineSoft
+                                    border.width: 1
+                                    Text {
+                                        id: chipText
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: Theme.text2
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: 9
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    // Build a list of compact chip labels for the non-default options
+    // on a step. `act` is the rawAction; `shaped` carries enabled +
+    // onError. Returns at most a handful of strings so the strip
+    // stays scannable.
+    function _chipsFor(act, shaped) {
+        const out = []
+        if (!shaped) return out
+        if (shaped.enabled === false) out.push("skipped")
+        if (shaped.onError === "continue") out.push("on err: continue")
+        if (!act) return out
+        if (act.delay_ms !== undefined && act.delay_ms !== null) out.push("⏱ " + act.delay_ms + "ms")
+        if (act.retries !== undefined && act.retries !== null && act.retries > 0) out.push("↻ " + act.retries + "×")
+        if (act.backoff_ms !== undefined && act.backoff_ms !== null) out.push("backoff " + act.backoff_ms + "ms")
+        if (act.timeout_ms !== undefined && act.timeout_ms !== null) out.push("timeout " + act.timeout_ms + "ms")
+        if (act.clear_modifiers === true) out.push("clear mods")
+        return out
     }
 
     // Squash the action down to a one-liner suitable for the pill.

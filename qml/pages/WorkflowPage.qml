@@ -238,7 +238,7 @@ Item {
         })
         wf.steps = steps
         root.workflow = wf
-        splitInspector.selectedIndex = steps.length - 1
+        editorContent.selectedIndex = steps.length - 1
         _scheduleSave()
     }
 
@@ -249,9 +249,12 @@ Item {
         steps.splice(stepIndex, 1)
         wf.steps = steps
         root.workflow = wf
-        // Keep a valid selection: clamp to the last remaining step.
-        if (splitInspector.selectedIndex >= steps.length) {
-            splitInspector.selectedIndex = Math.max(0, steps.length - 1)
+        // Keep selection valid: clamp into range, or collapse the
+        // inspector when no steps remain.
+        if (steps.length === 0) {
+            editorContent.selectedIndex = -1
+        } else if (editorContent.selectedIndex >= steps.length) {
+            editorContent.selectedIndex = steps.length - 1
         }
         _scheduleSave()
     }
@@ -266,14 +269,15 @@ Item {
         steps.splice(to, 0, moved)
         wf.steps = steps
         root.workflow = wf
-        // Follow the moved step with the selection so the inspector keeps
-        // looking at the same thing the user just dragged.
-        if (splitInspector.selectedIndex === from) {
-            splitInspector.selectedIndex = to
-        } else if (from < splitInspector.selectedIndex && to >= splitInspector.selectedIndex) {
-            splitInspector.selectedIndex -= 1
-        } else if (from > splitInspector.selectedIndex && to <= splitInspector.selectedIndex) {
-            splitInspector.selectedIndex += 1
+        // Follow the moved step so the inspector keeps looking at
+        // the same action the user just reordered.
+        const sel = editorContent.selectedIndex
+        if (sel === from) {
+            editorContent.selectedIndex = to
+        } else if (from < sel && to >= sel) {
+            editorContent.selectedIndex = sel - 1
+        } else if (from > sel && to <= sel) {
+            editorContent.selectedIndex = sel + 1
         }
         _scheduleSave()
     }
@@ -503,6 +507,36 @@ Item {
             width: parent.width
             height: parent.height - tb.height
 
+            // -1 means "no step selected" → inspector slides out and
+            // the canvas takes the full width. Auto-selects step 0
+            // when a workflow with steps loads.
+            property int selectedIndex: -1
+            readonly property bool inspectorOpen: selectedIndex >= 0
+
+            // The selected step's shaped action — what the inspector
+            // panel binds to.
+            readonly property var selectedAction:
+                (selectedIndex >= 0 && selectedIndex < (root.actions || []).length)
+                    ? root.actions[selectedIndex] : null
+
+            // Auto-select first step on load so the inspector has
+            // something to show; deselect when the workflow empties.
+            function _reconcileSelection() {
+                const n = (root.actions || []).length
+                if (n === 0) {
+                    selectedIndex = -1
+                } else if (selectedIndex < 0) {
+                    selectedIndex = 0
+                } else if (selectedIndex >= n) {
+                    selectedIndex = n - 1
+                }
+            }
+            Connections {
+                target: root
+                function onActionsChanged() { editorContent._reconcileSelection() }
+            }
+            Component.onCompleted: _reconcileSelection()
+
             EmptyState {
                 anchors.fill: parent
                 visible: !root.workflowId
@@ -511,111 +545,85 @@ Item {
                 actionLabel: ""
             }
 
-            // ---- View-mode toggle (List | Canvas) ----
-            // The Canvas view is the new node-graph rendering of the
-            // same workflow. List stays the default and the canonical
-            // editing surface; canvas is read-only for selection
-            // today and shares selectedIndex with the list view so
-            // the right inspector keeps working when the user
-            // switches mid-edit.
-            property string viewMode: "list"
-
-            // Floating segmented control in the editor's top-right
-            // corner — small, doesn't compete with Run / Share /
-            // Delete in the TopBar.
-            Rectangle {
+            // ---- Three-pane layout: rail | canvas | (slide-in) inspector ----
+            StepListRail {
+                id: rail
                 visible: root.workflowId.length > 0
+                anchors.left: parent.left
                 anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: 14
-                anchors.rightMargin: 24
-                z: 10
-                width: viewModeRow.implicitWidth + 8
-                height: 30
-                radius: 8
-                color: Theme.surface
-                border.color: Theme.lineSoft
-                border.width: 1
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 24
+                anchors.topMargin: 16
+                anchors.bottomMargin: 24
+                width: 280
 
-                Row {
-                    id: viewModeRow
-                    anchors.centerIn: parent
-                    spacing: 2
-
-                    Repeater {
-                        model: [
-                            { id: "list",   label: "List" },
-                            { id: "canvas", label: "Canvas" }
-                        ]
-                        delegate: Rectangle {
-                            readonly property bool isOn: editorContent.viewMode === modelData.id
-                            width: tabText.implicitWidth + 18
-                            height: 24
-                            radius: 5
-                            color: isOn
-                                ? Theme.accentWash(0.16)
-                                : (modeArea.containsMouse ? Theme.surface2 : "transparent")
-                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Text {
-                                id: tabText
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                color: isOn ? Theme.accent : Theme.text2
-                                font.family: Theme.familyBody
-                                font.pixelSize: 12
-                                font.weight: isOn ? Font.DemiBold : Font.Medium
-                            }
-                            MouseArea {
-                                id: modeArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: editorContent.viewMode = modelData.id
-                            }
-                        }
-                    }
-                }
-            }
-
-            SplitInspector {
-                id: splitInspector
-                anchors.fill: parent
-                anchors.margins: 24
-                visible: root.workflowId.length > 0 && editorContent.viewMode === "list"
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
-                running: root.running
+                selectedIndex: editorContent.selectedIndex
                 stepStatuses: root.stepStatuses
 
-                // First-time tutorial tooltip on the + Add step
-                // footer. Shown only when (a) the workflow has no
-                // steps, AND (b) the user hasn't dismissed it on
-                // this machine before. Cached at activation time so
-                // it doesn't flicker off the moment the user adds
-                // their first step.
                 showTutorial: _shouldShowBlankTutorial
                 onTutorialDismissed: {
                     stateCtrl.mark_tutorial_seen("blank_workflow")
                     root._tutorialDismissedThisSession = true
                 }
 
-                onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
-                onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
-                onAddStepRequested: (kind) => root._addStep(kind)
+                onSelectRequested: (i) => { editorContent.selectedIndex = i }
+                onAddStepRequested: (kind) => {
+                    root._addStep(kind)
+                    editorContent.selectedIndex = (root.actions || []).length - 1
+                }
                 onDeleteStepRequested: (stepIndex) => root._deleteStep(stepIndex)
                 onMoveStepRequested: (from, to) => root._moveStep(from, to)
             }
 
+            // Inspector container — animates width from 0 → 360 so
+            // the slide-in feels driven by the panel's own arrival
+            // rather than a separate translation. Canvas anchors to
+            // this container's left edge, so it reflows in sync.
+            Item {
+                id: inspectorContainer
+                visible: root.workflowId.length > 0
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 24
+                anchors.topMargin: 16
+                anchors.bottomMargin: 24
+                width: editorContent.inspectorOpen ? 360 : 0
+                clip: true
+                Behavior on width {
+                    NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+                }
+
+                StepInspectorPanel {
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 360
+                    sel: editorContent.selectedAction
+                    selectedIndex: editorContent.selectedIndex
+                    onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
+                    onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
+                    onCloseRequested: { editorContent.selectedIndex = -1 }
+                }
+            }
+
             WorkflowCanvas {
-                anchors.fill: parent
-                anchors.margins: 24
-                visible: root.workflowId.length > 0 && editorContent.viewMode === "canvas"
+                visible: root.workflowId.length > 0
+                anchors.left: rail.right
+                anchors.right: inspectorContainer.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 16
+                anchors.rightMargin: editorContent.inspectorOpen ? 16 : 0
+                anchors.topMargin: 16
+                anchors.bottomMargin: 24
                 actions: root.actions
-                selectedIndex: splitInspector.selectedIndex
+                selectedIndex: editorContent.selectedIndex
                 stepStatuses: root.stepStatuses
-                onSelectStep: (i) => { splitInspector.selectedIndex = i }
+                onSelectStep: (i) => { editorContent.selectedIndex = i }
+                onDeselectRequested: { editorContent.selectedIndex = -1 }
             }
         }
     }

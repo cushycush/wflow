@@ -34,10 +34,15 @@ fn main() {
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
             QmlFile::from("qml/components/library/LibraryList.qml"),
-            // Workflow editor — Split is the only locked layout.
-            // Stack / Timeline / Grouped / Cards are archived under
-            // qml/components/workflow/_archive (excluded from the build).
-            QmlFile::from("qml/components/workflow/SplitInspector.qml"),
+            // Workflow editor — single canvas-centric layout: a thin
+            // step rail on the left, the node-graph canvas in the
+            // middle, and a slide-in inspector on the right when a
+            // step is selected. SplitInspector lives on under
+            // qml/components/workflow/_archive (excluded from build)
+            // alongside the older Stack / Timeline / Grouped / Cards
+            // layouts that were tried during exploration.
+            QmlFile::from("qml/components/workflow/StepListRail.qml"),
+            QmlFile::from("qml/components/workflow/StepInspectorPanel.qml"),
             QmlFile::from("qml/components/workflow/WorkflowCanvas.qml"),
             QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
             QmlFile::from("qml/components/workflow/NewWorkflowDialog.qml"),
