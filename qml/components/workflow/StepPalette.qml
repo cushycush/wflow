@@ -15,18 +15,34 @@ Item {
     // The WorkflowCanvas instance to forward drag events to.
     property var canvas: null
 
-    readonly property var _kinds: [
-        { kind: "key",       label: "Key"      },
-        { kind: "type",      label: "Type"     },
-        { kind: "click",     label: "Click"    },
-        { kind: "move",      label: "Move"     },
-        { kind: "scroll",    label: "Scroll"   },
-        { kind: "focus",     label: "Focus"    },
-        { kind: "wait",      label: "Wait"     },
-        { kind: "shell",     label: "Shell"    },
-        { kind: "notify",    label: "Notify"   },
-        { kind: "clipboard", label: "Clipbd"   },
-        { kind: "note",      label: "Note"     }
+    // Three category rows: Input (the wdotool primitives), Effect (out-
+    // of-process side effects), and Flow (control structures). Each
+    // row is its own labelled strip — keeping them separated makes
+    // the palette scan as a structural map of the language rather
+    // than a flat blob of buttons.
+    readonly property var _categories: [
+        { label: "Input",  kinds: [
+            { kind: "key",       label: "Key"      },
+            { kind: "type",      label: "Type"     },
+            { kind: "click",     label: "Click"    },
+            { kind: "move",      label: "Move"     },
+            { kind: "scroll",    label: "Scroll"   }
+        ]},
+        { label: "Effect", kinds: [
+            { kind: "focus",     label: "Focus"    },
+            { kind: "wait",      label: "Wait"     },
+            { kind: "shell",     label: "Shell"    },
+            { kind: "notify",    label: "Notify"   },
+            { kind: "clipboard", label: "Clipbd"   },
+            { kind: "note",      label: "Note"     }
+        ]},
+        { label: "Flow",   kinds: [
+            { kind: "when",      label: "When"     },
+            { kind: "unless",    label: "Unless"   },
+            { kind: "repeat",    label: "Repeat"   },
+            { kind: "include",   label: "Include"  },
+            { kind: "use",       label: "Use"      }
+        ]}
     ]
 
     implicitHeight: tray.height
@@ -35,97 +51,107 @@ Item {
     Rectangle {
         id: tray
         anchors.centerIn: parent
-        width: trayRow.implicitWidth + 24
-        height: 52
-        radius: 26
+        width: trayCol.implicitWidth + 24
+        height: trayCol.implicitHeight + 16
+        radius: 18
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
         border.width: 1
 
-        Row {
-            id: trayRow
+        Column {
+            id: trayCol
             anchors.centerIn: parent
             spacing: 4
 
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Drag onto canvas:"
-                color: Theme.text3
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontXs
-                rightPadding: 4
-            }
-
             Repeater {
-                model: root._kinds
-                delegate: Rectangle {
-                    id: chip
-                    width: 60
-                    height: 36
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 18
-                    color: chipArea.dragging
-                        ? Theme.accentWash(0.22)
-                        : (chipArea.containsMouse ? Theme.surface2 : Theme.surface)
-                    border.color: chipArea.dragging ? Theme.accent : Theme.lineSoft
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                model: root._categories
+                delegate: Row {
+                    spacing: 4
 
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 6
-                        CategoryIcon {
-                            kind: modelData.kind
-                            size: 18
-                            hovered: chipArea.containsMouse
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.label
-                            color: Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
-                            font.weight: Font.Medium
-                        }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.label
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                        width: 48
+                        rightPadding: 4
                     }
 
-                    MouseArea {
-                        id: chipArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        // Hold the press for the entire drag; the
-                        // canvas's pan DragHandler would otherwise
-                        // steal the gesture once motion crossed its
-                        // threshold and the user would end up
-                        // panning the canvas instead of dropping a
-                        // chip on it.
-                        preventStealing: true
-                        cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                        property bool dragging: false
-                        onPressed: (mouse) => {
-                            if (!root.canvas) return
-                            const scene = chip.mapToItem(null, mouse.x, mouse.y)
-                            dragging = true
-                            root.canvas.previewDrag(modelData.kind, scene.x, scene.y)
-                        }
-                        onPositionChanged: (mouse) => {
-                            if (!dragging || !root.canvas) return
-                            const scene = chip.mapToItem(null, mouse.x, mouse.y)
-                            root.canvas.moveDragPreview(scene.x, scene.y)
-                        }
-                        onReleased: (mouse) => {
-                            if (!dragging) return
-                            dragging = false
-                            if (root.canvas) {
-                                const scene = chip.mapToItem(null, mouse.x, mouse.y)
-                                root.canvas.endDragPreview(scene.x, scene.y, true)
+                    Repeater {
+                        model: modelData.kinds
+                        delegate: Rectangle {
+                            id: chip
+                            width: 60
+                            height: 32
+                            anchors.verticalCenter: parent.verticalCenter
+                            radius: 16
+                            color: chipArea.dragging
+                                ? Theme.accentWash(0.22)
+                                : (chipArea.containsMouse ? Theme.surface2 : Theme.surface)
+                            border.color: chipArea.dragging ? Theme.accent : Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                CategoryIcon {
+                                    kind: modelData.kind
+                                    size: 16
+                                    hovered: chipArea.containsMouse
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label
+                                    color: Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.weight: Font.Medium
+                                }
                             }
-                        }
-                        onCanceled: {
-                            if (dragging) {
-                                dragging = false
-                                if (root.canvas) root.canvas.endDragPreview(0, 0, false)
+
+                            MouseArea {
+                                id: chipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                // Hold the press for the entire drag; the
+                                // canvas's pan DragHandler would otherwise
+                                // steal the gesture once motion crossed its
+                                // threshold and the user would end up
+                                // panning the canvas instead of dropping a
+                                // chip on it.
+                                preventStealing: true
+                                cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                property bool dragging: false
+                                onPressed: (mouse) => {
+                                    if (!root.canvas) return
+                                    const scene = chip.mapToItem(null, mouse.x, mouse.y)
+                                    dragging = true
+                                    root.canvas.previewDrag(modelData.kind, scene.x, scene.y)
+                                }
+                                onPositionChanged: (mouse) => {
+                                    if (!dragging || !root.canvas) return
+                                    const scene = chip.mapToItem(null, mouse.x, mouse.y)
+                                    root.canvas.moveDragPreview(scene.x, scene.y)
+                                }
+                                onReleased: (mouse) => {
+                                    if (!dragging) return
+                                    dragging = false
+                                    if (root.canvas) {
+                                        const scene = chip.mapToItem(null, mouse.x, mouse.y)
+                                        root.canvas.endDragPreview(scene.x, scene.y, true)
+                                    }
+                                }
+                                onCanceled: {
+                                    if (dragging) {
+                                        dragging = false
+                                        if (root.canvas) root.canvas.endDragPreview(0, 0, false)
+                                    }
+                                }
                             }
                         }
                     }

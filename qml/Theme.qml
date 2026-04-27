@@ -67,6 +67,13 @@ QtObject {
     readonly property color catNotify: isDark ? "#da77a8" : "#b0427a"
     readonly property color catClip:   isDark ? "#62b2c7" : "#2a7f94"
     readonly property color catNote:   isDark ? "#707278" : "#5a5d62"
+    // Flow-control tints — visually distinct from action kinds so the
+    // structural blocks read as different beasts.
+    readonly property color catWhen:    isDark ? "#df88d6" : "#a056a0"
+    readonly property color catUnless:  isDark ? "#ee8896" : "#c45670"
+    readonly property color catRepeat:  isDark ? "#cae870" : "#7da030"
+    readonly property color catInclude: isDark ? "#c08be0" : "#6a4ea8"
+    readonly property color catUse:     isDark ? "#a08ed0" : "#5a4090"
 
     // ============ Spacing (4pt) ============
     readonly property int s1: 4
@@ -130,6 +137,11 @@ QtObject {
         case "notify":    return catNotify
         case "clipboard": return catClip
         case "note":      return catNote
+        case "when":      return catWhen
+        case "unless":    return catUnless
+        case "repeat":    return catRepeat
+        case "include":   return catInclude
+        case "use":       return catUse
         }
         return catWait
     }
@@ -146,19 +158,25 @@ QtObject {
         case "notify":    return "◐"
         case "clipboard": return "⎘"
         case "note":      return "¶"
+        case "when":      return "?"
+        case "unless":    return "!"
+        case "repeat":    return "↻"
+        case "include":   return "↳"
+        case "use":       return "@"
         }
         return "•"
     }
 
     // Glyph-specific size tuning. Most icons read at the chip's
-    // baseline (13px), but the shell chevron and the wait stopwatch
-    // are visually narrower than letterforms / geometric shapes at
-    // the same point size — bumping them keeps the icon row feeling
-    // even.
+    // baseline (13px), but a few glyphs are visually narrower than
+    // letterforms / geometric shapes at the same point size —
+    // bumping them keeps the icon row feeling even.
     function catGlyphSize(kind) {
         switch (kind) {
-        case "shell": return 16
-        case "wait":  return 15
+        case "shell":   return 16
+        case "wait":    return 15
+        case "repeat":  return 16
+        case "include": return 16
         }
         return 13
     }
@@ -209,6 +227,10 @@ QtObject {
         case "scroll":    return [gradCyanA, gradCyanB]
         case "trigger":   return [gradAmberA, gradAmberB]
         case "when":      return [gradMagentaA, gradMagentaB]
+        case "unless":    return [gradRoseA, gradRoseB]
+        case "repeat":    return [gradLimeA, gradLimeB]
+        case "include":   return [gradVioletA, gradVioletB]
+        case "use":       return [gradVioletA, gradVioletB]
         // explore-only categories
         case "rose":      return [gradRoseA, gradRoseB]
         case "lime":      return [gradLimeA, gradLimeB]
@@ -232,7 +254,7 @@ QtObject {
     // Amber/lime/cyan want a deep warm-near-black; others want white.
     function gradTextColor(kind) {
         switch (kind) {
-        case "focus": case "trigger": case "lime": return "#1a1208"
+        case "focus": case "trigger": case "lime": case "repeat": return "#1a1208"
         case "wait": case "click": case "key": case "move": case "scroll":
             return isDark ? "#0a1320" : "#ffffff"
         }

@@ -34,7 +34,12 @@ Item {
         { kind: "shell",     label: "Shell command" },
         { kind: "notify",    label: "Notification" },
         { kind: "clipboard", label: "Clipboard" },
-        { kind: "note",      label: "Note" }
+        { kind: "note",      label: "Note" },
+        { kind: "when",      label: "When (conditional)" },
+        { kind: "unless",    label: "Unless (conditional)" },
+        { kind: "repeat",    label: "Repeat block" },
+        { kind: "include",   label: "Include workflow" },
+        { kind: "use",       label: "Use named import" }
     ]
 
     Rectangle {

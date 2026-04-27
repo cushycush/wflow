@@ -99,11 +99,16 @@ Item {
         case "notify":              shaped = { kind: "notify",   summary: "Notify",            value: act.title,                             rawPrimary: act.title,       editable: true }; break
         case "clipboard":           shaped = { kind: "clipboard",summary: "Copy to clipboard", value: act.text,                              rawPrimary: act.text,        editable: true }; break
         case "note":                shaped = { kind: "note",     summary: "Note",              value: act.text,                              rawPrimary: act.text,        editable: true }; break
-        // Flow-control actions — read-only in the GUI for now. They round-trip through the KDL file but edit via $EDITOR.
-        case "repeat":              shaped = { kind: "wait",     summary: "Repeat " + act.count + "×", value: (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }; break
-        case "conditional":         shaped = { kind: "wait",     summary: (act.negate ? "Unless" : "When"), value: _condSummary(act.cond),                 rawPrimary: "", editable: false }; break
-        case "include":             shaped = { kind: "shell",    summary: "Include",           value: act.path,                              rawPrimary: act.path,        editable: true }; break
-        case "use":                 shaped = { kind: "shell",    summary: "Use import",        value: act.name,                              rawPrimary: act.name,        editable: true }; break
+        // Flow-control. Repeat / include / use have a single primary
+        // value that the inspector field can edit directly. Conditional
+        // (when / unless) carries multi-field state (cond.kind +
+        // name/path/equals) which needs a richer editor; primary stays
+        // read-only and the inspector falls back to the cond summary
+        // for now.
+        case "repeat":      shaped = { kind: "repeat",  summary: "Repeat", value: act.count + "×, " + (act.steps || []).length + " inner step(s)", rawPrimary: String(act.count), editable: true, intOnly: true, unit: "×" }; break
+        case "conditional": shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }; break
+        case "include":     shaped = { kind: "include", summary: "Include", value: act.path, rawPrimary: act.path, editable: true }; break
+        case "use":         shaped = { kind: "use",     summary: "Use import", value: act.name, rawPrimary: act.name, editable: true }; break
         default:                    shaped = { kind: "note", summary: kind, value: "", rawPrimary: "", editable: false }
         }
         // Expose the raw Step + Action so the inspector can bind option editors
@@ -159,6 +164,11 @@ Item {
         case "note":                out.text    = newPrimary; break
         case "include":             out.path    = newPrimary; break
         case "use":                 out.name    = newPrimary; break
+        case "repeat": {
+            const n = parseInt(newPrimary, 10)
+            if (isNaN(n) || n < 1) return oldAction
+            out.count = n; break
+        }
         default: return oldAction
         }
         return out
@@ -224,6 +234,15 @@ Item {
         case "notify":    return { kind: "notify",              title: "Done" }
         case "clipboard": return { kind: "clipboard",           text: "" }
         case "note":      return { kind: "note",                text: "" }
+        // Flow-control defaults. Conditions default to a window
+        // predicate (most common opening); repeat defaults to a
+        // 2-iteration empty block; include / use start blank for the
+        // user to fill in.
+        case "when":      return { kind: "conditional", cond: { kind: "window", name: "" }, negate: false, steps: [] }
+        case "unless":    return { kind: "conditional", cond: { kind: "window", name: "" }, negate: true,  steps: [] }
+        case "repeat":    return { kind: "repeat",      count: 2, steps: [] }
+        case "include":   return { kind: "include",     path: "" }
+        case "use":       return { kind: "use",         name: "" }
         }
         return { kind: "note", text: "" }
     }
