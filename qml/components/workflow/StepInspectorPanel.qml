@@ -11,11 +11,17 @@ Item {
     id: root
     property var sel: null
     property int selectedIndex: -1
+    property int totalSteps: 0
+    // Shaped action of the step that runs before / after this one in
+    // the linear sequence. Used by the prev/next nav row.
+    property var prevAction: null
+    property var nextAction: null
     readonly property color catColor: sel ? Theme.catFor(sel.kind) : Theme.accent
 
     signal valueEdited(int stepIndex, string newPrimary)
     signal optionEdited(int stepIndex, string path, var value)
     signal closeRequested()
+    signal selectStep(int index)
 
     Rectangle {
         anchors.fill: parent
@@ -120,6 +126,130 @@ Item {
                             color: Theme.text3
                             font.family: Theme.familyMono
                             font.pixelSize: Theme.fontXs
+                        }
+                    }
+                }
+
+                Rectangle { width: parent.width - 48; height: 1; color: Theme.lineSoft }
+
+                // Sequence navigation — what runs before, what runs
+                // after. Click either to jump the inspector + canvas
+                // selection to that step. The arrows track wrap state
+                // (no prev on step 1, no next on the last step).
+                Column {
+                    width: parent.width - 48
+                    spacing: 6
+
+                    Text {
+                        text: "SEQUENCE"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                    }
+
+                    Row {
+                        width: parent.width
+                        spacing: 8
+
+                        Rectangle {
+                            id: prevTile
+                            readonly property bool empty: root.prevAction === null
+                            width: (parent.width - parent.spacing) / 2
+                            height: 56
+                            radius: Theme.radiusMd
+                            color: empty
+                                ? Theme.bg
+                                : (prevArea.containsMouse ? Theme.surface2 : Theme.surface)
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 2
+                                Text {
+                                    text: "← PRECEDED BY"
+                                    color: Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 9
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.0
+                                }
+                                Text {
+                                    text: prevTile.empty
+                                        ? "(start of workflow)"
+                                        : ("step " + String(root.selectedIndex).padStart(2, "0")
+                                           + "  ·  " + (root.prevAction.summary || ""))
+                                    color: prevTile.empty ? Theme.text3 : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.italic: prevTile.empty
+                                    elide: Text.ElideRight
+                                    width: parent.width
+                                }
+                            }
+                            MouseArea {
+                                id: prevArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: !prevTile.empty
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: root.selectStep(root.selectedIndex - 1)
+                            }
+                        }
+
+                        Rectangle {
+                            id: nextTile
+                            readonly property bool empty: root.nextAction === null
+                            width: (parent.width - parent.spacing) / 2
+                            height: 56
+                            radius: Theme.radiusMd
+                            color: empty
+                                ? Theme.bg
+                                : (nextArea.containsMouse ? Theme.surface2 : Theme.surface)
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 2
+                                Text {
+                                    text: "FOLLOWED BY →"
+                                    color: Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 9
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.0
+                                    horizontalAlignment: Text.AlignRight
+                                    width: parent.width
+                                }
+                                Text {
+                                    text: nextTile.empty
+                                        ? "(end of workflow)"
+                                        : ("step " + String(root.selectedIndex + 2).padStart(2, "0")
+                                           + "  ·  " + (root.nextAction.summary || ""))
+                                    color: nextTile.empty ? Theme.text3 : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.italic: nextTile.empty
+                                    elide: Text.ElideRight
+                                    width: parent.width
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                            MouseArea {
+                                id: nextArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: !nextTile.empty
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: root.selectStep(root.selectedIndex + 1)
+                            }
                         }
                     }
                 }

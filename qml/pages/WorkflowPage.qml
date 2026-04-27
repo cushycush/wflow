@@ -109,6 +109,7 @@ Item {
         // Expose the raw Step + Action so the inspector can bind option editors
         // (disabled, on-error, delay-ms, clear-modifiers, retries, backoff-ms,
         // timeout-ms) directly to their canonical fields.
+        shaped.id = step.id || ""
         shaped.rawKind = kind
         shaped.enabled = step.enabled !== false
         shaped.onError = step.on_error || "stop"
@@ -230,8 +231,9 @@ Item {
     function _addStep(kind) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
+        const id = _uuid()
         steps.push({
-            id: _uuid(),
+            id: id,
             enabled: true,
             on_error: "stop",
             action: _defaultActionForKind(kind)
@@ -240,6 +242,18 @@ Item {
         root.workflow = wf
         editorContent.selectedIndex = steps.length - 1
         _scheduleSave()
+        return id
+    }
+
+    // Add a step from a palette drop. Same shape as _addStep but
+    // also seeds the canvas's positions map so the new card lands
+    // where the user dropped it instead of snapping to auto-layout.
+    function _addStepAt(kind, x, y) {
+        const id = _addStep(kind)
+        const next = Object.assign({}, canvasView.positions)
+        next[id] = { x: Math.max(0, x - canvasView.nodeW / 2),
+                     y: Math.max(0, y - canvasView.nodeMinH / 2) }
+        canvasView.positions = next
     }
 
     function _deleteStep(stepIndex) {
@@ -518,6 +532,12 @@ Item {
             readonly property var selectedAction:
                 (selectedIndex >= 0 && selectedIndex < (root.actions || []).length)
                     ? root.actions[selectedIndex] : null
+            readonly property var prevAction:
+                (selectedIndex > 0 && (root.actions || []).length > 0)
+                    ? root.actions[selectedIndex - 1] : null
+            readonly property var nextAction:
+                (selectedIndex >= 0 && selectedIndex + 1 < (root.actions || []).length)
+                    ? root.actions[selectedIndex + 1] : null
 
             // Auto-select first step on load so the inspector has
             // something to show; deselect when the workflow empties.
@@ -603,13 +623,18 @@ Item {
                     width: 360
                     sel: editorContent.selectedAction
                     selectedIndex: editorContent.selectedIndex
+                    totalSteps: (root.actions || []).length
+                    prevAction: editorContent.prevAction
+                    nextAction: editorContent.nextAction
                     onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                     onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
                     onCloseRequested: { editorContent.selectedIndex = -1 }
+                    onSelectStep: (i) => { editorContent.selectedIndex = i }
                 }
             }
 
             WorkflowCanvas {
+                id: canvasView
                 visible: root.workflowId.length > 0
                 anchors.left: rail.right
                 anchors.right: inspectorContainer.left
@@ -624,6 +649,18 @@ Item {
                 stepStatuses: root.stepStatuses
                 onSelectStep: (i) => { editorContent.selectedIndex = i }
                 onDeselectRequested: { editorContent.selectedIndex = -1 }
+                onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
+            }
+
+            // Floating step palette — anchored above the canvas's
+            // bottom edge, centered. Drag a chip onto the canvas to
+            // add a step at that point.
+            StepPalette {
+                visible: root.workflowId.length > 0
+                anchors.bottom: canvasView.bottom
+                anchors.horizontalCenter: canvasView.horizontalCenter
+                anchors.bottomMargin: 18
+                z: 60
             }
         }
     }

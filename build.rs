@@ -43,6 +43,7 @@ fn main() {
             // layouts that were tried during exploration.
             QmlFile::from("qml/components/workflow/StepListRail.qml"),
             QmlFile::from("qml/components/workflow/StepInspectorPanel.qml"),
+            QmlFile::from("qml/components/workflow/StepPalette.qml"),
             QmlFile::from("qml/components/workflow/WorkflowCanvas.qml"),
             QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
             QmlFile::from("qml/components/workflow/NewWorkflowDialog.qml"),
