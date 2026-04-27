@@ -70,8 +70,5 @@ fn main() {
     .file("src/bridge/recorder.rs")
     .qt_module("Quick")
     .qt_module("QuickControls2")
-    // QtQuick.LocalStorage — SQLite-backed offline storage used by
-    // WorkflowPage to persist canvas card positions across reloads.
-    .qt_module("QmlLocalStorage")
     .build();
 }

@@ -42,6 +42,22 @@ pub mod qobject {
         /// " (copy)" suffix to the title, saves, and returns the new id.
         #[qinvokable]
         fn duplicate(self: Pin<&mut LibraryController>, id: QString) -> QString;
+
+        /// Persist the canvas card positions for a workflow. `json` is
+        /// a stringified map of step-id → {x, y}. Stored alongside
+        /// other workflow metadata in `workflows.toml`.
+        #[qinvokable]
+        fn save_positions(
+            self: Pin<&mut LibraryController>,
+            id: QString,
+            json: QString,
+        );
+
+        /// Load the saved canvas card positions for a workflow.
+        /// Returns a stringified map of step-id → {x, y}; empty
+        /// JSON object if no positions have been saved.
+        #[qinvokable]
+        fn load_positions(self: Pin<&mut LibraryController>, id: QString) -> QString;
     }
 }
 
@@ -138,6 +154,55 @@ impl qobject::LibraryController {
                 QString::from("")
             }
         }
+    }
+
+    fn save_positions(self: Pin<&mut Self>, id: QString, json: QString) {
+        let id_s: String = id.to_string();
+        if id_s.is_empty() {
+            return;
+        }
+        let json_s: String = json.to_string();
+        // QML sends an object literal { "stepId": {x, y}, ... }. Parse
+        // into a step-id → [x, y] map so it sits cleanly in the toml.
+        #[derive(serde::Deserialize)]
+        struct Pt {
+            x: f64,
+            y: f64,
+        }
+        let parsed: std::collections::HashMap<String, Pt> =
+            match serde_json::from_str(&json_s) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(?e, "save_positions: bad JSON");
+                    return;
+                }
+            };
+        let mut as_btree: std::collections::BTreeMap<String, [f64; 2]> =
+            std::collections::BTreeMap::new();
+        for (k, p) in parsed {
+            as_btree.insert(k, [p.x, p.y]);
+        }
+        crate::workflows_meta::set_positions(&id_s, as_btree);
+    }
+
+    fn load_positions(self: Pin<&mut Self>, id: QString) -> QString {
+        let id_s: String = id.to_string();
+        if id_s.is_empty() {
+            return QString::from("{}");
+        }
+        let positions = crate::workflows_meta::get_positions(&id_s);
+        // Re-shape into { id: { x, y } } so QML's positions map can
+        // assign the result directly.
+        let mut out = serde_json::Map::new();
+        for (k, [x, y]) in positions {
+            let mut inner = serde_json::Map::new();
+            inner.insert("x".into(), serde_json::Value::from(x));
+            inner.insert("y".into(), serde_json::Value::from(y));
+            out.insert(k, serde_json::Value::Object(inner));
+        }
+        let s = serde_json::to_string(&serde_json::Value::Object(out))
+            .unwrap_or_else(|_| "{}".to_string());
+        QString::from(&s)
     }
 }
 

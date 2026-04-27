@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.LocalStorage
 import Wflow
 
 // Workflow editor.
@@ -412,49 +411,26 @@ Item {
     }
 
     // ============ Card-position persistence ============
-    // Canvas card positions are stored in SQLite via QtQuick.
-    // LocalStorage so they survive reloads. Keyed by (workflowId,
-    // stepId) — if a step's id regenerates on KDL roundtrip the
-    // saved position becomes orphaned and the card falls back to the
-    // default placement, which is acceptable until the stable-id
-    // fix lands. Save fires on canvas positions-change (debounced
-    // 400ms) and load runs after each workflow_jsonChanged.
-    property var _positionsDb: null
-
-    function _positionsDbInstance() {
-        if (!_positionsDb) {
-            _positionsDb = LocalStorage.openDatabaseSync(
-                "wflow_positions", "1.0", "Card positions", 1000000)
-            _positionsDb.transaction(function(tx) {
-                tx.executeSql("CREATE TABLE IF NOT EXISTS positions ("
-                    + "wf_id TEXT NOT NULL, step_id TEXT NOT NULL, "
-                    + "x REAL NOT NULL, y REAL NOT NULL, "
-                    + "PRIMARY KEY(wf_id, step_id))")
-            })
-        }
-        return _positionsDb
-    }
+    // Canvas card positions persist via the workflows.toml sidecar
+    // (same file that already holds last_run timestamps). Keyed by
+    // (workflowId, stepId). Save fires on canvas positions-change
+    // (debounced 400ms); load runs after each workflow_jsonChanged.
 
     function _loadPositions() {
         if (!root.workflowId || root.workflowId.length === 0) return
-        const result = {}
-        _positionsDbInstance().transaction(function(tx) {
-            const rs = tx.executeSql(
-                "SELECT step_id, x, y FROM positions WHERE wf_id = ?",
-                [root.workflowId])
-            for (let i = 0; i < rs.rows.length; i++) {
-                const r = rs.rows.item(i)
-                result[r.step_id] = { x: r.x, y: r.y }
-            }
-        })
-        if (Object.keys(result).length > 0) {
+        let parsed = {}
+        try {
+            parsed = JSON.parse(libCtrl.load_positions(root.workflowId) || "{}")
+        } catch (e) {
+            return
+        }
+        if (parsed && Object.keys(parsed).length > 0) {
             // Merge saved positions over the canvas's default
-            // placements rather than replacing the map. Without the
-            // merge, cards that don't have a saved entry lose their
-            // default position too and end up at (0, 0) — which
-            // also wipes the wires (the wire layer hides any wire
-            // whose fromPos / toPos is undefined).
-            const merged = Object.assign({}, canvasView.positions, result)
+            // placements. Without the merge, cards without a saved
+            // entry would lose their default position too, ending up
+            // at (0, 0) — which also wipes wires whose source or
+            // target lookup misses.
+            const merged = Object.assign({}, canvasView.positions, parsed)
             canvasView.positions = merged
         }
     }
@@ -472,17 +448,7 @@ Item {
     function _savePositions() {
         if (!root.workflowId || root.workflowId.length === 0) return
         const positions = canvasView.positions || {}
-        _positionsDbInstance().transaction(function(tx) {
-            tx.executeSql("DELETE FROM positions WHERE wf_id = ?",
-                [root.workflowId])
-            for (const id in positions) {
-                const p = positions[id]
-                if (!p) continue
-                tx.executeSql(
-                    "INSERT INTO positions(wf_id, step_id, x, y) VALUES (?, ?, ?, ?)",
-                    [root.workflowId, id, p.x, p.y])
-            }
-        })
+        libCtrl.save_positions(root.workflowId, JSON.stringify(positions))
     }
 
     Timer { id: positionsSaveTimer; interval: 400; repeat: false
@@ -611,7 +577,11 @@ Item {
             // when there's a second editor-level action it can move
             // back into a menu.
             SecondaryButton {
-                text: "🗑 Delete"
+                // Stick to a thin Unicode glyph instead of the 🗑
+                // emoji — emoji glyphs render at full color-glyph
+                // height and made the Delete button visibly taller
+                // than its peers.
+                text: "× Delete"
                 onClicked: root._askDelete()
             }
             SecondaryButton {

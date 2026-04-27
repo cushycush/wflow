@@ -142,12 +142,17 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     // Persist the metadata to the sidecar as the canonical record.
     // Failures here are logged but don't block save — the file write
     // above is the durable artifact.
+    // Preserve any existing positions on the entry — those are GUI
+    // state, not workflow content, so they shouldn't be wiped just
+    // because we're saving the workflow body.
+    let existing = crate::workflows_meta::get(&wf.id).unwrap_or_default();
     crate::workflows_meta::set(
         &wf.id,
         crate::workflows_meta::WorkflowMeta {
             created: wf.created,
             modified: wf.modified,
             last_run: wf.last_run,
+            card_positions: existing.card_positions,
         },
     );
 
