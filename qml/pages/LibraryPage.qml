@@ -540,15 +540,22 @@ Item {
                         delegate: folderRowComp
                     }
 
-                    Rectangle {
+                    // Hairline separator with breathing room above
+                    // and below — Rectangle has no padding props, so
+                    // wrap in an Item that owns the spacing.
+                    Item {
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        height: 1
-                        color: Theme.lineSoft
-                        topPadding: 8
-                        bottomPadding: 8
+                        height: 17
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            height: 1
+                            color: Theme.lineSoft
+                        }
                     }
 
                     Repeater {
@@ -572,7 +579,6 @@ Item {
                         radius: 6
                         color: addFolderArea.containsMouse ? Theme.surface2 : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                        topPadding: 6
 
                         Row {
                             anchors.left: parent.left
