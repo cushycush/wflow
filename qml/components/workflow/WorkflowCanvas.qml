@@ -115,7 +115,9 @@ Item {
 
     // Set zoom and contentX/Y so every card sits inside the viewport
     // with comfortable padding. Hits the zoom caps when the layout
-    // is bigger / smaller than fits cleanly.
+    // is bigger / smaller than fits cleanly. Animated for the same
+    // reason as +/-: it's a deliberate user action, not a continuous
+    // input where animation would feel laggy.
     function _zoomToFit() {
         const list = root.actions || []
         if (list.length === 0) return
@@ -139,15 +141,17 @@ Item {
         if (fitW <= 0 || fitH <= 0 || flick.width <= 0 || flick.height <= 0) return
         let z = Math.min(flick.width / fitW, flick.height / fitH)
         z = Math.max(minZoom, Math.min(maxZoom, z))
-        zoom = z
         const cx = ((minX + maxX) / 2) * z
         const cy = ((minY + maxY) / 2) * z
-        flick.contentX = Math.max(0, cx - flick.width / 2)
-        flick.contentY = Math.max(0, cy - flick.height / 2)
+        _animateZoomTo(z,
+                       Math.max(0, cx - flick.width / 2),
+                       Math.max(0, cy - flick.height / 2))
     }
 
     // Zoom around a viewport-local anchor so the world coord under
-    // the cursor stays under the cursor through the change.
+    // the cursor stays under the cursor through the change. Used by
+    // the wheel handler — instant, no animation, so rapid wheel
+    // ticks feel responsive.
     function _zoomAt(viewportPoint, requested) {
         const z = Math.max(minZoom, Math.min(maxZoom, requested))
         if (z === zoom) return
@@ -160,6 +164,50 @@ Item {
                                               wx * z - viewportPoint.x))
         flick.contentY = Math.max(0, Math.min(Math.max(0, newCH - flick.height),
                                               wy * z - viewportPoint.y))
+    }
+
+    // Step zoom from the viewport center, animated. Used by the
+    // floating +/- buttons. Always snaps to the nearest 10% step so
+    // repeated clicks land at clean 60% / 70% / … values regardless
+    // of where wheel zoom left things.
+    function _zoomBy(delta) {
+        const cur = Math.round(zoom * 10) / 10
+        const z = Math.max(minZoom, Math.min(maxZoom, cur + delta))
+        if (Math.abs(z - zoom) < 0.001) return
+        const center = Qt.point(flick.width / 2, flick.height / 2)
+        const wx = (center.x + flick.contentX) / zoom
+        const wy = (center.y + flick.contentY) / zoom
+        const newCW = root.contentW * z
+        const newCH = root.contentH * z
+        const tcx = Math.max(0, Math.min(Math.max(0, newCW - flick.width),
+                                         wx * z - center.x))
+        const tcy = Math.max(0, Math.min(Math.max(0, newCH - flick.height),
+                                         wy * z - center.y))
+        _animateZoomTo(z, tcx, tcy)
+    }
+
+    // Drive zoom + pan together as a single animation so the
+    // viewport doesn't jitter on Tidy / +/- clicks. Wheel zoom
+    // sets these properties instantly and skips the animation.
+    function _animateZoomTo(newZoom, newCX, newCY) {
+        if (Theme.reduceMotion) {
+            zoom = newZoom
+            flick.contentX = newCX
+            flick.contentY = newCY
+            return
+        }
+        zoomAnim.stop()
+        zoomP.from = zoom;             zoomP.to = newZoom
+        cxP.from = flick.contentX;     cxP.to = newCX
+        cyP.from = flick.contentY;     cyP.to = newCY
+        zoomAnim.start()
+    }
+
+    ParallelAnimation {
+        id: zoomAnim
+        PropertyAnimation { id: zoomP; target: root;  property: "zoom";     duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+        PropertyAnimation { id: cxP;   target: flick; property: "contentX"; duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+        PropertyAnimation { id: cyP;   target: flick; property: "contentY"; duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
     }
 
     // Place any newly-added steps below the existing layout. Existing
@@ -261,15 +309,19 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
-        // Plain wheel zooms (with the cursor as anchor); intercepts
-        // before Flickable's wheel-scroll handling. Pan is via drag
-        // on the empty canvas, which Flickable already handles.
-        WheelHandler {
-            target: null
-            onWheel: (event) => {
-                event.accepted = true
-                const step = event.angleDelta.y / 120 * 0.08
-                root._zoomAt(point.position, root.zoom + step)
+        // Plain wheel zooms with the cursor as anchor. WheelHandler
+        // sometimes lost events to Flickable's native wheel-scroll
+        // handling; a MouseArea with acceptedButtons: Qt.NoButton
+        // gets the wheel signal reliably and lets click events fall
+        // through to the deselect / card MouseAreas below it.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            z: 5
+            onWheel: (wheel) => {
+                wheel.accepted = true
+                const step = (wheel.angleDelta.y / 120) * 0.1
+                root._zoomAt(Qt.point(wheel.x, wheel.y), root.zoom + step)
             }
         }
 
@@ -311,8 +363,12 @@ Item {
                     visible: fromPos !== undefined && toPos !== undefined
                     anchors.fill: parent
                     smooth: true
-                    layer.enabled: true
-                    layer.samples: 4
+                    // No layer.enabled here — the marching-dash
+                    // animation re-rasterises the stroke every
+                    // frame anyway, so caching it to an offscreen
+                    // layer doubles the work for no gain. With
+                    // ten wires that compounds into noticeable
+                    // lag during zoom / drag.
 
                     // Direction is signalled by flowing dashes that
                     // march from source to target — the same trick
@@ -441,13 +497,12 @@ Item {
                     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                     Behavior on height { NumberAnimation { duration: Theme.dur(Theme.durFast); easing.type: Theme.easingStd } }
 
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: Theme.shadowColor
-                        shadowBlur: dragArea.containsMouse || dragArea.drag.active ? 1.0 : 0.7
-                        shadowVerticalOffset: dragArea.drag.active ? 18 : (dragArea.containsMouse ? 12 : 8)
-                    }
+                    // No drop shadow on canvas cards — see CLAUDE.md
+                    // design principle ("Flat, not skeuomorphic. No
+                    // drop shadows except for a true overlay"). Per-
+                    // card MultiEffect blur was also the dominant
+                    // perf cost during zoom; ten cards meant ten full
+                    // blur passes re-rasterised on every scale tick.
 
                     MouseArea {
                         id: dragArea
@@ -830,6 +885,113 @@ Item {
                         ToolTip.delay: 400
                         ToolTip.text: modelData.tip
                     }
+                }
+            }
+
+            Rectangle {
+                width: 1
+                height: 18
+                color: Theme.lineSoft
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            // Zoom: − [percentage] + [Fit]. Percentage doubles as a
+            // status indicator and as a click-to-reset (100%) target.
+            Rectangle {
+                width: 24; height: 26; radius: 6
+                anchors.verticalCenter: parent.verticalCenter
+                color: zOutArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "−"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 16
+                    font.weight: Font.Medium
+                }
+                MouseArea {
+                    id: zOutArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._zoomBy(-0.1)
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Zoom out"
+                }
+            }
+
+            Rectangle {
+                width: 44; height: 26; radius: 6
+                anchors.verticalCenter: parent.verticalCenter
+                color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: Math.round(root.zoom * 100) + "%"
+                    color: Theme.text2
+                    font.family: Theme.familyMono
+                    font.pixelSize: 11
+                }
+                MouseArea {
+                    id: zPctArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Reset zoom to 100%"
+                }
+            }
+
+            Rectangle {
+                width: 24; height: 26; radius: 6
+                anchors.verticalCenter: parent.verticalCenter
+                color: zInArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "+"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                }
+                MouseArea {
+                    id: zInArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._zoomBy(0.1)
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Zoom in"
+                }
+            }
+
+            Rectangle {
+                width: 28; height: 26; radius: 6
+                anchors.verticalCenter: parent.verticalCenter
+                color: zFitArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "⊡"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 14
+                }
+                MouseArea {
+                    id: zFitArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._zoomToFit()
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Fit all cards"
                 }
             }
         }
