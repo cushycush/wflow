@@ -219,16 +219,26 @@ Item {
                     layer.enabled: true
                     layer.samples: 4
 
-                    // No arrowheads. Two wires meeting at the same
-                    // point on a card were ambiguous — the overlapping
-                    // arrow could read as either direction. The step
-                    // numbers (01, 02, …) on each card carry the
-                    // direction information; the lines just trace
-                    // the connection.
+                    // Direction is signalled by flowing dashes that
+                    // march from source to target — the same trick
+                    // n8n / Blender's node editor use. No arrowheads
+                    // means two wires meeting at the same point on a
+                    // card stay readable; the marching dashes still
+                    // tell you which way each one runs.
+                    //
+                    // Pattern total = 4 + 8 = 12; animating dashOffset
+                    // from 0 to -12 over 1200ms produces one full
+                    // cycle per ~1.2s. Negative offset because Qt's
+                    // dash convention shifts the pattern away from
+                    // the path origin — negative makes the visual
+                    // flow agree with the path's direction.
                     ShapePath {
-                        strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.7)
-                        strokeWidth: 1.5
+                        strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.75)
+                        strokeWidth: 1.6
                         fillColor: "transparent"
+                        strokeStyle: Theme.reduceMotion ? ShapePath.SolidLine : ShapePath.DashLine
+                        dashPattern: [4, 8]
+
                         startX: route.sx
                         startY: route.sy
                         PathCubic {
@@ -237,6 +247,14 @@ Item {
                             control1Y: route.axis === "h" ? route.sy : (route.sy + (route.ty - route.sy) / 2)
                             control2X: route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.tx
                             control2Y: route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
+                        }
+
+                        NumberAnimation on dashOffset {
+                            from: 0
+                            to: -12
+                            duration: 1200
+                            loops: Animation.Infinite
+                            running: !Theme.reduceMotion
                         }
                     }
                 }
