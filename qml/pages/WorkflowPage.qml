@@ -459,6 +459,16 @@ Item {
         }
     }
 
+    // Silent resave so the .kdl file picks up `_id` properties for
+    // every step. Bypasses _saveNow so saveState / the saved-toast
+    // don't fire — this is a load-time upgrade, not a user save.
+    function _ensureStableIds() {
+        if (!root.workflowId || root.workflowId.length === 0) return
+        const steps = (root.workflow && root.workflow.steps) || []
+        if (steps.length === 0) return
+        wfCtrl.save(JSON.stringify(root.workflow))
+    }
+
     function _savePositions() {
         if (!root.workflowId || root.workflowId.length === 0) return
         const positions = canvasView.positions || {}
@@ -524,6 +534,13 @@ Item {
             } catch (e) {
                 root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
             }
+            // One-shot silent upgrade: write the .kdl back so the
+            // file has _id properties for every step. Loading a
+            // workflow whose .kdl predates the _id feature gives
+            // each step a fresh UUID via Step::new() — saving
+            // positions against those UUIDs would lose them on the
+            // next decode. The re-save makes the IDs round-trip.
+            Qt.callLater(root._ensureStableIds)
             // Restore saved card positions for this workflow. Deferred
             // via Qt.callLater so the canvas's _placeNewSteps has run
             // and seeded defaults — _loadPositions then overwrites
