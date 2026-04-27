@@ -32,10 +32,19 @@ pub struct State {
     /// `"blank_workflow"`. Missing key == not seen.
     #[serde(default)]
     pub tutorials: BTreeMap<String, bool>,
+    /// Theme mode: "auto" (follow desktop), "light", or "dark".
+    /// Defaults to "auto" so a fresh install doesn't pin the user
+    /// to whichever scheme the binary was built against.
+    #[serde(default = "default_theme_mode")]
+    pub theme_mode: String,
 }
 
 fn default_schema() -> u32 {
     1
+}
+
+fn default_theme_mode() -> String {
+    "auto".to_string()
 }
 
 impl Default for State {
@@ -44,6 +53,7 @@ impl Default for State {
             schema: 1,
             first_run_at: None,
             tutorials: BTreeMap::new(),
+            theme_mode: default_theme_mode(),
         }
     }
 }

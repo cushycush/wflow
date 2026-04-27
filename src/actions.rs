@@ -295,6 +295,12 @@ pub struct Workflow {
     pub modified: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
     pub last_run: Option<chrono::DateTime<chrono::Utc>>,
+    /// Folder this workflow lives in, derived from the .kdl file's
+    /// parent directory relative to the workflows root. None for
+    /// top-level files. Not serialised — it's a filesystem fact,
+    /// not workflow content.
+    #[serde(skip, default)]
+    pub folder: Option<String>,
 }
 
 impl Workflow {
@@ -311,6 +317,7 @@ impl Workflow {
             created: Some(now),
             modified: Some(now),
             last_run: None,
+            folder: None,
         }
     }
 }

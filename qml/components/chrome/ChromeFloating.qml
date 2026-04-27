@@ -50,14 +50,18 @@ Item {
         }
     }
 
-    // Floating nav pill
+    // Floating nav bar — rounded-rect style matching the editor's
+    // Tidy / Wires / Zoom pills (radius:Theme.radiusMd container,
+    // radius:Theme.radiusSm tabs). Replaced the all-circle pill +
+    // round logo + circle theme button with squared-off shapes so
+    // the chrome reads consistent with the canvas surface.
     Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 18
         anchors.horizontalCenter: parent.horizontalCenter
         width: pillRow.implicitWidth + 20
-        height: 48
-        radius: 24
+        height: 44
+        radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.95)
         border.color: Theme.line
         border.width: 1
@@ -67,9 +71,9 @@ Item {
             anchors.centerIn: parent
             spacing: 4
 
-            // Logo circle
+            // Logo block — rounded square, not a circle.
             Rectangle {
-                width: 32; height: 32; radius: 16
+                width: 28; height: 28; radius: Theme.radiusSm
                 color: Theme.accent
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
@@ -77,7 +81,7 @@ Item {
                     text: "w"
                     color: Theme.accentText
                     font.family: Theme.familyBody
-                    font.pixelSize: 16
+                    font.pixelSize: 15
                     font.weight: Font.Bold
                 }
             }
@@ -111,8 +115,8 @@ Item {
                     readonly property bool isRecord: modelData.id === "record"
                     readonly property color tabAccent: isRecord ? Theme.err : Theme.accent
                     width: lbl.implicitWidth + 24
-                    height: 32
-                    radius: 16
+                    height: 28
+                    radius: Theme.radiusSm
                     anchors.verticalCenter: parent.verticalCenter
                     color: isActive
                         ? Qt.rgba(tabAccent.r, tabAccent.g, tabAccent.b, 0.18)
@@ -156,7 +160,7 @@ Item {
             // user can tell whether they've pinned it.
             Rectangle {
                 id: themeBtn
-                width: 32; height: 32; radius: 16
+                width: 28; height: 28; radius: Theme.radiusSm
                 anchors.verticalCenter: parent.verticalCenter
                 color: themeArea.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }

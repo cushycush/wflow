@@ -686,6 +686,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
         created,
         modified,
         last_run,
+        folder: None,
     })
 }
 
@@ -813,6 +814,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
         created,
         modified,
         last_run,
+        folder: None,
     })
 }
 

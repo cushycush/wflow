@@ -764,12 +764,19 @@ Item {
             // string folder = top-level (clears the workflow's
             // folder field); "All workflows" doesn't accept drops
             // (it's a view filter, not a real bucket).
+            //
+            // Read the workflow id off drop.source (the dragged
+            // Rectangle delegate) directly. Drag.mimeData via
+            // Drag.Internal didn't reliably surface in
+            // getDataAsString — drop.source carries the live item
+            // with its `wf` property attached.
             DropArea {
                 id: dropTarget
                 anchors.fill: parent
                 keys: folderId === "" ? [] : ["wflow/workflow-id"]
                 onDropped: (drop) => {
-                    const id = drop.getDataAsString("wflow/workflow-id")
+                    const src = drop.source
+                    const id = (src && src.wf) ? src.wf.id : ""
                     if (!id) return
                     const target = (folderId === "__top__") ? "" : folderId
                     libCtrl.set_folder(id, target)
@@ -802,14 +809,13 @@ Item {
         function _commit() {
             const name = newFolderInput.text.trim()
             if (name.length === 0) return
-            // Activate the folder filter so the user sees the empty
-            // state with a hint to move workflows in. Not persisted
-            // until a workflow lands here — folders are derived from
-            // workflows.toml meta.
+            // Persist as a real subdirectory under the workflows
+            // root so the folder survives a restart even with no
+            // workflows in it. The bridge refresh then re-emits
+            // workflowsChanged, which calls _refreshShaped() and
+            // pulls the new folder name into folderList.
+            libCtrl.create_folder(name)
             root.currentFolder = name
-            if (root.folderList.indexOf(name) < 0) {
-                root.folderList = root.folderList.concat([name])
-            }
             newFolderInput.text = ""
             newFolderDialog.close()
         }

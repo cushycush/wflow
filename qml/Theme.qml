@@ -1,15 +1,23 @@
 pragma Singleton
 import QtQuick
+import Wflow
 
 // Design tokens. Dark and light palettes both defined; the active one is
 // picked via `mode` which defaults to "auto" (follow the desktop).
 QtObject {
-    // "auto" | "dark" | "light". User can override from settings later; for
-    // now we follow the system unless pinned.
-    property string mode: "auto"
+    id: theme
+
+    // Persisted via StateController — _state.theme_mode is the
+    // source of truth, this property mirrors it and writes back on
+    // cycleMode so the user's choice survives a restart.
+    property StateController _state: StateController { }
+    property string mode: theme._state.theme_mode || "auto"
 
     function cycleMode() {
-        mode = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto"
+        const next = mode === "auto" ? "light"
+                   : mode === "light" ? "dark" : "auto"
+        mode = next
+        theme._state.apply_theme_mode(next)
     }
 
     // Dark when the system reports Dark OR when it reports Unknown (e.g.

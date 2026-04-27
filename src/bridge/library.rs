@@ -69,10 +69,18 @@ pub mod qobject {
             folder: QString,
         );
 
-        /// All distinct folder names referenced by any workflow.
-        /// Returned as a JSON array of strings, sorted ascending.
+        /// All folder names that exist as subdirectories under the
+        /// workflows root. Returned as a JSON array of strings,
+        /// sorted ascending. Empty folders are included so a freshly-
+        /// created folder shows up before any workflow is in it.
         #[qinvokable]
         fn folders(self: Pin<&mut LibraryController>) -> QString;
+
+        /// Create a folder by mkdir-ing it under the workflows root.
+        /// No-op if it already exists. Refreshes the workflows
+        /// summary so the library picks up the new folder.
+        #[qinvokable]
+        fn create_folder(self: Pin<&mut LibraryController>, name: QString);
     }
 }
 
@@ -229,16 +237,33 @@ impl qobject::LibraryController {
             return;
         }
         let folder_s: String = folder.to_string();
-        let folder_opt = if folder_s.is_empty() { None } else { Some(folder_s) };
-        crate::workflows_meta::set_folder(&id_s, folder_opt);
-        // Re-render the library — workflow's folder badge changes.
+        let folder_opt = if folder_s.is_empty() { None } else { Some(folder_s.as_str()) };
+        // Move the file on disk so library = filesystem layout.
+        if let Err(e) = store::move_to_folder(&id_s, folder_opt) {
+            tracing::warn!(?e, "set_folder: move failed");
+            return;
+        }
+        // Re-render the library — workflow's folder column changes.
         self.as_mut().set_workflows(load_as_json());
     }
 
     fn folders(self: Pin<&mut Self>) -> QString {
-        let folders = crate::workflows_meta::all_folders();
+        let folders = store::list_folders().unwrap_or_default();
         let s = serde_json::to_string(&folders).unwrap_or_else(|_| "[]".to_string());
         QString::from(&s)
+    }
+
+    fn create_folder(mut self: Pin<&mut Self>, name: QString) {
+        let n: String = name.to_string();
+        if n.is_empty() {
+            return;
+        }
+        if let Err(e) = store::create_folder(&n) {
+            tracing::warn!(?e, "create_folder failed");
+            return;
+        }
+        // Refresh — folder count badge in the sidebar updates.
+        self.as_mut().set_workflows(load_as_json());
     }
 }
 
@@ -252,9 +277,7 @@ fn load_as_json() -> QString {
                     .iter()
                     .map(|s| s.action.category().to_string())
                     .collect();
-                let folder = crate::workflows_meta::get(&wf.id)
-                    .and_then(|m| m.folder)
-                    .unwrap_or_default();
+                let folder = wf.folder.clone().unwrap_or_default();
                 WorkflowSummary {
                     id: wf.id,
                     title: wf.title,
