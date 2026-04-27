@@ -335,7 +335,15 @@ Item {
             onWheel: (wheel) => {
                 wheel.accepted = true
                 const step = (wheel.angleDelta.y / 120) * 0.1
-                root._zoomAt(Qt.point(wheel.x, wheel.y), root.zoom + step)
+                // wheel.x / wheel.y are in this MouseArea's local
+                // coords. anchors.fill: parent makes the parent the
+                // Flickable's contentItem, so they're scaled-content-
+                // item coords already. _zoomAt expects viewport-local
+                // (the buttons pass flick.width/2 which is viewport
+                // sized), so subtract the scroll offset back out.
+                const vx = wheel.x - flick.contentX
+                const vy = wheel.y - flick.contentY
+                root._zoomAt(Qt.point(vx, vy), root.zoom + step)
             }
         }
 
@@ -796,8 +804,15 @@ Item {
     }       // end of Flickable
 
     // ============ Drag preview ghost (palette → canvas) ============
+    // Scale matches the canvas zoom so the ghost's visual size lines
+    // up with how the dropped card will render — without it, dropping
+    // at 50% zoom would show a full-size ghost that snaps to a
+    // half-size card on landing. transformOrigin: Center keeps the
+    // ghost centred on the cursor through any zoom level.
     Rectangle {
         visible: root.ghostActive
+        transformOrigin: Item.Center
+        scale: root.zoom
         x: root.ghostX - root.nodeW / 2
         y: root.ghostY - root.nodeMinH / 2
         width: root.nodeW
