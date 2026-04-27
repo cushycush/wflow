@@ -248,17 +248,47 @@ Item {
     property real ghostX: 0
     property real ghostY: 0
     readonly property bool ghostActive: ghostKind.length > 0
+    // -1 when no container is under the drag cursor; otherwise the
+    // top-level index of the container whose inner zone is being
+    // hovered. Container cards bind a highlight to this so the drop
+    // target is visually obvious during the drag.
+    property int hoveredContainerIndex: -1
+
+    // Walk the action list and return the index of any container
+    // whose card bounds contain the given world point. Only checks
+    // top-level containers — nested containers aren't drop targets
+    // yet (single level of nesting on the canvas).
+    function _containerAt(worldX, worldY) {
+        const list = root.actions || []
+        for (let i = 0; i < list.length; i++) {
+            const a = list[i]
+            if (!a) continue
+            if (a.rawKind !== "conditional" && a.rawKind !== "repeat") continue
+            const p = root.positions[a.id]
+            if (!p) continue
+            const h = root.cardHeights[a.id] || nodeMinH
+            if (worldX >= p.x && worldX <= p.x + nodeW
+                && worldY >= p.y && worldY <= p.y + h) {
+                return i
+            }
+        }
+        return -1
+    }
 
     function previewDrag(kind, sceneX, sceneY) {
         const local = root.mapFromItem(null, sceneX, sceneY)
         ghostKind = kind
         ghostX = local.x
         ghostY = local.y
+        const w = world.mapFromItem(null, sceneX, sceneY)
+        hoveredContainerIndex = _containerAt(w.x, w.y)
     }
     function moveDragPreview(sceneX, sceneY) {
         const local = root.mapFromItem(null, sceneX, sceneY)
         ghostX = local.x
         ghostY = local.y
+        const w = world.mapFromItem(null, sceneX, sceneY)
+        hoveredContainerIndex = _containerAt(w.x, w.y)
     }
     function endDragPreview(sceneX, sceneY, dropped) {
         const local = root.mapFromItem(null, sceneX, sceneY)
@@ -269,11 +299,18 @@ Item {
             // the drop point lands in logical coords regardless of
             // current zoom level.
             const w = world.mapFromItem(null, sceneX, sceneY)
-            const cx = w.x - nodeW / 2
-            const cy = w.y - nodeMinH / 2
-            root.addStepAtRequested(ghostKind, Math.max(0, cx), Math.max(0, cy))
+            const containerIdx = _containerAt(w.x, w.y)
+            if (containerIdx >= 0) {
+                // Drop on a container → add as inner step.
+                root.addInnerStepRequested(containerIdx, ghostKind)
+            } else {
+                const cx = w.x - nodeW / 2
+                const cy = w.y - nodeMinH / 2
+                root.addStepAtRequested(ghostKind, Math.max(0, cx), Math.max(0, cy))
+            }
         }
         ghostKind = ""
+        hoveredContainerIndex = -1
     }
 
     // ============ Content extent ============
@@ -493,6 +530,12 @@ Item {
                 readonly property string stepId: modelData ? modelData.id : ""
                 readonly property string kind: modelData ? modelData.kind : "wait"
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
+                // True when a palette drag is hovering this card and
+                // it's a container — drives the inner-zone highlight
+                // so the user sees their drop will land inside.
+                readonly property bool isHoverDropTarget:
+                    root.hoveredContainerIndex === model.index
+                    && (rawKind === "conditional" || rawKind === "repeat")
                 readonly property color cardBg:
                     isSelected ? Theme.surface2 : Theme.surface
                 readonly property string status: {
@@ -783,22 +826,53 @@ Item {
                             }
                         }
 
-                        // Inner-step strip for flow-control containers
-                        // (when / unless / repeat). Each child step is
-                        // a thin row with order number, kind icon, a
-                        // single-line summary, and a × delete. A
-                        // dashed +Add row at the bottom opens a kind
-                        // picker. Inner-of-inner editing past delete
-                        // is via the KDL escape hatch — nested
-                        // selection would need a path-based model
-                        // and isn't here yet.
-                        Column {
-                            id: innerStrip
+                        // Inner-step drop zone for flow-control
+                        // containers (when / unless / repeat). The
+                        // outer Rectangle is what palette drags hit-
+                        // test against; its border highlights when a
+                        // drag is hovering this container so the
+                        // user sees they're about to drop into it.
+                        // Inside, the actual inner steps render as
+                        // thin rows + a +Add inner-step pill.
+                        Rectangle {
+                            id: innerZone
                             visible: cardItem.rawKind === "conditional"
                                   || cardItem.rawKind === "repeat"
                             width: parent.width
+                            height: visible ? (innerStrip.implicitHeight + 18) : 0
+                            radius: 8
+                            color: cardItem.isHoverDropTarget
+                                ? Theme.accentWash(0.10)
+                                : Theme.bg
+                            border.color: cardItem.isHoverDropTarget
+                                ? Theme.accent
+                                : Theme.lineSoft
+                            border.width: cardItem.isHoverDropTarget ? 2 : 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                            Text {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.leftMargin: 10
+                                anchors.topMargin: 6
+                                text: "INNER STEPS  ·  " + innerStrip.inner.length
+                                color: cardItem.isHoverDropTarget ? Theme.accent : Theme.text3
+                                font.family: Theme.familyBody
+                                font.pixelSize: 9
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.8
+                            }
+
+                        Column {
+                            id: innerStrip
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 22
                             spacing: 3
-                            topPadding: 4
 
                             readonly property var inner: {
                                 const ra = cardItem.act ? cardItem.act.rawAction : null
@@ -940,6 +1014,7 @@ Item {
                                 }
                             }
                         }
+                        }   // end of innerZone Rectangle
                     }
 
                     // Rewire menu — popup()'d from the ⇄ button now
