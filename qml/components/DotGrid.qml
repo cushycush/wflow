@@ -13,8 +13,8 @@ Item {
     property real spacing: 28
     property real dotSize: 1.5
     property color dotColor: Theme.isDark
-        ? Qt.rgba(1, 1, 1, 0.05)
-        : Qt.rgba(0, 0, 0, 0.05)
+        ? Qt.rgba(1, 1, 1, 0.07)
+        : Qt.rgba(0, 0, 0, 0.06)
     property color baseColor: Theme.bg
 
     Rectangle {

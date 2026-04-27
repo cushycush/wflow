@@ -20,12 +20,17 @@ QtObject {
     readonly property bool isDark: mode === "dark" || (mode === "auto" && _systemDark)
 
     // ============ Surfaces ============
-    readonly property color bg:        isDark ? "#232429" : "#f6f6f8"
-    readonly property color surface:   isDark ? "#2a2b31" : "#ffffff"
-    readonly property color surface2:  isDark ? "#313239" : "#eeeef1"
-    readonly property color surface3:  isDark ? "#3a3b42" : "#e2e3e8"
-    readonly property color line:      isDark ? "#40414a" : "#d4d5dc"
-    readonly property color lineSoft:  isDark ? "#33343c" : "#e2e3e8"
+    // Dark mode runs on a near-black bg (oklch ≈ 0.14, slight blue
+    // tint matching the brand hue) so cards on top read as elevated
+    // surfaces with real contrast — mirrors the canvas + explore
+    // mockups. Surfaces step up by ~0.04 lightness each so a
+    // hovered card / selected row is unambiguous.
+    readonly property color bg:        isDark ? "#15161b" : "#f6f6f8"
+    readonly property color surface:   isDark ? "#22232a" : "#ffffff"
+    readonly property color surface2:  isDark ? "#2a2b32" : "#eeeef1"
+    readonly property color surface3:  isDark ? "#34353d" : "#e2e3e8"
+    readonly property color line:      isDark ? "#3a3b43" : "#d4d5dc"
+    readonly property color lineSoft:  isDark ? "#2c2d34" : "#e2e3e8"
 
     // ============ Text ============
     readonly property color text:      isDark ? "#edeef1" : "#1c1d22"
