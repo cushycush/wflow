@@ -368,6 +368,66 @@ Item {
         _scheduleSave()
     }
 
+    // Replace the cond object on a `when` / `unless` step. Pass-through
+    // for the inspector's condition editor.
+    function _commitCondition(stepIndex, newCond) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || action.kind !== "conditional") return
+        action.cond = newCond
+        wf.steps = steps
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _commitNegate(stepIndex, negate) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || action.kind !== "conditional") return
+        if ((action.negate === true) === negate) return
+        action.negate = negate
+        wf.steps = steps
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    // Append an inner step of `kind` to a flow-control container's
+    // step list. Used by the inspector's "+ Add inner step" button.
+    function _addInnerStep(stepIndex, kind) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action) return
+        if (!Array.isArray(action.steps)) action.steps = []
+        action.steps.push({
+            id: _uuid(),
+            enabled: true,
+            on_error: "stop",
+            action: _defaultActionForKind(kind)
+        })
+        wf.steps = steps
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _deleteInnerStep(stepIndex, innerIndex) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || !Array.isArray(action.steps)) return
+        if (innerIndex < 0 || innerIndex >= action.steps.length) return
+        action.steps.splice(innerIndex, 1)
+        wf.steps = steps
+        root.workflow = wf
+        _scheduleSave()
+    }
+
     function _commitTitleEdit(newTitle) {
         if (newTitle === root.workflow.title) return
         const wf = JSON.parse(JSON.stringify(root.workflow))
@@ -780,6 +840,10 @@ Item {
                     onSelectStep: (i) => { editorContent.selectedIndex = i }
                     onPredecessorChosen: (otherIdx) => root._makePredecessorOf(editorContent.selectedIndex, otherIdx)
                     onSuccessorChosen: (otherIdx) => root._makeSuccessorOf(editorContent.selectedIndex, otherIdx)
+                    onConditionEdited: (stepIndex, cond) => root._commitCondition(stepIndex, cond)
+                    onNegateToggled: (stepIndex, negate) => root._commitNegate(stepIndex, negate)
+                    onInnerStepAdded: (stepIndex, kind) => root._addInnerStep(stepIndex, kind)
+                    onInnerStepDeleted: (stepIndex, innerIndex) => root._deleteInnerStep(stepIndex, innerIndex)
                 }
             }
 

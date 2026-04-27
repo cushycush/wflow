@@ -30,6 +30,18 @@ Item {
     // predecessor / successor of the currently selected step.
     signal predecessorChosen(int otherIndex)
     signal successorChosen(int otherIndex)
+    // Replace the entire condition object on a `when` / `unless`
+    // step. cond is { kind, name?, path?, equals? } — passed whole
+    // because the kind switch can leave fields stale otherwise.
+    signal conditionEdited(int stepIndex, var cond)
+    // Toggle the `negate` flag on a conditional, flipping it between
+    // `when` (false) and `unless` (true).
+    signal negateToggled(int stepIndex, bool negate)
+    // Append a new inner step to a flow-control container's
+    // (`when`/`unless`/`repeat`) inner sequence with the given kind.
+    signal innerStepAdded(int stepIndex, string kind)
+    // Drop an inner step at innerIndex from a container.
+    signal innerStepDeleted(int stepIndex, int innerIndex)
 
     Rectangle {
         anchors.fill: parent
@@ -459,6 +471,376 @@ Item {
                             font.pixelSize: Theme.fontMd
                         }
                     }
+                }
+
+                // Condition editor for `when` / `unless`. Visible
+                // only when the selected step is a conditional. Cond
+                // has a kind (window / file / env) plus one or two
+                // value fields; the editor commits the whole cond
+                // object so a kind change can rebuild the value
+                // shape without leaving stale fields.
+                Column {
+                    id: conditionSection
+                    width: parent.width - 48
+                    spacing: 10
+                    visible: root.sel && root.sel.rawKind === "conditional"
+
+                    readonly property var act: root.sel ? root.sel.rawAction : null
+                    readonly property var cond: act && act.cond ? act.cond : { kind: "window", name: "" }
+                    readonly property string condKind: cond.kind || "window"
+
+                    Text {
+                        text: "CONDITION"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                    }
+
+                    // when / unless toggle
+                    Row {
+                        width: parent.width
+                        height: 28
+                        spacing: 12
+
+                        Text {
+                            text: "Mode"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 90
+                        }
+                        SegmentedControl {
+                            anchors.verticalCenter: parent.verticalCenter
+                            accent: root.catColor
+                            items: [
+                                { label: "When",   value: false },
+                                { label: "Unless", value: true  }
+                            ]
+                            selected: conditionSection.act && conditionSection.act.negate === true
+                            onActivated: (v) => root.negateToggled(root.selectedIndex, v)
+                        }
+                    }
+
+                    // Condition kind picker
+                    Row {
+                        width: parent.width
+                        height: 28
+                        spacing: 12
+
+                        Text {
+                            text: "Predicate"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 90
+                        }
+                        SegmentedControl {
+                            anchors.verticalCenter: parent.verticalCenter
+                            accent: root.catColor
+                            items: [
+                                { label: "Window", value: "window" },
+                                { label: "File",   value: "file"   },
+                                { label: "Env",    value: "env"    }
+                            ]
+                            selected: conditionSection.condKind
+                            onActivated: (v) => {
+                                // Rebuild the cond object for the new
+                                // kind so old fields don't linger.
+                                let next
+                                if (v === "window")    next = { kind: "window", name: conditionSection.cond.name || "" }
+                                else if (v === "file") next = { kind: "file",   path: conditionSection.cond.path || "" }
+                                else                   next = { kind: "env",    name: conditionSection.cond.name || "" }
+                                root.conditionEdited(root.selectedIndex, next)
+                            }
+                        }
+                    }
+
+                    // Predicate value field — label + meaning depend
+                    // on the selected kind. window/env use `name`,
+                    // file uses `path`, env can also have `equals`.
+                    Rectangle {
+                        width: parent.width
+                        height: 44
+                        radius: Theme.radiusMd
+                        color: Theme.bg
+                        border.color: condValueField.activeFocus ? root.catColor : Theme.lineSoft
+                        border.width: condValueField.activeFocus ? 2 : 1
+                        Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                        TextField {
+                            id: condValueField
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            verticalAlignment: TextInput.AlignVCenter
+                            color: Theme.text
+                            font.family: Theme.familyMono
+                            font.pixelSize: Theme.fontSm
+                            selectByMouse: true
+                            background: Item {}
+                            placeholderText: conditionSection.condKind === "file"
+                                ? "/home/you/.config/example"
+                                : conditionSection.condKind === "env"
+                                    ? "ENV_VAR_NAME"
+                                    : "window title contains…"
+
+                            readonly property var syncKey: [
+                                root.selectedIndex,
+                                conditionSection.condKind,
+                                conditionSection.cond.name || "",
+                                conditionSection.cond.path || ""
+                            ]
+                            onSyncKeyChanged: {
+                                const v = conditionSection.condKind === "file"
+                                    ? (conditionSection.cond.path || "")
+                                    : (conditionSection.cond.name || "")
+                                if (text !== v) text = v
+                            }
+                            Component.onCompleted: {
+                                text = conditionSection.condKind === "file"
+                                    ? (conditionSection.cond.path || "")
+                                    : (conditionSection.cond.name || "")
+                            }
+
+                            function _commit() {
+                                const k = conditionSection.condKind
+                                let next
+                                if (k === "window")    next = { kind: "window", name: text }
+                                else if (k === "file") next = { kind: "file",   path: text }
+                                else                   next = Object.assign({}, conditionSection.cond, { kind: "env", name: text })
+                                root.conditionEdited(root.selectedIndex, next)
+                            }
+                            onTextEdited: _commit()
+                            Keys.onReturnPressed: _commit()
+                        }
+                    }
+
+                    // Env-only `equals=` field. Optional — empty
+                    // means "any non-empty value of this var".
+                    Rectangle {
+                        visible: conditionSection.condKind === "env"
+                        width: parent.width
+                        height: 44
+                        radius: Theme.radiusMd
+                        color: Theme.bg
+                        border.color: condEqualsField.activeFocus ? root.catColor : Theme.lineSoft
+                        border.width: condEqualsField.activeFocus ? 2 : 1
+                        Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                        TextField {
+                            id: condEqualsField
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            verticalAlignment: TextInput.AlignVCenter
+                            color: Theme.text
+                            font.family: Theme.familyMono
+                            font.pixelSize: Theme.fontSm
+                            selectByMouse: true
+                            background: Item {}
+                            placeholderText: "equals=… (optional)"
+
+                            readonly property var syncKey: [root.selectedIndex, conditionSection.cond.equals || ""]
+                            onSyncKeyChanged: {
+                                const v = conditionSection.cond.equals || ""
+                                if (text !== v) text = v
+                            }
+                            Component.onCompleted: {
+                                text = conditionSection.cond.equals || ""
+                            }
+
+                            function _commit() {
+                                const next = {
+                                    kind: "env",
+                                    name: conditionSection.cond.name || "",
+                                }
+                                if (text.length > 0) next.equals = text
+                                root.conditionEdited(root.selectedIndex, next)
+                            }
+                            onTextEdited: _commit()
+                            Keys.onReturnPressed: _commit()
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: conditionSection.visible
+                    width: parent.width - 48
+                    height: 1
+                    color: Theme.lineSoft
+                }
+
+                // Inner-steps panel for flow-control containers
+                // (when / unless / repeat). Renders the parent's
+                // child sequence as a vertical list with tiny add /
+                // delete affordances. Inner-step editing is via the
+                // KDL escape hatch for now; the list at least makes
+                // the structure visible from the GUI.
+                Column {
+                    id: innerStepsSection
+                    width: parent.width - 48
+                    spacing: 8
+                    visible: root.sel
+                          && (root.sel.rawKind === "conditional"
+                              || root.sel.rawKind === "repeat")
+
+                    readonly property var act: root.sel ? root.sel.rawAction : null
+                    readonly property var inner: act && act.steps ? act.steps : []
+
+                    Text {
+                        text: "INNER STEPS  (" + innerStepsSection.inner.length + ")"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                    }
+
+                    Repeater {
+                        model: innerStepsSection.inner
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 36
+                            radius: Theme.radiusMd
+                            color: innerArea.containsMouse ? Theme.surface2 : Theme.bg
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                            Row {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 4
+                                spacing: 8
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: String(model.index + 1).padStart(2, "0")
+                                    color: Theme.text3
+                                    font.family: Theme.familyMono
+                                    font.pixelSize: 10
+                                    width: 18
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 18 - 8 - 22 - 8
+                                    text: {
+                                        const a = modelData ? modelData.action : null
+                                        if (!a) return ""
+                                        return (a.kind || "") + (a.text || a.chord || a.name || a.command || a.path || "" ?
+                                            "  ·  " + (a.text || a.chord || a.name || a.command || a.path || "") : "")
+                                    }
+                                    color: Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    elide: Text.ElideRight
+                                }
+                                // delete inner
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 22; height: 22; radius: 4
+                                    color: innerDelArea.containsMouse
+                                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                        : "transparent"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "×"
+                                        color: innerDelArea.containsMouse ? Theme.err : Theme.text2
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 14
+                                    }
+                                    MouseArea {
+                                        id: innerDelArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.innerStepDeleted(root.selectedIndex, model.index)
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: innerArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                            }
+                        }
+                    }
+
+                    // + Add inner step. Opens the same kind picker
+                    // that the rail uses, scoped to non-flow kinds —
+                    // inner-of-inner blocks would need a path-based
+                    // selection model to edit, which we don't have
+                    // yet, so the picker stays leaf-only.
+                    Rectangle {
+                        width: parent.width
+                        height: 32
+                        radius: Theme.radiusMd
+                        color: addInnerArea.containsMouse ? Theme.surface2 : "transparent"
+                        border.color: Theme.lineSoft
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Text {
+                                text: "+"
+                                color: root.catColor
+                                font.family: Theme.familyBody
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: "Add inner step"
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: addInnerArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: addInnerMenu.popup()
+                        }
+
+                        WfMenu {
+                            id: addInnerMenu
+                            Repeater {
+                                model: [
+                                    { kind: "key",       label: "Key chord"    },
+                                    { kind: "type",      label: "Type text"    },
+                                    { kind: "click",     label: "Click"        },
+                                    { kind: "focus",     label: "Focus window" },
+                                    { kind: "wait",      label: "Wait"         },
+                                    { kind: "shell",     label: "Shell"        },
+                                    { kind: "notify",    label: "Notify"       },
+                                    { kind: "clipboard", label: "Clipboard"    },
+                                    { kind: "note",      label: "Note"         }
+                                ]
+                                delegate: WfMenuItem {
+                                    text: modelData.label
+                                    onTriggered: root.innerStepAdded(root.selectedIndex, modelData.kind)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: innerStepsSection.visible
+                    width: parent.width - 48
+                    height: 1
+                    color: Theme.lineSoft
                 }
 
                 // Options
