@@ -1637,6 +1637,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32da49809aab5c3bc678af03902d4ccddea2a87d028d86392a4b1560c6906c70"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "toml"
 version = "0.9.12+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2022,12 +2033,14 @@ dependencies = [
 
 [[package]]
 name = "wdotool-core"
-version = "0.3.0"
-source = "git+https://github.com/cushycush/wdotool?rev=fad906ac69b59fa24af5523bbe57f8a6cf915f69#fad906ac69b59fa24af5523bbe57f8a6cf915f69"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4b6e118991ecc82fcbf7db1325d568179e7a20dc99f2889e5f1bd28273e80af"
 dependencies = [
  "ashpd",
  "async-trait",
  "enumflags2",
+ "evdev",
  "futures-util",
  "input-linux",
  "libc",
@@ -2037,6 +2050,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tracing",
  "wayland-client",
  "wayland-protocols",
@@ -2049,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "wflow"
-version = "0.3.24"
+version = "0.3.26"
 dependencies = [
  "anyhow",
  "ashpd",
@@ -2063,10 +2077,8 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "dirs",
- "evdev",
  "futures-util",
  "kdl",
- "reis",
  "serde",
  "serde_json",
  "sha2",

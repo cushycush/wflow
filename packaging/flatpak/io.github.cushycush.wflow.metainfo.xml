@@ -64,13 +64,17 @@
   </provides>
 
   <releases>
-    <release version="0.3.24" date="2026-04-26">
+    <release version="0.3.26" date="2026-04-27">
       <description>
         <p>
-          New design vocabulary lands on the Explore page. Featured workflow gets a warm-amber bezel and a vertical mini-stack preview of its first four step kinds; community cards swap to a richer layout with avatar bylines, multi-layer drop shadows, and the same mini-stack treatment so users see the SHAPE of a workflow before they install it. Theme.qml gains gradient color pairs for every action kind, plus shadow tokens, plus a stable handle → gradient hash so an author always reads as the same color across the app.
+          Recorder now consumes wdotool-core 0.4's stream API for input capture. Drops ~800 lines of in-tree portal + evdev pump code that's now upstream. End-user behaviour is unchanged — same Record Mode flow, same captured events, same workflows-on-save shape — but the build pulls the maintained version from crates.io instead of carrying its own copy.
         </p>
+      </description>
+    </release>
+    <release version="0.3.25" date="2026-04-26">
+      <description>
         <p>
-          New reusable QML components: GradientPill, Avatar, MiniStep. The Canvas view that's coming next will reuse all three. The Explore tab is enabled by default now since the visual treatment is shippable; the catalog is still mock data until wflows.com has a real backend.
+          Pulls the v0.3.24 Explore-redesign experiment back out of the published build. The new gradient-pill / avatar / mini-step design language was crashing the GUI for some users; the work continues on a local branch (`design/explore-redesign-wip`) and lands again as a single coherent shipped release once the editor's Canvas view is also done. Functionally identical to 0.3.23 — daemon, recorder, library, editor all unchanged.
         </p>
       </description>
     </release>
