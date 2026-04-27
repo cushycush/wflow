@@ -327,22 +327,23 @@ Item {
             NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
         }
 
-        // Plain wheel zooms with the cursor as anchor.
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-            z: 5
-            onWheel: (wheel) => {
-                wheel.accepted = true
-                const step = (wheel.angleDelta.y / 120) * 0.1
-                // wheel.x / wheel.y are in this MouseArea's local
-                // coords. anchors.fill: parent makes the parent the
-                // Flickable's contentItem, so they're scaled-content-
-                // item coords already. _zoomAt expects viewport-local
-                // (the buttons pass flick.width/2 which is viewport
-                // sized), so subtract the scroll offset back out.
-                const vx = wheel.x - flick.contentX
-                const vy = wheel.y - flick.contentY
+        // Plain wheel zooms with the cursor as anchor. Using a
+        // WheelHandler instead of a MouseArea so cursor handling
+        // stays with the HoverHandler below — a MouseArea here
+        // wins the cursor competition with its default Qt.ArrowCursor
+        // and paints over the open / closed hand we want on the
+        // empty grid. Flickable.interactive: false means the built-
+        // in wheel-scroll doesn't fight us either.
+        WheelHandler {
+            onWheel: (event) => {
+                event.accepted = true
+                const step = (event.angleDelta.y / 120) * 0.1
+                // point.position is in the handler's parent local
+                // coords, which is the Flickable's contentItem (i.e.
+                // scaled-content-item space). Convert to viewport-
+                // local for _zoomAt, same as the +/- buttons pass.
+                const vx = point.position.x - flick.contentX
+                const vy = point.position.y - flick.contentY
                 root._zoomAt(Qt.point(vx, vy), root.zoom + step)
             }
         }
