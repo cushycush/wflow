@@ -54,6 +54,7 @@ Item {
     signal selectStep(int index)
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
+    signal deleteStepRequested(int index)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -670,7 +671,7 @@ Item {
                                 font.weight: Font.Bold
                                 font.letterSpacing: 1.4
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - rewireBtn.width - numBadge.width - statusDot.width - parent.spacing * 3
+                                width: parent.width - rewireBtn.width - numBadge.width - statusDot.width - deleteBtn.width - parent.spacing * 4
                                 elide: Text.ElideRight
                             }
                             Rectangle {
@@ -699,6 +700,45 @@ Item {
                                     :  cardItem.status === "error"   ? Theme.err
                                     :  cardItem.status === "skipped" ? Theme.text3
                                     :  Theme.lineSoft
+                            }
+
+                            // Quick-delete. Hover-revealed × pill at
+                            // the right edge of the header row,
+                            // mirroring the rewire button on the left.
+                            // Click removes the step immediately —
+                            // mirrors the rail's hover-controls × .
+                            Rectangle {
+                                id: deleteBtn
+                                width: 22; height: 22; radius: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: deleteArea.containsMouse
+                                    ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
+                                    : Theme.surface3
+                                border.color: deleteArea.containsMouse ? Theme.err : Theme.lineSoft
+                                border.width: 1
+                                opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "×"
+                                    color: deleteArea.containsMouse ? "#ffffff" : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
+                                }
+                                MouseArea {
+                                    id: deleteArea
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.deleteStepRequested(cardItem.stepIdx)
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 400
+                                    ToolTip.text: "Delete step"
+                                }
                             }
                         }
 

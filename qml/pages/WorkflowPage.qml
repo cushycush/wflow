@@ -416,7 +416,18 @@ Item {
     // (workflowId, stepId). Save fires on canvas positions-change
     // (debounced 400ms); load runs after each workflow_jsonChanged.
 
+    // One-shot guards. wfCtrl.save fires workflow_jsonChanged again
+    // (cxx-qt's set_workflow_json emits on any string difference),
+    // and the handler re-queues _ensureStableIds + _loadPositions
+    // via Qt.callLater. Without these flags, _loadPositions could
+    // run mid-drag and overwrite the user's in-memory drag with
+    // stale disk values — the card would snap back to where it
+    // started. Both reset on workflowId changes (new workflow load).
+    property bool _stableIdsEnsured: false
+    property bool _positionsLoaded: false
+
     function _loadPositions() {
+        if (_positionsLoaded) return
         if (!root.workflowId || root.workflowId.length === 0) return
         let parsed = {}
         try {
@@ -424,6 +435,7 @@ Item {
         } catch (e) {
             return
         }
+        _positionsLoaded = true
         if (parsed && Object.keys(parsed).length > 0) {
             // Merge saved positions over the canvas's default
             // placements. Without the merge, cards without a saved
@@ -439,9 +451,11 @@ Item {
     // every step. Bypasses _saveNow so saveState / the saved-toast
     // don't fire — this is a load-time upgrade, not a user save.
     function _ensureStableIds() {
+        if (_stableIdsEnsured) return
         if (!root.workflowId || root.workflowId.length === 0) return
         const steps = (root.workflow && root.workflow.steps) || []
         if (steps.length === 0) return
+        _stableIdsEnsured = true
         wfCtrl.save(JSON.stringify(root.workflow))
     }
 
@@ -464,7 +478,11 @@ Item {
         }
     }
 
-    onWorkflowIdChanged: _reload()
+    onWorkflowIdChanged: {
+        _stableIdsEnsured = false
+        _positionsLoaded = false
+        _reload()
+    }
     Component.onCompleted: _reload()
 
     // Run on Ctrl+Enter — the editor is the only page where this is active,
@@ -763,6 +781,7 @@ Item {
                 onSelectStep: (i) => { editorContent.selectedIndex = i }
                 onDeselectRequested: { editorContent.selectedIndex = -1 }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
+                onDeleteStepRequested: (i) => root._deleteStep(i)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
