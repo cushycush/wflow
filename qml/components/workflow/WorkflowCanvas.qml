@@ -37,6 +37,11 @@ Item {
     property var positions: ({})    // { [id]: {x, y} }
     property var cardHeights: ({})  // { [id]: number }
 
+    // "curve" (default Bezier) | "ortho" (straight segments, hard
+    // 90° corners). Doesn't affect the marching-dash animation —
+    // dashes still flow along whichever path shape is active.
+    property string wireStyle: "curve"
+
     signal selectStep(int index)
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
@@ -239,14 +244,17 @@ Item {
                         strokeStyle: Theme.reduceMotion ? ShapePath.SolidLine : ShapePath.DashLine
                         dashPattern: [4, 8]
 
+                        // Path data is built from JS so the same
+                        // ShapePath can switch between Bezier and
+                        // orthogonal routing without rebuilding the
+                        // Shape. dashOffset still animates the
+                        // resulting stroke either way.
                         startX: route.sx
                         startY: route.sy
-                        PathCubic {
-                            x: route.tx; y: route.ty
-                            control1X: route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.sx
-                            control1Y: route.axis === "h" ? route.sy : (route.sy + (route.ty - route.sy) / 2)
-                            control2X: route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.tx
-                            control2Y: route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
+                        PathSvg {
+                            path: root.wireStyle === "ortho"
+                                ? _orthoPath(route)
+                                : _curvePath(route)
                         }
 
                         NumberAnimation on dashOffset {
@@ -619,16 +627,18 @@ Item {
 
     // ============ Floating UI ============
 
-    // One-shot organize buttons. Click rearranges every card; no
-    // sticky mode, no automatic re-layout on resize / inspector
-    // slide / step add.
+    // Floating control bar — one-shot Tidy actions on the left, wire
+    // style toggle on the right. Tidy click rearranges every card;
+    // no sticky mode, no automatic re-layout on resize / inspector
+    // slide / step add. Wire style toggle flips between curved and
+    // orthogonal routing for every connection at once.
     Rectangle {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: 8
         anchors.rightMargin: 8
         z: 60
-        width: orgRow.implicitWidth + 12
+        width: barRow.implicitWidth + 12
         height: 34
         radius: 8
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
@@ -636,7 +646,7 @@ Item {
         border.width: 1
 
         Row {
-            id: orgRow
+            id: barRow
             anchors.centerIn: parent
             spacing: 4
 
@@ -679,10 +689,97 @@ Item {
                     }
                 }
             }
+
+            // Visual divider between Tidy and Wires sections.
+            Rectangle {
+                width: 1
+                height: 18
+                color: Theme.lineSoft
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Wires:"
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontXs
+                leftPadding: 4
+                rightPadding: 4
+            }
+
+            Repeater {
+                model: [
+                    { id: "curve", glyph: "⌒", tip: "Curved (Bezier) wires" },
+                    { id: "ortho", glyph: "⌐", tip: "Stepped (90°) wires"   }
+                ]
+                delegate: Rectangle {
+                    readonly property bool isOn: root.wireStyle === modelData.id
+                    width: 28; height: 26; radius: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: isOn
+                        ? Theme.accentWash(0.16)
+                        : (wsArea.containsMouse ? Theme.surface2 : "transparent")
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.glyph
+                        color: parent.isOn ? Theme.accent : Theme.text2
+                        font.family: Theme.familyBody
+                        font.pixelSize: 14
+                        font.weight: parent.isOn ? Font.DemiBold : Font.Medium
+                    }
+                    MouseArea {
+                        id: wsArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.wireStyle = modelData.id
+                        ToolTip.visible: containsMouse
+                        ToolTip.delay: 400
+                        ToolTip.text: modelData.tip
+                    }
+                }
+            }
         }
     }
 
     // ============ Helpers ============
+
+    // SVG path data for a Bezier-style wire. Control points are
+    // pulled along the routing axis so the curve eases out of the
+    // source and into the target.
+    function _curvePath(route) {
+        if (!route) return ""
+        const c1x = route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.sx
+        const c1y = route.axis === "h" ? route.sy : (route.sy + (route.ty - route.sy) / 2)
+        const c2x = route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.tx
+        const c2y = route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
+        return "M " + route.sx + " " + route.sy
+             + " C " + c1x + " " + c1y
+             + " "   + c2x + " " + c2y
+             + " "   + route.tx + " " + route.ty
+    }
+
+    // SVG path data for an orthogonal wire — three straight segments
+    // joined at hard 90° corners. The midpoint sits halfway along the
+    // routing axis so the elbow lands centred between the two cards.
+    function _orthoPath(route) {
+        if (!route) return ""
+        if (route.axis === "h") {
+            const midX = (route.sx + route.tx) / 2
+            return "M " + route.sx + " " + route.sy
+                 + " L " + midX     + " " + route.sy
+                 + " L " + midX     + " " + route.ty
+                 + " L " + route.tx + " " + route.ty
+        } else {
+            const midY = (route.sy + route.ty) / 2
+            return "M " + route.sx + " " + route.sy
+                 + " L " + route.sx + " " + midY
+                 + " L " + route.tx + " " + midY
+                 + " L " + route.tx + " " + route.ty
+        }
+    }
 
     // Smart wire routing: pick the source's exit side and the target's
     // entry side based on the geometry between the two cards. Wire
