@@ -42,19 +42,59 @@ Item {
         const out = []
         for (const wf of rawList) {
             out.push({
-                id:       wf.id,
-                title:    wf.title,
-                subtitle: wf.subtitle && wf.subtitle.length > 0 ? wf.subtitle : "",
-                steps:    wf.steps || 0,
-                lastRun:  root._humanizeTs(wf.last_run),
-                runs:     0,                 // real counter lands with run-history persistence
-                kinds:    wf.kinds || []
+                id:        wf.id,
+                title:     wf.title,
+                subtitle:  wf.subtitle && wf.subtitle.length > 0 ? wf.subtitle : "",
+                steps:     wf.steps || 0,
+                lastRun:   root._humanizeTs(wf.last_run),
+                runs:      0,                 // real counter lands with run-history persistence
+                kinds:     wf.kinds || [],
+                folder:    wf.folder || "",
+                _modified: wf.modified || "",  // ISO string, used for sort comparisons
+                _lastRun:  wf.last_run || ""
             })
         }
         return out
     }
 
     property var workflows: []
+    // ---- Library filters ----
+    property string searchQuery: ""
+    // "" means All; "__top__" means workflows with no folder; any
+    // other value is a folder name.
+    property string currentFolder: ""
+    // "recent" (default — modified desc), "name" (asc), "last_run".
+    property string sortBy: "recent"
+    property var folderList: []
+
+    // Apply search + folder filter and sort.
+    readonly property var filtered: {
+        const q = (root.searchQuery || "").trim().toLowerCase()
+        const fld = root.currentFolder
+        let out = (root.workflows || []).filter(w => {
+            if (fld === "__top__" && w.folder !== "") return false
+            if (fld !== "" && fld !== "__top__" && w.folder !== fld) return false
+            if (q.length === 0) return true
+            return (w.title || "").toLowerCase().indexOf(q) >= 0
+                || (w.subtitle || "").toLowerCase().indexOf(q) >= 0
+                || (w.kinds || []).some(k => (k || "").toLowerCase().indexOf(q) >= 0)
+        })
+        if (root.sortBy === "name") {
+            out = out.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""))
+        } else if (root.sortBy === "last_run") {
+            // Most-recent first; never-run goes last.
+            out = out.slice().sort((a, b) => {
+                if (!a._lastRun && !b._lastRun) return 0
+                if (!a._lastRun) return 1
+                if (!b._lastRun) return -1
+                return b._lastRun.localeCompare(a._lastRun)
+            })
+        } else {
+            // recent — modified desc, fall through to created if missing.
+            out = out.slice().sort((a, b) => (b._modified || "").localeCompare(a._modified || ""))
+        }
+        return out
+    }
 
     function _refreshShaped() {
         try {
@@ -62,6 +102,11 @@ Item {
             root.workflows = root._shape(raw)
         } catch (e) {
             root.workflows = []
+        }
+        try {
+            root.folderList = JSON.parse(libCtrl.folders() || "[]")
+        } catch (e) {
+            root.folderList = []
         }
     }
 
@@ -172,21 +217,58 @@ Item {
                     ? "1 workflow"
                     : root.workflows.length + " workflows")
 
-            // Select-mode actions: Cancel + Delete N. Hide layout
-            // switcher / + New / Record while selecting so the
-            // toolbar stays focused on the bulk action.
+            // Select-mode actions: Cancel + Move to folder + Delete N.
+            // Hide layout switcher / + New / Record while selecting
+            // so the toolbar stays focused on the bulk action.
             SecondaryButton {
                 visible: root.selectMode
                 text: "Cancel"
                 onClicked: root._exitSelect()
             }
+            SecondaryButton {
+                visible: root.selectMode
+                enabled: root.selectedCount > 0
+                text: "↳ Move to…"
+                onClicked: moveToFolderMenu.popup()
+            }
             PrimaryButton {
                 visible: root.selectMode
                 enabled: root.selectedCount > 0
                 text: root.selectedCount > 0
-                    ? "🗑 Delete " + root.selectedCount
-                    : "🗑 Delete"
+                    ? "× Delete " + root.selectedCount
+                    : "× Delete"
                 onClicked: root._askBulkDelete()
+            }
+
+            WfMenu {
+                id: moveToFolderMenu
+                WfMenuItem {
+                    text: "(Top level — clear folder)"
+                    onTriggered: {
+                        for (const id of Object.keys(root.selectedIds)) {
+                            libCtrl.set_folder(id, "")
+                        }
+                        root._exitSelect()
+                    }
+                }
+                MenuSeparator {}
+                Repeater {
+                    model: root.folderList
+                    delegate: WfMenuItem {
+                        text: modelData
+                        onTriggered: {
+                            for (const id of Object.keys(root.selectedIds)) {
+                                libCtrl.set_folder(id, modelData)
+                            }
+                            root._exitSelect()
+                        }
+                    }
+                }
+                MenuSeparator {}
+                WfMenuItem {
+                    text: "+ New folder…"
+                    onTriggered: newFolderDialog.open()
+                }
             }
 
             // Default-mode actions.
@@ -218,9 +300,142 @@ Item {
             onActivated: root._exitSelect()
         }
 
+        // Search + sort row sits between the TopBar and the body.
+        // Light surface so it reads as a sub-toolbar.
+        Rectangle {
+            width: parent.width
+            height: 48
+            color: Theme.surface
+            visible: root.workflows.length > 0 && !root.selectMode
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: 24
+                anchors.rightMargin: 24
+                spacing: 12
+
+                // Search bar
+                Rectangle {
+                    width: 320
+                    height: 32
+                    radius: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: searchInput.activeFocus ? Theme.bg : Theme.surface2
+                    border.color: searchInput.activeFocus ? Theme.accent : Theme.lineSoft
+                    border.width: 1
+                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 8
+                        spacing: 6
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "⌕"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: 14
+                        }
+                        TextField {
+                            id: searchInput
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 6 - 14 - 8
+                            placeholderText: "Search workflows…"
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            background: Item {}
+                            onTextChanged: root.searchQuery = text
+                        }
+                    }
+                }
+
+                Item { width: parent.width - 320 - 200 - 12 * 2; height: 1 }
+
+                // Sort dropdown — visual-only Rectangle wrapping a
+                // hidden ComboBox so the picker matches the rest of
+                // the chrome. Recent is the default.
+                Rectangle {
+                    width: 200
+                    height: 32
+                    radius: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.surface2
+                    border.color: Theme.lineSoft
+                    border.width: 1
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 8
+                        spacing: 4
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Sort:"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.sortBy === "name"     ? "A → Z"
+                                : root.sortBy === "last_run" ? "Last run"
+                                                              : "Recently modified"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.Medium
+                            width: parent.width - 38 - 14
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "▾"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: 10
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: sortMenu.popup()
+                    }
+
+                    WfMenu {
+                        id: sortMenu
+                        WfMenuItem {
+                            text: "Recently modified"
+                            onTriggered: root.sortBy = "recent"
+                        }
+                        WfMenuItem {
+                            text: "Last run"
+                            onTriggered: root.sortBy = "last_run"
+                        }
+                        WfMenuItem {
+                            text: "Name (A → Z)"
+                            onTriggered: root.sortBy = "name"
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hairline under sub-toolbar.
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.lineSoft
+            visible: root.workflows.length > 0 && !root.selectMode
+        }
+
         Item {
             width: parent.width
             height: parent.height - tb.height
+                  - (root.workflows.length > 0 && !root.selectMode ? 49 : 0)
 
             // Empty state — two variants.
             //
@@ -282,8 +497,120 @@ Item {
                 onRecordRequested: root.recordRequested()
             }
 
+            // Folder sidebar — All / Top-level / each named folder.
+            // Click a row to filter the grid; '+ New folder' inline-
+            // creates an entry by typing into the input. Folders
+            // come from workflows.toml meta — not a separate file —
+            // so creating one is a side-effect of moving a workflow
+            // into it.
+            Rectangle {
+                id: folderRail
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 200
+                color: Theme.surface
+                border.color: Theme.lineSoft
+                border.width: 1
+                visible: root.workflows.length > 0
+
+                Column {
+                    anchors.fill: parent
+                    anchors.topMargin: 16
+                    anchors.bottomMargin: 12
+                    spacing: 0
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 16
+                        text: "FOLDERS"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.2
+                        bottomPadding: 10
+                    }
+
+                    Repeater {
+                        model: [
+                            { id: "",        label: "All workflows", glyph: "▦" },
+                            { id: "__top__", label: "Top level",     glyph: "·" }
+                        ]
+                        delegate: folderRowComp
+                    }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        height: 1
+                        color: Theme.lineSoft
+                        topPadding: 8
+                        bottomPadding: 8
+                    }
+
+                    Repeater {
+                        model: root.folderList.map(name => ({
+                            id: name, label: name, glyph: "▢"
+                        }))
+                        delegate: folderRowComp
+                    }
+
+                    // + New folder inline-input. Typing a name +
+                    // Enter calls libCtrl.set_folder on… nothing,
+                    // since folders are derived from workflows. So
+                    // instead we stash the name and prompt to drop
+                    // a workflow in via right-click.
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        height: 32
+                        radius: 6
+                        color: addFolderArea.containsMouse ? Theme.surface2 : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                        topPadding: 6
+
+                        Row {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 8
+                            spacing: 6
+                            Text {
+                                text: "+"
+                                color: Theme.accent
+                                font.family: Theme.familyBody
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: "New folder…"
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        MouseArea {
+                            id: addFolderArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: newFolderDialog.open()
+                        }
+                    }
+                }
+            }
+
             ScrollView {
-                anchors.fill: parent
+                anchors.left: folderRail.visible ? folderRail.right : parent.left
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 visible: root.workflows.length > 0
                 contentWidth: availableWidth
                 clip: true
@@ -317,7 +644,7 @@ Item {
                         id: gridComp
                         LibraryGrid {
                             width: variantLoader.width
-                            workflows: root.workflows
+                            workflows: root.filtered
                             selectMode: root.selectMode
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
@@ -330,7 +657,7 @@ Item {
                         id: listComp
                         LibraryList {
                             width: variantLoader.width
-                            workflows: root.workflows
+                            workflows: root.filtered
                             selectMode: root.selectMode
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
@@ -338,6 +665,179 @@ Item {
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
                             onToggleSelected: (id) => root._toggleSelected(id)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Reusable folder-row component for the sidebar. Delegate
+    // shape: { id, label, glyph } — id is "", "__top__", or any
+    // user folder name. Count is derived from root.workflows so it
+    // updates whenever the library refreshes.
+    Component {
+        id: folderRowComp
+        Rectangle {
+            readonly property string folderId: modelData.id
+            readonly property string rowLabel: modelData.label
+            readonly property string rowGlyph: modelData.glyph
+            readonly property int rowCount: {
+                const list = root.workflows || []
+                if (folderId === "")        return list.length
+                if (folderId === "__top__") return list.filter(w => !w.folder).length
+                return list.filter(w => w.folder === folderId).length
+            }
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            // Hide the Top-level row unless there's something there
+            // or it's the active filter (so the user can see why the
+            // grid is empty).
+            visible: folderId !== "__top__"
+                || rowCount > 0
+                || root.currentFolder === "__top__"
+            height: visible ? 32 : 0
+            radius: 6
+            readonly property bool isCurrent: root.currentFolder === folderId
+            color: isCurrent
+                ? Theme.accentWash(0.16)
+                : (folderRowArea.containsMouse ? Theme.surface2 : "transparent")
+            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 8
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowGlyph
+                    color: isCurrent ? Theme.accent : Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: 13
+                    width: 16
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowLabel
+                    color: isCurrent ? Theme.accent : Theme.text
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: isCurrent ? Font.DemiBold : Font.Medium
+                    elide: Text.ElideRight
+                    width: parent.width - 16 - 8 - countLabel.width - 8
+                }
+                Text {
+                    id: countLabel
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowCount
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: Theme.fontXs
+                }
+            }
+            MouseArea {
+                id: folderRowArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.currentFolder = folderId
+            }
+        }
+    }
+
+    // New-folder picker dialog. Asks the user to drop a workflow
+    // into a freshly-named folder via a select-then-name flow —
+    // folders only exist as long as a workflow references them.
+    Dialog {
+        id: newFolderDialog
+        parent: Overlay.overlay
+        modal: true
+        title: ""
+
+        width: 460
+        height: 220
+        anchors.centerIn: parent
+
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusMd
+            border.color: Theme.line
+            border.width: 1
+        }
+
+        contentItem: Item {
+            anchors.fill: parent
+            Column {
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 14
+
+                Text {
+                    text: "Create a folder"
+                    color: Theme.text
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontLg
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    text: "Folders live as a tag on each workflow — pick a name now and right-click any workflow to move it in."
+                    color: Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 36
+                    radius: 6
+                    color: Theme.bg
+                    border.color: newFolderInput.activeFocus ? Theme.accent : Theme.lineSoft
+                    border.width: 1
+                    TextField {
+                        id: newFolderInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        placeholderText: "Folder name"
+                        color: Theme.text
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        background: Item {}
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                    PrimaryButton {
+                        text: "Create"
+                        enabled: newFolderInput.text.trim().length > 0
+                        onClicked: {
+                            const name = newFolderInput.text.trim()
+                            if (name.length === 0) return
+                            // Activate the folder filter so the user
+                            // sees the empty state with a hint to
+                            // move workflows in. Folder is not yet
+                            // persisted (no workflows reference it).
+                            root.currentFolder = name
+                            if (root.folderList.indexOf(name) < 0) {
+                                root.folderList = root.folderList.concat([name])
+                            }
+                            newFolderInput.text = ""
+                            newFolderDialog.close()
+                        }
+                    }
+                    SecondaryButton {
+                        text: "Cancel"
+                        onClicked: {
+                            newFolderInput.text = ""
+                            newFolderDialog.close()
                         }
                     }
                 }

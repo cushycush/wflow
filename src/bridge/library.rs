@@ -58,6 +58,21 @@ pub mod qobject {
         /// JSON object if no positions have been saved.
         #[qinvokable]
         fn load_positions(self: Pin<&mut LibraryController>, id: QString) -> QString;
+
+        /// Move a workflow into the named folder. An empty string
+        /// clears the folder (back to top-level). Refreshes the
+        /// `workflows` summary so the library re-renders.
+        #[qinvokable]
+        fn set_folder(
+            self: Pin<&mut LibraryController>,
+            id: QString,
+            folder: QString,
+        );
+
+        /// All distinct folder names referenced by any workflow.
+        /// Returned as a JSON array of strings, sorted ascending.
+        #[qinvokable]
+        fn folders(self: Pin<&mut LibraryController>) -> QString;
     }
 }
 
@@ -72,6 +87,9 @@ struct WorkflowSummary {
     last_run: Option<String>,
     modified: Option<String>,
     kinds: Vec<String>,
+    /// Folder / category from `workflows.toml`. Empty string when
+    /// the workflow lives at the top level (no folder assigned).
+    folder: String,
 }
 
 pub struct LibraryControllerRust {
@@ -204,6 +222,24 @@ impl qobject::LibraryController {
             .unwrap_or_else(|_| "{}".to_string());
         QString::from(&s)
     }
+
+    fn set_folder(mut self: Pin<&mut Self>, id: QString, folder: QString) {
+        let id_s: String = id.to_string();
+        if id_s.is_empty() {
+            return;
+        }
+        let folder_s: String = folder.to_string();
+        let folder_opt = if folder_s.is_empty() { None } else { Some(folder_s) };
+        crate::workflows_meta::set_folder(&id_s, folder_opt);
+        // Re-render the library — workflow's folder badge changes.
+        self.as_mut().set_workflows(load_as_json());
+    }
+
+    fn folders(self: Pin<&mut Self>) -> QString {
+        let folders = crate::workflows_meta::all_folders();
+        let s = serde_json::to_string(&folders).unwrap_or_else(|_| "[]".to_string());
+        QString::from(&s)
+    }
 }
 
 fn load_as_json() -> QString {
@@ -216,6 +252,9 @@ fn load_as_json() -> QString {
                     .iter()
                     .map(|s| s.action.category().to_string())
                     .collect();
+                let folder = crate::workflows_meta::get(&wf.id)
+                    .and_then(|m| m.folder)
+                    .unwrap_or_default();
                 WorkflowSummary {
                     id: wf.id,
                     title: wf.title,
@@ -224,6 +263,7 @@ fn load_as_json() -> QString {
                     last_run: wf.last_run.map(|t| t.to_rfc3339()),
                     modified: wf.modified.map(|t| t.to_rfc3339()),
                     kinds,
+                    folder,
                 }
             })
             .collect(),

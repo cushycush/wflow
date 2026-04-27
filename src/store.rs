@@ -153,6 +153,7 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
             modified: wf.modified,
             last_run: wf.last_run,
             card_positions: existing.card_positions,
+            folder: existing.folder,
         },
     );
 

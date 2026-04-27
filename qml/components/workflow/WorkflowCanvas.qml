@@ -126,20 +126,43 @@ Item {
     }
     function organizeGrid() {
         const list = root.actions || []
-        const next = {}
-        // Pick a column count that produces roughly square footprint
-        // of the resulting grid — looks better than wrapping to fit
-        // the current viewport, which biases wide screens into long
-        // single rows.
+        if (list.length === 0) return
+        // Square-ish grid footprint (preferred over viewport-fit so
+        // wide screens don't bias into a single long row).
         const cols = Math.max(1, Math.ceil(Math.sqrt(list.length)))
-        const cellH = nodeMinH + gap
+
+        // Container cards are 360px wide and routinely much taller
+        // than nodeMinH once inner steps land — fixed cell math
+        // (nodeW + gap, nodeMinH + gap) stacked them on top of each
+        // other. Compute per-column widths and per-row heights from
+        // the actual cards in each slot.
+        const colWidths = []
+        const rowHeights = []
+        for (let i = 0; i < list.length; i++) {
+            const a = list[i]
+            const col = i % cols
+            const row = Math.floor(i / cols)
+            const w = cardWidths[a.id] || _widthForKind(a.rawKind)
+            const h = cardHeights[a.id] || nodeMinH
+            colWidths[col] = Math.max(colWidths[col] || 0, w)
+            rowHeights[row] = Math.max(rowHeights[row] || 0, h)
+        }
+
+        // Cumulative origin per column / row.
+        const colX = [paddingLeft]
+        for (let c = 1; c < cols; c++) {
+            colX.push(colX[c - 1] + colWidths[c - 1] + gap)
+        }
+        const rowY = [paddingTop]
+        for (let r = 1; r < rowHeights.length; r++) {
+            rowY.push(rowY[r - 1] + rowHeights[r - 1] + gap)
+        }
+
+        const next = {}
         for (let i = 0; i < list.length; i++) {
             const col = i % cols
             const row = Math.floor(i / cols)
-            next[list[i].id] = {
-                x: paddingLeft + col * (nodeW + gap),
-                y: paddingTop + row * cellH
-            }
+            next[list[i].id] = { x: colX[col], y: rowY[row] }
         }
         positions = next
         Qt.callLater(_zoomToFit)
