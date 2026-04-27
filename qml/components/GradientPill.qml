@@ -27,7 +27,11 @@ Rectangle {
     readonly property color textColor: Theme.gradTextColor(kind)
 
     implicitHeight: 36
-    implicitWidth: row.implicitWidth + 24
+    // Implicit width is icon-chip + value-text + paddings; used when
+    // the pill is sized to its content (e.g., explore page chips).
+    // When parented with an explicit width: parent.width (canvas
+    // cards), this is ignored.
+    implicitWidth: (iconChip.visible ? iconChip.width + 8 : 0) + valueText.implicitWidth + 24
     radius: 8
 
     // Left-to-right gradient. Qt Quick's Gradient defaults to vertical;
@@ -57,40 +61,48 @@ Rectangle {
         radius: parent.radius
     }
 
-    Row {
-        id: row
-        anchors.verticalCenter: parent.verticalCenter
+    // Leading icon sits on a small dark chip so it stays legible
+    // against the gradient — without it, the glyph blends into the
+    // colour at certain points along the stops. Glyph is always
+    // white because the chip itself is opaque dark; gradTextColor
+    // would render dark-on-dark for some kinds.
+    Rectangle {
+        id: iconChip
+        visible: root.icon.length > 0
         anchors.left: parent.left
         anchors.leftMargin: 8
-        spacing: 8
-
-        // Leading icon sits on a small dark chip so it stays legible
-        // against the gradient — without it the icon glyph blends
-        // into the colour at certain points along the stops.
-        Rectangle {
-            visible: root.icon.length > 0
-            width: 22; height: 22
-            radius: 6
-            color: Qt.rgba(0, 0, 0, 0.22)
-            anchors.verticalCenter: parent.verticalCenter
-            Text {
-                anchors.centerIn: parent
-                text: root.icon
-                color: root.textColor
-                font.family: Theme.familyBody
-                font.pixelSize: 12
-                font.weight: Font.Bold
-            }
-        }
+        anchors.verticalCenter: parent.verticalCenter
+        width: visible ? 22 : 0
+        height: 22
+        radius: 6
+        color: Qt.rgba(0, 0, 0, 0.22)
         Text {
-            text: root.text
-            color: root.textColor
+            anchors.centerIn: parent
+            text: root.icon
+            color: "#ffffff"
             font.family: Theme.familyBody
-            font.pixelSize: 13
-            font.weight: Font.DemiBold
-            font.letterSpacing: -0.1
-            anchors.verticalCenter: parent.verticalCenter
+            font.pixelSize: Theme.catGlyphSize(root.kind)
+            font.weight: Font.Bold
         }
+    }
+
+    // Value text fills the remaining width and elides on overflow.
+    // Anchored layout (rather than a Row) so the right edge respects
+    // the pill's width regardless of text length.
+    Text {
+        id: valueText
+        anchors.left: iconChip.right
+        anchors.leftMargin: iconChip.visible ? 8 : 8
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.text
+        color: root.textColor
+        font.family: Theme.familyBody
+        font.pixelSize: 13
+        font.weight: Font.DemiBold
+        font.letterSpacing: -0.1
+        elide: Text.ElideRight
     }
 
     Rectangle {

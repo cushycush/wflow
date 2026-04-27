@@ -63,8 +63,14 @@ Item {
     readonly property int nodeW: 260
     readonly property int nodeMinH: 132
     readonly property int gap: 36
-    readonly property int paddingTop: 36
-    readonly property int paddingLeft: 36
+    // canvasOrigin centres the spawn area inside the 12k canvas
+    // span, so the user can pan in every direction from the cards
+    // (otherwise pan-left dead-ends at contentX = 0). paddingLeft /
+    // paddingTop are the "tucked into the upper-left of the card
+    // area" offsets relative to that centre.
+    readonly property int canvasOrigin: canvasSpan / 2
+    readonly property int paddingLeft: canvasOrigin - 200
+    readonly property int paddingTop: canvasOrigin - 120
     readonly property int paddingBottom: 60
 
     // ============ Layout actions (one-shot) ============
@@ -212,10 +218,15 @@ Item {
 
     // Place any newly-added steps below the existing layout. Existing
     // positions are left alone — this is the lazy "I added a step,
-    // don't rearrange the others" path.
+    // don't rearrange the others" path. When this is the first time
+    // any positions are being assigned (initial workflow load), we
+    // auto-fit the viewport so the user lands on the cards rather
+    // than at scene origin (which is far from where cards spawn now
+    // that paddingLeft is offset to the canvas centre).
     function _placeNewSteps() {
         const list = root.actions || []
         if (list.length === 0) return
+        const wasEmpty = Object.keys(positions).length === 0
         const next = Object.assign({}, positions)
         let maxY = paddingTop
         for (let i = 0; i < list.length; i++) {
@@ -228,15 +239,15 @@ Item {
         let dirty = false
         for (let i = 0; i < list.length; i++) {
             if (!next[list[i].id]) {
-                next[list[i].id] = {
-                    x: Math.max(paddingLeft, (flick.width - nodeW) / 2),
-                    y: maxY
-                }
+                next[list[i].id] = { x: paddingLeft, y: maxY }
                 maxY += nodeMinH + gap
                 dirty = true
             }
         }
-        if (dirty) positions = next
+        if (dirty) {
+            positions = next
+            if (wasEmpty) Qt.callLater(_zoomToFit)
+        }
     }
     onActionsChanged: _placeNewSteps()
     Component.onCompleted: _placeNewSteps()
@@ -563,6 +574,11 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+                        // Don't let the canvas pan DragHandler steal
+                        // a card drag once motion crosses its
+                        // threshold — the user would end up panning
+                        // mid-card-drag.
+                        preventStealing: true
                         drag.target: cardItem
                         drag.axis: Drag.XAndYAxis
                         drag.threshold: 4

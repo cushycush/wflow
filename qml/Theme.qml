@@ -142,12 +142,25 @@ QtObject {
         case "scroll":    return "⇅"
         case "focus":     return "⊡"
         case "wait":      return "⏱"
-        case "shell":     return "›"
+        case "shell":     return "❯"
         case "notify":    return "◐"
         case "clipboard": return "⎘"
         case "note":      return "¶"
         }
         return "•"
+    }
+
+    // Glyph-specific size tuning. Most icons read at the chip's
+    // baseline (13px), but the shell chevron and the wait stopwatch
+    // are visually narrower than letterforms / geometric shapes at
+    // the same point size — bumping them keeps the icon row feeling
+    // even.
+    function catGlyphSize(kind) {
+        switch (kind) {
+        case "shell": return 16
+        case "wait":  return 15
+        }
+        return 13
     }
     // Translucent wash of the accent (or any color) at a named alpha. Saves
     // call sites from copy-pasting `Qt.rgba(c.r, c.g, c.b, 0.xx)` constants.

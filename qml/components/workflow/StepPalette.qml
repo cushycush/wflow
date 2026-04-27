@@ -94,6 +94,13 @@ Item {
                         id: chipArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        // Hold the press for the entire drag; the
+                        // canvas's pan DragHandler would otherwise
+                        // steal the gesture once motion crossed its
+                        // threshold and the user would end up
+                        // panning the canvas instead of dropping a
+                        // chip on it.
+                        preventStealing: true
                         cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                         property bool dragging: false
                         onPressed: (mouse) => {
