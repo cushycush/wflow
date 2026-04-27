@@ -310,6 +310,15 @@ fn encode_step(step: &Step) -> KdlNode {
         };
         node.push(prop_str("on-error", v));
     }
+    // Stable step id. Emitted with a leading underscore so it reads
+    // as "internal metadata" alongside `disabled` / `comment` /
+    // `on-error`. The id round-trips through encode/decode so GUI
+    // features keyed on step.id (canvas card positions, comments,
+    // future per-step state) survive `wflow edit` and any other
+    // save-and-reload cycle.
+    if !step.id.is_empty() {
+        node.push(prop_str("_id", &step.id));
+    }
     node
 }
 
@@ -1083,6 +1092,15 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
     step.enabled = !disabled;
     step.note = comment;
     step.on_error = on_error;
+    // Honor a stable id if one was emitted on encode. Otherwise
+    // keep the fresh UUID Step::new just generated — that's the
+    // first-time-decode path (legacy files / hand-authored .kdl
+    // without an _id property).
+    if let Some(saved_id) = prop_string(node, "_id") {
+        if !saved_id.is_empty() {
+            step.id = saved_id;
+        }
+    }
     Ok(step)
 }
 
@@ -1296,7 +1314,7 @@ fn action_props(kind: &str) -> &'static [&'static str] {
     }
 }
 
-const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error"];
+const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error", "_id"];
 
 /// Walk every named entry on a step node and fail if any name isn't in
 /// the action's allowlist or the common list. Unnamed (positional)

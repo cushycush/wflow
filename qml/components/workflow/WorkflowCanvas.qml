@@ -327,28 +327,24 @@ Item {
             NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
         }
 
-        // Plain wheel zooms with the cursor as anchor. MouseArea
-        // (not WheelHandler) because WheelHandler auto-manipulates
-        // its target's property (defaulting to parent.rotation),
-        // which silently broke wheel zoom — onWheel never fired
-        // through the manipulation path. hoverEnabled: false +
-        // acceptedButtons: Qt.NoButton means this area never claims
-        // the cursor on hover or on press, so the HoverHandler
-        // below paints the open/closed hand uncontested. Wheel
-        // events still deliver because they're hit-tested
-        // independently of hover.
+        // Wheel zoom + canvas cursor. MouseArea owns both: wheel
+        // events deliver here because it's the topmost hit at z:5,
+        // and cursorShape paints the open/closed hand based on the
+        // pan-drag state. Cards keep their own cursors when hovered
+        // because their MouseAreas grab the press for card-drag —
+        // but they share the same hand-style cursor here so the
+        // canvas reads consistently as a draggable surface.
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.NoButton
-            hoverEnabled: false
+            hoverEnabled: true
             z: 5
+            cursorShape: panHandler.active
+                ? Qt.ClosedHandCursor
+                : Qt.OpenHandCursor
             onWheel: (wheel) => {
                 wheel.accepted = true
                 const step = (wheel.angleDelta.y / 120) * 0.1
-                // wheel.x / wheel.y are in this MouseArea's local
-                // coords, which is the Flickable's contentItem
-                // (scaled-content-item space). Convert to viewport-
-                // local for _zoomAt, same as the +/- buttons.
                 const vx = wheel.x - flick.contentX
                 const vy = wheel.y - flick.contentY
                 root._zoomAt(Qt.point(vx, vy), root.zoom + step)
@@ -380,14 +376,6 @@ Item {
                 flick.contentX = Math.max(0, Math.min(maxX, _startX - translation.x))
                 flick.contentY = Math.max(0, Math.min(maxY, _startY - translation.y))
             }
-        }
-
-        // Open hand when hovering empty canvas, closed hand while
-        // panning. Cards have their own MouseAreas that override the
-        // cursor when hovered (pointer, then closed hand on drag),
-        // so this only paints the empty grid area.
-        HoverHandler {
-            cursorShape: panHandler.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         }
 
         // Deselect on tap of empty area. TapHandler doesn't fire if
