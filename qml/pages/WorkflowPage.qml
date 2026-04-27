@@ -904,6 +904,8 @@ Item {
                 onDeselectRequested: { editorContent.selectedIndex = -1 }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
                 onDeleteStepRequested: (i) => root._deleteStep(i)
+                onAddInnerStepRequested: (stepIdx, kind) => root._addInnerStep(stepIdx, kind)
+                onDeleteInnerStepRequested: (stepIdx, innerIdx) => root._deleteInnerStep(stepIdx, innerIdx)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }

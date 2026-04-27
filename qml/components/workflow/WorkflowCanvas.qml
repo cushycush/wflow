@@ -55,6 +55,11 @@ Item {
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
+    // Inner-step mutations on flow-control containers (when / unless
+    // / repeat). Routed by WorkflowPage to the same handlers the
+    // inspector uses.
+    signal addInnerStepRequested(int stepIndex, string kind)
+    signal deleteInnerStepRequested(int stepIndex, int innerIndex)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -487,6 +492,7 @@ Item {
                 readonly property var act: modelData
                 readonly property string stepId: modelData ? modelData.id : ""
                 readonly property string kind: modelData ? modelData.kind : "wait"
+                readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
                 readonly property color cardBg:
                     isSelected ? Theme.surface2 : Theme.surface
                 readonly property string status: {
@@ -772,6 +778,164 @@ Item {
                                         color: Theme.text2
                                         font.family: Theme.familyMono
                                         font.pixelSize: 9
+                                    }
+                                }
+                            }
+                        }
+
+                        // Inner-step strip for flow-control containers
+                        // (when / unless / repeat). Each child step is
+                        // a thin row with order number, kind icon, a
+                        // single-line summary, and a × delete. A
+                        // dashed +Add row at the bottom opens a kind
+                        // picker. Inner-of-inner editing past delete
+                        // is via the KDL escape hatch — nested
+                        // selection would need a path-based model
+                        // and isn't here yet.
+                        Column {
+                            id: innerStrip
+                            visible: cardItem.rawKind === "conditional"
+                                  || cardItem.rawKind === "repeat"
+                            width: parent.width
+                            spacing: 3
+                            topPadding: 4
+
+                            readonly property var inner: {
+                                const ra = cardItem.act ? cardItem.act.rawAction : null
+                                return (ra && ra.steps) ? ra.steps : []
+                            }
+
+                            Repeater {
+                                model: innerStrip.inner
+                                delegate: Rectangle {
+                                    width: parent.width
+                                    height: 26
+                                    radius: 5
+                                    color: innerHover.containsMouse ? Theme.surface3 : Theme.bg
+                                    border.color: Theme.lineSoft
+                                    border.width: 1
+                                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                    Row {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 8
+                                        anchors.rightMargin: 4
+                                        spacing: 6
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: String(model.index + 1).padStart(2, "0")
+                                            color: Theme.text3
+                                            font.family: Theme.familyMono
+                                            font.pixelSize: 9
+                                            width: 14
+                                        }
+                                        CategoryIcon {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            kind: _innerKindFor(modelData)
+                                            size: 14
+                                            hovered: false
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - 14 - 6 - 14 - 6 - 22 - 6
+                                            text: _innerSummary(modelData)
+                                            color: Theme.text2
+                                            font.family: Theme.familyBody
+                                            font.pixelSize: 10
+                                            elide: Text.ElideRight
+                                        }
+                                        Rectangle {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 18; height: 18; radius: 3
+                                            color: innerDelArea.containsMouse
+                                                ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                                : "transparent"
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "×"
+                                                color: innerDelArea.containsMouse ? Theme.err : Theme.text3
+                                                font.family: Theme.familyBody
+                                                font.pixelSize: 12
+                                            }
+                                            MouseArea {
+                                                id: innerDelArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.deleteInnerStepRequested(cardItem.stepIdx, model.index)
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: innerHover
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        propagateComposedEvents: true
+                                        onPressed: (mouse) => mouse.accepted = false
+                                    }
+                                }
+                            }
+
+                            // Add-inner pill — dashed border so it
+                            // reads as an empty drop zone rather than
+                            // an action card. Click opens the kind
+                            // picker.
+                            Rectangle {
+                                width: parent.width
+                                height: 22
+                                radius: 5
+                                color: addInnerArea.containsMouse ? Theme.surface3 : "transparent"
+                                border.color: Theme.lineSoft
+                                border.width: 1
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        text: "+"
+                                        color: cardItem.cardBg === Theme.surface2
+                                            ? Theme.accent : Theme.text2
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        text: "inner step"
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.5
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: addInnerArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: addInnerCanvasMenu.popup()
+                                }
+
+                                WfMenu {
+                                    id: addInnerCanvasMenu
+                                    Repeater {
+                                        model: [
+                                            { kind: "key",       label: "Key chord"    },
+                                            { kind: "type",      label: "Type text"    },
+                                            { kind: "click",     label: "Click"        },
+                                            { kind: "focus",     label: "Focus window" },
+                                            { kind: "wait",      label: "Wait"         },
+                                            { kind: "shell",     label: "Shell"        },
+                                            { kind: "notify",    label: "Notify"       },
+                                            { kind: "clipboard", label: "Clipboard"    },
+                                            { kind: "note",      label: "Note"         }
+                                        ]
+                                        delegate: WfMenuItem {
+                                            text: modelData.label
+                                            onTriggered: root.addInnerStepRequested(cardItem.stepIdx, modelData.kind)
+                                        }
                                     }
                                 }
                             }
@@ -1250,5 +1414,69 @@ Item {
             : (shaped.value || "")
         if (!s) return "(empty)"
         return s.length > 36 ? s.slice(0, 36) + "…" : s
+    }
+
+    // Map a raw KDL action kind (the strings used in actions.rs) to
+    // the shaped kind string the rest of the canvas / CategoryIcon
+    // expects. Inner steps inside containers carry the raw form, so
+    // we project here for display purposes.
+    function _shapedFromRaw(rawKind) {
+        switch (rawKind) {
+        case "wdo_type":            return "type"
+        case "wdo_key":
+        case "wdo_key_down":
+        case "wdo_key_up":          return "key"
+        case "wdo_click":
+        case "wdo_mouse_down":
+        case "wdo_mouse_up":        return "click"
+        case "wdo_mouse_move":      return "move"
+        case "wdo_scroll":          return "scroll"
+        case "wdo_activate_window": return "focus"
+        case "wdo_await_window":
+        case "delay":               return "wait"
+        case "shell":               return "shell"
+        case "notify":              return "notify"
+        case "clipboard":           return "clipboard"
+        case "note":                return "note"
+        case "repeat":              return "repeat"
+        case "conditional":         return "when"
+        case "include":             return "include"
+        case "use":                 return "use"
+        }
+        return "wait"
+    }
+
+    function _innerKindFor(step) {
+        const a = step ? step.action : null
+        return _shapedFromRaw(a ? a.kind : "")
+    }
+
+    function _innerSummary(step) {
+        const a = step ? step.action : null
+        if (!a) return ""
+        const k = a.kind
+        switch (k) {
+        case "wdo_type":            return a.text || "(empty)"
+        case "wdo_key":
+        case "wdo_key_down":
+        case "wdo_key_up":          return a.chord || ""
+        case "wdo_click":
+        case "wdo_mouse_down":
+        case "wdo_mouse_up":        return "button " + (a.button !== undefined ? a.button : 1)
+        case "wdo_mouse_move":      return "(" + (a.x || 0) + ", " + (a.y || 0) + ")"
+        case "wdo_scroll":          return "dx " + (a.dx || 0) + "  dy " + (a.dy || 0)
+        case "wdo_activate_window": return a.name || ""
+        case "wdo_await_window":    return a.name || ""
+        case "delay":               return (a.ms || 0) + " ms"
+        case "shell":               return (a.command || "").slice(0, 32)
+        case "notify":              return a.title || ""
+        case "clipboard":           return (a.text || "").slice(0, 28)
+        case "note":                return (a.text || "").slice(0, 28)
+        case "repeat":              return "× " + (a.count || 1)
+        case "conditional":         return (a.negate ? "unless" : "when")
+        case "include":             return a.path || ""
+        case "use":                 return a.name || ""
+        }
+        return ""
     }
 }
