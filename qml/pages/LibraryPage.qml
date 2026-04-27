@@ -343,6 +343,9 @@ Item {
                             width: parent.width - 6 - 14 - 8
                             placeholderText: "Search workflows…"
                             color: Theme.text
+                            placeholderTextColor: Theme.text3
+                            selectionColor: Theme.accentWash(0.4)
+                            selectedTextColor: Theme.text
                             font.family: Theme.familyBody
                             font.pixelSize: Theme.fontSm
                             background: Item {}
@@ -707,10 +710,15 @@ Item {
             height: visible ? 32 : 0
             radius: 6
             readonly property bool isCurrent: root.currentFolder === folderId
-            color: isCurrent
-                ? Theme.accentWash(0.16)
-                : (folderRowArea.containsMouse ? Theme.surface2 : "transparent")
+            color: dropTarget.containsDrag
+                ? Theme.accentWash(0.28)
+                : (isCurrent
+                    ? Theme.accentWash(0.16)
+                    : (folderRowArea.containsMouse ? Theme.surface2 : "transparent"))
+            border.color: dropTarget.containsDrag ? Theme.accent : "transparent"
+            border.width: dropTarget.containsDrag ? 1 : 0
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
             Row {
                 anchors.fill: parent
@@ -751,6 +759,23 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.currentFolder = folderId
             }
+
+            // Drop target — accepts library card drags. Empty
+            // string folder = top-level (clears the workflow's
+            // folder field); "All workflows" doesn't accept drops
+            // (it's a view filter, not a real bucket).
+            DropArea {
+                id: dropTarget
+                anchors.fill: parent
+                keys: folderId === "" ? [] : ["wflow/workflow-id"]
+                onDropped: (drop) => {
+                    const id = drop.getDataAsString("wflow/workflow-id")
+                    if (!id) return
+                    const target = (folderId === "__top__") ? "" : folderId
+                    libCtrl.set_folder(id, target)
+                    drop.accept()
+                }
+            }
         }
     }
 
@@ -774,6 +799,28 @@ Item {
             border.width: 1
         }
 
+        function _commit() {
+            const name = newFolderInput.text.trim()
+            if (name.length === 0) return
+            // Activate the folder filter so the user sees the empty
+            // state with a hint to move workflows in. Not persisted
+            // until a workflow lands here — folders are derived from
+            // workflows.toml meta.
+            root.currentFolder = name
+            if (root.folderList.indexOf(name) < 0) {
+                root.folderList = root.folderList.concat([name])
+            }
+            newFolderInput.text = ""
+            newFolderDialog.close()
+        }
+
+        // Reset whenever the dialog opens so leftover text doesn't
+        // greet the user on a re-open, and focus the input.
+        onOpened: {
+            newFolderInput.text = ""
+            newFolderInput.forceActiveFocus()
+        }
+
         contentItem: Item {
             anchors.fill: parent
             Column {
@@ -789,7 +836,7 @@ Item {
                     font.weight: Font.DemiBold
                 }
                 Text {
-                    text: "Folders live as a tag on each workflow — pick a name now and right-click any workflow to move it in."
+                    text: "Folders live as a tag on each workflow — pick a name now and drop any workflow on the folder to move it in."
                     color: Theme.text3
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontSm
@@ -810,9 +857,16 @@ Item {
                         anchors.rightMargin: 12
                         placeholderText: "Folder name"
                         color: Theme.text
+                        placeholderTextColor: Theme.text3
+                        selectionColor: Theme.accentWash(0.4)
+                        selectedTextColor: Theme.text
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
                         background: Item {}
+                        // Enter / Return submits — TextField fires
+                        // onAccepted when the input is in an
+                        // single-line + valid state.
+                        onAccepted: newFolderDialog._commit()
                     }
                 }
 
@@ -824,20 +878,7 @@ Item {
                     PrimaryButton {
                         text: "Create"
                         enabled: newFolderInput.text.trim().length > 0
-                        onClicked: {
-                            const name = newFolderInput.text.trim()
-                            if (name.length === 0) return
-                            // Activate the folder filter so the user
-                            // sees the empty state with a hint to
-                            // move workflows in. Folder is not yet
-                            // persisted (no workflows reference it).
-                            root.currentFolder = name
-                            if (root.folderList.indexOf(name) < 0) {
-                                root.folderList = root.folderList.concat([name])
-                            }
-                            newFolderInput.text = ""
-                            newFolderDialog.close()
-                        }
+                        onClicked: newFolderDialog._commit()
                     }
                     SecondaryButton {
                         text: "Cancel"

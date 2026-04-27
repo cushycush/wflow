@@ -35,8 +35,13 @@ Item {
             readonly property color catColor: Theme.catFor(
                 wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
 
-            x: (index % root.cols) * (root.cardW + root.gap)
-            y: Math.floor(index / root.cols) * (root.cardH + root.gap)
+            // Grid x/y as bindings so resnap-after-drag is just a
+            // re-binding of the same expressions.
+            readonly property real gridX: (index % root.cols) * (root.cardW + root.gap)
+            readonly property real gridY: Math.floor(index / root.cols) * (root.cardH + root.gap)
+
+            x: gridX
+            y: gridY
             width: root.cardW
             height: root.cardH
             radius: Theme.radiusMd
@@ -45,8 +50,22 @@ Item {
                 ? Theme.wash(catColor, 0.42)
                 : Theme.lineSoft
             border.width: 1
+            opacity: cardArea.drag.active ? 0.55 : 1
+            z: cardArea.drag.active ? 10 : 0
             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+            Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+
+            // Drag payload: workflow id + a "Workflow" key so folder-
+            // row DropAreas can filter for it specifically. dragType
+            // Internal keeps the drag inside the app — the LibraryPage
+            // folder rail picks it up.
+            Drag.active: cardArea.drag.active
+            Drag.dragType: Drag.Internal
+            Drag.keys: ["wflow/workflow-id"]
+            Drag.hotSpot.x: card.width / 2
+            Drag.hotSpot.y: card.height / 2
+            Drag.mimeData: { "wflow/workflow-id": wf.id }
 
             activeFocusOnTab: true
             Keys.onReturnPressed: root.openWorkflow(card.wf.id)
@@ -62,8 +81,10 @@ Item {
                 id: cardArea
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+                drag.target: card
+                drag.threshold: 8
                 onClicked: (mouse) => {
                     card.forceActiveFocus()
                     if (mouse.button === Qt.RightButton) {
@@ -73,6 +94,18 @@ Item {
                     } else {
                         root.openWorkflow(card.wf.id)
                     }
+                }
+                onReleased: {
+                    // drag.target moves card.x / card.y away from the
+                    // grid bindings. Whether the drop landed on a
+                    // folder or not, restore the bindings so the
+                    // card snaps back to its grid slot. (If the drop
+                    // moved the workflow into another folder it'll
+                    // be filtered out of this view on the next
+                    // refresh and the delegate will be torn down,
+                    // making this a no-op.)
+                    card.x = Qt.binding(() => card.gridX)
+                    card.y = Qt.binding(() => card.gridY)
                 }
             }
 
