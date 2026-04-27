@@ -249,6 +249,13 @@ Item {
     // canvas's positions map so the new card lands where the user
     // dropped it, AND clears the auto-selection so the inspector
     // doesn't slide in and shove the canvas around mid-drop.
+    //
+    // Position is written BEFORE the workflow mutation. Otherwise
+    // _placeNewSteps fires synchronously on the actions-changed
+    // signal, sees no entry for the new id, and assigns it a
+    // stack-below position; the user's drop coordinate then
+    // overwrites that and the cardItem animates away from origin
+    // and back to the drop spot.
     function _addStepAt(kind, x, y) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
@@ -260,12 +267,13 @@ Item {
             action: _defaultActionForKind(kind)
         })
         wf.steps = steps
-        root.workflow = wf
-        // Intentionally NO selectedIndex change — the user dropped
-        // the card to place it, not to immediately edit it.
+        // Pre-seed the position so _placeNewSteps skips this id.
         const next = Object.assign({}, canvasView.positions)
         next[id] = { x: Math.max(0, x), y: Math.max(0, y) }
         canvasView.positions = next
+        // Intentionally NO selectedIndex change — the user dropped
+        // the card to place it, not to immediately edit it.
+        root.workflow = wf
         _scheduleSave()
     }
 

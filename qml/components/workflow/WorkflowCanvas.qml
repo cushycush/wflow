@@ -155,9 +155,11 @@ Item {
     }
 
     // Zoom around a viewport-local anchor so the world coord under
-    // the cursor stays under the cursor through the change. Used by
-    // the wheel handler — instant, no animation, so rapid wheel
-    // ticks feel responsive.
+    // the cursor stays under the cursor through the change. Both
+    // wheel and button paths funnel here — Behaviors on zoom +
+    // contentX/Y do the smoothing, so wheel ticks compose naturally
+    // (each new tick interrupts the in-flight animation toward a
+    // new target rather than queueing).
     function _zoomAt(viewportPoint, requested) {
         const z = Math.max(minZoom, Math.min(maxZoom, requested))
         if (z === zoom) return
@@ -172,48 +174,26 @@ Item {
                                               wy * z - viewportPoint.y))
     }
 
-    // Step zoom from the viewport center, animated. Used by the
-    // floating +/- buttons. Always snaps to the nearest 10% step so
-    // repeated clicks land at clean 60% / 70% / … values regardless
-    // of where wheel zoom left things.
+    // Step zoom from the viewport center. Snaps to the nearest 10%
+    // step so repeated +/- clicks land at clean 60% / 70% / … values
+    // regardless of where wheel zoom left things.
     function _zoomBy(delta) {
         const cur = Math.round(zoom * 10) / 10
-        const z = Math.max(minZoom, Math.min(maxZoom, cur + delta))
-        if (Math.abs(z - zoom) < 0.001) return
-        const center = Qt.point(flick.width / 2, flick.height / 2)
-        const wx = (center.x + flick.contentX) / zoom
-        const wy = (center.y + flick.contentY) / zoom
-        const newCW = root.contentW * z
-        const newCH = root.contentH * z
-        const tcx = Math.max(0, Math.min(Math.max(0, newCW - flick.width),
-                                         wx * z - center.x))
-        const tcy = Math.max(0, Math.min(Math.max(0, newCH - flick.height),
-                                         wy * z - center.y))
-        _animateZoomTo(z, tcx, tcy)
+        _zoomAt(Qt.point(flick.width / 2, flick.height / 2), cur + delta)
     }
 
-    // Drive zoom + pan together as a single animation so the
-    // viewport doesn't jitter on Tidy / +/- clicks. Wheel zoom
-    // sets these properties instantly and skips the animation.
+    // Set zoom + pan in one shot. Behaviors handle the animation.
     function _animateZoomTo(newZoom, newCX, newCY) {
-        if (Theme.reduceMotion) {
-            zoom = newZoom
-            flick.contentX = newCX
-            flick.contentY = newCY
-            return
-        }
-        zoomAnim.stop()
-        zoomP.from = zoom;             zoomP.to = newZoom
-        cxP.from = flick.contentX;     cxP.to = newCX
-        cyP.from = flick.contentY;     cyP.to = newCY
-        zoomAnim.start()
+        zoom = newZoom
+        flick.contentX = newCX
+        flick.contentY = newCY
     }
 
-    ParallelAnimation {
-        id: zoomAnim
-        PropertyAnimation { id: zoomP; target: root;  property: "zoom";     duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
-        PropertyAnimation { id: cxP;   target: flick; property: "contentX"; duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
-        PropertyAnimation { id: cyP;   target: flick; property: "contentY"; duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+    // Smooth animation on zoom — both wheel and button paths route
+    // changes through here, so all zoom transitions feel the same.
+    Behavior on zoom {
+        enabled: !Theme.reduceMotion
+        NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
     }
 
     // Place any newly-added steps below the existing layout. Existing
@@ -331,6 +311,21 @@ Item {
         // wheel + scrollbars still scroll the contentItem while pan
         // is unambiguously handled by the DragHandler.
         interactive: false
+
+        // Animate contentX / contentY together with the zoom Behavior
+        // so the cursor anchor stays correct mid-zoom (zoom and
+        // contentX have to interpolate at the same fraction of
+        // progress, otherwise the world coord under the cursor
+        // drifts during the animation). Disabled while panning, so
+        // drag-pan stays instant.
+        Behavior on contentX {
+            enabled: !Theme.reduceMotion && !panHandler.active
+            NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+        }
+        Behavior on contentY {
+            enabled: !Theme.reduceMotion && !panHandler.active
+            NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
+        }
 
         // Plain wheel zooms with the cursor as anchor.
         MouseArea {
