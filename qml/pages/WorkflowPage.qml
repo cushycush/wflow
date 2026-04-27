@@ -184,8 +184,8 @@ Item {
     function _commitOption(stepIndex, path, value) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        const step = steps[stepIndex]
+        const step = _resolveStep(steps, stepIndex)
+        if (!step) return
         if (path === "enabled") {
             if (step.enabled === value) return
             step.enabled = value
@@ -352,17 +352,29 @@ Item {
         _scheduleSave()
     }
 
+    // Resolve the step being edited from a (parent, inner) pair. If
+    // selectedInnerIndex is < 0, returns the top-level step; otherwise
+    // walks into the parent's action.steps[innerIndex]. Returns null
+    // if either coordinate is out of range.
+    function _resolveStep(steps, stepIndex) {
+        if (stepIndex < 0 || stepIndex >= steps.length) return null
+        const inner = editorContent.selectedInnerIndex
+        if (inner < 0) return steps[stepIndex]
+        const parent = steps[stepIndex]
+        if (!parent.action || !Array.isArray(parent.action.steps)) return null
+        if (inner >= parent.action.steps.length) return null
+        return parent.action.steps[inner]
+    }
+
     function _commitStepEdit(stepIndex, newPrimary) {
-        // Clone the whole workflow so the QML binding system notices the
-        // change; mutating a nested array in place doesn't always trigger.
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        const oldAction = steps[stepIndex].action || {}
+        const target = _resolveStep(steps, stepIndex)
+        if (!target) return
+        const oldAction = target.action || {}
         const newAction = _mutateAction(oldAction, newPrimary)
-        // Noop when the helper rejected the edit (invalid int, etc).
         if (JSON.stringify(newAction) === JSON.stringify(oldAction)) return
-        steps[stepIndex].action = newAction
+        target.action = newAction
         wf.steps = steps
         root.workflow = wf
         _scheduleSave()
@@ -402,10 +414,9 @@ Item {
     function _commitCondition(stepIndex, newCond) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        const action = steps[stepIndex].action
-        if (!action || action.kind !== "conditional") return
-        action.cond = newCond
+        const step = _resolveStep(steps, stepIndex)
+        if (!step || !step.action || step.action.kind !== "conditional") return
+        step.action.cond = newCond
         wf.steps = steps
         root.workflow = wf
         _scheduleSave()
@@ -414,11 +425,10 @@ Item {
     function _commitNegate(stepIndex, negate) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = wf.steps || []
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        const action = steps[stepIndex].action
-        if (!action || action.kind !== "conditional") return
-        if ((action.negate === true) === negate) return
-        action.negate = negate
+        const step = _resolveStep(steps, stepIndex)
+        if (!step || !step.action || step.action.kind !== "conditional") return
+        if ((step.action.negate === true) === negate) return
+        step.action.negate = negate
         wf.steps = steps
         root.workflow = wf
         _scheduleSave()
@@ -441,6 +451,51 @@ Item {
         })
         wf.steps = steps
         root.workflow = wf
+        _scheduleSave()
+    }
+
+    // Drag a top-level card onto a container → reparent: pull the
+    // dragged step out of the top-level sequence and append to the
+    // target container's inner steps. Step.id is preserved so its
+    // existing canvas position entry, when present, is cleaned up
+    // (no longer top-level → no canvas card).
+    function _moveStepToContainer(fromIndex, containerIndex) {
+        if (fromIndex === containerIndex) return
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        if (fromIndex < 0 || fromIndex >= steps.length) return
+        if (containerIndex < 0 || containerIndex >= steps.length) return
+        const containerStep = steps[containerIndex]
+        const containerAction = containerStep.action
+        if (!containerAction) return
+        const k = containerAction.kind
+        if (k !== "conditional" && k !== "repeat") return
+        if (!Array.isArray(containerAction.steps)) containerAction.steps = []
+
+        // Remove from top-level. containerStep is still a live
+        // reference into the post-splice array so the push lands on
+        // the right object regardless of index shift.
+        const [moved] = steps.splice(fromIndex, 1)
+        containerAction.steps.push(moved)
+
+        wf.steps = steps
+        root.workflow = wf
+
+        // Drop the now-orphan canvas position entry — the step is
+        // no longer a top-level cardItem and won't render as one.
+        if (canvasView.positions[moved.id]) {
+            const next = Object.assign({}, canvasView.positions)
+            delete next[moved.id]
+            canvasView.positions = next
+        }
+
+        // Resolve selection: select the container in its new index,
+        // and focus the newly-arrived inner step.
+        const newContainerIdx = fromIndex < containerIndex
+            ? containerIndex - 1 : containerIndex
+        editorContent.selectedIndex = newContainerIdx
+        editorContent.selectedInnerIndex = containerAction.steps.length - 1
+
         _scheduleSave()
     }
 
@@ -765,22 +820,48 @@ Item {
             height: parent.height - tb.height
 
             // -1 means "no step selected" → inspector slides out and
-            // the canvas takes the full width. Auto-selects step 0
-            // when a workflow with steps loads.
+            // the canvas takes the full width. selectedInnerIndex is
+            // -1 when the parent itself is selected; >= 0 means the
+            // user clicked an inner mini-row of a flow-control
+            // container, and the inspector edits the inner step.
             property int selectedIndex: -1
+            property int selectedInnerIndex: -1
             readonly property bool inspectorOpen: selectedIndex >= 0
 
-            // The selected step's shaped action — what the inspector
-            // panel binds to.
-            readonly property var selectedAction:
-                (selectedIndex >= 0 && selectedIndex < (root.actions || []).length)
-                    ? root.actions[selectedIndex] : null
-            readonly property var prevAction:
-                (selectedIndex > 0 && (root.actions || []).length > 0)
-                    ? root.actions[selectedIndex - 1] : null
-            readonly property var nextAction:
-                (selectedIndex >= 0 && selectedIndex + 1 < (root.actions || []).length)
-                    ? root.actions[selectedIndex + 1] : null
+            // Walk into the workflow's nested step structure and shape
+            // the resulting Step the same way root.actions shapes top-
+            // level steps. selectedInnerIndex < 0 → top-level lookup.
+            readonly property var selectedAction: {
+                const list = root.actions || []
+                if (selectedIndex < 0 || selectedIndex >= list.length) return null
+                if (selectedInnerIndex < 0) return list[selectedIndex]
+                const parent = root.workflow.steps[selectedIndex]
+                if (!parent || !parent.action || !Array.isArray(parent.action.steps)) return null
+                if (selectedInnerIndex >= parent.action.steps.length) return null
+                return root._stepToAction(parent.action.steps[selectedInnerIndex])
+            }
+            readonly property var prevAction: {
+                if (selectedIndex < 0) return null
+                if (selectedInnerIndex >= 0) {
+                    const parent = root.workflow.steps[selectedIndex]
+                    if (!parent || !parent.action || !Array.isArray(parent.action.steps)) return null
+                    if (selectedInnerIndex <= 0) return null
+                    return root._stepToAction(parent.action.steps[selectedInnerIndex - 1])
+                }
+                if (selectedIndex <= 0 || (root.actions || []).length === 0) return null
+                return root.actions[selectedIndex - 1]
+            }
+            readonly property var nextAction: {
+                if (selectedIndex < 0) return null
+                if (selectedInnerIndex >= 0) {
+                    const parent = root.workflow.steps[selectedIndex]
+                    if (!parent || !parent.action || !Array.isArray(parent.action.steps)) return null
+                    if (selectedInnerIndex + 1 >= parent.action.steps.length) return null
+                    return root._stepToAction(parent.action.steps[selectedInnerIndex + 1])
+                }
+                if (selectedIndex + 1 >= (root.actions || []).length) return null
+                return root.actions[selectedIndex + 1]
+            }
 
             // Keep selectedIndex valid as the action list changes; do
             // NOT auto-select when it's -1. Auto-selecting was popping
@@ -793,8 +874,20 @@ Item {
                 const n = (root.actions || []).length
                 if (n === 0) {
                     selectedIndex = -1
-                } else if (selectedIndex >= n) {
+                    selectedInnerIndex = -1
+                    return
+                }
+                if (selectedIndex >= n) {
                     selectedIndex = n - 1
+                    selectedInnerIndex = -1
+                }
+                if (selectedInnerIndex >= 0) {
+                    const parent = root.workflow.steps[selectedIndex]
+                    const innerLen = (parent && parent.action && Array.isArray(parent.action.steps))
+                        ? parent.action.steps.length : 0
+                    if (selectedInnerIndex >= innerLen) {
+                        selectedInnerIndex = -1
+                    }
                 }
             }
             Connections {
@@ -875,8 +968,22 @@ Item {
                     allActions: root.actions
                     onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                     onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
-                    onCloseRequested: { editorContent.selectedIndex = -1 }
-                    onSelectStep: (i) => { editorContent.selectedIndex = i }
+                    onCloseRequested: {
+                        editorContent.selectedIndex = -1
+                        editorContent.selectedInnerIndex = -1
+                    }
+                    onSelectStep: (i) => {
+                        // Reuse: prev/next click → navigate scope. If
+                        // we're on an inner step, jump within parent's
+                        // inner sequence; otherwise move along the
+                        // top-level chain.
+                        if (editorContent.selectedInnerIndex >= 0) {
+                            editorContent.selectedInnerIndex = i
+                        } else {
+                            editorContent.selectedIndex = i
+                            editorContent.selectedInnerIndex = -1
+                        }
+                    }
                     onPredecessorChosen: (otherIdx) => root._makePredecessorOf(editorContent.selectedIndex, otherIdx)
                     onSuccessorChosen: (otherIdx) => root._makeSuccessorOf(editorContent.selectedIndex, otherIdx)
                     onConditionEdited: (stepIndex, cond) => root._commitCondition(stepIndex, cond)
@@ -899,13 +1006,25 @@ Item {
                 anchors.bottomMargin: 24
                 actions: root.actions
                 selectedIndex: editorContent.selectedIndex
+                selectedInnerIndex: editorContent.selectedInnerIndex
                 stepStatuses: root.stepStatuses
-                onSelectStep: (i) => { editorContent.selectedIndex = i }
-                onDeselectRequested: { editorContent.selectedIndex = -1 }
+                onSelectStep: (i) => {
+                    editorContent.selectedIndex = i
+                    editorContent.selectedInnerIndex = -1
+                }
+                onDeselectRequested: {
+                    editorContent.selectedIndex = -1
+                    editorContent.selectedInnerIndex = -1
+                }
+                onSelectInnerStep: (parentIdx, innerIdx) => {
+                    editorContent.selectedIndex = parentIdx
+                    editorContent.selectedInnerIndex = innerIdx
+                }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
                 onDeleteStepRequested: (i) => root._deleteStep(i)
                 onAddInnerStepRequested: (stepIdx, kind) => root._addInnerStep(stepIdx, kind)
                 onDeleteInnerStepRequested: (stepIdx, innerIdx) => root._deleteInnerStep(stepIdx, innerIdx)
+                onMoveStepToContainerRequested: (fromIdx, toIdx) => root._moveStepToContainer(fromIdx, toIdx)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }

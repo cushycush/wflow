@@ -30,6 +30,7 @@ Item {
 
     property var actions: []
     property int selectedIndex: 0
+    property int selectedInnerIndex: -1
     property var stepStatuses: ({})
 
     // Reactive position / size stores. Each card writes into these
@@ -71,6 +72,13 @@ Item {
     // inspector uses.
     signal addInnerStepRequested(int stepIndex, string kind)
     signal deleteInnerStepRequested(int stepIndex, int innerIndex)
+    // Move an existing top-level step into a container's inner
+    // sequence. Page does the splice + push and refreshes selection.
+    signal moveStepToContainerRequested(int fromIndex, int containerIndex)
+    // Click an inner mini-row → select that inner step in the
+    // inspector. Pairs with editorContent.selectedInnerIndex on
+    // WorkflowPage.
+    signal selectInnerStep(int parentIndex, int innerIndex)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -627,10 +635,16 @@ Item {
                     height: Math.max(root.nodeMinH - 4, cardBody.implicitHeight + 24)
                     radius: 14
                     color: cardItem.cardBg
+                    // Containers carry a tinted border (their pill
+                    // colour) so when / unless / repeat read as
+                    // structural blocks at a glance — ordinary action
+                    // cards keep the neutral hairline.
                     border.color: cardItem.isSelected
                         ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
-                        : (dragArea.containsMouse ? Theme.line : Theme.lineSoft)
-                    border.width: cardItem.isSelected ? 2 : 1
+                        : (cardItem.isContainer
+                            ? Theme.catFor(cardItem.kind)
+                            : (dragArea.containsMouse ? Theme.line : Theme.lineSoft))
+                    border.width: cardItem.isSelected ? 2 : (cardItem.isContainer ? 1.5 : 1)
 
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
@@ -669,15 +683,32 @@ Item {
                                 const next = Object.assign({}, root.positions)
                                 next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
                                 root.positions = next
+                                // Highlight any container under the card's
+                                // centre. Skip self so a container being
+                                // dragged doesn't claim itself as a target.
+                                const cx = cardItem.x + cardItem.width / 2
+                                const cy = cardItem.y + cardItem.height / 2
+                                const idx = _containerAt(cx, cy)
+                                root.hoveredContainerIndex =
+                                    (idx === model.index) ? -1 : idx
                             }
                         }
                         onReleased: {
                             if (_wasDragged) {
-                                // Final commit — same shape; the live
-                                // updates above should have already
-                                // landed on the last frame, but write
-                                // it once more so the saved state is
-                                // unambiguous.
+                                // Card centre over a different container
+                                // → reparent: pull it out of the top-
+                                // level sequence and append to that
+                                // container's inner steps.
+                                const cx = cardItem.x + cardItem.width / 2
+                                const cy = cardItem.y + cardItem.height / 2
+                                const targetIdx = _containerAt(cx, cy)
+                                root.hoveredContainerIndex = -1
+                                if (targetIdx >= 0 && targetIdx !== model.index) {
+                                    root.moveStepToContainerRequested(
+                                        model.index, targetIdx)
+                                    return
+                                }
+                                // Otherwise commit the new position.
                                 const next = Object.assign({}, root.positions)
                                 next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
                                 root.positions = next
@@ -932,13 +963,19 @@ Item {
                             Repeater {
                                 model: innerStrip.inner
                                 delegate: Rectangle {
+                                    readonly property bool isInnerSelected:
+                                        root.selectedIndex === cardItem.stepIdx
+                                        && root.selectedInnerIndex === model.index
                                     width: parent.width
                                     height: 26
                                     radius: 5
-                                    color: innerHover.containsMouse ? Theme.surface3 : Theme.bg
-                                    border.color: Theme.lineSoft
-                                    border.width: 1
+                                    color: isInnerSelected
+                                        ? Theme.accentWash(0.18)
+                                        : (innerHover.containsMouse ? Theme.surface3 : Theme.bg)
+                                    border.color: isInnerSelected ? Theme.accent : Theme.lineSoft
+                                    border.width: isInnerSelected ? 1.5 : 1
                                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
                                     Row {
                                         anchors.fill: parent
@@ -996,8 +1033,8 @@ Item {
                                         id: innerHover
                                         anchors.fill: parent
                                         hoverEnabled: true
-                                        propagateComposedEvents: true
-                                        onPressed: (mouse) => mouse.accepted = false
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.selectInnerStep(cardItem.stepIdx, model.index)
                                     }
                                 }
                             }
