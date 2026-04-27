@@ -273,6 +273,13 @@ Item {
                 }
 
                 function _syncFromPositions() {
+                    // Don't fight the drag: while the user is moving
+                    // this card, x/y are owned by Qt's drag system.
+                    // The drag handler writes positions on every step
+                    // so wires track live; if we re-applied positions
+                    // back to x/y here we'd just round-trip identical
+                    // values and add jitter.
+                    if (dragArea.drag.active) return
                     const p = root.positions[stepId]
                     if (p) { x = p.x; y = p.y }
                 }
@@ -336,9 +343,26 @@ Item {
                         drag.threshold: 4
                         property bool _wasDragged: false
                         onPressed: _wasDragged = false
-                        onPositionChanged: if (drag.active) _wasDragged = true
+                        // Write positions on every drag step (not just
+                        // on release) so wires track the card live.
+                        // The map is small enough that an Object.assign
+                        // per mouse move is negligible at typical
+                        // workflow sizes.
+                        onPositionChanged: {
+                            if (drag.active) {
+                                _wasDragged = true
+                                const next = Object.assign({}, root.positions)
+                                next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
+                                root.positions = next
+                            }
+                        }
                         onReleased: {
                             if (_wasDragged) {
+                                // Final commit — same shape; the live
+                                // updates above should have already
+                                // landed on the last frame, but write
+                                // it once more so the saved state is
+                                // unambiguous.
                                 const next = Object.assign({}, root.positions)
                                 next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
                                 root.positions = next
