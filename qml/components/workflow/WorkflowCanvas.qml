@@ -221,7 +221,7 @@ Item {
                         // no single primary string.
                         GradientPill {
                             kind: card.parent.kind
-                            text: _summary(card.parent.act)
+                            text: _pillText(card.parent.act)
                             icon: Theme.catGlyph(card.parent.kind)
                             width: parent.width
                         }
@@ -237,7 +237,9 @@ Item {
                             width: parent.width
                             clip: true
 
-                            readonly property var chipModel: _chipsFor(card.parent.act, modelData)
+                            readonly property var chipModel:
+                                _chipsFor(card.parent.act ? card.parent.act.rawAction : null,
+                                          card.parent.act)
 
                             Repeater {
                                 model: parent.chipModel
@@ -283,33 +285,17 @@ Item {
         return out
     }
 
-    // Squash the action down to a one-liner suitable for the pill.
-    // A real implementation would reuse the engine's describe() but
-    // we don't have a QML-side mirror of that yet; this is enough to
-    // make the canvas legible in the meantime.
-    function _summary(act) {
-        if (!act) return ""
-        switch (act.kind) {
-        case "key":       return act.chord || "(empty chord)"
-        case "type":      return (act.text || "").slice(0, 32) || "(empty)"
-        case "click":     return "button " + (act.button !== undefined ? act.button : 1)
-        case "mouse-down":
-        case "mouse-up":  return "button " + (act.button !== undefined ? act.button : 1)
-        case "key-down":
-        case "key-up":    return act.chord || ""
-        case "move":      return "(" + (act.x || 0) + ", " + (act.y || 0) + ")"
-        case "scroll":    return "dx " + (act.dx || 0) + "  dy " + (act.dy || 0)
-        case "focus":     return act.name || ""
-        case "wait-window": return (act.name || "") + "  ·  " + (act.timeout_ms || 0) + "ms"
-        case "wait":      return (act.ms || 0) + " ms"
-        case "shell":     return (act.command || "").slice(0, 32) || "(empty)"
-        case "notify":    return act.title || ""
-        case "clipboard": return (act.text || "").slice(0, 28) || ""
-        case "note":      return (act.text || "").slice(0, 28) || ""
-        case "repeat":    return "× " + (act.count || 1) + " · " + (act.steps ? act.steps.length : 0) + " steps"
-        case "when":
-        case "unless":    return (act.steps ? act.steps.length : 0) + " inner steps"
-        }
-        return ""
+    // The shaped action already carries a primary-value string —
+    // `rawPrimary` for editable kinds, `value` for read-only ones —
+    // so the pill just reuses what the inspector edits. Truncation
+    // keeps long shell commands / typed text from bleeding past the
+    // card.
+    function _pillText(shaped) {
+        if (!shaped) return ""
+        const s = shaped.editable
+            ? (shaped.rawPrimary || "")
+            : (shaped.value || "")
+        if (!s) return "(empty)"
+        return s.length > 36 ? s.slice(0, 36) + "…" : s
     }
 }

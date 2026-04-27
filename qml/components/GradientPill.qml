@@ -30,10 +30,11 @@ Rectangle {
     implicitWidth: row.implicitWidth + 24
     radius: 8
 
-    // Vertical gradient — Qt Quick's Rectangle.gradient is top-to-
-    // bottom only. We tilt the start stop a touch toward the lighter
-    // end so the pill reads with a subtle highlight at the top.
+    // Left-to-right gradient. Qt Quick's Gradient defaults to vertical;
+    // setting `orientation` to Horizontal aligns with the mockup, where
+    // pills shade from light to deep across their length.
     gradient: Gradient {
+        orientation: Gradient.Horizontal
         GradientStop { position: 0.0; color: root.grad[0] }
         GradientStop { position: 1.0; color: root.grad[1] }
     }
