@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.LocalStorage
 import Wflow
 
 // Workflow editor.
@@ -410,6 +411,76 @@ Item {
         onTriggered: if (root.saveState === "saved") root.saveState = "idle"
     }
 
+    // ============ Card-position persistence ============
+    // Canvas card positions are stored in SQLite via QtQuick.
+    // LocalStorage so they survive reloads. Keyed by (workflowId,
+    // stepId) — if a step's id regenerates on KDL roundtrip the
+    // saved position becomes orphaned and the card falls back to the
+    // default placement, which is acceptable until the stable-id
+    // fix lands. Save fires on canvas positions-change (debounced
+    // 400ms) and load runs after each workflow_jsonChanged.
+    property var _positionsDb: null
+
+    function _positionsDbInstance() {
+        if (!_positionsDb) {
+            _positionsDb = LocalStorage.openDatabaseSync(
+                "wflow_positions", "1.0", "Card positions", 1000000)
+            _positionsDb.transaction(function(tx) {
+                tx.executeSql("CREATE TABLE IF NOT EXISTS positions ("
+                    + "wf_id TEXT NOT NULL, step_id TEXT NOT NULL, "
+                    + "x REAL NOT NULL, y REAL NOT NULL, "
+                    + "PRIMARY KEY(wf_id, step_id))")
+            })
+        }
+        return _positionsDb
+    }
+
+    function _loadPositions() {
+        if (!root.workflowId || root.workflowId.length === 0) return
+        const result = {}
+        _positionsDbInstance().transaction(function(tx) {
+            const rs = tx.executeSql(
+                "SELECT step_id, x, y FROM positions WHERE wf_id = ?",
+                [root.workflowId])
+            for (let i = 0; i < rs.rows.length; i++) {
+                const r = rs.rows.item(i)
+                result[r.step_id] = { x: r.x, y: r.y }
+            }
+        })
+        if (Object.keys(result).length > 0) {
+            canvasView.positions = result
+        }
+    }
+
+    function _savePositions() {
+        if (!root.workflowId || root.workflowId.length === 0) return
+        const positions = canvasView.positions || {}
+        _positionsDbInstance().transaction(function(tx) {
+            tx.executeSql("DELETE FROM positions WHERE wf_id = ?",
+                [root.workflowId])
+            for (const id in positions) {
+                const p = positions[id]
+                if (!p) continue
+                tx.executeSql(
+                    "INSERT INTO positions(wf_id, step_id, x, y) VALUES (?, ?, ?, ?)",
+                    [root.workflowId, id, p.x, p.y])
+            }
+        })
+    }
+
+    Timer { id: positionsSaveTimer; interval: 400; repeat: false
+        onTriggered: root._savePositions()
+    }
+
+    Connections {
+        target: canvasView
+        function onPositionsChanged() {
+            if (root.workflowId && root.workflowId.length > 0) {
+                positionsSaveTimer.restart()
+            }
+        }
+    }
+
     onWorkflowIdChanged: _reload()
     Component.onCompleted: _reload()
 
@@ -446,6 +517,11 @@ Item {
             } catch (e) {
                 root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
             }
+            // Restore saved card positions for this workflow. Deferred
+            // via Qt.callLater so the canvas's _placeNewSteps has run
+            // and seeded defaults — _loadPositions then overwrites
+            // them where a saved entry exists.
+            Qt.callLater(root._loadPositions)
         }
         function onRunningChanged() {
             // Clear previous statuses at the start of a fresh run so stale
