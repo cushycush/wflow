@@ -32,10 +32,21 @@ Item {
     property int selectedIndex: 0
     property var stepStatuses: ({})
 
-    // Reactive position / height stores. Each card writes into these
-    // on drag-release and on height-change; wires read from them.
+    // Reactive position / size stores. Each card writes into these
+    // on drag-release and on size-change; wires + hit-tests read
+    // from them. Width is per-card so containers (which are wider
+    // than action cards) get correct wire endpoints + drop bounds.
     property var positions: ({})    // { [id]: {x, y} }
     property var cardHeights: ({})  // { [id]: number }
+    property var cardWidths: ({})   // { [id]: number }
+
+    // Width a given step should render at — derived from the shaped
+    // action's rawKind. Containers are wider so the inner-step drop
+    // zone has a meaningful visual footprint.
+    function _widthForKind(rawKind) {
+        return (rawKind === "conditional" || rawKind === "repeat")
+            ? containerW : nodeW
+    }
 
     // "curve" (default Bezier) | "ortho" (straight segments, hard
     // 90° corners). Doesn't affect the marching-dash animation —
@@ -67,6 +78,7 @@ Item {
     signal successorChosen(int stepIndex, int otherIndex)
 
     readonly property int nodeW: 260
+    readonly property int containerW: 360
     readonly property int nodeMinH: 132
     readonly property int gap: 36
     // canvasOrigin centres the spawn area inside the 12k canvas
@@ -99,7 +111,7 @@ Item {
         let x = paddingLeft
         for (let i = 0; i < list.length; i++) {
             next[list[i].id] = { x: x, y: paddingTop }
-            x += nodeW + gap
+            x += _widthForKind(list[i].rawKind) + gap
         }
         positions = next
         Qt.callLater(_zoomToFit)
@@ -140,9 +152,10 @@ Item {
             const p = positions[list[i].id]
             if (!p) continue
             const h = cardHeights[list[i].id] || nodeMinH
+            const w = cardWidths[list[i].id] || _widthForKind(list[i].rawKind)
             minX = Math.min(minX, p.x)
             minY = Math.min(minY, p.y)
-            maxX = Math.max(maxX, p.x + nodeW)
+            maxX = Math.max(maxX, p.x + w)
             maxY = Math.max(maxY, p.y + h)
             any = true
         }
@@ -266,8 +279,9 @@ Item {
             if (a.rawKind !== "conditional" && a.rawKind !== "repeat") continue
             const p = root.positions[a.id]
             if (!p) continue
+            const w = root.cardWidths[a.id] || _widthForKind(a.rawKind)
             const h = root.cardHeights[a.id] || nodeMinH
-            if (worldX >= p.x && worldX <= p.x + nodeW
+            if (worldX >= p.x && worldX <= p.x + w
                 && worldY >= p.y && worldY <= p.y + h) {
                 return i
             }
@@ -326,7 +340,9 @@ Item {
         const list = root.actions || []
         for (let i = 0; i < list.length; i++) {
             const p = positions[list[i].id]
-            if (p) mx = Math.max(mx, p.x + nodeW + paddingLeft)
+            if (!p) continue
+            const w = cardWidths[list[i].id] || _widthForKind(list[i].rawKind)
+            mx = Math.max(mx, p.x + w + paddingLeft)
         }
         return mx
     }
@@ -452,7 +468,11 @@ Item {
                     readonly property var toPos: root.positions[toId]
                     readonly property real fromH: root.cardHeights[fromId] || root.nodeMinH
                     readonly property real toH: root.cardHeights[toId] || root.nodeMinH
-                    readonly property var route: _routeWire(fromPos, toPos, fromH, toH)
+                    readonly property real fromW: root.cardWidths[fromId]
+                        || _widthForKind(root.actions[index] ? root.actions[index].rawKind : "")
+                    readonly property real toW: root.cardWidths[toId]
+                        || _widthForKind(root.actions[index + 1] ? root.actions[index + 1].rawKind : "")
+                    readonly property var route: _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
 
                     visible: fromPos !== undefined && toPos !== undefined
                     anchors.fill: parent
@@ -517,7 +537,7 @@ Item {
 
             delegate: Item {
                 id: cardItem
-                width: root.nodeW
+                width: cardItem.isContainer ? root.containerW : root.nodeW
                 height: card.height
                 z: dragArea.drag.active ? 100 : 2
 
@@ -530,12 +550,13 @@ Item {
                 readonly property string stepId: modelData ? modelData.id : ""
                 readonly property string kind: modelData ? modelData.kind : "wait"
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
+                readonly property bool isContainer:
+                    rawKind === "conditional" || rawKind === "repeat"
                 // True when a palette drag is hovering this card and
                 // it's a container — drives the inner-zone highlight
                 // so the user sees their drop will land inside.
                 readonly property bool isHoverDropTarget:
-                    root.hoveredContainerIndex === model.index
-                    && (rawKind === "conditional" || rawKind === "repeat")
+                    root.hoveredContainerIndex === model.index && isContainer
                 readonly property color cardBg:
                     isSelected ? Theme.surface2 : Theme.surface
                 readonly property string status: {
@@ -566,7 +587,7 @@ Item {
                     const p = root.positions[stepId]
                     if (p) { x = p.x; y = p.y }
                 }
-                Component.onCompleted: { _syncFromPositions(); _publishHeight(); _settled = true }
+                Component.onCompleted: { _syncFromPositions(); _publishHeight(); _publishWidth(); _settled = true }
                 Connections {
                     target: root
                     function onPositionsChanged() { cardItem._syncFromPositions() }
@@ -579,10 +600,19 @@ Item {
                     next[stepId] = card.height
                     root.cardHeights = next
                 }
+                function _publishWidth() {
+                    if (!stepId) return
+                    const w = cardItem.width
+                    if (root.cardWidths[stepId] === w) return
+                    const next = Object.assign({}, root.cardWidths)
+                    next[stepId] = w
+                    root.cardWidths = next
+                }
                 Connections {
                     target: card
                     function onHeightChanged() { cardItem._publishHeight() }
                 }
+                onWidthChanged: _publishWidth()
 
                 Behavior on x {
                     enabled: cardItem._settled && !dragArea.drag.active
@@ -836,13 +866,18 @@ Item {
                         // thin rows + a +Add inner-step pill.
                         Rectangle {
                             id: innerZone
-                            visible: cardItem.rawKind === "conditional"
-                                  || cardItem.rawKind === "repeat"
+                            visible: cardItem.isContainer
                             width: parent.width
-                            height: visible ? (innerStrip.implicitHeight + 18) : 0
+                            // Min 92px so an empty container still
+                            // reads as a real drop target. When
+                            // inner steps land, height grows with
+                            // the strip + the +Add pill.
+                            height: visible
+                                ? Math.max(92, innerStrip.implicitHeight + 28)
+                                : 0
                             radius: 8
                             color: cardItem.isHoverDropTarget
-                                ? Theme.accentWash(0.10)
+                                ? Theme.accentWash(0.14)
                                 : Theme.bg
                             border.color: cardItem.isHoverDropTarget
                                 ? Theme.accent
@@ -862,6 +897,23 @@ Item {
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
                                 font.letterSpacing: 0.8
+                            }
+
+                            // Empty-state placeholder. Hidden once
+                            // any inner step lands. Highlights to
+                            // the kind's accent during a palette
+                            // drag for a stronger drop affordance.
+                            Text {
+                                visible: innerStrip.inner.length === 0
+                                anchors.centerIn: parent
+                                text: cardItem.isHoverDropTarget
+                                    ? "↓  Release to add"
+                                    : "Drop a chip here"
+                                color: cardItem.isHoverDropTarget ? Theme.accent : Theme.text3
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                font.italic: !cardItem.isHoverDropTarget
+                                font.weight: cardItem.isHoverDropTarget ? Font.DemiBold : Font.Medium
                             }
 
                         Column {
@@ -1428,14 +1480,16 @@ Item {
     //     other cards.
     //   - Both ranges overlap (cards stacked / nested): fall back
     //     to the magnitude heuristic.
-    function _routeWire(fromPos, toPos, fromH, toH) {
+    function _routeWire(fromPos, toPos, fromH, toH, fromW, toW) {
         if (!fromPos || !toPos) return { sx: 0, sy: 0, tx: 0, ty: 0, axis: "v" }
-        const fromCx = fromPos.x + nodeW / 2
+        if (!fromW) fromW = nodeW
+        if (!toW)   toW   = nodeW
+        const fromCx = fromPos.x + fromW / 2
         const fromCy = fromPos.y + fromH / 2
-        const toCx = toPos.x + nodeW / 2
+        const toCx = toPos.x + toW / 2
         const toCy = toPos.y + toH / 2
 
-        const xOverlap = !(fromPos.x + nodeW <= toPos.x || toPos.x + nodeW <= fromPos.x)
+        const xOverlap = !(fromPos.x + fromW <= toPos.x || toPos.x + toW <= fromPos.x)
         const yOverlap = !(fromPos.y + fromH <= toPos.y || toPos.y + toH <= fromPos.y)
 
         let useVertical
@@ -1444,8 +1498,6 @@ Item {
         } else if (xOverlap && !yOverlap) {
             useVertical = true
         } else if (!xOverlap && !yOverlap) {
-            // Diagonal — prefer vertical so horizontal leg stays in
-            // the row-gap rather than crossing cards in the source row.
             useVertical = true
         } else {
             const dx = toCx - fromCx
@@ -1455,9 +1507,9 @@ Item {
 
         if (!useVertical) {
             if (toCx > fromCx) {
-                return { sx: fromPos.x + nodeW, sy: fromCy, tx: toPos.x,         ty: toCy, axis: "h" }
+                return { sx: fromPos.x + fromW, sy: fromCy, tx: toPos.x,        ty: toCy, axis: "h" }
             } else {
-                return { sx: fromPos.x,         sy: fromCy, tx: toPos.x + nodeW, ty: toCy, axis: "h" }
+                return { sx: fromPos.x,         sy: fromCy, tx: toPos.x + toW,  ty: toCy, axis: "h" }
             }
         } else {
             if (toCy > fromCy) {
