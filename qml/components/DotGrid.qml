@@ -11,7 +11,7 @@ import Wflow
 Item {
     id: root
     property real spacing: 28
-    property real dotSize: 1.5
+    property real dotSize: 2.5
     property color dotColor: Theme.isDark
         ? "#1f2328"
         : Qt.rgba(0, 0, 0, 0.08)
