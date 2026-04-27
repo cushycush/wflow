@@ -245,15 +245,28 @@ Item {
         return id
     }
 
-    // Add a step from a palette drop. Same shape as _addStep but
-    // also seeds the canvas's positions map so the new card lands
-    // where the user dropped it instead of snapping to auto-layout.
+    // Add a step from a palette drop. Like _addStep but seeds the
+    // canvas's positions map so the new card lands where the user
+    // dropped it, AND clears the auto-selection so the inspector
+    // doesn't slide in and shove the canvas around mid-drop.
     function _addStepAt(kind, x, y) {
-        const id = _addStep(kind)
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = wf.steps || []
+        const id = _uuid()
+        steps.push({
+            id: id,
+            enabled: true,
+            on_error: "stop",
+            action: _defaultActionForKind(kind)
+        })
+        wf.steps = steps
+        root.workflow = wf
+        // Intentionally NO selectedIndex change — the user dropped
+        // the card to place it, not to immediately edit it.
         const next = Object.assign({}, canvasView.positions)
-        next[id] = { x: Math.max(0, x - canvasView.nodeW / 2),
-                     y: Math.max(0, y - canvasView.nodeMinH / 2) }
+        next[id] = { x: Math.max(0, x), y: Math.max(0, y) }
         canvasView.positions = next
+        _scheduleSave()
     }
 
     function _deleteStep(stepIndex) {
@@ -274,32 +287,19 @@ Item {
     }
 
     // Make the step at otherIdx the immediate predecessor of the
-    // currently selected step. Reorder math:
-    //   if otherIdx < selectedIndex → move otherIdx to selectedIndex - 1
-    //   if otherIdx > selectedIndex → move otherIdx to selectedIndex
-    function _makePredecessor(otherIdx) {
-        const sel = editorContent.selectedIndex
-        if (sel < 0 || otherIdx < 0 || otherIdx === sel) return
-        const target = otherIdx < sel ? sel - 1 : sel
+    // step at stepIdx. Used by both the inspector's prev/next swap
+    // and the canvas's per-card rewire menu, so it takes the target
+    // index explicitly rather than reading editorContent.selectedIndex.
+    function _makePredecessorOf(stepIdx, otherIdx) {
+        if (stepIdx < 0 || otherIdx < 0 || otherIdx === stepIdx) return
+        const target = otherIdx < stepIdx ? stepIdx - 1 : stepIdx
         _moveStep(otherIdx, target)
     }
 
-    // Make the step at otherIdx the immediate successor of the
-    // currently selected step.
-    function _makeSuccessor(otherIdx) {
-        const sel = editorContent.selectedIndex
-        if (sel < 0 || otherIdx < 0 || otherIdx === sel) return
-        const target = otherIdx > sel ? sel + 1 : sel
+    function _makeSuccessorOf(stepIdx, otherIdx) {
+        if (stepIdx < 0 || otherIdx < 0 || otherIdx === stepIdx) return
+        const target = otherIdx > stepIdx ? stepIdx + 1 : stepIdx
         _moveStep(otherIdx, target)
-    }
-
-    // Port-drag rewire: caller dragged from fromIdx to toIdx,
-    // intending fromIdx to lead into toIdx. Move fromIdx so it sits
-    // immediately before toIdx in the sequence.
-    function _rewireSequence(fromIdx, toIdx) {
-        if (fromIdx === toIdx) return
-        const target = fromIdx < toIdx ? toIdx - 1 : toIdx
-        _moveStep(fromIdx, target)
     }
 
     function _moveStep(from, to) {
@@ -660,8 +660,8 @@ Item {
                     onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
                     onCloseRequested: { editorContent.selectedIndex = -1 }
                     onSelectStep: (i) => { editorContent.selectedIndex = i }
-                    onPredecessorChosen: (otherIdx) => root._makePredecessor(otherIdx)
-                    onSuccessorChosen: (otherIdx) => root._makeSuccessor(otherIdx)
+                    onPredecessorChosen: (otherIdx) => root._makePredecessorOf(editorContent.selectedIndex, otherIdx)
+                    onSuccessorChosen: (otherIdx) => root._makeSuccessorOf(editorContent.selectedIndex, otherIdx)
                 }
             }
 
@@ -682,9 +682,8 @@ Item {
                 onSelectStep: (i) => { editorContent.selectedIndex = i }
                 onDeselectRequested: { editorContent.selectedIndex = -1 }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
-                // Port-drag rewire: dragged-from card becomes the
-                // immediate predecessor of the dropped-on card.
-                onRewireRequested: (fromIdx, toIdx) => root._rewireSequence(fromIdx, toIdx)
+                onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
+                onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
 
             // Floating step palette. Drag a chip onto the canvas to

@@ -40,10 +40,11 @@ Item {
     signal selectStep(int index)
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
-    // Reorder so `fromIndex` becomes the immediate predecessor of
-    // `toIndex` (the typical drag-rewire intent: A → B). The page
-    // resolves this via _moveStep.
-    signal rewireRequested(int fromIndex, int toIndex)
+    // Rewire from a card's overflow menu — `stepIndex` is the card
+    // that's being rewired, `otherIndex` is the chosen counterpart.
+    // The page resolves these via _moveStep.
+    signal predecessorChosen(int stepIndex, int otherIndex)
+    signal successorChosen(int stepIndex, int otherIndex)
 
     readonly property int nodeW: 260
     readonly property int nodeMinH: 132
@@ -158,52 +159,6 @@ Item {
         ghostKind = ""
     }
 
-    // ============ Port-drag rewire (in-flight wire) ============
-    // Active during a drag from a card port. The drag layer renders a
-    // floating Bezier from the source port to the cursor; on release
-    // we hit-test the cards under the cursor and emit rewireRequested
-    // with the matched indices.
-
-    property int wireFromIndex: -1
-    property real wireCursorX: 0
-    property real wireCursorY: 0
-    readonly property bool wireDragging: wireFromIndex >= 0
-
-    function startWireDrag(fromIndex, sceneX, sceneY) {
-        const local = flick.mapFromItem(null, sceneX, sceneY)
-        wireFromIndex = fromIndex
-        wireCursorX = local.x + flick.contentX
-        wireCursorY = local.y + flick.contentY
-    }
-    function moveWireDrag(sceneX, sceneY) {
-        const local = flick.mapFromItem(null, sceneX, sceneY)
-        wireCursorX = local.x + flick.contentX
-        wireCursorY = local.y + flick.contentY
-    }
-    function endWireDrag(sceneX, sceneY) {
-        if (wireFromIndex < 0) return
-        const local = flick.mapFromItem(null, sceneX, sceneY)
-        const cx = local.x + flick.contentX
-        const cy = local.y + flick.contentY
-        const list = root.actions || []
-        // Hit test: which card contains (cx, cy)?
-        let hitIndex = -1
-        for (let i = 0; i < list.length; i++) {
-            const p = root.positions[list[i].id]
-            const h = root.cardHeights[list[i].id] || root.nodeMinH
-            if (!p) continue
-            if (cx >= p.x && cx <= p.x + nodeW
-                && cy >= p.y && cy <= p.y + h) {
-                hitIndex = i
-                break
-            }
-        }
-        if (hitIndex >= 0 && hitIndex !== wireFromIndex) {
-            root.rewireRequested(wireFromIndex, hitIndex)
-        }
-        wireFromIndex = -1
-    }
-
     // ============ Content extent ============
 
     readonly property int contentW: {
@@ -264,6 +219,12 @@ Item {
                     layer.enabled: true
                     layer.samples: 4
 
+                    // No arrowheads. Two wires meeting at the same
+                    // point on a card were ambiguous — the overlapping
+                    // arrow could read as either direction. The step
+                    // numbers (01, 02, …) on each card carry the
+                    // direction information; the lines just trace
+                    // the connection.
                     ShapePath {
                         strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.7)
                         strokeWidth: 1.5
@@ -278,64 +239,6 @@ Item {
                             control2Y: route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
                         }
                     }
-
-                    // Arrowhead on the target end. Triangle is rotated
-                    // to match the routing axis so it always points
-                    // into the target card.
-                    ShapePath {
-                        strokeColor: "transparent"
-                        fillColor: Qt.rgba(0.55, 0.78, 0.88, 0.85)
-                        startX: route.axis === "h"
-                            ? (route.tx - 7 * (route.tx >= route.sx ? 1 : -1))
-                            : (route.tx - 5)
-                        startY: route.axis === "h"
-                            ? (route.ty - 4)
-                            : (route.ty - 7 * (route.ty >= route.sy ? 1 : -1))
-                        PathLine {
-                            x: route.axis === "h"
-                                ? (route.tx - 7 * (route.tx >= route.sx ? 1 : -1))
-                                : (route.tx + 5)
-                            y: route.axis === "h"
-                                ? (route.ty + 4)
-                                : (route.ty - 7 * (route.ty >= route.sy ? 1 : -1))
-                        }
-                        PathLine { x: route.tx; y: route.ty }
-                    }
-                }
-            }
-        }
-
-        // ============ In-flight rewire wire ============
-        Shape {
-            visible: root.wireDragging
-            anchors.fill: parent
-            z: 50
-            smooth: true
-            layer.enabled: true
-            layer.samples: 4
-
-            readonly property string fromId: root.wireDragging
-                ? root.actions[root.wireFromIndex].id : ""
-            readonly property var fromPos: root.positions[fromId]
-            readonly property real fromH: root.cardHeights[fromId] || root.nodeMinH
-            readonly property real fromCx: fromPos ? (fromPos.x + root.nodeW / 2) : 0
-            readonly property real fromCy: fromPos ? (fromPos.y + fromH / 2) : 0
-
-            ShapePath {
-                strokeColor: Theme.accent
-                strokeWidth: 2
-                strokeStyle: ShapePath.DashLine
-                dashPattern: [4, 4]
-                fillColor: "transparent"
-                startX: fromCx
-                startY: fromCy
-                PathCubic {
-                    x: root.wireCursorX
-                    y: root.wireCursorY
-                    control1X: fromCx
-                    control1Y: (fromCy + root.wireCursorY) / 2
-                    control2X: root.wireCursorX
-                    control2Y: (fromCy + root.wireCursorY) / 2
                 }
             }
         }
@@ -352,6 +255,10 @@ Item {
                 height: card.height
                 z: dragArea.drag.active ? 100 : 2
 
+                // Pin the outer Repeater's index to a stable property
+                // so inner Repeaters (rewire menu) don't shadow it
+                // with their own model.index.
+                readonly property int stepIdx: model.index
                 readonly property bool isSelected: model.index === root.selectedIndex
                 readonly property var act: modelData
                 readonly property string stepId: modelData ? modelData.id : ""
@@ -531,56 +438,96 @@ Item {
                         }
                     }
 
-                    // ============ Port dots (top, right, bottom, left) ============
-                    // Visible on hover OR while dragging, so the user
-                    // can see where to grab. Each port is an
-                    // independently-draggable handle that starts an
-                    // in-flight wire on press.
-                    Repeater {
-                        model: [
-                            { ax: 0.5, ay: 0,   side: "top"    },
-                            { ax: 1.0, ay: 0.5, side: "right"  },
-                            { ax: 0.5, ay: 1.0, side: "bottom" },
-                            { ax: 0.0, ay: 0.5, side: "left"   }
-                        ]
-                        delegate: Rectangle {
-                            x: card.width  * modelData.ax - width  / 2
-                            y: card.height * modelData.ay - height / 2
-                            width: 12; height: 12
-                            radius: 6
-                            color: portArea.containsMouse || (root.wireDragging && root.wireFromIndex === model.index)
-                                ? Theme.accent
-                                : Theme.surface
-                            border.color: Theme.accent
-                            border.width: 1.5
-                            opacity: dragArea.containsMouse
-                                  || cardItem.isSelected
-                                  || root.wireDragging ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                    // ============ Rewire button ============
+                    // Hover-revealed pill in the card's top-left corner.
+                    // Click opens a menu with PRECEDED BY / FOLLOWED BY
+                    // sections — choose any other step to drop into
+                    // either role. Replaces the four port-dot drag
+                    // mechanic, which was finicky and let users wire
+                    // arrows in directions that didn't actually map
+                    // to a sequential reorder.
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.leftMargin: 8
+                        anchors.topMargin: 8
+                        width: 22; height: 22; radius: 11
+                        color: rewireArea.containsMouse
+                            ? Theme.accent
+                            : Theme.surface3
+                        border.color: rewireArea.containsMouse ? Theme.accent : Theme.lineSoft
+                        border.width: 1
+                        opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
-                            MouseArea {
-                                id: portArea
-                                anchors.fill: parent
-                                anchors.margins: -4   // generous hit target
-                                hoverEnabled: true
-                                cursorShape: Qt.CrossCursor
-                                onPressed: (mouse) => {
-                                    const scene = parent.mapToItem(null, mouse.x, mouse.y)
-                                    root.startWireDrag(model.index, scene.x, scene.y)
-                                    mouse.accepted = true
-                                }
-                                onPositionChanged: (mouse) => {
-                                    if (root.wireDragging) {
-                                        const scene = parent.mapToItem(null, mouse.x, mouse.y)
-                                        root.moveWireDrag(scene.x, scene.y)
-                                    }
-                                }
-                                onReleased: (mouse) => {
-                                    if (root.wireDragging) {
-                                        const scene = parent.mapToItem(null, mouse.x, mouse.y)
-                                        root.endWireDrag(scene.x, scene.y)
-                                    }
-                                }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⇄"
+                            color: rewireArea.containsMouse ? Theme.accentText : Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                        }
+
+                        MouseArea {
+                            id: rewireArea
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: rewireMenu.popup()
+                            ToolTip.visible: containsMouse
+                            ToolTip.delay: 400
+                            ToolTip.text: "Set predecessor / successor"
+                        }
+                    }
+
+                    WfMenu {
+                        id: rewireMenu
+
+                        // Section header — disabled WfMenuItem used as
+                        // a non-clickable label.
+                        WfMenuItem {
+                            text: "↑  PRECEDED BY"
+                            enabled: false
+                        }
+                        Repeater {
+                            model: root.actions
+                            delegate: WfMenuItem {
+                                // Skip the card itself and its current
+                                // predecessor (no-op), and the card
+                                // immediately after it (current self
+                                // in the predecessor role wouldn't
+                                // change anything).
+                                readonly property bool _show:
+                                    model.index !== cardItem.stepIdx
+                                    && model.index !== cardItem.stepIdx - 1
+                                visible: _show
+                                height: _show ? implicitHeight : 0
+                                text: "  " + String(model.index + 1).padStart(2, "0")
+                                      + "  ·  " + (modelData ? (modelData.summary || "") : "")
+                                onTriggered: root.predecessorChosen(cardItem.stepIdx, model.index)
+                            }
+                        }
+
+                        MenuSeparator {}
+
+                        WfMenuItem {
+                            text: "↓  FOLLOWED BY"
+                            enabled: false
+                        }
+                        Repeater {
+                            model: root.actions
+                            delegate: WfMenuItem {
+                                readonly property bool _show:
+                                    model.index !== cardItem.stepIdx
+                                    && model.index !== cardItem.stepIdx + 1
+                                visible: _show
+                                height: _show ? implicitHeight : 0
+                                text: "  " + String(model.index + 1).padStart(2, "0")
+                                      + "  ·  " + (modelData ? (modelData.summary || "") : "")
+                                onTriggered: root.successorChosen(cardItem.stepIdx, model.index)
                             }
                         }
                     }
