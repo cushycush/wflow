@@ -64,6 +64,13 @@
   </provides>
 
   <releases>
+    <release version="0.3.26" date="2026-04-27">
+      <description>
+        <p>
+          Recorder now consumes wdotool-core 0.4's stream API for input capture. Drops ~800 lines of in-tree portal + evdev pump code that's now upstream. End-user behaviour is unchanged — same Record Mode flow, same captured events, same workflows-on-save shape — but the build pulls the maintained version from crates.io instead of carrying its own copy.
+        </p>
+      </description>
+    </release>
     <release version="0.3.25" date="2026-04-26">
       <description>
         <p>
