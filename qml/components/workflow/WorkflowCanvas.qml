@@ -327,21 +327,18 @@ Item {
             NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
         }
 
-        // Wheel zoom + canvas cursor. MouseArea owns both: wheel
-        // events deliver here because it's the topmost hit at z:5,
-        // and cursorShape paints the open/closed hand based on the
-        // pan-drag state. Cards keep their own cursors when hovered
-        // because their MouseAreas grab the press for card-drag —
-        // but they share the same hand-style cursor here so the
-        // canvas reads consistently as a draggable surface.
+        // Wheel-only handler: no cursor, no hover claim, just zoom.
+        // hoverEnabled: false + acceptedButtons: NoButton means this
+        // area neither claims the cursor nor steals hover events —
+        // cards underneath get their containsMouse signals as
+        // expected so border-color hovers / rewire-button reveals
+        // still work. Wheel events deliver because they're hit-
+        // tested independently of hover.
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.NoButton
-            hoverEnabled: true
+            hoverEnabled: false
             z: 5
-            cursorShape: panHandler.active
-                ? Qt.ClosedHandCursor
-                : Qt.OpenHandCursor
             onWheel: (wheel) => {
                 wheel.accepted = true
                 const step = (wheel.angleDelta.y / 120) * 0.1

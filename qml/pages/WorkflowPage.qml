@@ -448,7 +448,14 @@ Item {
             }
         })
         if (Object.keys(result).length > 0) {
-            canvasView.positions = result
+            // Merge saved positions over the canvas's default
+            // placements rather than replacing the map. Without the
+            // merge, cards that don't have a saved entry lose their
+            // default position too and end up at (0, 0) — which
+            // also wipes the wires (the wire layer hides any wire
+            // whose fromPos / toPos is undefined).
+            const merged = Object.assign({}, canvasView.positions, result)
+            canvasView.positions = merged
         }
     }
 
