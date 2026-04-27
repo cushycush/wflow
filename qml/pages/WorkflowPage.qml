@@ -368,6 +368,35 @@ Item {
         _scheduleSave()
     }
 
+    // Workflow-level imports: name → path mapping. Mutators clone
+    // the workflow, edit the imports map, and trigger _scheduleSave.
+    function _setImport(name, path) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.imports) wf.imports = {}
+        wf.imports[name] = path
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _renameImport(oldName, newName) {
+        if (oldName === newName || !newName) return
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.imports || !(oldName in wf.imports)) return
+        const path = wf.imports[oldName]
+        delete wf.imports[oldName]
+        wf.imports[newName] = path
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _deleteImport(name) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.imports || !(name in wf.imports)) return
+        delete wf.imports[name]
+        root.workflow = wf
+        _scheduleSave()
+    }
+
     // Replace the cond object on a `when` / `unless` step. Pass-through
     // for the inspector's condition editor.
     function _commitCondition(stepIndex, newCond) {
@@ -681,6 +710,16 @@ Item {
                 text: "× Delete"
                 onClicked: root._askDelete()
             }
+            // Workflow-level imports — name → path mapping that
+            // `use` steps reference. Opens a dialog with the table.
+            SecondaryButton {
+                text: "↳ Imports"
+                                + ((root.workflow.imports
+                                    && Object.keys(root.workflow.imports).length > 0)
+                                   ? "  (" + Object.keys(root.workflow.imports).length + ")"
+                                   : "")
+                onClicked: importsDialog.open()
+            }
             SecondaryButton {
                 text: "↗ Share"
             }
@@ -879,6 +918,219 @@ Item {
                 anchors.bottomMargin: 18
                 z: 60
                 canvas: canvasView
+            }
+        }
+    }
+
+    // Workflow-level imports manager. Maps a short name to a
+    // fragment-file path; `use name` steps splice that fragment in
+    // at decode time. The dialog is the only GUI surface for the
+    // imports block — other than that, the .kdl `imports { name
+    // "path" }` is hand-edited.
+    Dialog {
+        id: importsDialog
+        parent: Overlay.overlay
+        modal: true
+        title: ""
+
+        width: Math.min(640, parent ? parent.width * 0.9 : 640)
+        height: Math.min(560, parent ? parent.height * 0.85 : 560)
+        anchors.centerIn: parent
+
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusMd
+            border.color: Theme.line
+            border.width: 1
+        }
+
+        readonly property var importNames: root.workflow && root.workflow.imports
+            ? Object.keys(root.workflow.imports).sort()
+            : []
+
+        contentItem: Item {
+            anchors.fill: parent
+            Column {
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 16
+
+                Column {
+                    width: parent.width
+                    spacing: 4
+                    Text {
+                        text: "Workflow imports"
+                        color: Theme.text
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXl
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        text: "Map a short name to a .kdl fragment path. `use NAME` steps splice the fragment in at decode time."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        wrapMode: Text.WordWrap
+                        width: parent.width
+                        lineHeight: 1.4
+                    }
+                }
+
+                ScrollView {
+                    width: parent.width
+                    height: parent.height - parent.spacing * 2 - 80 - 56
+                    clip: true
+
+                    Column {
+                        width: parent.parent.width
+                        spacing: 6
+
+                        Repeater {
+                            model: importsDialog.importNames
+                            delegate: Rectangle {
+                                width: parent.width
+                                height: 44
+                                radius: Theme.radiusMd
+                                color: Theme.bg
+                                border.color: Theme.lineSoft
+                                border.width: 1
+
+                                readonly property string importName: modelData
+                                readonly property string importPath:
+                                    (root.workflow.imports && root.workflow.imports[importName]) || ""
+
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 6
+                                    spacing: 8
+
+                                    TextField {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 130
+                                        text: parent.parent.importName
+                                        color: Theme.text
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: Theme.fontSm
+                                        background: Rectangle {
+                                            color: Theme.surface2
+                                            radius: 4
+                                            border.color: Theme.lineSoft
+                                            border.width: 1
+                                        }
+                                        onEditingFinished: root._renameImport(parent.parent.importName, text)
+                                    }
+
+                                    TextField {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 130 - 28 - 8 * 2
+                                        text: parent.parent.importPath
+                                        placeholderText: "fragments/foo.kdl"
+                                        color: Theme.text
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: Theme.fontSm
+                                        background: Rectangle {
+                                            color: Theme.surface2
+                                            radius: 4
+                                            border.color: Theme.lineSoft
+                                            border.width: 1
+                                        }
+                                        onEditingFinished: root._setImport(parent.parent.importName, text)
+                                    }
+
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 28; height: 28; radius: 4
+                                        color: importDelArea.containsMouse
+                                            ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                            : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "×"
+                                            color: importDelArea.containsMouse ? Theme.err : Theme.text2
+                                            font.family: Theme.familyBody
+                                            font.pixelSize: 16
+                                        }
+                                        MouseArea {
+                                            id: importDelArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root._deleteImport(parent.parent.parent.importName)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Empty state
+                        Text {
+                            visible: importsDialog.importNames.length === 0
+                            text: "No imports yet. Add one below to use it from `use NAME` steps."
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.italic: true
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            topPadding: 24
+                            bottomPadding: 24
+                        }
+                    }
+                }
+
+                // + Add row
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    TextField {
+                        id: newImportName
+                        width: 130
+                        placeholderText: "name"
+                        color: Theme.text
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        background: Rectangle {
+                            color: Theme.surface2
+                            radius: 4
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                        }
+                    }
+                    TextField {
+                        id: newImportPath
+                        width: parent.width - 130 - 80 - 8 * 2
+                        placeholderText: "fragments/foo.kdl"
+                        color: Theme.text
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        background: Rectangle {
+                            color: Theme.surface2
+                            radius: 4
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                        }
+                    }
+                    PrimaryButton {
+                        text: "+ Add"
+                        enabled: newImportName.text.length > 0 && newImportPath.text.length > 0
+                        onClicked: {
+                            root._setImport(newImportName.text, newImportPath.text)
+                            newImportName.text = ""
+                            newImportPath.text = ""
+                        }
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    layoutDirection: Qt.RightToLeft
+                    SecondaryButton {
+                        text: "Done"
+                        onClicked: importsDialog.close()
+                    }
+                }
             }
         }
     }
