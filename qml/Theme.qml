@@ -26,11 +26,11 @@ QtObject {
     // canvas + explore mockups. Surfaces step up by ~0.04 lightness
     // each so a hovered card / selected row is unambiguous.
     readonly property color bg:        isDark ? "#07090e" : "#f6f6f8"
-    readonly property color surface:   isDark ? "#22232a" : "#ffffff"
-    readonly property color surface2:  isDark ? "#2a2b32" : "#eeeef1"
-    readonly property color surface3:  isDark ? "#34353d" : "#e2e3e8"
-    readonly property color line:      isDark ? "#3a3b43" : "#d4d5dc"
-    readonly property color lineSoft:  isDark ? "#2c2d34" : "#e2e3e8"
+    readonly property color surface:   isDark ? "#15181f" : "#ffffff"
+    readonly property color surface2:  isDark ? "#1d2028" : "#eeeef1"
+    readonly property color surface3:  isDark ? "#262a33" : "#e2e3e8"
+    readonly property color line:      isDark ? "#2c2f37" : "#d4d5dc"
+    readonly property color lineSoft:  isDark ? "#1a1d25" : "#e2e3e8"
 
     // ============ Text ============
     readonly property color text:      isDark ? "#edeef1" : "#1c1d22"
