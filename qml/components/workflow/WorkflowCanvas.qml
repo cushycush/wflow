@@ -23,18 +23,18 @@ Item {
 
     signal selectStep(int index)
 
-    // Layout constants. Card grows with chip strip when options
-    // are set (delay, retries, timeout, etc.) — most workflows have
-    // few non-default options, so the average card stays compact.
+    // Layout constants. Cards have a *minimum* height; they grow as
+    // chip strips wrap to a second line when many options are set.
+    // The Column-based stack lets that growth ripple through to the
+    // wires automatically.
     readonly property int nodeW: 260
-    readonly property int nodeH: 132
+    readonly property int nodeMinH: 132
     readonly property int gap: 36
     readonly property int paddingTop: 36
     readonly property int paddingBottom: 60
 
     readonly property int contentH: paddingTop
-        + actions.length * nodeH
-        + Math.max(0, actions.length - 1) * gap
+        + (nodeStack.implicitHeight > 0 ? nodeStack.implicitHeight : 0)
         + paddingBottom
 
     // Click on empty canvas area collapses the inspector.
@@ -57,7 +57,9 @@ Item {
         }
 
         // Wires layer — drawn UNDER nodes so the cards visually float
-        // above the connector lines.
+        // above the connector lines. Geometry is queried from the
+        // node Repeater so cards growing taller (chip wrap) push
+        // the connector down with them.
         Item {
             id: wireLayer
             anchors.fill: parent
@@ -66,9 +68,13 @@ Item {
             Repeater {
                 model: Math.max(0, root.actions.length - 1)
                 delegate: Shape {
-                    readonly property real centerX: parent.width / 2
-                    readonly property real fromY: root.paddingTop + (index + 1) * root.nodeH + index * root.gap
-                    readonly property real toY: fromY + root.gap
+                    readonly property real centerX: width / 2
+                    readonly property var fromItem: nodeRep.itemAt(index)
+                    readonly property var toItem: nodeRep.itemAt(index + 1)
+                    readonly property real fromY: fromItem
+                        ? nodeStack.y + fromItem.y + fromItem.height : 0
+                    readonly property real toY: toItem
+                        ? nodeStack.y + toItem.y : 0
 
                     anchors.fill: parent
                     smooth: true
@@ -102,161 +108,175 @@ Item {
             }
         }
 
-        // Nodes layer.
-        Repeater {
-            model: root.actions
+        // Nodes layer — Column gives the variable-height cards a
+        // simple vertical stack and exposes y/height to the wire
+        // layer above via nodeRep.itemAt().
+        Column {
+            id: nodeStack
+            width: parent.width
+            y: root.paddingTop
+            spacing: root.gap
 
-            delegate: Item {
-                width: parent.width
-                height: root.nodeH
-                z: 2
+            Repeater {
+                id: nodeRep
+                model: root.actions
 
-                readonly property bool isSelected: model.index === root.selectedIndex
-                readonly property bool isActive: false   // engine-active step; wire later
-                readonly property var act: modelData
-                readonly property string kind: modelData ? modelData.kind : "wait"
-                readonly property color cardBg:
-                    isSelected ? Theme.surface2 : Theme.surface
-                readonly property string status: {
-                    const s = root.stepStatuses
-                    if (!s) return ""
-                    const v = s[model.index]
-                    return v === undefined ? "" : v
-                }
+                delegate: Item {
+                    width: parent.width
+                    height: card.height + 4
+                    z: 2
 
-                // Stack nodes vertically with the configured gap.
-                y: root.paddingTop + model.index * (root.nodeH + root.gap)
-
-                Rectangle {
-                    id: card
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: root.nodeW
-                    height: root.nodeH - 4
-                    radius: 14
-                    color: cardBg
-                    border.color: isSelected
-                        ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
-                        : (cardArea.containsMouse ? Theme.line : Theme.lineSoft)
-                    border.width: isSelected ? 2 : 1
-
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Behavior on y { NumberAnimation { duration: Theme.dur(Theme.durFast); easing.type: Theme.easingStd } }
-
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowColor: Theme.shadowColor
-                        shadowBlur: cardArea.containsMouse ? 1.0 : 0.7
-                        shadowVerticalOffset: cardArea.containsMouse ? 12 : 8
+                    readonly property bool isSelected: model.index === root.selectedIndex
+                    readonly property bool isActive: false   // engine-active step; wire later
+                    readonly property var act: modelData
+                    readonly property string kind: modelData ? modelData.kind : "wait"
+                    readonly property color cardBg:
+                        isSelected ? Theme.surface2 : Theme.surface
+                    readonly property string status: {
+                        const s = root.stepStatuses
+                        if (!s) return ""
+                        const v = s[model.index]
+                        return v === undefined ? "" : v
                     }
 
-                    MouseArea {
-                        id: cardArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.selectStep(model.index)
-                    }
+                    Rectangle {
+                        id: card
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: root.nodeW
+                        // Card height = its content's natural height,
+                        // floored to the minimum so short cards don't
+                        // collapse below a comfortable scan size.
+                        height: Math.max(root.nodeMinH - 4,
+                                         cardBody.implicitHeight + 24) // 24 = top + bottom margin
+                        radius: 14
+                        color: cardBg
+                        border.color: isSelected
+                            ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
+                            : (cardArea.containsMouse ? Theme.line : Theme.lineSoft)
+                        border.width: isSelected ? 2 : 1
 
-                    Column {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 8
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        Behavior on height { NumberAnimation { duration: Theme.dur(Theme.durFast); easing.type: Theme.easingStd } }
 
-                        // Header row: KIND label, step number, status dot.
-                        Row {
-                            width: parent.width
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            shadowEnabled: true
+                            shadowColor: Theme.shadowColor
+                            shadowBlur: cardArea.containsMouse ? 1.0 : 0.7
+                            shadowVerticalOffset: cardArea.containsMouse ? 12 : 8
+                        }
+
+                        MouseArea {
+                            id: cardArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.selectStep(model.index)
+                        }
+
+                        Column {
+                            id: cardBody
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            anchors.topMargin: 12
                             spacing: 8
 
-                            Text {
-                                text: card.parent.kind.toUpperCase()
-                                color: Theme.text3
-                                font.family: Theme.familyBody
-                                font.pixelSize: 10
-                                font.weight: Font.Bold
-                                font.letterSpacing: 1.4
-                                anchors.verticalCenter: parent.verticalCenter
+                            // Header row: KIND label, step number, status dot.
+                            Row {
                                 width: parent.width
-                                    - numBadge.width
-                                    - statusDot.width
-                                    - parent.spacing * 2
-                                elide: Text.ElideRight
-                            }
+                                spacing: 8
 
-                            Rectangle {
-                                id: numBadge
-                                width: numText.implicitWidth + 14
-                                height: 18
-                                radius: 9
-                                color: Theme.bg
-                                border.color: Theme.lineSoft
-                                border.width: 1
-                                anchors.verticalCenter: parent.verticalCenter
                                 Text {
-                                    id: numText
-                                    anchors.centerIn: parent
-                                    text: String(model.index + 1).padStart(2, "0")
+                                    text: card.parent.kind.toUpperCase()
                                     color: Theme.text3
-                                    font.family: Theme.familyMono
+                                    font.family: Theme.familyBody
                                     font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                        - numBadge.width
+                                        - statusDot.width
+                                        - parent.spacing * 2
+                                    elide: Text.ElideRight
+                                }
+
+                                Rectangle {
+                                    id: numBadge
+                                    width: numText.implicitWidth + 14
+                                    height: 18
+                                    radius: 9
+                                    color: Theme.bg
+                                    border.color: Theme.lineSoft
+                                    border.width: 1
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Text {
+                                        id: numText
+                                        anchors.centerIn: parent
+                                        text: String(model.index + 1).padStart(2, "0")
+                                        color: Theme.text3
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: 10
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: statusDot
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 7; height: 7; radius: 3.5
+                                    color: card.parent.status === "ok"      ? Theme.ok
+                                        :  card.parent.status === "error"   ? Theme.err
+                                        :  card.parent.status === "skipped" ? Theme.text3
+                                        :  Theme.lineSoft
                                 }
                             }
 
-                            Rectangle {
-                                id: statusDot
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 7; height: 7; radius: 3.5
-                                color: card.parent.status === "ok"      ? Theme.ok
-                                    :  card.parent.status === "error"   ? Theme.err
-                                    :  card.parent.status === "skipped" ? Theme.text3
-                                    :  Theme.lineSoft
+                            // Action body — gradient pill carrying the
+                            // primary value. Falls back to a generic "step"
+                            // label for flow-control kinds since they have
+                            // no single primary string.
+                            GradientPill {
+                                kind: card.parent.kind
+                                text: _pillText(card.parent.act)
+                                icon: Theme.catGlyph(card.parent.kind)
+                                width: parent.width
                             }
-                        }
 
-                        // Action body — gradient pill carrying the
-                        // primary value. Falls back to a generic "step"
-                        // label for flow-control kinds since they have
-                        // no single primary string.
-                        GradientPill {
-                            kind: card.parent.kind
-                            text: _pillText(card.parent.act)
-                            icon: Theme.catGlyph(card.parent.kind)
-                            width: parent.width
-                        }
+                            // Option chip strip — Flow wraps onto a
+                            // second / third line when many options
+                            // are set, and the card's height tracks
+                            // along so wires reposition correctly.
+                            Flow {
+                                spacing: 6
+                                visible: chipModel.length > 0
+                                width: parent.width
 
-                        // Option chip strip — only shows up when the
-                        // user has set non-default options on the
-                        // step (skip, on-error continue, delay,
-                        // retries, timeout). Keeps the card honest:
-                        // what you see in the inspector shows up here.
-                        Row {
-                            spacing: 6
-                            visible: chipModel.length > 0
-                            width: parent.width
-                            clip: true
+                                readonly property var chipModel:
+                                    _chipsFor(card.parent.act ? card.parent.act.rawAction : null,
+                                              card.parent.act)
 
-                            readonly property var chipModel:
-                                _chipsFor(card.parent.act ? card.parent.act.rawAction : null,
-                                          card.parent.act)
-
-                            Repeater {
-                                model: parent.chipModel
-                                delegate: Rectangle {
-                                    height: 18
-                                    width: chipText.implicitWidth + 12
-                                    radius: 9
-                                    color: Theme.surface3
-                                    border.color: Theme.lineSoft
-                                    border.width: 1
-                                    Text {
-                                        id: chipText
-                                        anchors.centerIn: parent
-                                        text: modelData
-                                        color: Theme.text2
-                                        font.family: Theme.familyMono
-                                        font.pixelSize: 9
+                                Repeater {
+                                    model: parent.chipModel
+                                    delegate: Rectangle {
+                                        height: 18
+                                        width: chipText.implicitWidth + 12
+                                        radius: 9
+                                        color: Theme.surface3
+                                        border.color: Theme.lineSoft
+                                        border.width: 1
+                                        Text {
+                                            id: chipText
+                                            anchors.centerIn: parent
+                                            text: modelData
+                                            color: Theme.text2
+                                            font.family: Theme.familyMono
+                                            font.pixelSize: 9
+                                        }
                                     }
                                 }
                             }
