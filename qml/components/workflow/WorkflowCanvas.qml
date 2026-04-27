@@ -290,17 +290,15 @@ Item {
     }
 
     function previewDrag(kind, sceneX, sceneY) {
-        const local = root.mapFromItem(null, sceneX, sceneY)
         ghostKind = kind
-        ghostX = local.x
-        ghostY = local.y
+        ghostX = sceneX
+        ghostY = sceneY
         const w = world.mapFromItem(null, sceneX, sceneY)
         hoveredContainerIndex = _containerAt(w.x, w.y)
     }
     function moveDragPreview(sceneX, sceneY) {
-        const local = root.mapFromItem(null, sceneX, sceneY)
-        ghostX = local.x
-        ghostY = local.y
+        ghostX = sceneX
+        ghostY = sceneY
         const w = world.mapFromItem(null, sceneX, sceneY)
         hoveredContainerIndex = _containerAt(w.x, w.y)
     }
@@ -1128,12 +1126,16 @@ Item {
     }       // end of Flickable
 
     // ============ Drag preview ghost (palette → canvas) ============
-    // Scale matches the canvas zoom so the ghost's visual size lines
-    // up with how the dropped card will render — without it, dropping
-    // at 50% zoom would show a full-size ghost that snaps to a
-    // half-size card on landing. transformOrigin: Center keeps the
-    // ghost centred on the cursor through any zoom level.
+    // Parented to Overlay.overlay (the top-of-window layer Popups use),
+    // so the ghost reliably renders above every card / container —
+    // a sibling Rectangle at z:200 in the canvas root looked right on
+    // paper but practical scene-graph behaviour kept tucking the
+    // ghost under cards inside the Flickable. Scene-space coords mean
+    // no mapping is needed: chip.mapToItem(null, …) gives scene-space
+    // directly. Scale tracks root.zoom so the ghost matches the size
+    // a dropped card would render at on the canvas.
     Rectangle {
+        parent: Overlay.overlay
         visible: root.ghostActive
         transformOrigin: Item.Center
         scale: root.zoom
@@ -1141,8 +1143,8 @@ Item {
         y: root.ghostY - root.nodeMinH / 2
         width: root.nodeW
         height: root.nodeMinH
-        z: 200
-        opacity: 0.7
+        z: 10000
+        opacity: 0.85
         radius: 14
         color: Theme.surface
         border.color: Theme.accent
