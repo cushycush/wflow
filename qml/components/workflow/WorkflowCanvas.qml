@@ -42,6 +42,15 @@ Item {
     // dashes still flow along whichever path shape is active.
     property string wireStyle: "curve"
 
+    // ============ Zoom ============
+    // Plain wheel zooms around the cursor; Tidy actions auto-fit.
+    // Drag empty canvas to pan (Flickable). All card positions stay
+    // in logical (unscaled) world coords — only the world container
+    // carries the scale.
+    property real zoom: 1.0
+    readonly property real minZoom: 0.4
+    readonly property real maxZoom: 1.6
+
     signal selectStep(int index)
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
@@ -63,13 +72,14 @@ Item {
     function organizeVertical() {
         const list = root.actions || []
         const next = {}
-        const x = Math.max(paddingLeft, (flick.width - nodeW) / 2)
+        const x = paddingLeft
         let y = paddingTop
         for (let i = 0; i < list.length; i++) {
             next[list[i].id] = { x: x, y: y }
             y += (cardHeights[list[i].id] || nodeMinH) + gap
         }
         positions = next
+        Qt.callLater(_zoomToFit)
     }
     function organizeHorizontal() {
         const list = root.actions || []
@@ -80,11 +90,16 @@ Item {
             x += nodeW + gap
         }
         positions = next
+        Qt.callLater(_zoomToFit)
     }
     function organizeGrid() {
         const list = root.actions || []
         const next = {}
-        const cols = Math.max(1, Math.floor((flick.width - paddingLeft) / (nodeW + gap)))
+        // Pick a column count that produces roughly square footprint
+        // of the resulting grid — looks better than wrapping to fit
+        // the current viewport, which biases wide screens into long
+        // single rows.
+        const cols = Math.max(1, Math.ceil(Math.sqrt(list.length)))
         const cellH = nodeMinH + gap
         for (let i = 0; i < list.length; i++) {
             const col = i % cols
@@ -95,6 +110,56 @@ Item {
             }
         }
         positions = next
+        Qt.callLater(_zoomToFit)
+    }
+
+    // Set zoom and contentX/Y so every card sits inside the viewport
+    // with comfortable padding. Hits the zoom caps when the layout
+    // is bigger / smaller than fits cleanly.
+    function _zoomToFit() {
+        const list = root.actions || []
+        if (list.length === 0) return
+        let minX = Infinity, minY = Infinity
+        let maxX = -Infinity, maxY = -Infinity
+        let any = false
+        for (let i = 0; i < list.length; i++) {
+            const p = positions[list[i].id]
+            if (!p) continue
+            const h = cardHeights[list[i].id] || nodeMinH
+            minX = Math.min(minX, p.x)
+            minY = Math.min(minY, p.y)
+            maxX = Math.max(maxX, p.x + nodeW)
+            maxY = Math.max(maxY, p.y + h)
+            any = true
+        }
+        if (!any) return
+        const padding = 60
+        const fitW = (maxX - minX) + padding * 2
+        const fitH = (maxY - minY) + padding * 2
+        if (fitW <= 0 || fitH <= 0 || flick.width <= 0 || flick.height <= 0) return
+        let z = Math.min(flick.width / fitW, flick.height / fitH)
+        z = Math.max(minZoom, Math.min(maxZoom, z))
+        zoom = z
+        const cx = ((minX + maxX) / 2) * z
+        const cy = ((minY + maxY) / 2) * z
+        flick.contentX = Math.max(0, cx - flick.width / 2)
+        flick.contentY = Math.max(0, cy - flick.height / 2)
+    }
+
+    // Zoom around a viewport-local anchor so the world coord under
+    // the cursor stays under the cursor through the change.
+    function _zoomAt(viewportPoint, requested) {
+        const z = Math.max(minZoom, Math.min(maxZoom, requested))
+        if (z === zoom) return
+        const wx = (viewportPoint.x + flick.contentX) / zoom
+        const wy = (viewportPoint.y + flick.contentY) / zoom
+        const newCW = root.contentW * z
+        const newCH = root.contentH * z
+        zoom = z
+        flick.contentX = Math.max(0, Math.min(Math.max(0, newCW - flick.width),
+                                              wx * z - viewportPoint.x))
+        flick.contentY = Math.max(0, Math.min(Math.max(0, newCH - flick.height),
+                                              wy * z - viewportPoint.y))
     }
 
     // Place any newly-added steps below the existing layout. Existing
@@ -155,10 +220,12 @@ Item {
         const inBounds = local.x >= 0 && local.x <= root.width
                        && local.y >= 0 && local.y <= root.height
         if (dropped && inBounds && ghostKind.length > 0) {
-            // Convert to Flickable contentItem coords (account for scroll).
-            const fLocal = flick.mapFromItem(root, local.x, local.y)
-            const cx = fLocal.x + flick.contentX - nodeW / 2
-            const cy = fLocal.y + flick.contentY - nodeMinH / 2
+            // Map scene coords directly through the scaled world so
+            // the drop point lands in logical coords regardless of
+            // current zoom level.
+            const w = world.mapFromItem(null, sceneX, sceneY)
+            const cx = w.x - nodeW / 2
+            const cy = w.y - nodeMinH / 2
             root.addStepAtRequested(ghostKind, Math.max(0, cx), Math.max(0, cy))
         }
         ghostKind = ""
@@ -189,10 +256,22 @@ Item {
     Flickable {
         id: flick
         anchors.fill: parent
-        contentWidth: root.contentW
-        contentHeight: root.contentH
+        contentWidth: root.contentW * root.zoom
+        contentHeight: root.contentH * root.zoom
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+
+        // Plain wheel zooms (with the cursor as anchor); intercepts
+        // before Flickable's wheel-scroll handling. Pan is via drag
+        // on the empty canvas, which Flickable already handles.
+        WheelHandler {
+            target: null
+            onWheel: (event) => {
+                event.accepted = true
+                const step = event.angleDelta.y / 120 * 0.08
+                root._zoomAt(point.position, root.zoom + step)
+            }
+        }
 
         MouseArea {
             anchors.fill: parent
@@ -200,12 +279,23 @@ Item {
             onClicked: root.deselectRequested()
         }
 
-        // ============ Wires (linear sequence) ============
-
+        // World container. Holds wires + cards in unscaled (logical)
+        // coords; the scale property applies the zoom to everything
+        // inside in one shot, so positions / drag math / smart wire
+        // routing all stay in logical space.
         Item {
-            id: wireLayer
-            anchors.fill: parent
-            z: 1
+            id: world
+            width: root.contentW
+            height: root.contentH
+            transformOrigin: Item.TopLeft
+            scale: root.zoom
+
+            // ============ Wires (linear sequence) ============
+
+            Item {
+                id: wireLayer
+                anchors.fill: parent
+                z: 1
 
             Repeater {
                 model: Math.max(0, (root.actions || []).length - 1)
@@ -584,7 +674,8 @@ Item {
                 }
             }
         }
-    }
+        }   // end of world Item
+    }       // end of Flickable
 
     // ============ Drag preview ghost (palette → canvas) ============
     Rectangle {
