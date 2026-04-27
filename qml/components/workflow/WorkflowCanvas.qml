@@ -4,38 +4,46 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import Wflow
 
-// Node-graph view of a workflow's steps. Free-positionable cards on a
-// scrollable canvas; cyan Bezier wires trace the execution order
-// (steps still run sequentially — wire ordering is bound to the step
-// list, not to user-chosen edges).
+// Free-positioning node editor for a workflow.
 //
-// Three layout modes auto-arrange cards: vertical stack, horizontal
-// row, or wrapping grid. Switching modes reflows everything; manual
-// drag overrides the auto-layout for that card until the next reflow.
+// Cards live at absolute (x, y) inside the Flickable's contentItem
+// and are persisted in the `positions` map keyed by step.id. Wires
+// auto-route between consecutive steps in the linear sequence,
+// picking exit/entry sides per pair based on geometry — there's no
+// sticky layout mode that fights the user's drags.
 //
-// The dot-to-dot rewiring affordance (drag from one card's port to
-// another's) is intentionally NOT here yet — it needs a port-drag
-// handle protocol that's bigger than this turn. Reordering today
-// happens via the rail's ↑/↓ controls.
+// The three "Organize" buttons in the top-right are one-shot
+// commands: clicking re-arranges every card once into the chosen
+// shape. Otherwise positions are sticky — opening / closing the
+// inspector, adding a step from the rail, or resizing the window
+// will not reflow anything. New steps from the rail are placed at
+// the bottom of the existing layout; new steps from a palette drag
+// land where the user dropped them.
+//
+// Each card carries four port dots on its edges. Dragging from any
+// dot to another card reorders the sequence so the dragged-from
+// card becomes the immediate predecessor of the dropped-on card.
+// (Wires still represent linear execution order — the dots are a
+// visual rewire, not a graph edge.)
 Item {
     id: root
 
     property var actions: []
     property int selectedIndex: 0
     property var stepStatuses: ({})
-    // "vertical" | "horizontal" | "grid". Drives _autoLayout().
-    property string layoutMode: "vertical"
-    // { [stepId]: {x, y} } — absolute positions inside the Flickable's
-    // contentItem. Set by _autoLayout() on layout/actions changes; user
-    // drag overwrites the entry for the dragged card.
-    property var positions: ({})
+
+    // Reactive position / height stores. Each card writes into these
+    // on drag-release and on height-change; wires read from them.
+    property var positions: ({})    // { [id]: {x, y} }
+    property var cardHeights: ({})  // { [id]: number }
 
     signal selectStep(int index)
     signal deselectRequested()
-    // Emitted when the user drops a palette card on the canvas. The
-    // page handles the actual step add (kind → action default) and
-    // assigns the new step's position via positions[id] = {x,y}.
     signal addStepAtRequested(string kind, real x, real y)
+    // Reorder so `fromIndex` becomes the immediate predecessor of
+    // `toIndex` (the typical drag-rewire intent: A → B). The page
+    // resolves this via _moveStep.
+    signal rewireRequested(int fromIndex, int toIndex)
 
     readonly property int nodeW: 260
     readonly property int nodeMinH: 132
@@ -44,46 +52,160 @@ Item {
     readonly property int paddingLeft: 36
     readonly property int paddingBottom: 60
 
-    // Recompute auto-layout positions from scratch for the current
-    // mode. Called whenever the action list, layout mode, or canvas
-    // size changes (debounced indirectly by Behavior on x/y).
-    function _autoLayout() {
-        const out = {}
+    // ============ Layout actions (one-shot) ============
+
+    function organizeVertical() {
         const list = root.actions || []
-        const n = list.length
-        if (n === 0) { positions = {}; return }
-        const w = flick.width
-        if (layoutMode === "vertical") {
-            const x = Math.max(paddingLeft, (w - nodeW) / 2)
-            for (let i = 0; i < n; i++) {
-                out[list[i].id] = { x: x, y: paddingTop + i * (nodeMinH + gap) }
-            }
-        } else if (layoutMode === "horizontal") {
-            for (let i = 0; i < n; i++) {
-                out[list[i].id] = { x: paddingLeft + i * (nodeW + gap), y: paddingTop }
-            }
-        } else {
-            // Grid: wrap by canvas width. Always at least one column.
-            const cols = Math.max(1, Math.floor((w - paddingLeft) / (nodeW + gap)))
-            for (let i = 0; i < n; i++) {
-                const col = i % cols
-                const row = Math.floor(i / cols)
-                out[list[i].id] = {
-                    x: paddingLeft + col * (nodeW + gap),
-                    y: paddingTop + row * (nodeMinH + gap)
-                }
+        const next = {}
+        const x = Math.max(paddingLeft, (flick.width - nodeW) / 2)
+        let y = paddingTop
+        for (let i = 0; i < list.length; i++) {
+            next[list[i].id] = { x: x, y: y }
+            y += (cardHeights[list[i].id] || nodeMinH) + gap
+        }
+        positions = next
+    }
+    function organizeHorizontal() {
+        const list = root.actions || []
+        const next = {}
+        let x = paddingLeft
+        for (let i = 0; i < list.length; i++) {
+            next[list[i].id] = { x: x, y: paddingTop }
+            x += nodeW + gap
+        }
+        positions = next
+    }
+    function organizeGrid() {
+        const list = root.actions || []
+        const next = {}
+        const cols = Math.max(1, Math.floor((flick.width - paddingLeft) / (nodeW + gap)))
+        const cellH = nodeMinH + gap
+        for (let i = 0; i < list.length; i++) {
+            const col = i % cols
+            const row = Math.floor(i / cols)
+            next[list[i].id] = {
+                x: paddingLeft + col * (nodeW + gap),
+                y: paddingTop + row * cellH
             }
         }
-        positions = out
+        positions = next
     }
 
-    // Re-run on any of: list changes, mode changes, canvas resize.
-    onActionsChanged: _autoLayout()
-    onLayoutModeChanged: _autoLayout()
-    Component.onCompleted: _autoLayout()
+    // Place any newly-added steps below the existing layout. Existing
+    // positions are left alone — this is the lazy "I added a step,
+    // don't rearrange the others" path.
+    function _placeNewSteps() {
+        const list = root.actions || []
+        if (list.length === 0) return
+        const next = Object.assign({}, positions)
+        let maxY = paddingTop
+        for (let i = 0; i < list.length; i++) {
+            const p = next[list[i].id]
+            if (p) {
+                const h = cardHeights[list[i].id] || nodeMinH
+                maxY = Math.max(maxY, p.y + h + gap)
+            }
+        }
+        let dirty = false
+        for (let i = 0; i < list.length; i++) {
+            if (!next[list[i].id]) {
+                next[list[i].id] = {
+                    x: Math.max(paddingLeft, (flick.width - nodeW) / 2),
+                    y: maxY
+                }
+                maxY += nodeMinH + gap
+                dirty = true
+            }
+        }
+        if (dirty) positions = next
+    }
+    onActionsChanged: _placeNewSteps()
+    Component.onCompleted: _placeNewSteps()
 
-    // Content extent — derived from the rightmost / bottom-most card
-    // so horizontal & grid layouts can scroll past the visible area.
+    // ============ Drag preview (palette → canvas) ============
+    // The palette calls these methods directly; we render a card-
+    // shaped semi-transparent ghost following the cursor in canvas-
+    // local coordinates. Decoupling from the Drag/DropArea framework
+    // lets us draw a real preview instead of a system drag cursor.
+
+    property string ghostKind: ""
+    property real ghostX: 0
+    property real ghostY: 0
+    readonly property bool ghostActive: ghostKind.length > 0
+
+    function previewDrag(kind, sceneX, sceneY) {
+        const local = root.mapFromItem(null, sceneX, sceneY)
+        ghostKind = kind
+        ghostX = local.x
+        ghostY = local.y
+    }
+    function moveDragPreview(sceneX, sceneY) {
+        const local = root.mapFromItem(null, sceneX, sceneY)
+        ghostX = local.x
+        ghostY = local.y
+    }
+    function endDragPreview(sceneX, sceneY, dropped) {
+        const local = root.mapFromItem(null, sceneX, sceneY)
+        const inBounds = local.x >= 0 && local.x <= root.width
+                       && local.y >= 0 && local.y <= root.height
+        if (dropped && inBounds && ghostKind.length > 0) {
+            // Convert to Flickable contentItem coords (account for scroll).
+            const fLocal = flick.mapFromItem(root, local.x, local.y)
+            const cx = fLocal.x + flick.contentX - nodeW / 2
+            const cy = fLocal.y + flick.contentY - nodeMinH / 2
+            root.addStepAtRequested(ghostKind, Math.max(0, cx), Math.max(0, cy))
+        }
+        ghostKind = ""
+    }
+
+    // ============ Port-drag rewire (in-flight wire) ============
+    // Active during a drag from a card port. The drag layer renders a
+    // floating Bezier from the source port to the cursor; on release
+    // we hit-test the cards under the cursor and emit rewireRequested
+    // with the matched indices.
+
+    property int wireFromIndex: -1
+    property real wireCursorX: 0
+    property real wireCursorY: 0
+    readonly property bool wireDragging: wireFromIndex >= 0
+
+    function startWireDrag(fromIndex, sceneX, sceneY) {
+        const local = flick.mapFromItem(null, sceneX, sceneY)
+        wireFromIndex = fromIndex
+        wireCursorX = local.x + flick.contentX
+        wireCursorY = local.y + flick.contentY
+    }
+    function moveWireDrag(sceneX, sceneY) {
+        const local = flick.mapFromItem(null, sceneX, sceneY)
+        wireCursorX = local.x + flick.contentX
+        wireCursorY = local.y + flick.contentY
+    }
+    function endWireDrag(sceneX, sceneY) {
+        if (wireFromIndex < 0) return
+        const local = flick.mapFromItem(null, sceneX, sceneY)
+        const cx = local.x + flick.contentX
+        const cy = local.y + flick.contentY
+        const list = root.actions || []
+        // Hit test: which card contains (cx, cy)?
+        let hitIndex = -1
+        for (let i = 0; i < list.length; i++) {
+            const p = root.positions[list[i].id]
+            const h = root.cardHeights[list[i].id] || root.nodeMinH
+            if (!p) continue
+            if (cx >= p.x && cx <= p.x + nodeW
+                && cy >= p.y && cy <= p.y + h) {
+                hitIndex = i
+                break
+            }
+        }
+        if (hitIndex >= 0 && hitIndex !== wireFromIndex) {
+            root.rewireRequested(wireFromIndex, hitIndex)
+        }
+        wireFromIndex = -1
+    }
+
+    // ============ Content extent ============
+
     readonly property int contentW: {
         let mx = flick.width
         const list = root.actions || []
@@ -98,7 +220,8 @@ Item {
         const list = root.actions || []
         for (let i = 0; i < list.length; i++) {
             const p = positions[list[i].id]
-            if (p) my = Math.max(my, p.y + nodeMinH + paddingBottom)
+            const h = cardHeights[list[i].id] || nodeMinH
+            if (p) my = Math.max(my, p.y + h + paddingBottom)
         }
         return my
     }
@@ -111,31 +234,14 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
-        onWidthChanged: root._autoLayout()
-
-        // Empty-area click → deselect. Cards' own MouseAreas are at
-        // higher z so they win their hits.
         MouseArea {
             anchors.fill: parent
             z: 0
             onClicked: root.deselectRequested()
         }
 
-        // Drop target for palette drags — when a kind chip is dropped
-        // here we ask the page to add a step at the drop coordinate.
-        DropArea {
-            anchors.fill: parent
-            keys: ["wflow/kind"]
-            onDropped: (drop) => {
-                const kind = drop.getDataAsString("wflow/kind")
-                if (kind && kind.length > 0) {
-                    root.addStepAtRequested(kind, drop.x, drop.y)
-                    drop.accept()
-                }
-            }
-        }
+        // ============ Wires (linear sequence) ============
 
-        // Wires layer — drawn UNDER the cards.
         Item {
             id: wireLayer
             anchors.fill: parent
@@ -144,32 +250,15 @@ Item {
             Repeater {
                 model: Math.max(0, (root.actions || []).length - 1)
                 delegate: Shape {
-                    readonly property var fromCard: nodeRep.itemAt(index)
-                    readonly property var toCard: nodeRep.itemAt(index + 1)
+                    readonly property string fromId: root.actions[index] ? root.actions[index].id : ""
+                    readonly property string toId: root.actions[index + 1] ? root.actions[index + 1].id : ""
+                    readonly property var fromPos: root.positions[fromId]
+                    readonly property var toPos: root.positions[toId]
+                    readonly property real fromH: root.cardHeights[fromId] || root.nodeMinH
+                    readonly property real toH: root.cardHeights[toId] || root.nodeMinH
+                    readonly property var route: _routeWire(fromPos, toPos, fromH, toH)
 
-                    // Source / target ports depend on layout mode so wires
-                    // exit the side that points toward the next card.
-                    readonly property real sourceX: fromCard
-                        ? (root.layoutMode === "horizontal"
-                            ? (fromCard.x + fromCard.width)
-                            : (fromCard.x + fromCard.width / 2))
-                        : 0
-                    readonly property real sourceY: fromCard
-                        ? (root.layoutMode === "horizontal"
-                            ? (fromCard.y + fromCard.height / 2)
-                            : (fromCard.y + fromCard.height))
-                        : 0
-                    readonly property real targetX: toCard
-                        ? (root.layoutMode === "horizontal"
-                            ? toCard.x
-                            : (toCard.x + toCard.width / 2))
-                        : 0
-                    readonly property real targetY: toCard
-                        ? (root.layoutMode === "horizontal"
-                            ? (toCard.y + toCard.height / 2)
-                            : toCard.y)
-                        : 0
-
+                    visible: fromPos !== undefined && toPos !== undefined
                     anchors.fill: parent
                     smooth: true
                     layer.enabled: true
@@ -179,48 +268,80 @@ Item {
                         strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.7)
                         strokeWidth: 1.5
                         fillColor: "transparent"
-                        startX: sourceX
-                        startY: sourceY
-                        // Cubic control points: pulled along the layout's
-                        // primary axis so the curve eases out cleanly
-                        // regardless of which mode we're in.
+                        startX: route.sx
+                        startY: route.sy
                         PathCubic {
-                            x: targetX; y: targetY
-                            control1X: root.layoutMode === "horizontal"
-                                ? (sourceX + (targetX - sourceX) / 2) : sourceX
-                            control1Y: root.layoutMode === "horizontal"
-                                ? sourceY : (sourceY + (targetY - sourceY) / 2)
-                            control2X: root.layoutMode === "horizontal"
-                                ? (sourceX + (targetX - sourceX) / 2) : targetX
-                            control2Y: root.layoutMode === "horizontal"
-                                ? targetY : (sourceY + (targetY - sourceY) / 2)
+                            x: route.tx; y: route.ty
+                            control1X: route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.sx
+                            control1Y: route.axis === "h" ? route.sy : (route.sy + (route.ty - route.sy) / 2)
+                            control2X: route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.tx
+                            control2Y: route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
                         }
                     }
 
-                    // Arrowhead at the target end. Rotated to track the
-                    // tangent of the curve as it lands.
+                    // Arrowhead on the target end. Triangle is rotated
+                    // to match the routing axis so it always points
+                    // into the target card.
                     ShapePath {
                         strokeColor: "transparent"
                         fillColor: Qt.rgba(0.55, 0.78, 0.88, 0.85)
-                        startX: targetX - (root.layoutMode === "horizontal" ? 6 : 4)
-                        startY: targetY - (root.layoutMode === "horizontal" ? 4 : 6)
+                        startX: route.axis === "h"
+                            ? (route.tx - 7 * (route.tx >= route.sx ? 1 : -1))
+                            : (route.tx - 5)
+                        startY: route.axis === "h"
+                            ? (route.ty - 4)
+                            : (route.ty - 7 * (route.ty >= route.sy ? 1 : -1))
                         PathLine {
-                            x: targetX + (root.layoutMode === "horizontal" ? -6 : 4)
-                            y: targetY + (root.layoutMode === "horizontal" ? 4 : -6)
+                            x: route.axis === "h"
+                                ? (route.tx - 7 * (route.tx >= route.sx ? 1 : -1))
+                                : (route.tx + 5)
+                            y: route.axis === "h"
+                                ? (route.ty + 4)
+                                : (route.ty - 7 * (route.ty >= route.sy ? 1 : -1))
                         }
-                        PathLine { x: targetX; y: targetY }
-                        PathLine {
-                            x: targetX - (root.layoutMode === "horizontal" ? 6 : 4)
-                            y: targetY - (root.layoutMode === "horizontal" ? 4 : 6)
-                        }
+                        PathLine { x: route.tx; y: route.ty }
                     }
                 }
             }
         }
 
-        // Nodes layer — each card is positioned absolutely from the
-        // positions map so drag and auto-layout can both write into
-        // the same channel.
+        // ============ In-flight rewire wire ============
+        Shape {
+            visible: root.wireDragging
+            anchors.fill: parent
+            z: 50
+            smooth: true
+            layer.enabled: true
+            layer.samples: 4
+
+            readonly property string fromId: root.wireDragging
+                ? root.actions[root.wireFromIndex].id : ""
+            readonly property var fromPos: root.positions[fromId]
+            readonly property real fromH: root.cardHeights[fromId] || root.nodeMinH
+            readonly property real fromCx: fromPos ? (fromPos.x + root.nodeW / 2) : 0
+            readonly property real fromCy: fromPos ? (fromPos.y + fromH / 2) : 0
+
+            ShapePath {
+                strokeColor: Theme.accent
+                strokeWidth: 2
+                strokeStyle: ShapePath.DashLine
+                dashPattern: [4, 4]
+                fillColor: "transparent"
+                startX: fromCx
+                startY: fromCy
+                PathCubic {
+                    x: root.wireCursorX
+                    y: root.wireCursorY
+                    control1X: fromCx
+                    control1Y: (fromCy + root.wireCursorY) / 2
+                    control2X: root.wireCursorX
+                    control2Y: (fromCy + root.wireCursorY) / 2
+                }
+            }
+        }
+
+        // ============ Cards ============
+
         Repeater {
             id: nodeRep
             model: root.actions
@@ -244,18 +365,26 @@ Item {
                     return v === undefined ? "" : v
                 }
 
-                // Pull initial position from the positions map. Once
-                // the user drags, the binding breaks and we manage x/y
-                // by hand; _syncFromPositions() reattaches when the
-                // map changes externally (layout switch, action add).
                 function _syncFromPositions() {
                     const p = root.positions[stepId]
                     if (p) { x = p.x; y = p.y }
                 }
-                Component.onCompleted: _syncFromPositions()
+                Component.onCompleted: { _syncFromPositions(); _publishHeight() }
                 Connections {
                     target: root
                     function onPositionsChanged() { cardItem._syncFromPositions() }
+                }
+
+                function _publishHeight() {
+                    if (!stepId) return
+                    if (root.cardHeights[stepId] === card.height) return
+                    const next = Object.assign({}, root.cardHeights)
+                    next[stepId] = card.height
+                    root.cardHeights = next
+                }
+                Connections {
+                    target: card
+                    function onHeightChanged() { cardItem._publishHeight() }
                 }
 
                 Behavior on x {
@@ -295,20 +424,14 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-                        // drag.target is the cardItem so dragging moves
-                        // the wrapper Item that the wires read from.
                         drag.target: cardItem
                         drag.axis: Drag.XAndYAxis
                         drag.threshold: 4
-
                         property bool _wasDragged: false
                         onPressed: _wasDragged = false
                         onPositionChanged: if (drag.active) _wasDragged = true
                         onReleased: {
                             if (_wasDragged) {
-                                // Persist the new position; drop into a
-                                // fresh map so the property change fires
-                                // and other cards' Connections can resync.
                                 const next = Object.assign({}, root.positions)
                                 next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
                                 root.positions = next
@@ -343,7 +466,6 @@ Item {
                                 width: parent.width - numBadge.width - statusDot.width - parent.spacing * 2
                                 elide: Text.ElideRight
                             }
-
                             Rectangle {
                                 id: numBadge
                                 width: numText.implicitWidth + 14
@@ -362,7 +484,6 @@ Item {
                                     font.pixelSize: 10
                                 }
                             }
-
                             Rectangle {
                                 id: statusDot
                                 anchors.verticalCenter: parent.verticalCenter
@@ -409,61 +530,160 @@ Item {
                             }
                         }
                     }
+
+                    // ============ Port dots (top, right, bottom, left) ============
+                    // Visible on hover OR while dragging, so the user
+                    // can see where to grab. Each port is an
+                    // independently-draggable handle that starts an
+                    // in-flight wire on press.
+                    Repeater {
+                        model: [
+                            { ax: 0.5, ay: 0,   side: "top"    },
+                            { ax: 1.0, ay: 0.5, side: "right"  },
+                            { ax: 0.5, ay: 1.0, side: "bottom" },
+                            { ax: 0.0, ay: 0.5, side: "left"   }
+                        ]
+                        delegate: Rectangle {
+                            x: card.width  * modelData.ax - width  / 2
+                            y: card.height * modelData.ay - height / 2
+                            width: 12; height: 12
+                            radius: 6
+                            color: portArea.containsMouse || (root.wireDragging && root.wireFromIndex === model.index)
+                                ? Theme.accent
+                                : Theme.surface
+                            border.color: Theme.accent
+                            border.width: 1.5
+                            opacity: dragArea.containsMouse
+                                  || cardItem.isSelected
+                                  || root.wireDragging ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+
+                            MouseArea {
+                                id: portArea
+                                anchors.fill: parent
+                                anchors.margins: -4   // generous hit target
+                                hoverEnabled: true
+                                cursorShape: Qt.CrossCursor
+                                onPressed: (mouse) => {
+                                    const scene = parent.mapToItem(null, mouse.x, mouse.y)
+                                    root.startWireDrag(model.index, scene.x, scene.y)
+                                    mouse.accepted = true
+                                }
+                                onPositionChanged: (mouse) => {
+                                    if (root.wireDragging) {
+                                        const scene = parent.mapToItem(null, mouse.x, mouse.y)
+                                        root.moveWireDrag(scene.x, scene.y)
+                                    }
+                                }
+                                onReleased: (mouse) => {
+                                    if (root.wireDragging) {
+                                        const scene = parent.mapToItem(null, mouse.x, mouse.y)
+                                        root.endWireDrag(scene.x, scene.y)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    // ============== Floating UI ==============
+    // ============ Drag preview ghost (palette → canvas) ============
+    Rectangle {
+        visible: root.ghostActive
+        x: root.ghostX - root.nodeW / 2
+        y: root.ghostY - root.nodeMinH / 2
+        width: root.nodeW
+        height: root.nodeMinH
+        z: 200
+        opacity: 0.7
+        radius: 14
+        color: Theme.surface
+        border.color: Theme.accent
+        border.width: 2
 
-    // Layout-mode picker — top-right corner, three icons.
+        Column {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            Row {
+                width: parent.width
+                Text {
+                    text: root.ghostKind.toUpperCase()
+                    color: Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.4
+                }
+            }
+            GradientPill {
+                kind: root.ghostKind
+                text: "(new step)"
+                icon: Theme.catGlyph(root.ghostKind)
+                width: parent.width
+            }
+        }
+    }
+
+    // ============ Floating UI ============
+
+    // One-shot organize buttons. Click rearranges every card; no
+    // sticky mode, no automatic re-layout on resize / inspector
+    // slide / step add.
     Rectangle {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: 8
         anchors.rightMargin: 8
-        z: 50
-        width: layoutRow.implicitWidth + 8
-        height: 32
+        z: 60
+        width: orgRow.implicitWidth + 12
+        height: 34
         radius: 8
-        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
+        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
         border.width: 1
 
         Row {
-            id: layoutRow
+            id: orgRow
             anchors.centerIn: parent
-            spacing: 2
+            spacing: 4
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Tidy:"
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontXs
+                rightPadding: 4
+            }
 
             Repeater {
                 model: [
-                    { id: "vertical",   glyph: "≡",  tip: "Vertical stack" },
-                    { id: "horizontal", glyph: "‖",  tip: "Horizontal row" },
-                    { id: "grid",       glyph: "▦",  tip: "Wrapping grid" }
+                    { glyph: "≡",  tip: "Tidy as a vertical stack",     action: organizeVertical   },
+                    { glyph: "⫼",  tip: "Tidy as a horizontal row",     action: organizeHorizontal },
+                    { glyph: "▦",  tip: "Tidy as a wrapping grid",      action: organizeGrid       }
                 ]
                 delegate: Rectangle {
-                    readonly property bool isOn: root.layoutMode === modelData.id
                     width: 28; height: 26; radius: 6
                     anchors.verticalCenter: parent.verticalCenter
-                    color: isOn
-                        ? Theme.accentWash(0.16)
-                        : (lmArea.containsMouse ? Theme.surface2 : "transparent")
+                    color: orgArea.containsMouse ? Theme.surface2 : "transparent"
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
                     Text {
                         anchors.centerIn: parent
                         text: modelData.glyph
-                        color: parent.isOn ? Theme.accent : Theme.text2
+                        color: Theme.text2
                         font.family: Theme.familyBody
                         font.pixelSize: 14
-                        font.weight: parent.isOn ? Font.DemiBold : Font.Medium
                     }
                     MouseArea {
-                        id: lmArea
+                        id: orgArea
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.layoutMode = modelData.id
+                        onClicked: modelData.action()
                         ToolTip.visible: containsMouse
                         ToolTip.delay: 400
                         ToolTip.text: modelData.tip
@@ -473,7 +693,38 @@ Item {
         }
     }
 
-    // ============== Helpers ==============
+    // ============ Helpers ============
+
+    // Smart wire routing: pick the source's exit side and the target's
+    // entry side based on the geometry between the two cards. Wire
+    // exits whichever side faces the target, so a horizontal layout
+    // gets right→left wires and a vertical layout gets bottom→top
+    // wires without anyone setting a mode.
+    function _routeWire(fromPos, toPos, fromH, toH) {
+        if (!fromPos || !toPos) return { sx: 0, sy: 0, tx: 0, ty: 0, axis: "v" }
+        const fromCx = fromPos.x + nodeW / 2
+        const fromCy = fromPos.y + fromH / 2
+        const toCx = toPos.x + nodeW / 2
+        const toCy = toPos.y + toH / 2
+        const dx = toCx - fromCx
+        const dy = toCy - fromCy
+        // Bias slightly toward vertical so cards stacked roughly on
+        // top of each other don't flip to horizontal routing on a
+        // small x-jitter.
+        if (Math.abs(dx) > Math.abs(dy) * 1.3) {
+            if (dx > 0) {
+                return { sx: fromPos.x + nodeW, sy: fromCy, tx: toPos.x,            ty: toCy, axis: "h" }
+            } else {
+                return { sx: fromPos.x,         sy: fromCy, tx: toPos.x + nodeW,    ty: toCy, axis: "h" }
+            }
+        } else {
+            if (dy > 0) {
+                return { sx: fromCx, sy: fromPos.y + fromH, tx: toCx, ty: toPos.y,         axis: "v" }
+            } else {
+                return { sx: fromCx, sy: fromPos.y,         tx: toCx, ty: toPos.y + toH,   axis: "v" }
+            }
+        }
+    }
 
     function _chipsFor(act, shaped) {
         const out = []

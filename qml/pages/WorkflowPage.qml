@@ -273,6 +273,35 @@ Item {
         _scheduleSave()
     }
 
+    // Make the step at otherIdx the immediate predecessor of the
+    // currently selected step. Reorder math:
+    //   if otherIdx < selectedIndex → move otherIdx to selectedIndex - 1
+    //   if otherIdx > selectedIndex → move otherIdx to selectedIndex
+    function _makePredecessor(otherIdx) {
+        const sel = editorContent.selectedIndex
+        if (sel < 0 || otherIdx < 0 || otherIdx === sel) return
+        const target = otherIdx < sel ? sel - 1 : sel
+        _moveStep(otherIdx, target)
+    }
+
+    // Make the step at otherIdx the immediate successor of the
+    // currently selected step.
+    function _makeSuccessor(otherIdx) {
+        const sel = editorContent.selectedIndex
+        if (sel < 0 || otherIdx < 0 || otherIdx === sel) return
+        const target = otherIdx > sel ? sel + 1 : sel
+        _moveStep(otherIdx, target)
+    }
+
+    // Port-drag rewire: caller dragged from fromIdx to toIdx,
+    // intending fromIdx to lead into toIdx. Move fromIdx so it sits
+    // immediately before toIdx in the sequence.
+    function _rewireSequence(fromIdx, toIdx) {
+        if (fromIdx === toIdx) return
+        const target = fromIdx < toIdx ? toIdx - 1 : toIdx
+        _moveStep(fromIdx, target)
+    }
+
     function _moveStep(from, to) {
         if (from === to) return
         const wf = JSON.parse(JSON.stringify(root.workflow))
@@ -626,10 +655,13 @@ Item {
                     totalSteps: (root.actions || []).length
                     prevAction: editorContent.prevAction
                     nextAction: editorContent.nextAction
+                    allActions: root.actions
                     onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                     onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
                     onCloseRequested: { editorContent.selectedIndex = -1 }
                     onSelectStep: (i) => { editorContent.selectedIndex = i }
+                    onPredecessorChosen: (otherIdx) => root._makePredecessor(otherIdx)
+                    onSuccessorChosen: (otherIdx) => root._makeSuccessor(otherIdx)
                 }
             }
 
@@ -650,17 +682,21 @@ Item {
                 onSelectStep: (i) => { editorContent.selectedIndex = i }
                 onDeselectRequested: { editorContent.selectedIndex = -1 }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
+                // Port-drag rewire: dragged-from card becomes the
+                // immediate predecessor of the dropped-on card.
+                onRewireRequested: (fromIdx, toIdx) => root._rewireSequence(fromIdx, toIdx)
             }
 
-            // Floating step palette — anchored above the canvas's
-            // bottom edge, centered. Drag a chip onto the canvas to
-            // add a step at that point.
+            // Floating step palette. Drag a chip onto the canvas to
+            // add a step at the drop point — palette uses the canvas
+            // ref to drive an in-canvas card-shaped preview ghost.
             StepPalette {
                 visible: root.workflowId.length > 0
                 anchors.bottom: canvasView.bottom
                 anchors.horizontalCenter: canvasView.horizontalCenter
                 anchors.bottomMargin: 18
                 z: 60
+                canvas: canvasView
             }
         }
     }

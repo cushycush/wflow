@@ -16,12 +16,20 @@ Item {
     // the linear sequence. Used by the prev/next nav row.
     property var prevAction: null
     property var nextAction: null
+    // Full action list — used to populate the predecessor / successor
+    // pickers when the user wants to swap who precedes or follows the
+    // selected step.
+    property var allActions: []
     readonly property color catColor: sel ? Theme.catFor(sel.kind) : Theme.accent
 
     signal valueEdited(int stepIndex, string newPrimary)
     signal optionEdited(int stepIndex, string path, var value)
     signal closeRequested()
     signal selectStep(int index)
+    // Reorder so step at `otherIndex` becomes the immediate
+    // predecessor / successor of the currently selected step.
+    signal predecessorChosen(int otherIndex)
+    signal successorChosen(int otherIndex)
 
     Rectangle {
         anchors.fill: parent
@@ -153,11 +161,15 @@ Item {
                         width: parent.width
                         spacing: 8
 
+                        // Predecessor tile. Click to jump selection
+                        // backwards; the small swap chevron opens a
+                        // picker that lets you choose any other step
+                        // to be your predecessor (reorders the list).
                         Rectangle {
                             id: prevTile
                             readonly property bool empty: root.prevAction === null
                             width: (parent.width - parent.spacing) / 2
-                            height: 56
+                            height: 60
                             radius: Theme.radiusMd
                             color: empty
                                 ? Theme.bg
@@ -169,6 +181,7 @@ Item {
                             Column {
                                 anchors.fill: parent
                                 anchors.margins: 8
+                                anchors.rightMargin: 22
                                 spacing: 2
                                 Text {
                                     text: "← PRECEDED BY"
@@ -191,21 +204,67 @@ Item {
                                     width: parent.width
                                 }
                             }
+
                             MouseArea {
                                 id: prevArea
                                 anchors.fill: parent
+                                anchors.rightMargin: 22
                                 hoverEnabled: true
                                 enabled: !prevTile.empty
                                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onClicked: root.selectStep(root.selectedIndex - 1)
                             }
+
+                            // Swap chevron — opens picker on click.
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.rightMargin: 4
+                                width: 18; height: 18; radius: 4
+                                color: prevSwapArea.containsMouse ? Theme.surface3 : "transparent"
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "⇄"
+                                    color: Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 11
+                                }
+                                MouseArea {
+                                    id: prevSwapArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: prevPicker.popup()
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 400
+                                    ToolTip.text: "Choose a different predecessor"
+                                }
+                            }
+
+                            WfMenu {
+                                id: prevPicker
+                                Repeater {
+                                    model: root.allActions
+                                    delegate: WfMenuItem {
+                                        // Skip self and current predecessor.
+                                        visible: model.index !== root.selectedIndex
+                                              && model.index !== root.selectedIndex - 1
+                                        height: visible ? implicitHeight : 0
+                                        text: String(model.index + 1).padStart(2, "0") + "  ·  "
+                                              + (modelData ? (modelData.summary || "") : "")
+                                        onTriggered: root.predecessorChosen(model.index)
+                                    }
+                                }
+                            }
                         }
 
+                        // Successor tile — mirror of the predecessor.
                         Rectangle {
                             id: nextTile
                             readonly property bool empty: root.nextAction === null
                             width: (parent.width - parent.spacing) / 2
-                            height: 56
+                            height: 60
                             radius: Theme.radiusMd
                             color: empty
                                 ? Theme.bg
@@ -217,6 +276,7 @@ Item {
                             Column {
                                 anchors.fill: parent
                                 anchors.margins: 8
+                                anchors.leftMargin: 22
                                 spacing: 2
                                 Text {
                                     text: "FOLLOWED BY →"
@@ -242,13 +302,56 @@ Item {
                                     horizontalAlignment: Text.AlignRight
                                 }
                             }
+
                             MouseArea {
                                 id: nextArea
                                 anchors.fill: parent
+                                anchors.leftMargin: 22
                                 hoverEnabled: true
                                 enabled: !nextTile.empty
                                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onClicked: root.selectStep(root.selectedIndex + 1)
+                            }
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 4
+                                width: 18; height: 18; radius: 4
+                                color: nextSwapArea.containsMouse ? Theme.surface3 : "transparent"
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "⇄"
+                                    color: Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 11
+                                }
+                                MouseArea {
+                                    id: nextSwapArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: nextPicker.popup()
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 400
+                                    ToolTip.text: "Choose a different successor"
+                                }
+                            }
+
+                            WfMenu {
+                                id: nextPicker
+                                Repeater {
+                                    model: root.allActions
+                                    delegate: WfMenuItem {
+                                        visible: model.index !== root.selectedIndex
+                                              && model.index !== root.selectedIndex + 1
+                                        height: visible ? implicitHeight : 0
+                                        text: String(model.index + 1).padStart(2, "0") + "  ·  "
+                                              + (modelData ? (modelData.summary || "") : "")
+                                        onTriggered: root.successorChosen(model.index)
+                                    }
+                                }
                             }
                         }
                     }
