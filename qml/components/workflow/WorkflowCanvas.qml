@@ -280,9 +280,15 @@ Item {
     }
 
     // ============ Content extent ============
+    // Effectively-infinite canvas. A fixed-but-large unscaled span
+    // keeps the Flickable from clamping the pan to the card-bounding
+    // box — the user can drag empty space anywhere they like, and
+    // dropping cards far from origin doesn't run into a wall. Span
+    // is unscaled; Flickable.contentWidth multiplies by zoom.
+    readonly property int canvasSpan: 12000
 
     readonly property int contentW: {
-        let mx = flick.width
+        let mx = canvasSpan
         const list = root.actions || []
         for (let i = 0; i < list.length; i++) {
             const p = positions[list[i].id]
@@ -291,7 +297,7 @@ Item {
         return mx
     }
     readonly property int contentH: {
-        let my = flick.height
+        let my = canvasSpan
         const list = root.actions || []
         for (let i = 0; i < list.length; i++) {
             const p = positions[list[i].id]
@@ -308,12 +314,14 @@ Item {
         contentHeight: root.contentH * root.zoom
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        // Explicit DragHandler below owns canvas pan. Flickable's
+        // built-in drag fights TapHandler / card MouseAreas in ways
+        // that left the canvas stuck — turning interactive off lets
+        // wheel + scrollbars still scroll the contentItem while pan
+        // is unambiguously handled by the DragHandler.
+        interactive: false
 
-        // Plain wheel zooms with the cursor as anchor. WheelHandler
-        // sometimes lost events to Flickable's native wheel-scroll
-        // handling; a MouseArea with acceptedButtons: Qt.NoButton
-        // gets the wheel signal reliably and lets click events fall
-        // through to the deselect / card MouseAreas below it.
+        // Plain wheel zooms with the cursor as anchor.
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.NoButton
@@ -325,10 +333,44 @@ Item {
             }
         }
 
-        // Deselect on tap of empty area. TapHandler instead of a
-        // MouseArea so press-then-drag falls through to Flickable's
-        // pan handling — a MouseArea here grabbed the press and kept
-        // the canvas from panning until you let go.
+        // Click-and-drag on empty canvas pans the viewport. Cards'
+        // own MouseAreas grab their press exclusively before this
+        // handler can claim it, so dragging a card moves the card
+        // (not the canvas), and pressing on a card and releasing
+        // without motion still fires its click. Everywhere else
+        // — the empty grid background between cards — this
+        // handler takes the gesture and pans.
+        DragHandler {
+            id: panHandler
+            target: null
+            property real _startX: 0
+            property real _startY: 0
+            onActiveChanged: {
+                if (active) {
+                    _startX = flick.contentX
+                    _startY = flick.contentY
+                }
+            }
+            onTranslationChanged: {
+                if (!active) return
+                const maxX = Math.max(0, flick.contentWidth - flick.width)
+                const maxY = Math.max(0, flick.contentHeight - flick.height)
+                flick.contentX = Math.max(0, Math.min(maxX, _startX - translation.x))
+                flick.contentY = Math.max(0, Math.min(maxY, _startY - translation.y))
+            }
+        }
+
+        // Open hand when hovering empty canvas, closed hand while
+        // panning. Cards have their own MouseAreas that override the
+        // cursor when hovered (pointer, then closed hand on drag),
+        // so this only paints the empty grid area.
+        HoverHandler {
+            cursorShape: panHandler.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        }
+
+        // Deselect on tap of empty area. TapHandler doesn't fire if
+        // the gesture became a drag (DragHandler claims it past the
+        // motion threshold), so this is harmless alongside pan.
         TapHandler {
             onTapped: root.deselectRequested()
         }
@@ -446,6 +488,16 @@ Item {
                     return v === undefined ? "" : v
                 }
 
+                // Suppress the position Behaviors during the very
+                // first sync after creation. Without this, every
+                // Repeater rebuild (which happens on each workflow
+                // mutation) creates fresh delegates at x=0, y=0 and
+                // the Behavior animates them out to their saved
+                // positions over durSlow — visible as the cards
+                // collapsing toward origin and re-fanning out on
+                // every drop / save.
+                property bool _settled: false
+
                 function _syncFromPositions() {
                     // Don't fight the drag: while the user is moving
                     // this card, x/y are owned by Qt's drag system.
@@ -457,7 +509,7 @@ Item {
                     const p = root.positions[stepId]
                     if (p) { x = p.x; y = p.y }
                 }
-                Component.onCompleted: { _syncFromPositions(); _publishHeight() }
+                Component.onCompleted: { _syncFromPositions(); _publishHeight(); _settled = true }
                 Connections {
                     target: root
                     function onPositionsChanged() { cardItem._syncFromPositions() }
@@ -476,11 +528,11 @@ Item {
                 }
 
                 Behavior on x {
-                    enabled: !dragArea.drag.active
+                    enabled: cardItem._settled && !dragArea.drag.active
                     NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
                 }
                 Behavior on y {
-                    enabled: !dragArea.drag.active
+                    enabled: cardItem._settled && !dragArea.drag.active
                     NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
                 }
 

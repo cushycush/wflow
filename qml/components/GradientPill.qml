@@ -61,17 +61,26 @@ Rectangle {
         id: row
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
-        anchors.leftMargin: 12
-        spacing: 10
+        anchors.leftMargin: 8
+        spacing: 8
 
-        Text {
+        // Leading icon sits on a small dark chip so it stays legible
+        // against the gradient — without it the icon glyph blends
+        // into the colour at certain points along the stops.
+        Rectangle {
             visible: root.icon.length > 0
-            text: root.icon
-            color: root.textColor
-            font.family: Theme.familyBody
-            font.pixelSize: 12
+            width: 22; height: 22
+            radius: 6
+            color: Qt.rgba(0, 0, 0, 0.22)
             anchors.verticalCenter: parent.verticalCenter
-            opacity: 0.9
+            Text {
+                anchors.centerIn: parent
+                text: root.icon
+                color: root.textColor
+                font.family: Theme.familyBody
+                font.pixelSize: 12
+                font.weight: Font.Bold
+            }
         }
         Text {
             text: root.text
