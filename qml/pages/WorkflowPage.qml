@@ -568,14 +568,17 @@ Item {
                 (selectedIndex >= 0 && selectedIndex + 1 < (root.actions || []).length)
                     ? root.actions[selectedIndex + 1] : null
 
-            // Auto-select first step on load so the inspector has
-            // something to show; deselect when the workflow empties.
+            // Keep selectedIndex valid as the action list changes; do
+            // NOT auto-select when it's -1. Auto-selecting was popping
+            // the inspector open every time a step landed from a
+            // palette drop — combined with the deselect TapHandler
+            // firing in the same release, you'd see the menu flash
+            // in / out / in. The user opens the inspector by clicking
+            // a card; reconcile only clamps when needed.
             function _reconcileSelection() {
                 const n = (root.actions || []).length
                 if (n === 0) {
                     selectedIndex = -1
-                } else if (selectedIndex < 0) {
-                    selectedIndex = 0
                 } else if (selectedIndex >= n) {
                     selectedIndex = n - 1
                 }
