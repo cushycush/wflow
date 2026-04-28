@@ -1347,7 +1347,9 @@ Item {
             // this container's left edge, so it reflows in sync.
             Item {
                 id: inspectorContainer
-                visible: root.workflowId.length > 0
+                // Fragments have fragmentPath but no workflowId —
+                // both are valid loaded states for the editor.
+                visible: root.workflowId.length > 0 || root.fragmentMode
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom

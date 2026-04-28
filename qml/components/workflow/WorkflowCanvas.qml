@@ -273,7 +273,11 @@ Item {
             if (w > maxTopW) maxTopW = w
         }
         const centerX = paddingLeft + maxTopW / 2 + nodeW
-        const branchX = centerX + maxTopW / 2 + gap * 2
+        // Branch column is LEFT-anchored at the right edge of the main
+        // column + a generous gap, so wide inner cards never extend back
+        // into the main column regardless of their width.
+        const topRightEdge = centerX + maxTopW / 2
+        const branchLeft = topRightEdge + gap * 2
 
         const next = {}
         let y = paddingTop
@@ -297,7 +301,7 @@ Item {
                         const ic = inner[k]
                         const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
                         const ih = cardHeights[ic.id] || nodeMinH
-                        next[ic.id] = { x: branchX - iw / 2, y: innerY }
+                        next[ic.id] = { x: branchLeft, y: innerY }
                         innerY += ih
                         innerSpan += ih
                         if (k < inner.length - 1) {
@@ -2131,7 +2135,11 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: 12
-        width: toolDockHover.containsMouse ? root.toolDockExpandedW : root.toolDockCollapsedW
+        // HoverHandler is non-exclusive — child button MouseAreas
+        // don't flip toolDockHover.hovered off when the cursor moves
+        // onto them, so the dock stays expanded while the cursor is
+        // anywhere over the dock or its buttons.
+        width: toolDockHover.hovered ? root.toolDockExpandedW : root.toolDockCollapsedW
         height: toolStack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
@@ -2142,13 +2150,9 @@ Item {
             NumberAnimation { duration: Theme.dur(Theme.durBase); easing.type: Easing.OutCubic }
         }
 
-        MouseArea {
+        HoverHandler {
             id: toolDockHover
-            anchors.fill: parent
-            anchors.margins: -8
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-            propagateComposedEvents: true
+            margin: 8
         }
 
         Component {
@@ -2167,7 +2171,7 @@ Item {
                 height: 42
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
                 radius: Theme.radiusSm
-                readonly property bool expanded: toolDockHover.containsMouse
+                readonly property bool expanded: toolDockHover.hovered
                 color: active
                     ? Theme.accentWash(0.18)
                     : (toolBtnArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2277,7 +2281,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "curve"
-                readonly property bool expanded: toolDockHover.containsMouse
+                readonly property bool expanded: toolDockHover.hovered
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsCurveArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2328,7 +2332,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "ortho"
-                readonly property bool expanded: toolDockHover.containsMouse
+                readonly property bool expanded: toolDockHover.hovered
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsOrthoArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2392,7 +2396,7 @@ Item {
                 height: 26
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
-                readonly property bool expanded: toolDockHover.containsMouse
+                readonly property bool expanded: toolDockHover.hovered
                 color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {

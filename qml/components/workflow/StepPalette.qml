@@ -60,7 +60,11 @@ Item {
     Rectangle {
         id: dock
         anchors.centerIn: parent
-        width: dockHover.containsMouse ? root.expandedW : root.collapsedW
+        // HoverHandler (below) is non-exclusive — chip MouseAreas
+        // can still claim their own hover state without flipping
+        // dockHover.hovered off, so the dock stays expanded while
+        // the cursor is anywhere over the dock or its children.
+        width: dockHover.hovered ? root.expandedW : root.collapsedW
         height: stack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
@@ -70,17 +74,12 @@ Item {
             NumberAnimation { duration: Theme.dur(Theme.durBase); easing.type: Easing.OutCubic }
         }
 
-        // Hover detection on the entire dock. Drag operations
-        // (chipArea.dragging) keep the dock open even after the
-        // mouse leaves, so a long drag doesn't see the dock
-        // collapse mid-gesture.
-        MouseArea {
+        HoverHandler {
             id: dockHover
-            anchors.fill: parent
-            anchors.margins: -8  // forgiving hover bounds
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton  // pass clicks through
-            propagateComposedEvents: true
+            // margins extend the hover catch area a bit beyond the
+            // dock's visible edge so the cursor doesn't have to
+            // land pixel-perfect.
+            margin: 8
         }
 
         Column {
@@ -125,7 +124,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             radius: Theme.radiusSm
                             readonly property color catColor: Theme.catFor(modelData.kind)
-                            readonly property bool expanded: dockHover.containsMouse
+                            readonly property bool expanded: dockHover.hovered
                             color: chipArea.dragging
                                 ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.30)
                                 : (chipArea.containsMouse
