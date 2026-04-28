@@ -805,27 +805,26 @@ Item {
         wfCtrl.load(root.workflowId)
     }
 
+    // Mirror wfCtrl.workflow_json into a local property so we can
+    // hook a known-good QML property-change handler. Connections +
+    // `function on<Property>Changed()` doesn't fire for cxx-qt's
+    // auto-generated NOTIFY signals on snake_case properties; the
+    // property-binding path here re-evaluates whenever the bridge
+    // updates workflow_json, and the on<Local>Changed handler runs
+    // reliably.
+    property string _workflowJsonMirror: wfCtrl.workflow_json
+    on_WorkflowJsonMirrorChanged: {
+        try {
+            root.workflow = JSON.parse(_workflowJsonMirror || "{}")
+        } catch (e) {
+            root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
+        }
+        Qt.callLater(root._ensureStableIds)
+        Qt.callLater(root._loadPositions)
+    }
+
     Connections {
         target: wfCtrl
-        function onWorkflow_jsonChanged() {
-            try {
-                root.workflow = JSON.parse(wfCtrl.workflow_json || "{}")
-            } catch (e) {
-                root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
-            }
-            // One-shot silent upgrade: write the .kdl back so the
-            // file has _id properties for every step. Loading a
-            // workflow whose .kdl predates the _id feature gives
-            // each step a fresh UUID via Step::new() — saving
-            // positions against those UUIDs would lose them on the
-            // next decode. The re-save makes the IDs round-trip.
-            Qt.callLater(root._ensureStableIds)
-            // Restore saved card positions for this workflow. Deferred
-            // via Qt.callLater so the canvas's _placeNewSteps has run
-            // and seeded defaults — _loadPositions then overwrites
-            // them where a saved entry exists.
-            Qt.callLater(root._loadPositions)
-        }
         function onRunningChanged() {
             // Clear previous statuses at the start of a fresh run so stale
             // glyphs from the last run don't bleed into the new one.
