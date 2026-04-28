@@ -1277,6 +1277,7 @@ Item {
                 actions: root.actions
                 selectedIndex: editorContent.selectedIndex
                 selectedInnerIndex: editorContent.selectedInnerIndex
+                activeStepIndex: root.activeStepIndex
                 stepStatuses: root.stepStatuses
                 onSelectStep: (i) => {
                     editorContent.selectedIndex = i

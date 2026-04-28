@@ -134,6 +134,26 @@ ApplicationWindow {
         onActivated: root.currentPage = "record"
     }
 
+    StateController { id: introState }
+
+    // First-launch tutorial. Shows once when state.toml is fresh
+    // AND the user hasn't already dismissed it. Marked seen on
+    // Skip / Get started so subsequent launches go straight to
+    // Library.
+    IntroTutorial {
+        id: introTutorial
+        stateCtrl: introState
+    }
+
+    Component.onCompleted: {
+        if (introState.is_first_run && !introState.tutorial_seen("intro_tour")) {
+            // Defer one tick so the chrome behind is laid out before
+            // the modal opens — avoids the dialog flashing over a
+            // half-rendered Library page.
+            Qt.callLater(introTutorial.start)
+        }
+    }
+
     ChromeFloating {
         anchors.fill: parent
         currentPage: root.currentPage

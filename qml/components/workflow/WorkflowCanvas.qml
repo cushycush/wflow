@@ -31,6 +31,7 @@ Item {
     property var actions: []
     property int selectedIndex: 0
     property int selectedInnerIndex: -1
+    property int activeStepIndex: -1
     property var stepStatuses: ({})
 
     // Reactive position / size stores. Each card writes into these
@@ -619,6 +620,10 @@ Item {
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
                 readonly property bool isContainer:
                     rawKind === "conditional" || rawKind === "repeat"
+                // True when the engine is currently running this
+                // step. Drives the pulsing accent border so the user
+                // can see live which step is firing.
+                readonly property bool isActive: model.index === root.activeStepIndex
                 // Notes are annotations, not workflow steps — the
                 // engine skips them at runtime. Render lighter so
                 // they read as canvas comments rather than first-
@@ -713,14 +718,39 @@ Item {
                     // structural blocks at a glance — ordinary action
                     // cards keep the neutral hairline. Notes get the
                     // softest border so they recede next to operations.
-                    border.color: cardItem.isSelected
-                        ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
-                        : (cardItem.isContainer
-                            ? Theme.catFor(cardItem.kind)
-                            : (cardItem.isNote
-                                ? Theme.lineSoft
-                                : (dragArea.containsMouse ? Theme.line : Theme.lineSoft)))
-                    border.width: cardItem.isSelected ? 2 : (cardItem.isContainer ? 1.5 : 1)
+                    border.color: cardItem.isActive
+                        ? Theme.accent
+                        : (cardItem.isSelected
+                            ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
+                            : (cardItem.isContainer
+                                ? Theme.catFor(cardItem.kind)
+                                : (cardItem.isNote
+                                    ? Theme.lineSoft
+                                    : (dragArea.containsMouse ? Theme.line : Theme.lineSoft))))
+                    border.width: cardItem.isActive
+                        ? 2.5
+                        : (cardItem.isSelected ? 2 : (cardItem.isContainer ? 1.5 : 1))
+
+                    // Pulse a soft accent halo around the card while
+                    // it's the active running step. Only allocates a
+                    // separate sibling Rectangle when isActive is true
+                    // so non-running cards don't carry the cost.
+                    Rectangle {
+                        visible: cardItem.isActive
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        radius: parent.radius + 4
+                        color: "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                        border.width: 2
+                        z: -1
+                        SequentialAnimation on opacity {
+                            running: cardItem.isActive && !Theme.reduceMotion
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0.6; to: 1.0; duration: 700; easing.type: Easing.InOutSine }
+                            NumberAnimation { from: 1.0; to: 0.6; duration: 700; easing.type: Easing.InOutSine }
+                        }
+                    }
 
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
