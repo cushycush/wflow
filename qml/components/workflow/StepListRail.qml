@@ -38,7 +38,7 @@ Item {
         { kind: "when",      label: "When (conditional)" },
         { kind: "unless",    label: "Unless (conditional)" },
         { kind: "repeat",    label: "Repeat block" },
-        { kind: "include",   label: "Include workflow" },
+        // include omitted — see StepPalette.qml.
         { kind: "use",       label: "Use named import" }
     ]
 

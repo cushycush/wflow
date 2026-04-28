@@ -36,11 +36,15 @@ Item {
             { kind: "clipboard", label: "Clipbd"   },
             { kind: "note",      label: "Note"     }
         ]},
+        // `include` (anonymous fragment splice) is omitted from the
+        // palette on purpose — `import` + `use` is strictly more
+        // capable (named, reusable, navigable) and is the visual
+        // model going forward. Legacy .kdl files with `include`
+        // still parse and render; we just don't author new ones.
         { label: "Flow",   kinds: [
             { kind: "when",      label: "When"     },
             { kind: "unless",    label: "Unless"   },
             { kind: "repeat",    label: "Repeat"   },
-            { kind: "include",   label: "Include"  },
             { kind: "use",       label: "Use"      }
         ]}
     ]
