@@ -2135,11 +2135,16 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: 12
-        // HoverHandler is non-exclusive — child button MouseAreas
-        // don't flip toolDockHover.hovered off when the cursor moves
-        // onto them, so the dock stays expanded while the cursor is
-        // anywhere over the dock or its buttons.
-        width: toolDockHover.hovered ? root.toolDockExpandedW : root.toolDockCollapsedW
+        // The child button MouseAreas with hoverEnabled grab the
+        // QHoverEvent before HoverHandler sees it, so a single dock-
+        // level hover detector misses the cursor when it sits on a
+        // button. We aggregate instead: each button bumps
+        // chipHoverCount, the HoverHandler covers the gaps + margin
+        // ring around the dock.
+        property int chipHoverCount: 0
+        readonly property bool isHovered:
+            toolDockHover.hovered || chipHoverCount > 0
+        width: isHovered ? root.toolDockExpandedW : root.toolDockCollapsedW
         height: toolStack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
@@ -2171,7 +2176,7 @@ Item {
                 height: 42
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
                 radius: Theme.radiusSm
-                readonly property bool expanded: toolDockHover.hovered
+                readonly property bool expanded: toolDock.isHovered
                 color: active
                     ? Theme.accentWash(0.18)
                     : (toolBtnArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2215,6 +2220,11 @@ Item {
                     ToolTip.visible: containsMouse && !toolBtn.expanded
                     ToolTip.delay: 400
                     ToolTip.text: toolBtn.tip
+                    onContainsMouseChanged: {
+                        toolDock.chipHoverCount = Math.max(
+                            0,
+                            toolDock.chipHoverCount + (containsMouse ? 1 : -1))
+                    }
                 }
             }
         }
@@ -2281,7 +2291,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "curve"
-                readonly property bool expanded: toolDockHover.hovered
+                readonly property bool expanded: toolDock.isHovered
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsCurveArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2324,6 +2334,11 @@ Item {
                     ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Curved (Bezier) wires"
+                    onContainsMouseChanged: {
+                        toolDock.chipHoverCount = Math.max(
+                            0,
+                            toolDock.chipHoverCount + (containsMouse ? 1 : -1))
+                    }
                 }
             }
             Rectangle {
@@ -2332,7 +2347,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "ortho"
-                readonly property bool expanded: toolDockHover.hovered
+                readonly property bool expanded: toolDock.isHovered
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsOrthoArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2375,6 +2390,11 @@ Item {
                     ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Stepped (90°) wires"
+                    onContainsMouseChanged: {
+                        toolDock.chipHoverCount = Math.max(
+                            0,
+                            toolDock.chipHoverCount + (containsMouse ? 1 : -1))
+                    }
                 }
             }
 
@@ -2396,7 +2416,7 @@ Item {
                 height: 26
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
-                readonly property bool expanded: toolDockHover.hovered
+                readonly property bool expanded: toolDock.isHovered
                 color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {
@@ -2432,6 +2452,11 @@ Item {
                     ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Reset zoom to 100%"
+                    onContainsMouseChanged: {
+                        toolDock.chipHoverCount = Math.max(
+                            0,
+                            toolDock.chipHoverCount + (containsMouse ? 1 : -1))
+                    }
                 }
             }
             Loader {

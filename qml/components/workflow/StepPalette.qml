@@ -60,11 +60,17 @@ Item {
     Rectangle {
         id: dock
         anchors.centerIn: parent
-        // HoverHandler (below) is non-exclusive — chip MouseAreas
-        // can still claim their own hover state without flipping
-        // dockHover.hovered off, so the dock stays expanded while
-        // the cursor is anywhere over the dock or its children.
-        width: dockHover.hovered ? root.expandedW : root.collapsedW
+        // The chip MouseAreas with hoverEnabled grab the underlying
+        // QHoverEvents before HoverHandler sees them, so a single
+        // dock-level hover detector can't see hover when the cursor
+        // sits on a chip. We aggregate instead: each chip bumps
+        // chipHoverCount, the HoverHandler covers the chip-free
+        // gaps + the margin ring, and any drag pins the dock open.
+        property int chipHoverCount: 0
+        property bool anyChipDragging: false
+        readonly property bool isHovered:
+            dockHover.hovered || chipHoverCount > 0 || anyChipDragging
+        width: isHovered ? root.expandedW : root.collapsedW
         height: stack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
@@ -124,7 +130,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             radius: Theme.radiusSm
                             readonly property color catColor: Theme.catFor(modelData.kind)
-                            readonly property bool expanded: dockHover.hovered
+                            readonly property bool expanded: dock.isHovered
                             color: chipArea.dragging
                                 ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.30)
                                 : (chipArea.containsMouse
@@ -177,6 +183,19 @@ Item {
                                 ToolTip.visible: containsMouse && !dragging
                                 ToolTip.delay: 400
                                 ToolTip.text: modelData.label
+
+                                // Aggregate chip hover into a count on the
+                                // dock so the dock stays expanded whenever
+                                // the cursor is over any chip — Qt's hover
+                                // delivery hands the QHoverEvent to this
+                                // MouseArea (it's hoverEnabled) and never
+                                // bubbles up to the dock's HoverHandler.
+                                onContainsMouseChanged: {
+                                    dock.chipHoverCount = Math.max(
+                                        0,
+                                        dock.chipHoverCount + (containsMouse ? 1 : -1))
+                                }
+                                onDraggingChanged: dock.anyChipDragging = dragging
 
                                 onPressed: (mouse) => {
                                     if (!root.canvas) return
