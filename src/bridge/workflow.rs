@@ -61,6 +61,21 @@ pub mod qobject {
         #[qinvokable]
         fn save(self: Pin<&mut WorkflowController>, json: QString) -> QString;
 
+        /// Save a fragment file. Takes the synthesized workflow JSON
+        /// the editor has been mutating + the absolute path the
+        /// fragment was loaded from, extracts the steps array, and
+        /// writes the bare-fragment KDL form back to disk. The
+        /// workflow's id / title / subtitle / imports map etc. are
+        /// dropped — they were only synthetic wrapper to feed the
+        /// editor; the on-disk fragment is just step nodes. Returns
+        /// the path on success, "" on failure (last_error is set).
+        #[qinvokable]
+        fn save_fragment(
+            self: Pin<&mut WorkflowController>,
+            path: QString,
+            json: QString,
+        ) -> QString;
+
         /// Run the current workflow. Returns immediately. If the
         /// workflow file is trusted (see src/security.rs), progress is
         /// surfaced via step_done / run_finished signals and the
@@ -185,6 +200,67 @@ impl qobject::WorkflowController {
                     .set_last_error(QString::from(&format!("{e:#}")));
             }
         }
+    }
+
+    fn save_fragment(
+        mut self: Pin<&mut Self>,
+        path: QString,
+        json: QString,
+    ) -> QString {
+        let path_s: String = path.to_string();
+        if path_s.is_empty() {
+            self.as_mut()
+                .set_last_error(QString::from("save_fragment: empty path"));
+            return QString::from("");
+        }
+        let text: String = json.to_string();
+        let wf: Workflow = match serde_json::from_str(&text) {
+            Ok(wf) => wf,
+            Err(e) => {
+                tracing::warn!(?e, "save_fragment: bad json");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("bad json: {e}")));
+                return QString::from("");
+            }
+        };
+        // Encode just the steps; the fragment file is a bare list of
+        // step nodes — no workflow wrapper, schema, or imports map.
+        let body = kdl_format::encode_fragment(&wf.steps);
+        let p = std::path::Path::new(&path_s);
+        // Atomic write: tmp file + rename so a crash mid-write
+        // doesn't truncate the fragment.
+        let tmp = p.with_extension("kdl.tmp");
+        if let Some(parent) = p.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                tracing::warn!(?e, "save_fragment: mkdir parent");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("mkdir parent: {e}")));
+                return QString::from("");
+            }
+        }
+        if let Err(e) = std::fs::write(&tmp, body.as_bytes()) {
+            tracing::warn!(?e, "save_fragment: write tmp");
+            self.as_mut()
+                .set_last_error(QString::from(&format!("write {}: {e}", tmp.display())));
+            return QString::from("");
+        }
+        if let Err(e) = std::fs::rename(&tmp, p) {
+            tracing::warn!(?e, "save_fragment: rename");
+            self.as_mut()
+                .set_last_error(QString::from(&format!(
+                    "rename {} -> {}: {e}",
+                    tmp.display(),
+                    p.display()
+                )));
+            return QString::from("");
+        }
+        // Re-emit the synthesized workflow_json (unchanged shape) so
+        // the editor's bindings stay live. Stable ids that the GUI
+        // ensured are already in `wf` and survive the round-trip.
+        let rewrap = serde_json::to_string(&wf).unwrap_or_else(|_| "{}".into());
+        self.as_mut().set_workflow_json(QString::from(&rewrap));
+        self.as_mut().set_last_error(QString::from(""));
+        QString::from(&path_s)
     }
 
     fn resolve_import_path(

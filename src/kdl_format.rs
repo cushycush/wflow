@@ -129,6 +129,18 @@ fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
     node
 }
 
+/// Encode a list of steps as a bare KDL fragment — the format used
+/// by the `use NAME` import targets. No `workflow` wrapper, no
+/// schema, no title or imports map; just the step nodes one after
+/// another. Mirrors the parser side (`decode_fragment_file`).
+pub fn encode_fragment(steps: &[Step]) -> String {
+    let mut doc = KdlDocument::new();
+    for step in steps {
+        doc.nodes_mut().push(encode_step(step));
+    }
+    doc.to_string()
+}
+
 fn encode_step(step: &Step) -> KdlNode {
     let mut node = match &step.action {
         Action::WdoType { text, delay_ms } => {
@@ -2518,5 +2530,63 @@ recipe {
         assert_eq!(wf.title, "Legacy Workflow");
         assert_eq!(wf.subtitle.as_deref(), Some("from before v0.4"));
         assert_eq!(wf.steps.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod fragment_roundtrip {
+    use super::*;
+
+    #[test]
+    fn fragment_encode_then_decode_preserves_steps() {
+        // Build a fragment-shaped step list — the "use NAME" import
+        // target form: bare nodes, no workflow wrapper.
+        let dir = tempfile::tempdir().unwrap();
+        let frag_path = dir.path().join("frag.kdl");
+        let original = r#"note "Loaded from preamble."
+shell "echo hi"
+key "ctrl+l"
+when window="Firefox" {
+    note "Inside the conditional."
+}
+"#;
+        std::fs::write(&frag_path, original).unwrap();
+
+        // Decode it as a fragment.
+        let steps = decode_fragment_file(&frag_path).unwrap();
+        assert_eq!(steps.len(), 4);
+
+        // Re-encode and round-trip.
+        let re_encoded = encode_fragment(&steps);
+        let frag_path_2 = dir.path().join("frag2.kdl");
+        std::fs::write(&frag_path_2, re_encoded.as_bytes()).unwrap();
+        let steps2 = decode_fragment_file(&frag_path_2).unwrap();
+        assert_eq!(steps2.len(), 4);
+
+        // Spot-check: the conditional's inner step survived nesting.
+        match &steps2[3].action {
+            Action::Conditional { steps: inner, .. } => {
+                assert_eq!(inner.len(), 1);
+            }
+            _ => panic!("expected Conditional at index 3"),
+        }
+    }
+
+    #[test]
+    fn fragment_encode_omits_workflow_wrapper() {
+        // No "workflow" / "schema" / "imports" / "title" tokens in
+        // the fragment output — it must be a bare list of step
+        // nodes, otherwise the fragment file becomes a malformed
+        // workflow file that wouldn't decode as a fragment again.
+        let mut wf = Workflow::new("title-not-emitted");
+        wf.steps.push(Step::new(Action::Note { text: "hi".into() }));
+        let body = encode_fragment(&wf.steps);
+        assert!(!body.contains("workflow"));
+        assert!(!body.contains("schema"));
+        assert!(!body.contains("imports"));
+        assert!(!body.contains("title-not-emitted"));
+        // And the step itself IS in the output.
+        assert!(body.contains("note"));
+        assert!(body.contains("hi"));
     }
 }

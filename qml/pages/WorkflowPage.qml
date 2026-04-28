@@ -654,13 +654,6 @@ Item {
     }
 
     function _scheduleSave() {
-        // Fragment view is read-only — every mutation handler still
-        // runs (the user might inspect-but-not-touch), and root.workflow
-        // updates so the UI reflects edits live, but we never schedule
-        // a save back to disk. The save is silently dropped at the
-        // boundary so the rest of the page (mutation helpers, action
-        // bindings) doesn't need fragment-mode branching.
-        if (root.fragmentMode) return
         root.saveState = "dirty"
         saveTimer.restart()
     }
@@ -691,8 +684,19 @@ Item {
     function _saveNow() {
         root.saveState = "saving"
         const json = JSON.stringify(root.workflow)
-        const newId = wfCtrl.save(json)
-        if (newId && newId.length > 0) {
+        let ok
+        if (root.fragmentMode) {
+            // Fragments save just their step list back to the file
+            // they were loaded from — no workflow wrapper, no
+            // imports map. The bridge handles the encode + atomic
+            // rename.
+            const savedPath = wfCtrl.save_fragment(root.fragmentPath, json)
+            ok = (savedPath && savedPath.length > 0)
+        } else {
+            const newId = wfCtrl.save(json)
+            ok = (newId && newId.length > 0)
+        }
+        if (ok) {
             root.saveState = "saved"
             savedToast.restart()
         } else {
@@ -747,11 +751,19 @@ Item {
     // don't fire — this is a load-time upgrade, not a user save.
     function _ensureStableIds() {
         if (_stableIdsEnsured) return
-        if (!root.workflowId || root.workflowId.length === 0) return
+        // Two valid load sources: a workflow id (real workflow) or
+        // a fragmentPath (fragment view). Bail if neither.
+        if ((!root.workflowId || root.workflowId.length === 0)
+            && !root.fragmentMode) return
         const steps = (root.workflow && root.workflow.steps) || []
         if (steps.length === 0) return
         _stableIdsEnsured = true
-        wfCtrl.save(JSON.stringify(root.workflow))
+        const json = JSON.stringify(root.workflow)
+        if (root.fragmentMode) {
+            wfCtrl.save_fragment(root.fragmentPath, json)
+        } else {
+            wfCtrl.save(json)
+        }
     }
 
     function _savePositions() {
@@ -953,26 +965,29 @@ Item {
                 enabled: (root.actions || []).length > 0 && !root.running
                 onClicked: wfCtrl.run()
             }
-            // Fragment-mode badge — sits in place of the action
-            // buttons so the user always knows they're looking at a
-            // read-only view.
+            // Fragment-mode badge — sits in place of the workflow-only
+            // action buttons (Run / Imports / Share / Delete) so the
+            // user always knows they're editing a fragment, not a
+            // standalone workflow. Tinted with the violet `use`
+            // colour so it matches the tab-strip styling for fragment
+            // tabs.
             Rectangle {
                 visible: root.fragmentMode
                 anchors.verticalCenter: parent.verticalCenter
-                width: badgeText.implicitWidth + 16
+                width: badgeText.implicitWidth + 24
                 height: 24
                 radius: 12
-                color: Theme.surface3
-                border.color: Theme.lineSoft
+                color: Qt.rgba(Theme.catUse.r, Theme.catUse.g, Theme.catUse.b, 0.15)
+                border.color: Qt.rgba(Theme.catUse.r, Theme.catUse.g, Theme.catUse.b, 0.45)
                 border.width: 1
                 Text {
                     id: badgeText
                     anchors.centerIn: parent
-                    text: "fragment · read-only"
-                    color: Theme.text2
+                    text: "↳ fragment"
+                    color: Theme.catUse
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontXs
-                    font.weight: Font.Medium
+                    font.weight: Font.DemiBold
                 }
             }
         }
@@ -1224,10 +1239,11 @@ Item {
             // add a step at the drop point — palette uses the canvas
             // ref to drive an in-canvas card-shaped preview ghost.
             StepPalette {
-                // Hidden in fragment view — fragments are read-only,
-                // so dragging in a new step would have nowhere to
-                // save to.
-                visible: !root.fragmentMode && root.workflowId.length > 0
+                // Visible whenever a doc is loaded — both real
+                // workflows (workflowId set) and fragment files
+                // (fragmentPath set). Fragment edits save through
+                // wfCtrl.save_fragment instead of wfCtrl.save.
+                visible: root.workflowId.length > 0 || root.fragmentMode
                 anchors.bottom: canvasView.bottom
                 anchors.horizontalCenter: canvasView.horizontalCenter
                 anchors.bottomMargin: 18
