@@ -910,7 +910,7 @@ Item {
                             // to sit behind the pill.
                             Rectangle {
                                 id: rewireBtn
-                                width: 22; height: 22; radius: 11
+                                width: 22; height: 22; radius: Theme.radiusSm
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: rewireArea.containsMouse
                                     ? Theme.accent
@@ -988,7 +988,7 @@ Item {
                             // mirrors the rail's hover-controls × .
                             Rectangle {
                                 id: deleteBtn
-                                width: 22; height: 22; radius: 11
+                                width: 22; height: 22; radius: Theme.radiusSm
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: deleteArea.containsMouse
                                     ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
@@ -1517,25 +1517,71 @@ Item {
                         _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
                     visible: fromPos !== undefined && toPos !== undefined
 
-                    Rectangle {
+                    // Port = a soft cyan halo behind a solid cyan
+                    // dot with a small white-ish inner highlight,
+                    // so the dot reads as a polished pill the wire
+                    // plugs into rather than a flat sticker.
+                    Item {
                         x: route.sx - root._portR
                         y: route.sy - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-                        radius: root._portR
-                        color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
-                        border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                        border.width: 1
+
+                        Rectangle {  // halo
+                            anchors.centerIn: parent
+                            width: parent.width + 6
+                            height: parent.height + 6
+                            radius: width / 2
+                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
+                        }
+                        Rectangle {  // body
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
+                            border.width: 1
+                            // Inner highlight — small offset white
+                            // disc giving the impression of a top-
+                            // left light source.
+                            Rectangle {
+                                x: parent.width * 0.18
+                                y: parent.height * 0.18
+                                width: parent.width * 0.42
+                                height: parent.height * 0.42
+                                radius: width / 2
+                                color: Qt.rgba(1, 1, 1, 0.45)
+                            }
+                        }
                     }
-                    Rectangle {
+
+                    Item {
                         x: route.tx - root._portR
                         y: route.ty - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-                        radius: root._portR
-                        color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
-                        border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                        border.width: 1
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width + 6
+                            height: parent.height + 6
+                            radius: width / 2
+                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
+                        }
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: width / 2
+                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
+                            border.width: 1
+                            Rectangle {
+                                x: parent.width * 0.18
+                                y: parent.height * 0.18
+                                width: parent.width * 0.42
+                                height: parent.height * 0.42
+                                radius: width / 2
+                                color: Qt.rgba(1, 1, 1, 0.45)
+                            }
+                        }
                     }
                 }
             }

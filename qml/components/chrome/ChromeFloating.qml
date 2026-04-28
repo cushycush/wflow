@@ -394,12 +394,66 @@ Item {
                 color: themeArea.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
+                // Sun icon — Unicode glyph reads fine at this size.
                 Text {
                     anchors.centerIn: parent
-                    text: Theme.mode === "light" ? "☀" : Theme.mode === "dark" ? "☾" : "◐"
+                    visible: Theme.mode === "light"
+                    text: "☀"
                     color: Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: 14
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                }
+
+                // Moon — composed from two overlapping circles so we
+                // get a real crescent shape instead of the wispy
+                // outlined Unicode glyph (☾) that's hard to read at
+                // small sizes. The "carve" rectangle uses the
+                // button's hover/idle background colour so the
+                // crescent appears subtractive against the chrome.
+                Item {
+                    visible: Theme.mode === "dark"
+                    anchors.centerIn: parent
+                    width: 14
+                    height: 14
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: Theme.text2
+                    }
+                    Rectangle {
+                        x: parent.width * 0.32
+                        y: -1
+                        width: parent.width
+                        height: parent.height
+                        radius: width / 2
+                        color: themeArea.containsMouse ? Theme.surface2 : Theme.surface
+                    }
+                }
+
+                // Auto-mode — half-filled circle indicating "follow
+                // system". Same composition trick as the moon but
+                // with a vertical edge so it reads as half-light /
+                // half-dark.
+                Item {
+                    visible: Theme.mode === "auto"
+                    anchors.centerIn: parent
+                    width: 14
+                    height: 14
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: Theme.text2
+                    }
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: parent.width / 2
+                        color: themeArea.containsMouse ? Theme.surface2 : Theme.surface
+                    }
                 }
 
                 MouseArea {

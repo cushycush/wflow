@@ -109,7 +109,7 @@ Item {
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 22; height: 22; radius: 11
+                    width: 22; height: 22; radius: Theme.radiusSm
                     color: card.selected ? Theme.err : Theme.surface3
                     border.color: card.selected ? Theme.err : Theme.line
                     border.width: 1

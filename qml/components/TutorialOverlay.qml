@@ -88,7 +88,7 @@ Rectangle {
         // users can tab to it without first knowing it exists.
         Rectangle {
             id: dismissBtn
-            width: 22; height: 22; radius: 11
+            width: 22; height: 22; radius: Theme.radiusSm
             color: dismissArea.containsMouse ? Theme.surface2 : "transparent"
             anchors.verticalCenter: parent.verticalCenter
 

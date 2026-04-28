@@ -100,7 +100,7 @@ Item {
                         id: closeBtn
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 22; height: 22; radius: 11
+                        width: 22; height: 22; radius: Theme.radiusSm
                         color: closeArea.containsMouse ? Theme.surface2 : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.durFast } }
                         Text {
