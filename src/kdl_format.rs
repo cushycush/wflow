@@ -263,11 +263,6 @@ fn encode_step(step: &Step) -> KdlNode {
             n.set_children(inner);
             n
         }
-        Action::Include { path } => {
-            let mut n = KdlNode::new("include");
-            n.push(arg_str(path));
-            n
-        }
         Action::Use { name } => {
             let mut n = KdlNode::new("use");
             n.push(arg_str(name));
@@ -352,8 +347,9 @@ fn kv_int(name: &str, v: i128) -> KdlNode {
 
 // ---------------------------------------------------------- Decoding --------
 
-/// Parse a KDL file and expand any `include "path.kdl"` nodes inside.
-/// Wraps `decode` + `expand_includes(&wf.steps, path.parent(), ...)`.
+/// Parse a KDL file and expand any `use NAME` nodes inside, resolving
+/// each name through the workflow's `imports { ... }` block.
+/// Wraps `decode` + `expand_imports(&wf.steps, path.parent(), ...)`.
 /// Use this (or `store::load_path`) whenever you have a file on disk;
 /// reserve `decode(text)` for in-memory content that shouldn't reach
 /// the filesystem.
@@ -363,7 +359,7 @@ pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
     let mut wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
     let base_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     let mut visited = std::collections::HashSet::new();
-    // Canonicalize the top-level path too so a later include back to
+    // Canonicalize the top-level path too so a later import back to
     // the same file is caught as a cycle.
     if let Ok(canon) = path.canonicalize() {
         visited.insert(canon);
@@ -371,34 +367,30 @@ pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
     // Clone imports so the expansion pass can resolve `use name` without
     // taking a mutable-vs-shared borrow on wf all at once.
     let imports = wf.imports.clone();
-    expand_includes(&mut wf.steps, &base_dir, &imports, &mut visited)?;
+    expand_imports(&mut wf.steps, &base_dir, &imports, &mut visited)?;
     // Imports have been fully resolved — clear them so re-encoding the
     // workflow doesn't emit a now-redundant `imports {}` block.
     wf.imports.clear();
     Ok(wf)
 }
 
-/// Walk a step list and splice every `Action::Include` with the
-/// decoded top-level nodes of the target fragment file. Recurses
-/// into `repeat` / `when` / `unless` blocks so nested includes
-/// resolve. Cycles are detected via a visited-set of canonicalized
-/// paths; the current file is removed from the set after its subtree
-/// is expanded so the same file can be included in multiple sibling
-/// branches without false-positive cycle errors.
-pub fn expand_includes(
+/// Walk a step list and splice every `Action::Use` with the decoded
+/// top-level nodes of the target fragment file (looked up through the
+/// workflow's imports map). Recurses into `repeat` / `when` / `unless`
+/// blocks so nested uses resolve. Cycles are detected via a visited-set
+/// of canonicalized paths; the current file is removed from the set
+/// after its subtree is expanded so the same fragment can be used in
+/// multiple sibling branches without false-positive cycle errors.
+pub fn expand_imports(
     steps: &mut Vec<Step>,
     base_dir: &std::path::Path,
     imports: &std::collections::BTreeMap<String, String>,
     visited: &mut std::collections::HashSet<std::path::PathBuf>,
 ) -> Result<()> {
-    use std::collections::HashSet;
     let old = std::mem::take(steps);
     let mut expanded: Vec<Step> = Vec::with_capacity(old.len());
     for mut step in old {
         match step.action {
-            Action::Include { path } => {
-                splice_fragment(&path, base_dir, imports, visited, &mut expanded)?;
-            }
             Action::Use { name } => {
                 let path = imports.get(&name).ok_or_else(|| {
                     let known: Vec<&str> = imports.keys().map(String::as_str).collect();
@@ -415,12 +407,12 @@ pub fn expand_includes(
                 splice_fragment(path, base_dir, imports, visited, &mut expanded)?;
             }
             Action::Repeat { count, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, imports, visited)?;
+                expand_imports(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Repeat { count, steps: inner };
                 expanded.push(step);
             }
             Action::Conditional { cond, negate, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, imports, visited)?;
+                expand_imports(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Conditional { cond, negate, steps: inner };
                 expanded.push(step);
             }
@@ -432,8 +424,7 @@ pub fn expand_includes(
 }
 
 /// Load a fragment file, decode its top-level nodes as steps, recurse
-/// into further includes/uses, and extend `out` with the result. Shared
-/// between `include "path"` and `use name`.
+/// into further uses, and extend `out` with the result.
 fn splice_fragment(
     path: &str,
     base_dir: &std::path::Path,
@@ -442,23 +433,23 @@ fn splice_fragment(
     out: &mut Vec<Step>,
 ) -> Result<()> {
     use std::collections::HashSet;
-    let resolved = resolve_include_path(path, base_dir)?;
+    let resolved = resolve_import_path(path, base_dir)?;
     if visited.contains(&resolved) {
         bail!(
-            "include cycle detected: `{}` already in the include chain",
+            "import cycle detected: `{}` already in the import chain",
             resolved.display()
         );
     }
     let text = std::fs::read_to_string(&resolved)
-        .with_context(|| format!("read include `{}`", resolved.display()))?;
+        .with_context(|| format!("read import `{}`", resolved.display()))?;
     let doc: KdlDocument = text
         .parse()
-        .with_context(|| format!("parse include `{}`", resolved.display()))?;
+        .with_context(|| format!("parse import `{}`", resolved.display()))?;
     let mut inner: Vec<Step> = Vec::new();
     for node in doc.nodes() {
         inner.push(
             decode_step(node)
-                .with_context(|| format!("in include `{}`", resolved.display()))?,
+                .with_context(|| format!("in import `{}`", resolved.display()))?,
         );
     }
     let inner_base = resolved
@@ -467,12 +458,12 @@ fn splice_fragment(
         .unwrap_or_else(|| base_dir.to_path_buf());
     let mut nested_visited: HashSet<std::path::PathBuf> = visited.clone();
     nested_visited.insert(resolved.clone());
-    expand_includes(&mut inner, &inner_base, imports, &mut nested_visited)?;
+    expand_imports(&mut inner, &inner_base, imports, &mut nested_visited)?;
     out.extend(inner);
     Ok(())
 }
 
-fn resolve_include_path(
+fn resolve_import_path(
     path: &str,
     base_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
@@ -494,7 +485,7 @@ fn resolve_include_path(
     };
     combined
         .canonicalize()
-        .with_context(|| format!("resolving include `{path}` relative to {}", base_dir.display()))
+        .with_context(|| format!("resolving import `{path}` relative to {}", base_dir.display()))
 }
 
 /// Top-level decode. Detects which file format we're reading and
@@ -1054,10 +1045,6 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 steps,
             }
         }
-        "include" => {
-            let path = first_string(node)?;
-            Action::Include { path }
-        }
         "use" => {
             // Unquoted bareword, `use dev-setup`, parses as a single
             // string arg in KDL v2 — same path as quoted form.
@@ -1310,7 +1297,6 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         // required. `env` may pair with `equals`.
         "when" => &["window", "file", "env", "equals"],
         "unless" => &["window", "file", "env", "equals"],
-        "include" => &[],
         "use" => &[],
         _ => &[],
     }
@@ -1553,88 +1539,7 @@ mod tests {
     }
 
     #[test]
-    fn include_splices_fragment_and_detects_cycles() {
-        use std::collections::HashSet;
-        let dir = tempfile::tempdir().unwrap();
-        let frag_a = dir.path().join("a.kdl");
-        let frag_b = dir.path().join("b.kdl");
-
-        // a.kdl: three step nodes (a valid fragment — no schema/id/title wrapper).
-        std::fs::write(&frag_a, r#"key "a1"
-type "a2"
-include "b.kdl""#).unwrap();
-        // b.kdl: one step node.
-        std::fs::write(&frag_b, r#"key "b1""#).unwrap();
-
-        // Main workflow including a.
-        let main = dir.path().join("main.kdl");
-        std::fs::write(
-            &main,
-            r#"schema 1
-id "main"
-title "Main"
-recipe {
-    include "a.kdl"
-    key "end"
-}"#,
-        )
-        .unwrap();
-
-        let wf = decode_from_file(&main).unwrap();
-        // a's two leaf steps + b's one step (via a's include b) + "end" = 4.
-        assert_eq!(wf.steps.len(), 4);
-        let chords: Vec<String> = wf
-            .steps
-            .iter()
-            .filter_map(|s| match &s.action {
-                Action::WdoKey { chord, .. } => Some(chord.clone()),
-                Action::WdoType { text, .. } => Some(format!("type:{text}")),
-                _ => None,
-            })
-            .collect();
-        // "end" normalizes to the X11 keysym "End".
-        assert_eq!(chords, vec!["a1", "type:a2", "b1", "End"]);
-
-        // Cycle: c.kdl includes itself.
-        let c = dir.path().join("c.kdl");
-        std::fs::write(&c, r#"include "c.kdl""#).unwrap();
-        let main_c = dir.path().join("main_c.kdl");
-        std::fs::write(
-            &main_c,
-            r#"schema 1
-id "mc"
-title "MC"
-recipe { include "c.kdl" }"#,
-        )
-        .unwrap();
-        let err = decode_from_file(&main_c).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("cycle"),
-            "got: {err:#}"
-        );
-
-        // The same fragment used twice in different sibling branches is
-        // fine — visited is reset per branch.
-        let twice = dir.path().join("twice.kdl");
-        std::fs::write(
-            &twice,
-            r#"schema 1
-id "twice"
-title "Twice"
-recipe {
-    include "b.kdl"
-    include "b.kdl"
-}"#,
-        )
-        .unwrap();
-        let wf = decode_from_file(&twice).unwrap();
-        assert_eq!(wf.steps.len(), 2);
-
-        let _: HashSet<()> = Default::default(); // keep import pattern obvious
-    }
-
-    #[test]
-    fn imports_and_use_splice_like_include() {
+    fn imports_and_use_splice_fragments() {
         let dir = tempfile::tempdir().unwrap();
         let dev = dir.path().join("dev.kdl");
         std::fs::write(&dev, "shell \"dev-step\"\nkey \"ctrl+l\"").unwrap();
@@ -1718,7 +1623,7 @@ recipe { }"#,
     }
 
     #[test]
-    fn include_inside_repeat_and_when() {
+    fn use_expands_inside_repeat_and_when() {
         let dir = tempfile::tempdir().unwrap();
         let frag = dir.path().join("frag.kdl");
         std::fs::write(&frag, r#"key "inner""#).unwrap();
@@ -1728,12 +1633,13 @@ recipe { }"#,
             r#"schema 1
 id "m"
 title "M"
+imports { frag "frag.kdl" }
 recipe {
     repeat 2 {
-        include "frag.kdl"
+        use frag
     }
     when env="HOME" {
-        include "frag.kdl"
+        use frag
     }
 }"#,
         )
@@ -1747,6 +1653,55 @@ recipe {
             Action::Conditional { steps, .. } => assert_eq!(steps.len(), 1),
             _ => panic!("expected when"),
         }
+    }
+
+    #[test]
+    fn use_cycle_is_detected() {
+        // A fragment that `use`s a name resolving back to itself (the
+        // parent's imports map is inherited into nested splices) should
+        // produce a cycle error instead of recursing forever.
+        let dir = tempfile::tempdir().unwrap();
+        let frag = dir.path().join("frag.kdl");
+        std::fs::write(&frag, "use frag").unwrap();
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+imports { frag "frag.kdl" }
+recipe { use frag }"#,
+        )
+        .unwrap();
+        let err = decode_from_file(&main).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("cycle"),
+            "expected cycle error, got: {err:#}"
+        );
+    }
+
+    #[test]
+    fn same_import_in_sibling_branches_is_fine() {
+        // Visited is reset per sibling branch, so the same fragment used
+        // twice at the top level is not a cycle.
+        let dir = tempfile::tempdir().unwrap();
+        let frag = dir.path().join("frag.kdl");
+        std::fs::write(&frag, r#"key "f""#).unwrap();
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+imports { frag "frag.kdl" }
+recipe {
+    use frag
+    use frag
+}"#,
+        )
+        .unwrap();
+        let wf = decode_from_file(&main).unwrap();
+        assert_eq!(wf.steps.len(), 2);
     }
 
     #[test]

@@ -1629,7 +1629,6 @@ Item {
         case "note":                return "note"
         case "repeat":              return "repeat"
         case "conditional":         return "when"
-        case "include":             return "include"
         case "use":                 return "use"
         }
         return "wait"
@@ -1663,7 +1662,6 @@ Item {
         case "note":                return (a.text || "").slice(0, 28)
         case "repeat":              return "× " + (a.count || 1)
         case "conditional":         return (a.negate ? "unless" : "when")
-        case "include":             return a.path || ""
         case "use":                 return a.name || ""
         }
         return ""

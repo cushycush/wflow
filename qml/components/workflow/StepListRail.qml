@@ -38,7 +38,6 @@ Item {
         { kind: "when",      label: "When (conditional)" },
         { kind: "unless",    label: "Unless (conditional)" },
         { kind: "repeat",    label: "Repeat block" },
-        // include omitted — see StepPalette.qml.
         { kind: "use",       label: "Use named import" }
     ]
 

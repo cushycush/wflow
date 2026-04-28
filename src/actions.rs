@@ -279,7 +279,7 @@ pub struct Workflow {
     #[serde(default)]
     pub vars: std::collections::BTreeMap<String, String>,
     /// Named imports — maps short name → fragment-file path. Resolved
-    /// at decode time by `kdl_format::expand_includes` when the step
+    /// at decode time by `kdl_format::expand_imports` when the step
     /// tree contains `Action::Use { name }`. Empty by the time the
     /// engine runs, so not serialized.
     #[serde(skip, default)]
@@ -431,13 +431,10 @@ pub enum Action {
         negate: bool,
         steps: Vec<Step>,
     },
-    /// Splice-in the top-level step nodes from another KDL fragment
-    /// file. Expanded at decode time by `kdl_format::expand_includes`,
-    /// so the engine never sees this variant at dispatch.
-    Include { path: String },
     /// Splice-in a named import declared in the workflow's top-level
     /// `imports { ... }` block. Expanded at decode time against the
-    /// imports map, same splicing rules as `Include`.
+    /// imports map by `kdl_format::expand_imports`, so the engine
+    /// never sees this variant at dispatch.
     Use { name: String },
 }
 
@@ -485,7 +482,6 @@ impl Action {
             Action::Repeat { .. } => "repeat",
             Action::Conditional { negate: false, .. } => "when",
             Action::Conditional { negate: true, .. } => "unless",
-            Action::Include { .. } => "include",
             Action::Use { .. } => "use",
         }
     }
@@ -540,7 +536,6 @@ impl Action {
                     if steps.len() == 1 { "" } else { "s" }
                 )
             }
-            Action::Include { path } => format!("include {}", quote_short(path)),
             Action::Use { name } => format!("use {name}"),
         }
     }

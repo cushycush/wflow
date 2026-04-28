@@ -80,7 +80,6 @@ QtObject {
     readonly property color catWhen:    isDark ? "#df88d6" : "#a056a0"
     readonly property color catUnless:  isDark ? "#ee8896" : "#c45670"
     readonly property color catRepeat:  isDark ? "#cae870" : "#7da030"
-    readonly property color catInclude: isDark ? "#c08be0" : "#6a4ea8"
     readonly property color catUse:     isDark ? "#a08ed0" : "#5a4090"
 
     // ============ Spacing (4pt) ============
@@ -148,7 +147,6 @@ QtObject {
         case "when":      return catWhen
         case "unless":    return catUnless
         case "repeat":    return catRepeat
-        case "include":   return catInclude
         case "use":       return catUse
         }
         return catWait
@@ -169,7 +167,6 @@ QtObject {
         case "when":      return "?"
         case "unless":    return "!"
         case "repeat":    return "↻"
-        case "include":   return "↳"
         case "use":       return "@"
         }
         return "•"
@@ -184,7 +181,6 @@ QtObject {
         case "shell":   return 16
         case "wait":    return 15
         case "repeat":  return 16
-        case "include": return 16
         }
         return 13
     }
@@ -237,7 +233,6 @@ QtObject {
         case "when":      return [gradMagentaA, gradMagentaB]
         case "unless":    return [gradRoseA, gradRoseB]
         case "repeat":    return [gradLimeA, gradLimeB]
-        case "include":   return [gradVioletA, gradVioletB]
         case "use":       return [gradVioletA, gradVioletB]
         // explore-only categories
         case "rose":      return [gradRoseA, gradRoseB]

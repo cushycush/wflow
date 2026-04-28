@@ -260,7 +260,6 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             negate: *negate,
             steps: steps.clone(),
         },
-        Action::Include { path } => Action::Include { path: path.clone() },
         Action::Use { name } => Action::Use { name: name.clone() },
     })
 }
@@ -311,13 +310,12 @@ async fn run_action_value(action: &Action, backend: &LazyBackend) -> StepOutcome
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
         // Flow-control actions are handled inline by `run_steps`;
-        // include/use should have been expanded at decode time.
-        // Reaching any of these here means something bypassed the path.
+        // `use` should have been expanded at decode time. Reaching any
+        // of these here means something bypassed the path.
         Action::Repeat { .. }
         | Action::Conditional { .. }
-        | Action::Include { .. }
         | Action::Use { .. } => Err(anyhow!(
-            "internal: flow-control action reached dispatch (likely an unexpanded include / use)"
+            "internal: flow-control action reached dispatch (likely an unexpanded `use`)"
         )),
     };
     let duration_ms = start.elapsed().as_millis() as u64;

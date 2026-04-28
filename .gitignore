@@ -4,6 +4,12 @@
 /.gstack
 *.pro.user
 
+# Local dev tooling — Claude Code config, MCP servers, ai-context cache.
+# These are personal-environment artifacts; not part of the project.
+/.ai-context
+/.claude
+/.mcp.json
+
 # Flatpak build artifacts — regenerated on every run of build-local.sh.
 # cargo-sources.json is computed from Cargo.lock; flatpak-cargo-generator.py
 # is fetched from upstream flatpak-builder-tools.

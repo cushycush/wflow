@@ -33,8 +33,8 @@ Item {
     signal tutorialDismissed()
 
     // Kinds exposed in the add-step picker. Flow-control (repeat, conditional,
-    // include, use) is intentionally excluded — those need a richer editor
-    // and live in `wflow edit` for now.
+    // use) is intentionally excluded — those need a richer editor and live
+    // in `wflow edit` for now.
     readonly property var _pickableKinds: [
         { kind: "key",       label: "Key chord" },
         { kind: "type",      label: "Type text" },
