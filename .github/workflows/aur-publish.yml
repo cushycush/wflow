@@ -1,0 +1,101 @@
+name: AUR Publish
+
+# Pushes wflow + wflow-bin + wflow-git PKGBUILDs to AUR after a GitHub
+# release is published. The wflow-bin PKGBUILD points at the release
+# tarball under /releases/download/v<ver>/, so triggering on
+# release.published keeps the AUR listing in step with a real artifact.
+#
+# Required repo secrets:
+#   AUR_USERNAME         — AUR account username (commit author)
+#   AUR_EMAIL            — AUR account email (commit author)
+#   AUR_SSH_PRIVATE_KEY  — SSH private key registered at aur.archlinux.org
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.3.26)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    container:
+      image: archlinux:base-devel
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [wflow, wflow-bin, wflow-git]
+    steps:
+      - name: Install tools
+        run: pacman -Sy --noconfirm --needed git openssh
+
+      - name: Create builder user
+        # makepkg refuses to run as root, so create an unprivileged
+        # user. /tmp/aur-work is the shared scratch directory.
+        run: |
+          useradd -m builder
+          install -d -m1777 /tmp/aur-work
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+
+      - name: Configure SSH for AUR
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m700 /home/builder/.ssh
+          printf '%s\n' "$AUR_KEY" > /home/builder/.ssh/aur
+          chmod 600 /home/builder/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
+          cat > /home/builder/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+          EOF
+          chmod 600 /home/builder/.ssh/config
+          chown -R builder:builder /home/builder/.ssh
+
+      - name: Push ${{ matrix.package }} to AUR
+        env:
+          PKG: ${{ matrix.package }}
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+        run: |
+          set -euo pipefail
+          WORK=/tmp/aur-work/$PKG
+          install -d -o builder -g builder "$WORK"
+          install -m644 -o builder -g builder \
+              "packaging/aur/$PKG/PKGBUILD" "$WORK/PKGBUILD"
+
+          sudo -u builder -E env \
+              WORK="$WORK" PKG="$PKG" \
+              AUR_USERNAME="$AUR_USERNAME" AUR_EMAIL="$AUR_EMAIL" \
+              bash -eo pipefail -c '
+            git config --global user.name "$AUR_USERNAME"
+            git config --global user.email "$AUR_EMAIL"
+            git clone "ssh://aur@aur.archlinux.org/$PKG.git" "$WORK/repo"
+            install -m644 "$WORK/PKGBUILD" "$WORK/repo/PKGBUILD"
+            cd "$WORK/repo"
+            # AUR rejects every branch except master; recent git
+            # defaults to main, so force master before any commit.
+            git symbolic-ref HEAD refs/heads/master
+            # All three PKGBUILDs use sha256sums=("SKIP"), so no
+            # updpkgsums step is needed.
+            makepkg --printsrcinfo > .SRCINFO
+            git add PKGBUILD .SRCINFO
+            if git diff --cached --quiet; then
+                echo "no changes — skipping commit"
+                exit 0
+            fi
+            VERSION=$(grep -m1 "^pkgver=" PKGBUILD | cut -d= -f2)
+            git commit -m "$PKG $VERSION"
+            git push origin master
+          '
