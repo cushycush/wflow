@@ -105,6 +105,7 @@ Item {
     readonly property int nodeMinH: 132
     readonly property int noteMinH: 56
     readonly property int gap: 36
+    readonly property int _portR: 6
 
     // Pairs of step indices that should be connected by a wire.
     // Notes are annotations (engine skips them), so wires bridge
@@ -749,11 +750,13 @@ Item {
                         property bool _wasDragged: false
                         onPressed: (mouse) => {
                             _wasDragged = false
-                            // Right-click pops the context menu and
-                            // also selects the step so the inspector
-                            // matches what the menu acts on.
+                            // Right-click pops the context menu but
+                            // does NOT select the step — selection
+                            // is the left-click affordance and slides
+                            // the inspector in. The context menu
+                            // operates on the card under the cursor
+                            // regardless.
                             if (mouse.button === Qt.RightButton) {
-                                root.selectStep(model.index)
                                 cardContextMenu.popup()
                                 mouse.accepted = true
                             }
@@ -779,7 +782,13 @@ Item {
                                     (idx === model.index) ? -1 : idx
                             }
                         }
-                        onReleased: {
+                        onReleased: (mouse) => {
+                            // Right-click already opened the context
+                            // menu in onPressed. Don't also fire the
+                            // selectStep behaviour below — that would
+                            // slide the inspector in on every right-
+                            // click.
+                            if (mouse.button === Qt.RightButton) return
                             if (_wasDragged) {
                                 // Card centre over a different container
                                 // → reparent: pull it out of the top-
@@ -1399,17 +1408,12 @@ Item {
                     WfMenu {
                         id: cardContextMenu
                         WfMenuItem {
-                            text: "Edit"
-                            onTriggered: root.selectStep(cardItem.stepIdx)
-                        }
-                        WfMenuItem {
                             text: cardItem.act && cardItem.act.enabled === false
                                 ? "Enable" : "Skip on run"
                             onTriggered: root.optionEdited(
                                 cardItem.stepIdx, "enabled",
                                 cardItem.act && cardItem.act.enabled === false)
                         }
-                        MenuSeparator {}
                         WfMenuItem {
                             text: "Set predecessor / successor…"
                             onTriggered: rewireMenu.popup()
@@ -1484,7 +1488,6 @@ Item {
         // card so the dots paint over the card border. Dragging a
         // card sets that card's z to 100, so this layer also goes
         // to a number > 100 to stay visible during drag.
-        readonly property int _portR: 6
         Item {
             id: portLayer
             anchors.fill: parent

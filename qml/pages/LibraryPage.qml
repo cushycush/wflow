@@ -858,6 +858,7 @@ Item {
             }
 
             ScrollView {
+                id: gridScroll
                 anchors.left: folderRail.visible ? folderRail.right : parent.left
                 anchors.top: folderCrumb.visible ? folderCrumb.bottom : parent.top
                 anchors.right: parent.right
@@ -868,7 +869,27 @@ Item {
 
                 Item {
                     width: parent.width
-                    height: variantLoader.item ? variantLoader.item.height + 48 : 200
+                    // Always fill at least the viewport height so a
+                    // right-click in the empty area below the last
+                    // row still lands on this Item (and hits the
+                    // canvas-context MouseArea sitting at z:-1 below
+                    // the loader). Without this, the content Item
+                    // shrinks to its cards' footprint and clicks
+                    // outside fall through to the page background.
+                    height: Math.max(
+                        variantLoader.item ? variantLoader.item.height + 48 : 200,
+                        gridScroll.availableHeight)
+
+                    // Empty-canvas right-click → "+ New workflow" /
+                    // "+ New folder…" menu. Sits behind the loader so
+                    // card clicks reach the cards first; only clicks
+                    // OUTSIDE any card fall through to here.
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        z: -1
+                        onClicked: canvasContextMenu.popup()
+                    }
 
                     Loader {
                         id: variantLoader
@@ -901,7 +922,6 @@ Item {
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
                             onOpenFolder: (path) => { root.currentFolder = path }
-                            onCanvasContextRequested: (x, y) => canvasContextMenu.popup()
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
                             onToggleSelected: (id) => root._toggleSelected(id)
@@ -1065,6 +1085,19 @@ Item {
             border.width: treeDrop.containsDrag ? 1 : 0
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
+            // Whole-row click → activate the folder filter.
+            // Declared FIRST so its hit area is visually behind the
+            // chevron's MouseArea (sibling order = z order in QML);
+            // the chevron's click handler intercepts its own clicks
+            // and the rest of the row falls through here.
+            MouseArea {
+                id: treeRowArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.currentFolder = fullPath
+            }
+
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 8 + rowDepth * 14
@@ -1126,14 +1159,6 @@ Item {
                     font.family: Theme.familyMono
                     font.pixelSize: Theme.fontXs
                 }
-            }
-
-            MouseArea {
-                id: treeRowArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.currentFolder = fullPath
             }
 
             DropArea {

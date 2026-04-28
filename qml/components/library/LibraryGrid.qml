@@ -19,8 +19,6 @@ Item {
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
     signal toggleSelected(string id)
-    // Right-click on empty canvas (between cards / below the grid).
-    signal canvasContextRequested(real x, real y)
 
     // Auto-column — each column wants ~300px minimum.
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
@@ -32,17 +30,11 @@ Item {
     readonly property int rows: Math.ceil(totalItems / cols)
     height: rows * cardH + Math.max(0, rows - 1) * gap
 
-    // Right-click on empty grid space (any spot the cards don't
-    // cover) → ask the page to show its canvas context menu.
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        z: -1
-        onClicked: (mouse) => {
-            const p = mapToItem(null, mouse.x, mouse.y)
-            root.canvasContextRequested(p.x, p.y)
-        }
-    }
+    // (Empty-canvas right-click menu lives on the LibraryPage's
+    // page-level MouseArea so it fires for any spot in the visible
+    // viewport, not just the area the grid currently fills with
+    // cards. LibraryGrid only sizes to its content, so an in-grid
+    // MouseArea would miss any clicks below the last row.)
 
     // Folders sort first so the user lands on them before scrolling
     // into a wall of workflows. Each folder is a tile with the same
