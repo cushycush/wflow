@@ -984,22 +984,37 @@ Item {
                                 wrapMode: TextEdit.Wrap
                                 background: Item {}
 
-                                // Resync from upstream when the
-                                // selected step changes (or when an
-                                // external save round-trip updates
-                                // root.sel.note). In-progress hand
-                                // edits stay live until commit.
+                                // The previous selectedIndex we
+                                // synced against. Used to tell a
+                                // "user clicked a different card"
+                                // sync apart from a "this card's
+                                // note was updated upstream" sync —
+                                // the former always pulls the new
+                                // value, the latter respects focus
+                                // so in-progress typing isn't
+                                // clobbered.
+                                property int _lastSyncedIndex: -2
+
                                 readonly property var syncKey: [
                                     root.selectedIndex,
                                     root.sel ? (root.sel.note || "") : ""
                                 ]
                                 onSyncKeyChanged: {
-                                    if (activeFocus) return
                                     const incoming = (root.sel && root.sel.note) || ""
+                                    const sameStep = root.selectedIndex === _lastSyncedIndex
+                                    // Selection changed → always sync.
+                                    // Same step but note differs and
+                                    // we're focused → keep typing.
+                                    if (sameStep && activeFocus) {
+                                        _lastSyncedIndex = root.selectedIndex
+                                        return
+                                    }
                                     if (incoming !== text) text = incoming
+                                    _lastSyncedIndex = root.selectedIndex
                                 }
                                 Component.onCompleted: {
                                     text = (root.sel && root.sel.note) || ""
+                                    _lastSyncedIndex = root.selectedIndex
                                 }
 
                                 function _commit() {

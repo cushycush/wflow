@@ -589,6 +589,75 @@ Item {
                     }
                 }
             }
+
+            // Port dots — small cyan circles at the wire endpoints
+            // so each wire visibly attaches to its source / target
+            // card instead of disappearing under the card edge. Same
+            // color and alpha as the wire stroke. Sits in its own
+            // layer above the wires so dots paint over the stroke
+            // tip cleanly.
+            //
+            // Drawn off the same _wirePairs model as the wires; one
+            // dot per endpoint per wire. A step that's both downstream
+            // of one wire and upstream of another (the common case)
+            // ends up with two dots overlapping at the same point —
+            // visually identical to a single dot, no special-case
+            // needed.
+            readonly property int _portR: 6
+            Item {
+                id: portLayer
+                anchors.fill: parent
+                z: 2
+                Repeater {
+                    model: root._wirePairs
+                    delegate: Item {
+                        readonly property int fromIdx: modelData.from
+                        readonly property int toIdx: modelData.to
+                        readonly property string fromId:
+                            root.actions[fromIdx] ? root.actions[fromIdx].id : ""
+                        readonly property string toId:
+                            root.actions[toIdx] ? root.actions[toIdx].id : ""
+                        readonly property var fromPos: root.positions[fromId]
+                        readonly property var toPos: root.positions[toId]
+                        readonly property real fromH:
+                            root.cardHeights[fromId] || root.nodeMinH
+                        readonly property real toH:
+                            root.cardHeights[toId] || root.nodeMinH
+                        readonly property real fromW: root.cardWidths[fromId]
+                            || _widthForKind(root.actions[fromIdx]
+                                ? root.actions[fromIdx].rawKind : "")
+                        readonly property real toW: root.cardWidths[toId]
+                            || _widthForKind(root.actions[toIdx]
+                                ? root.actions[toIdx].rawKind : "")
+                        readonly property var route:
+                            _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+                        visible: fromPos !== undefined && toPos !== undefined
+
+                        // Source port (output side of `from` card).
+                        Rectangle {
+                            x: route.sx - root._portR
+                            y: route.sy - root._portR
+                            width: root._portR * 2
+                            height: root._portR * 2
+                            radius: root._portR
+                            color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
+                            border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                            border.width: 1
+                        }
+                        // Target port (input side of `to` card).
+                        Rectangle {
+                            x: route.tx - root._portR
+                            y: route.ty - root._portR
+                            width: root._portR * 2
+                            height: root._portR * 2
+                            radius: root._portR
+                            color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
+                            border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                            border.width: 1
+                        }
+                    }
+                }
+            }
         }
 
         // ============ Cards ============
