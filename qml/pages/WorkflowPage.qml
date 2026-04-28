@@ -1231,6 +1231,7 @@ Item {
                 onMoveStepToContainerRequested: (fromIdx, toIdx) => root._moveStepToContainer(fromIdx, toIdx)
                 onOpenContainerRequested: (stepIdx) => root.pushCrumb(stepIdx)
                 onOpenUseRequested: (stepIdx) => root._openUseImport(stepIdx)
+                onOptionEdited: (stepIdx, path, value) => root._commitOption(stepIdx, path, value)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }

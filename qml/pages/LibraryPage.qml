@@ -60,12 +60,115 @@ Item {
     property var workflows: []
     // ---- Library filters ----
     property string searchQuery: ""
-    // "" means All; "__top__" means workflows with no folder; any
-    // other value is a folder name.
-    property string currentFolder: ""
+    // "" means All workflows (across every folder); "__top__" means
+    // workflows with no folder assignment; any other value is a
+    // folder name (potentially nested as "a/b"). Default is Top
+    // level so a folder-organised library doesn't dump every nested
+    // workflow into one giant page on launch.
+    property string currentFolder: "__top__"
     // "recent" (default — modified desc), "name" (asc), "last_run".
     property string sortBy: "recent"
     property var folderList: []
+
+    // Per-folder expand/collapse state for the sidebar tree. Map
+    // keyed by full path; value is true when expanded. Auto-expand
+    // ancestors of the active folder so navigating into "a/b" keeps
+    // the path visible. Persisting this across sessions is a future
+    // enhancement; for now it resets on app launch.
+    property var expandedFolders: ({})
+
+    function _setExpanded(path, on) {
+        const next = Object.assign({}, root.expandedFolders)
+        if (on) next[path] = true
+        else delete next[path]
+        root.expandedFolders = next
+    }
+
+    function _expandAncestors(path) {
+        if (!path || path.length === 0) return
+        const parts = path.split("/")
+        const next = Object.assign({}, root.expandedFolders)
+        for (let i = 1; i < parts.length; ++i) {
+            next[parts.slice(0, i).join("/")] = true
+        }
+        root.expandedFolders = next
+    }
+
+    onCurrentFolderChanged: {
+        if (currentFolder && currentFolder !== "" && currentFolder !== "__top__") {
+            _expandAncestors(currentFolder)
+        }
+    }
+
+    // Build a tree of folder nodes from the flat folderList paths,
+    // then flatten back to a render order honouring expanded state.
+    // Each entry in `visibleTree` is { name, fullPath, depth,
+    // hasChildren, expanded } so the sidebar Repeater can lay out
+    // indented rows with chevrons.
+    readonly property var visibleTree: {
+        const paths = (root.folderList || []).slice().sort()
+        // Build child-of map: parent → ordered children paths.
+        const childrenOf = {}
+        const allNodes = {}
+        for (const p of paths) {
+            const lastSlash = p.lastIndexOf("/")
+            const parent = lastSlash < 0 ? "" : p.slice(0, lastSlash)
+            const name = lastSlash < 0 ? p : p.slice(lastSlash + 1)
+            if (!childrenOf[parent]) childrenOf[parent] = []
+            childrenOf[parent].push(p)
+            allNodes[p] = { name: name, fullPath: p }
+        }
+        const out = []
+        function walk(parent, depth) {
+            const kids = childrenOf[parent] || []
+            for (const path of kids) {
+                const node = allNodes[path]
+                const grandkids = childrenOf[path] || []
+                out.push({
+                    name: node.name,
+                    fullPath: path,
+                    depth: depth,
+                    hasChildren: grandkids.length > 0,
+                    expanded: !!root.expandedFolders[path]
+                })
+                if (root.expandedFolders[path]) {
+                    walk(path, depth + 1)
+                }
+            }
+        }
+        walk("", 0)
+        return out
+    }
+
+    // Folders that should appear as cards in the grid for the current
+    // view. At "__top__" / "" → direct top-level children. Inside
+    // folder "a" → direct children "a/X" (rendered as "X"). Filtered
+    // by search query so typing "dev" highlights `dev`-named folders
+    // alongside matching workflows.
+    readonly property var visibleFolders: {
+        const q = (root.searchQuery || "").trim().toLowerCase()
+        const fld = root.currentFolder
+        // Determine the parent prefix for "direct child" matching.
+        // Empty / __top__ → parent is "" (no prefix); a real folder
+        // → parent is "<folder>/".
+        const isTopLevel = fld === "" || fld === "__top__"
+        const prefix = isTopLevel ? "" : (fld + "/")
+        const out = []
+        const seen = {}
+        for (const full of root.folderList || []) {
+            // Direct child: full path starts with `prefix` and the
+            // remainder has no slashes.
+            if (!full.startsWith(prefix)) continue
+            const tail = full.slice(prefix.length)
+            if (tail.length === 0 || tail.indexOf("/") >= 0) continue
+            if (seen[full]) continue
+            seen[full] = true
+            if (q.length > 0 && tail.toLowerCase().indexOf(q) < 0) continue
+            out.push({ name: tail, fullPath: full })
+        }
+        out.sort((a, b) => a.name.localeCompare(b.name))
+        return out
+    }
 
     // Apply search + folder filter and sort.
     readonly property var filtered: {
@@ -482,6 +585,21 @@ Item {
                 }
             }
 
+            // Right-click on empty canvas — quick way to create a
+            // new workflow or folder without trekking up to the
+            // topbar action row.
+            WfMenu {
+                id: canvasContextMenu
+                WfMenuItem {
+                    text: "+ New workflow"
+                    onTriggered: root._openNewDialog()
+                }
+                WfMenuItem {
+                    text: "+ New folder…"
+                    onTriggered: newFolderDialog.open()
+                }
+            }
+
             // The New-workflow dialog. Templates list is populated when
             // the dialog opens so it picks up filesystem changes if the
             // user installed a templates package mid-session.
@@ -561,11 +679,13 @@ Item {
                         }
                     }
 
+                    // Tree view of folders with expand/collapse
+                    // chevrons. Uses `visibleTree` (flattened render
+                    // order) so the Repeater stays a flat list while
+                    // the data model is hierarchical.
                     Repeater {
-                        model: root.folderList.map(name => ({
-                            id: name, label: name, glyph: "▢"
-                        }))
-                        delegate: folderRowComp
+                        model: root.visibleTree
+                        delegate: folderTreeRowComp
                     }
 
                     // + New folder inline-input. Typing a name +
@@ -775,10 +895,13 @@ Item {
                         id: gridComp
                         LibraryGrid {
                             width: variantLoader.width
+                            folders: root.visibleFolders
                             workflows: root.filtered
                             selectMode: root.selectMode
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
+                            onOpenFolder: (path) => { root.currentFolder = path }
+                            onCanvasContextRequested: (x, y) => canvasContextMenu.popup()
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
                             onToggleSelected: (id) => root._toggleSelected(id)
@@ -908,6 +1031,126 @@ Item {
         }
     }
 
+    // Tree-row component for nested folder rendering. Delegate
+    // shape: { name, fullPath, depth, hasChildren, expanded }. The
+    // sidebar Repeater uses `visibleTree` (flattened render order
+    // honouring expanded state) so rows are still a flat list while
+    // the data model is hierarchical.
+    Component {
+        id: folderTreeRowComp
+        Rectangle {
+            readonly property string fullPath: modelData.fullPath
+            readonly property string folderName: modelData.name
+            readonly property int rowDepth: modelData.depth
+            readonly property bool rowHasChildren: modelData.hasChildren
+            readonly property bool rowExpanded: modelData.expanded
+            readonly property int rowCount: {
+                const list = root.workflows || []
+                return list.filter(w => w.folder === fullPath).length
+            }
+            readonly property bool isCurrent: root.currentFolder === fullPath
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            height: 30
+            radius: 6
+            color: treeDrop.containsDrag
+                ? Theme.accentWash(0.28)
+                : (isCurrent
+                    ? Theme.accentWash(0.16)
+                    : (treeRowArea.containsMouse ? Theme.surface2 : "transparent"))
+            border.color: treeDrop.containsDrag ? Theme.accent : "transparent"
+            border.width: treeDrop.containsDrag ? 1 : 0
+            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+            Row {
+                anchors.fill: parent
+                anchors.leftMargin: 8 + rowDepth * 14
+                anchors.rightMargin: 10
+                spacing: 6
+
+                // Chevron — clickable separately from the row label
+                // so toggling expansion doesn't change the active
+                // folder filter. Spacer of equal width when the
+                // folder has no children, so labels line up across
+                // siblings at the same depth.
+                Item {
+                    width: 14
+                    height: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        anchors.centerIn: parent
+                        visible: rowHasChildren
+                        text: rowExpanded ? "▾" : "▸"
+                        color: chevronArea.containsMouse ? Theme.accent : Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 11
+                        font.weight: Font.Bold
+                    }
+                    MouseArea {
+                        id: chevronArea
+                        anchors.fill: parent
+                        anchors.margins: -3
+                        hoverEnabled: true
+                        enabled: rowHasChildren
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: root._setExpanded(fullPath, !rowExpanded)
+                    }
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "▢"
+                    color: isCurrent ? Theme.accent : Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: 12
+                    width: 14
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: folderName
+                    color: isCurrent ? Theme.accent : Theme.text
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: isCurrent ? Font.DemiBold : Font.Medium
+                    elide: Text.ElideRight
+                    width: parent.width - 14 - 6 - 14 - 6 - treeCountLabel.width - 6
+                }
+                Text {
+                    id: treeCountLabel
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: rowCount > 0 ? rowCount.toString() : ""
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: Theme.fontXs
+                }
+            }
+
+            MouseArea {
+                id: treeRowArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.currentFolder = fullPath
+            }
+
+            DropArea {
+                id: treeDrop
+                anchors.fill: parent
+                keys: ["wflow/workflow-id"]
+                onDropped: (drop) => {
+                    const src = drop.source
+                    const id = (src && src.wf) ? src.wf.id : ""
+                    if (!id) return
+                    libCtrl.set_folder(id, fullPath)
+                    drop.accept()
+                }
+            }
+        }
+    }
+
     // New-folder picker dialog. Asks the user to drop a workflow
     // into a freshly-named folder via a select-then-name flow —
     // folders only exist as long as a workflow references them.
@@ -933,13 +1176,18 @@ Item {
             if (name.length === 0) return
             // Persist as a real subdirectory under the workflows
             // root so the folder survives a restart even with no
-            // workflows in it. The bridge refresh then re-emits
-            // workflowsChanged, which calls _refreshShaped() and
-            // pulls the new folder name into folderList. Name can
-            // contain `/` for nested folders ("dev/test" creates
-            // workflows/dev/test/).
+            // workflows in it. Name can contain `/` for nested
+            // folders ("dev/test" creates workflows/dev/test/).
+            // Don't auto-navigate into the new folder — the user
+            // might want to drag a workflow into it next without
+            // losing their place.
             libCtrl.create_folder(name)
-            root.currentFolder = name
+            // Force a refresh: the bridge's set_workflows call
+            // doesn't fire `workflowsChanged` when the JSON value is
+            // identical (Qt's auto-generated setters dedupe). An
+            // empty new folder doesn't change workflows JSON, so
+            // the sidebar would stay stale. Re-pull explicitly.
+            root._refreshShaped()
             newFolderInput.text = ""
             newFolderDialog.close()
         }

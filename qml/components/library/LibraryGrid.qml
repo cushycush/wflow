@@ -6,6 +6,7 @@ import Wflow
 // belongs to Explore, not to a personal workspace.
 Item {
     id: root
+    property var folders: []
     property var workflows: []
     // Selection mode: in v1 this is a "manage" toggle on the page.
     // When selectMode is true, clicking a card toggles its membership
@@ -14,9 +15,12 @@ Item {
     property bool selectMode: false
     property var selectedIds: ({})
     signal openWorkflow(string id)
+    signal openFolder(string fullPath)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
     signal toggleSelected(string id)
+    // Right-click on empty canvas (between cards / below the grid).
+    signal canvasContextRequested(real x, real y)
 
     // Auto-column — each column wants ~300px minimum.
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
@@ -24,8 +28,141 @@ Item {
     readonly property real cardW: (root.width - gap * (cols - 1)) / cols
     readonly property real cardH: 136
 
-    readonly property int rows: Math.ceil(workflows.length / cols)
+    readonly property int totalItems: (folders ? folders.length : 0) + (workflows ? workflows.length : 0)
+    readonly property int rows: Math.ceil(totalItems / cols)
     height: rows * cardH + Math.max(0, rows - 1) * gap
+
+    // Right-click on empty grid space (any spot the cards don't
+    // cover) → ask the page to show its canvas context menu.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        z: -1
+        onClicked: (mouse) => {
+            const p = mapToItem(null, mouse.x, mouse.y)
+            root.canvasContextRequested(p.x, p.y)
+        }
+    }
+
+    // Folders sort first so the user lands on them before scrolling
+    // into a wall of workflows. Each folder is a tile with the same
+    // footprint as a workflow card so the grid stays uniform.
+    Repeater {
+        id: folderRep
+        model: root.folders
+        delegate: Rectangle {
+            id: folderTile
+            readonly property var fld: modelData
+            readonly property real gridX: (index % root.cols) * (root.cardW + root.gap)
+            readonly property real gridY: Math.floor(index / root.cols) * (root.cardH + root.gap)
+
+            x: gridX
+            y: gridY
+            width: root.cardW
+            height: root.cardH
+            radius: Theme.radiusMd
+            color: folderArea.containsMouse || folderDrop.containsDrag
+                ? Theme.surface2
+                : Theme.surface
+            border.color: folderDrop.containsDrag
+                ? Theme.accent
+                : (folderArea.containsMouse ? Theme.line : Theme.lineSoft)
+            border.width: folderDrop.containsDrag ? 2 : 1
+            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+            Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+            // Drop target — accepts workflow drags. Drops set the
+            // workflow's folder to this tile's full path so the
+            // .kdl file moves on disk. Fragments / non-workflow
+            // drags are filtered by `keys`.
+            DropArea {
+                id: folderDrop
+                anchors.fill: parent
+                keys: ["wflow/workflow-id"]
+                onDropped: (drop) => {
+                    const src = drop.source
+                    const id = (src && src.wf) ? src.wf.id : ""
+                    if (!id) return
+                    libCtrl.set_folder(id, folderTile.fld.fullPath)
+                    drop.accept()
+                }
+            }
+
+            MouseArea {
+                id: folderArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: (mouse) => {
+                    if (mouse.button === Qt.RightButton) {
+                        folderMenu.popup()
+                    } else {
+                        root.openFolder(folderTile.fld.fullPath)
+                    }
+                }
+            }
+
+            WfMenu {
+                id: folderMenu
+                WfMenuItem {
+                    text: "Open"
+                    onTriggered: root.openFolder(folderTile.fld.fullPath)
+                }
+            }
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+
+                Row {
+                    spacing: 10
+                    width: parent.width
+
+                    Rectangle {
+                        width: 32; height: 32; radius: Theme.radiusSm
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "▢"
+                            color: Theme.accent
+                            font.family: Theme.familyBody
+                            font.pixelSize: 16
+                            font.weight: Font.DemiBold
+                        }
+                    }
+
+                    Column {
+                        width: parent.width - 32 - 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        Text {
+                            text: folderTile.fld.name
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontBase
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                        Text {
+                            text: "folder"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Repeater {
         model: root.workflows
@@ -36,9 +173,11 @@ Item {
                 wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
 
             // Grid x/y as bindings so resnap-after-drag is just a
-            // re-binding of the same expressions.
-            readonly property real gridX: (index % root.cols) * (root.cardW + root.gap)
-            readonly property real gridY: Math.floor(index / root.cols) * (root.cardH + root.gap)
+            // re-binding of the same expressions. Workflows render
+            // AFTER all folders so we offset by folders.length.
+            readonly property int totalIndex: index + (root.folders ? root.folders.length : 0)
+            readonly property real gridX: (totalIndex % root.cols) * (root.cardW + root.gap)
+            readonly property real gridY: Math.floor(totalIndex / root.cols) * (root.cardH + root.gap)
 
             x: gridX
             y: gridY

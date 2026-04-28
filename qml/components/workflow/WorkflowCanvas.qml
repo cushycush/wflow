@@ -90,6 +90,9 @@ Item {
     // absolute path, then signals up to Main.qml which adds a new
     // fragment tab. The canvas itself doesn't know about imports.
     signal openUseRequested(int stepIndex)
+    // Option flip from a card's right-click menu (currently:
+    // enable/skip toggle). Routed to WorkflowPage's _commitOption.
+    signal optionEdited(int stepIndex, string path, var value)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -590,74 +593,6 @@ Item {
                 }
             }
 
-            // Port dots — small cyan circles at the wire endpoints
-            // so each wire visibly attaches to its source / target
-            // card instead of disappearing under the card edge. Same
-            // color and alpha as the wire stroke. Sits in its own
-            // layer above the wires so dots paint over the stroke
-            // tip cleanly.
-            //
-            // Drawn off the same _wirePairs model as the wires; one
-            // dot per endpoint per wire. A step that's both downstream
-            // of one wire and upstream of another (the common case)
-            // ends up with two dots overlapping at the same point —
-            // visually identical to a single dot, no special-case
-            // needed.
-            readonly property int _portR: 6
-            Item {
-                id: portLayer
-                anchors.fill: parent
-                z: 2
-                Repeater {
-                    model: root._wirePairs
-                    delegate: Item {
-                        readonly property int fromIdx: modelData.from
-                        readonly property int toIdx: modelData.to
-                        readonly property string fromId:
-                            root.actions[fromIdx] ? root.actions[fromIdx].id : ""
-                        readonly property string toId:
-                            root.actions[toIdx] ? root.actions[toIdx].id : ""
-                        readonly property var fromPos: root.positions[fromId]
-                        readonly property var toPos: root.positions[toId]
-                        readonly property real fromH:
-                            root.cardHeights[fromId] || root.nodeMinH
-                        readonly property real toH:
-                            root.cardHeights[toId] || root.nodeMinH
-                        readonly property real fromW: root.cardWidths[fromId]
-                            || _widthForKind(root.actions[fromIdx]
-                                ? root.actions[fromIdx].rawKind : "")
-                        readonly property real toW: root.cardWidths[toId]
-                            || _widthForKind(root.actions[toIdx]
-                                ? root.actions[toIdx].rawKind : "")
-                        readonly property var route:
-                            _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
-                        visible: fromPos !== undefined && toPos !== undefined
-
-                        // Source port (output side of `from` card).
-                        Rectangle {
-                            x: route.sx - root._portR
-                            y: route.sy - root._portR
-                            width: root._portR * 2
-                            height: root._portR * 2
-                            radius: root._portR
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
-                            border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.width: 1
-                        }
-                        // Target port (input side of `to` card).
-                        Rectangle {
-                            x: route.tx - root._portR
-                            y: route.ty - root._portR
-                            width: root._portR * 2
-                            height: root._portR * 2
-                            radius: root._portR
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
-                            border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.width: 1
-                        }
-                    }
-                }
-            }
         }
 
         // ============ Cards ============
@@ -801,6 +736,7 @@ Item {
                         id: dragArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                         cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                         // Don't let the canvas pan DragHandler steal
                         // a card drag once motion crosses its
@@ -811,7 +747,17 @@ Item {
                         drag.axis: Drag.XAndYAxis
                         drag.threshold: 4
                         property bool _wasDragged: false
-                        onPressed: _wasDragged = false
+                        onPressed: (mouse) => {
+                            _wasDragged = false
+                            // Right-click pops the context menu and
+                            // also selects the step so the inspector
+                            // matches what the menu acts on.
+                            if (mouse.button === Qt.RightButton) {
+                                root.selectStep(model.index)
+                                cardContextMenu.popup()
+                                mouse.accepted = true
+                            }
+                        }
                         // Write positions on every drag step (not just
                         // on release) so wires track the card live.
                         // The map is small enough that an Object.assign
@@ -1446,6 +1392,35 @@ Item {
                         }   // end of innerZone Rectangle
                     }
 
+                    // Right-click context menu for canvas cards.
+                    // Mirrors the LibraryGrid card-menu: quick
+                    // access to step-level actions without going
+                    // through the inspector.
+                    WfMenu {
+                        id: cardContextMenu
+                        WfMenuItem {
+                            text: "Edit"
+                            onTriggered: root.selectStep(cardItem.stepIdx)
+                        }
+                        WfMenuItem {
+                            text: cardItem.act && cardItem.act.enabled === false
+                                ? "Enable" : "Skip on run"
+                            onTriggered: root.optionEdited(
+                                cardItem.stepIdx, "enabled",
+                                cardItem.act && cardItem.act.enabled === false)
+                        }
+                        MenuSeparator {}
+                        WfMenuItem {
+                            text: "Set predecessor / successor…"
+                            onTriggered: rewireMenu.popup()
+                        }
+                        MenuSeparator {}
+                        WfMenuItem {
+                            text: "Delete"
+                            onTriggered: root.deleteStepRequested(cardItem.stepIdx)
+                        }
+                    }
+
                     // Rewire menu — popup()'d from the ⇄ button now
                     // living in the header row above. Kept here as a
                     // child of the card so step.id captures stay
@@ -1497,6 +1472,67 @@ Item {
                                 onTriggered: root.successorChosen(cardItem.stepIdx, model.index)
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Port dots — small cyan circles at the wire endpoints so
+        // each wire visibly attaches to its source / target card
+        // instead of disappearing under the card edge. Sits at the
+        // world level (sibling of nodeRep) with z higher than every
+        // card so the dots paint over the card border. Dragging a
+        // card sets that card's z to 100, so this layer also goes
+        // to a number > 100 to stay visible during drag.
+        readonly property int _portR: 6
+        Item {
+            id: portLayer
+            anchors.fill: parent
+            z: 200
+            Repeater {
+                model: root._wirePairs
+                delegate: Item {
+                    readonly property int fromIdx: modelData.from
+                    readonly property int toIdx: modelData.to
+                    readonly property string fromId:
+                        root.actions[fromIdx] ? root.actions[fromIdx].id : ""
+                    readonly property string toId:
+                        root.actions[toIdx] ? root.actions[toIdx].id : ""
+                    readonly property var fromPos: root.positions[fromId]
+                    readonly property var toPos: root.positions[toId]
+                    readonly property real fromH:
+                        root.cardHeights[fromId] || root.nodeMinH
+                    readonly property real toH:
+                        root.cardHeights[toId] || root.nodeMinH
+                    readonly property real fromW: root.cardWidths[fromId]
+                        || _widthForKind(root.actions[fromIdx]
+                            ? root.actions[fromIdx].rawKind : "")
+                    readonly property real toW: root.cardWidths[toId]
+                        || _widthForKind(root.actions[toIdx]
+                            ? root.actions[toIdx].rawKind : "")
+                    readonly property var route:
+                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+                    visible: fromPos !== undefined && toPos !== undefined
+
+                    Rectangle {
+                        x: route.sx - root._portR
+                        y: route.sy - root._portR
+                        width: root._portR * 2
+                        height: root._portR * 2
+                        radius: root._portR
+                        color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
+                        border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                        border.width: 1
+                    }
+                    Rectangle {
+                        x: route.tx - root._portR
+                        y: route.ty - root._portR
+                        width: root._portR * 2
+                        height: root._portR * 2
+                        radius: root._portR
+                        color: Qt.rgba(0.55, 0.78, 0.88, 0.95)
+                        border.color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
+                        border.width: 1
                     }
                 }
             }
