@@ -77,7 +77,42 @@ Item {
 
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
-    readonly property int activeStepIndex: wfCtrl.active_step
+    // The runner reports StepStart/StepDone with a flat leaf-only
+    // index — containers (when/unless/repeat) themselves don't emit
+    // events; only the leaves inside them do. Translate that flat
+    // index back to the top-level card index at the current crumb
+    // depth so the active-step pulse and status dots land on the
+    // right cards (the container card itself, when the runner is
+    // inside it).
+    readonly property int activeStepIndex: _flatToTopLevel(wfCtrl.active_step)
+
+    function _flatLeafCount(step) {
+        const a = step ? step.action : null
+        if (!a) return 1
+        if (a.kind === "conditional") {
+            return _flatLeafCountList(a.steps || [])
+        }
+        if (a.kind === "repeat") {
+            return _flatLeafCountList(a.steps || []) * (a.count || 1)
+        }
+        return 1
+    }
+    function _flatLeafCountList(steps) {
+        let total = 0
+        for (const s of (steps || [])) total += _flatLeafCount(s)
+        return total
+    }
+    function _flatToTopLevel(flatIndex) {
+        if (flatIndex < 0) return -1
+        const steps = _stepsAtCrumb(root.workflow) || []
+        let cursor = 0
+        for (let i = 0; i < steps.length; i++) {
+            const len = _flatLeafCount(steps[i])
+            if (flatIndex >= cursor && flatIndex < cursor + len) return i
+            cursor += len
+        }
+        return -1
+    }
     readonly property bool running: wfCtrl.running
 
     // Breadcrumb path into the workflow tree. Each entry is an index
@@ -144,6 +179,12 @@ Item {
         root.crumb = root.crumb.concat([stepIndex])
         editorContent.selectedIndex = -1
         editorContent.selectedInnerIndex = -1
+        // Center the viewport on the new content. The actions
+        // binding has just changed and _placeNewSteps will seed
+        // default positions for the inner cards on the next tick;
+        // _zoomToFit then fits them to the viewport so the user
+        // doesn't land on empty canvas and have to pan to find them.
+        Qt.callLater(canvasView._zoomToFit)
     }
 
     function popCrumbTo(depth) {
@@ -152,6 +193,7 @@ Item {
         root.crumb = root.crumb.slice(0, depth)
         editorContent.selectedIndex = -1
         editorContent.selectedInnerIndex = -1
+        Qt.callLater(canvasView._zoomToFit)
     }
 
     readonly property var actions: {
@@ -860,8 +902,19 @@ Item {
             if (wfCtrl.running) root.stepStatuses = ({})
         }
         function onStep_done(index, status, message) {
+            // Translate the flat leaf index to a top-level card
+            // index at the current crumb depth — the runner doesn't
+            // emit events for containers, but the canvas wants the
+            // container's status dot to track when steps are
+            // running inside it.
+            const topIdx = root._flatToTopLevel(index)
+            if (topIdx < 0) return
             const next = Object.assign({}, root.stepStatuses)
-            next[index] = status
+            // Don't downgrade an existing "error" — if any leaf in
+            // a container errored, the container shows error
+            // regardless of what later leaves did.
+            if (next[topIdx] === "error" && status !== "error") return
+            next[topIdx] = status
             root.stepStatuses = next
         }
         function onTrust_prompt_required(summary) {
