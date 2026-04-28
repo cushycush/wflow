@@ -1098,8 +1098,13 @@ Item {
                             // reads as a real drop target. When
                             // inner steps land, height grows with
                             // the strip + the +Add pill.
+                            // Min height: room for the Open button (6
+                            // top + 28 height = 34) plus space for
+                            // the empty-state placeholder centered
+                            // below it. Once inner steps land, the
+                            // strip drives the height.
                             height: visible
-                                ? Math.max(92, innerStrip.implicitHeight + 28)
+                                ? Math.max(108, innerStrip.implicitHeight + 50)
                                 : 0
                             radius: 8
                             color: cardItem.isHoverDropTarget
@@ -1138,9 +1143,9 @@ Item {
                                 anchors.right: parent.right
                                 anchors.top: parent.top
                                 anchors.rightMargin: 8
-                                anchors.topMargin: 4
-                                width: openLabel.implicitWidth + 22
-                                height: 22
+                                anchors.topMargin: 6
+                                width: openLabel.implicitWidth + 24
+                                height: 28
                                 radius: 4
                                 color: openArea.containsMouse
                                     ? Theme.wash(Theme.catFor(cardItem.kind), 0.30)
@@ -1155,7 +1160,7 @@ Item {
                                     text: "Open →"
                                     color: Theme.catFor(cardItem.kind)
                                     font.family: Theme.familyBody
-                                    font.pixelSize: 10
+                                    font.pixelSize: 11
                                     font.weight: Font.Bold
                                     font.letterSpacing: 0.4
                                 }
@@ -1196,7 +1201,11 @@ Item {
                             anchors.top: parent.top
                             anchors.leftMargin: 8
                             anchors.rightMargin: 8
-                            anchors.topMargin: 22
+                            // 42px = 6 (innerZone topMargin) + 28
+                            // (Open button height) + 8 (gap) — keeps
+                            // the strip from overlapping the Open
+                            // button at the top of the inner zone.
+                            anchors.topMargin: 42
                             spacing: 3
 
                             readonly property var inner: {

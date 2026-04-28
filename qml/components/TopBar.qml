@@ -132,45 +132,80 @@ Rectangle {
 
             // Crumb row — only shown when the user has descended into
             // a container. Replaces the subtitle line so the topbar
-            // doesn't grow. Each chip but the last is clickable to
-            // pop back to that depth.
+            // doesn't grow. Each segment renders as a pill with a
+            // surface-step background so it reads as nav state, not
+            // supplementary copy. Active (last) crumb gets the accent
+            // tint; parents are clickable to pop back.
             Row {
                 visible: root._crumbVisible
-                spacing: 6
+                spacing: 4
+                topPadding: 2
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "in"
+                    color: Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontXs
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.0
+                    rightPadding: 6
+                }
+
                 Repeater {
                     model: root.crumbLabels
                     delegate: Row {
-                        spacing: 6
+                        spacing: 4
                         readonly property bool isLast: model.index === root.crumbLabels.length - 1
 
-                        Text {
-                            text: modelData
-                            color: parent.isLast ? Theme.text2 : Theme.text3
-                            font.family: Theme.familyMono
-                            font.pixelSize: Theme.fontXs
-                            font.weight: parent.isLast ? Font.DemiBold : Font.Normal
+                        Rectangle {
+                            id: crumbChip
                             anchors.verticalCenter: parent.verticalCenter
+                            height: 22
+                            width: crumbText.implicitWidth + 14
+                            radius: Theme.radiusSm
+                            color: parent.isLast
+                                ? Theme.accentWash(0.18)
+                                : (chipMA.containsMouse ? Theme.surface3 : Theme.surface2)
+                            border.color: parent.isLast
+                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                                : Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                            Text {
+                                id: crumbText
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: parent.parent.isLast
+                                    ? Theme.accent
+                                    : (chipMA.containsMouse ? Theme.text : Theme.text2)
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                font.weight: parent.parent.isLast ? Font.Bold : Font.Medium
+                            }
 
                             MouseArea {
+                                id: chipMA
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: parent.parent.isLast
-                                    ? Qt.ArrowCursor
-                                    : Qt.PointingHandCursor
                                 enabled: !parent.parent.isLast
+                                cursorShape: enabled
+                                    ? Qt.PointingHandCursor
+                                    : Qt.ArrowCursor
                                 onClicked: root.crumbClicked(model.index)
-                                onEntered: if (enabled) parent.color = Theme.accent
-                                onExited:  if (enabled) parent.color = Theme.text3
                             }
                         }
 
                         Text {
                             visible: !parent.isLast
+                            anchors.verticalCenter: parent.verticalCenter
                             text: "›"
                             color: Theme.text3
                             font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
-                            anchors.verticalCenter: parent.verticalCenter
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.Medium
                         }
                     }
                 }

@@ -57,52 +57,220 @@ Item {
         ExplorePage {
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
-        // Workflow slot: a Repeater of WorkflowPage instances, one per
-        // open doc. Only the active tab is visible; the others stay
-        // alive so per-doc state (crumb, selection, save state, the
-        // wfCtrl bridge) survives a tab switch.
+        // Workflow slot: a tab strip at the top-left + a Repeater of
+        // WorkflowPage instances below. Only the active tab is
+        // visible; the others stay alive so per-doc state (crumb,
+        // selection, save state, the wfCtrl bridge) survives a tab
+        // switch.
         Item {
             id: workflowSlot
 
-            Repeater {
-                model: root.openDocs
-                delegate: WorkflowPage {
-                    id: page
-                    anchors.fill: parent
-                    visible: model.index === root.activeDocIndex
-                    workflowId: modelData.kind === "workflow" ? modelData.source : ""
-                    fragmentPath: modelData.kind === "fragment" ? modelData.source : ""
-                    onBackRequested: root.navigate("library")
-                    onOpenFragmentRequested: (path, name) => root.openFragment(path, name)
-                    // Sync the resolved title up so the tab strip can
-                    // show "[demo] navigation test" instead of the raw
-                    // workflow id. Skip the placeholder default — the
-                    // bridge replaces it with the real title once
-                    // workflow_jsonChanged fires, and we don't want to
-                    // overwrite a meaningful title with a placeholder
-                    // during transient reload states.
-                    onTitleChanged: {
-                        const t = page.title
-                        if (t && t !== "Untitled workflow") {
-                            root.docTitleResolved(model.index, t)
+            // Folder-style tab strip across the top-left of the
+            // editor area. Each tab has rounded top corners, flat
+            // bottom, and the active tab fills with the page surface
+            // colour so it visually merges with the document below
+            // — IDE / browser tab convention. A 1px hairline along
+            // the bottom of the strip + the tab itself sit at the
+            // same y so the active tab "punches through" the line.
+            Rectangle {
+                id: tabBar
+                visible: root.openDocs.length > 0
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 36
+                color: Theme.bg
+
+                // Bottom hairline that the active tab covers so the
+                // tab and document body read as one continuous
+                // surface.
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: Theme.line
+                }
+
+                Row {
+                    id: tabRow
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 16
+                    spacing: 2
+
+                    Repeater {
+                        model: root.openDocs
+                        delegate: Rectangle {
+                            id: tabChip
+                            readonly property bool isActive: model.index === root.activeDocIndex
+                            readonly property bool isFragment: modelData.kind === "fragment"
+                            readonly property color tabAccent:
+                                isFragment ? Theme.catUse : Theme.accent
+                            // Tab body shape: rounded top corners,
+                            // flat bottom. The Rectangle's `radius`
+                            // applies to all corners, so we layer two
+                            // rectangles — a rounded one on top + a
+                            // square one anchored to the bottom half
+                            // — to get only the top corners curved.
+                            width: chipRow.implicitWidth + 28
+                            height: 32
+                            color: "transparent"
+
+                            // Outer rounded rectangle — the visible
+                            // surface. We give it a height taller
+                            // than the tab + clip the bottom with
+                            // the inner square so only the top
+                            // corners read as rounded.
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.bottomMargin: -6
+                                radius: 6
+                                color: tabChip.isActive
+                                    ? Theme.surface
+                                    : (chipArea.containsMouse
+                                        ? Theme.surface2
+                                        : Qt.rgba(Theme.surface.r, Theme.surface.g,
+                                                  Theme.surface.b, 0.55))
+                                border.color: tabChip.isActive
+                                    ? Theme.line
+                                    : Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                                // Active-tab indicator: 2px accent
+                                // strip along the top edge so the
+                                // current doc reads from across the
+                                // window. Color-coded by kind
+                                // (amber for workflow, violet for
+                                // fragment) — same idea as VS Code's
+                                // dirty / git-decoration tints.
+                                Rectangle {
+                                    visible: tabChip.isActive
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.leftMargin: 1
+                                    anchors.rightMargin: 1
+                                    anchors.topMargin: 1
+                                    height: 2
+                                    radius: 1
+                                    color: tabChip.tabAccent
+                                }
+                            }
+
+                            // Whole-chip click → activate the doc.
+                            // Declared first so it's visually behind
+                            // the close button; the close MouseArea
+                            // intercepts its own clicks by sibling
+                            // order.
+                            MouseArea {
+                                id: chipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.activateDoc(model.index)
+                            }
+
+                            Row {
+                                id: chipRow
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Text {
+                                    visible: tabChip.isFragment
+                                    text: "↳"
+                                    color: tabChip.isActive ? tabChip.tabAccent : Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: Font.Medium
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: root.docTitles[modelData.source] || modelData.source
+                                    color: tabChip.isActive ? Theme.text : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: tabChip.isActive ? Font.DemiBold : Font.Medium
+                                    elide: Text.ElideRight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Rectangle {
+                                    width: 16
+                                    height: 16
+                                    radius: 3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: closeArea.containsMouse
+                                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                        : "transparent"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "×"
+                                        color: closeArea.containsMouse
+                                            ? Theme.err
+                                            : (tabChip.isActive ? Theme.text2 : Theme.text3)
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 14
+                                        font.weight: Font.Medium
+                                    }
+                                    MouseArea {
+                                        id: closeArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.closeDoc(model.index)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Empty-state placeholder for the case where the user
-            // navigated to "workflow" but no tabs are open. Should be
-            // rare given Main.qml only flips currentPage to workflow
-            // when a doc is opened, but defensive.
             Item {
-                anchors.fill: parent
-                visible: root.openDocs.length === 0
-                Text {
-                    anchors.centerIn: parent
-                    text: "No workflow open. Open one from the Library."
-                    color: Theme.text3
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontSm
+                id: pageHost
+                anchors.top: tabBar.visible ? tabBar.bottom : parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+
+                Repeater {
+                    model: root.openDocs
+                    delegate: WorkflowPage {
+                        id: page
+                        anchors.fill: parent
+                        visible: model.index === root.activeDocIndex
+                        workflowId: modelData.kind === "workflow" ? modelData.source : ""
+                        fragmentPath: modelData.kind === "fragment" ? modelData.source : ""
+                        onBackRequested: root.navigate("library")
+                        onOpenFragmentRequested: (path, name) => root.openFragment(path, name)
+                        // Sync the resolved title up so the tab strip
+                        // shows "[demo] navigation test" instead of
+                        // the raw workflow id. Skip the placeholder
+                        // default so a transient reload doesn't
+                        // overwrite a meaningful title.
+                        onTitleChanged: {
+                            const t = page.title
+                            if (t && t !== "Untitled workflow") {
+                                root.docTitleResolved(model.index, t)
+                            }
+                        }
+                    }
+                }
+
+                // Empty-state placeholder for the case where the user
+                // navigated to "workflow" but no tabs are open.
+                Item {
+                    anchors.fill: parent
+                    visible: root.openDocs.length === 0
+                    Text {
+                        anchors.centerIn: parent
+                        text: "No workflow open. Open one from the Library."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                    }
                 }
             }
         }
@@ -250,121 +418,7 @@ Item {
         }
     }
 
-    // Tab strip — only visible on the workflow page when at least
-    // one editor doc is open. Sits below the floating nav pill;
-    // each chip shows the doc title plus a close X. Click chip to
-    // activate, click X to close. Fragment tabs read-only and
-    // styled with a violet tint to distinguish from workflow tabs.
-    Rectangle {
-        id: tabStrip
-        visible: root.currentPage === "workflow" && root.openDocs.length > 0
-        anchors.top: parent.top
-        anchors.topMargin: 70
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: tabRow.implicitWidth + 16
-        height: tabRow.implicitHeight + 8
-        radius: Theme.radiusMd
-        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.95)
-        border.color: Theme.line
-        border.width: 1
-
-        Row {
-            id: tabRow
-            anchors.centerIn: parent
-            spacing: 4
-
-            Repeater {
-                model: root.openDocs
-                delegate: Rectangle {
-                    id: tabChip
-                    readonly property bool isActive: model.index === root.activeDocIndex
-                    readonly property bool isFragment: modelData.kind === "fragment"
-                    readonly property color tabAccent: isFragment ? Theme.catUse : Theme.accent
-                    width: chipRow.implicitWidth + 24
-                    height: 28
-                    radius: Theme.radiusSm
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: isActive
-                        ? Qt.rgba(tabAccent.r, tabAccent.g, tabAccent.b, 0.18)
-                        : (chipArea.containsMouse ? Theme.surface2 : "transparent")
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-                    // Whole-chip click → activate the doc. Declared
-                    // first so it's visually behind the close button;
-                    // the close MouseArea inside chipRow lands on top
-                    // by sibling order and intercepts its own clicks.
-                    MouseArea {
-                        id: chipArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.activateDoc(model.index)
-                    }
-
-                    Row {
-                        id: chipRow
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        // Fragment glyph — small chevron-prefix to
-                        // signal "imported into another workflow".
-                        Text {
-                            visible: tabChip.isFragment
-                            text: "↳"
-                            color: tabChip.isActive ? tabChip.tabAccent : Theme.text3
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontSm
-                            font.weight: Font.Medium
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        Text {
-                            // Prefer the resolved title (set after the
-                            // workflow loads from disk) but fall back
-                            // to the raw source so tabs always show
-                            // something during the brief load window.
-                            text: root.docTitles[modelData.source] || modelData.source
-                            color: tabChip.isActive ? tabChip.tabAccent : Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontSm
-                            font.weight: tabChip.isActive ? Font.DemiBold : Font.Medium
-                            elide: Text.ElideRight
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        // Close button — square so it doesn't visually
-                        // collide with the rounded tab chip.
-                        Rectangle {
-                            width: 16
-                            height: 16
-                            radius: 3
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: closeArea.containsMouse
-                                ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
-                                : "transparent"
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "×"
-                                color: closeArea.containsMouse
-                                    ? Theme.err
-                                    : (tabChip.isActive ? Theme.text2 : Theme.text3)
-                                font.family: Theme.familyBody
-                                font.pixelSize: 14
-                                font.weight: Font.Medium
-                            }
-
-                            MouseArea {
-                                id: closeArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.closeDoc(model.index)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // (Top-center floating tab strip removed — tabs now live in
+    // their natural top-left position inside the workflow slot,
+    // just above the page body.)
 }
