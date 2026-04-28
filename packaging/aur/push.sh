@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Push wflow + wflow-git PKGBUILDs to the AUR.
+# Push wflow + wflow-bin + wflow-git PKGBUILDs to the AUR.
+#
+# Normally this runs automatically via .github/workflows/aur-publish.yml
+# on every published GitHub release. Use this script for manual
+# republishes when the workflow is unavailable.
 #
 # Run from the repo root. Requires:
 #   - AUR account + SSH key registered at aur.archlinux.org
