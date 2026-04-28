@@ -216,45 +216,107 @@ Item {
         // Portal failure banner. Surfaces the error string the bridge
         // set on `last_error` (most often: the user's compositor portal
         // doesn't expose RemoteDesktop, or the consent dialog was
-        // cancelled). Stays visible until the next arm() resets it.
+        // cancelled). Same banner shape as the editor's error
+        // banner — tinted bg, !-badge, dismissable ×.
         Rectangle {
-            visible: recCtrl.last_error !== ""
+            id: recErrBanner
+            property bool _dismissed: false
+            // Mirror last_error so the change handler reliably fires
+            // (cxx-qt snake_case Q_PROPERTY → Connections' function-
+            // syntax handler doesn't catch it; property-binding does).
+            property string _lastErrorMirror: recCtrl.last_error
+            on_LastErrorMirrorChanged: _dismissed = false
+
+            visible: !_dismissed && recCtrl.last_error !== ""
             width: parent.width
-            color: Theme.surface2
-            border.color: Theme.err
-            border.width: 1
-            radius: 8
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            implicitHeight: errCol.implicitHeight + 24
+            height: visible ? errCol.implicitHeight + 20 : 0
+            color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.10)
 
-            Column {
-                id: errCol
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.45)
+            }
+
+            Row {
                 anchors.fill: parent
-                anchors.margins: 12
-                spacing: 4
+                anchors.leftMargin: 24
+                anchors.rightMargin: 16
+                spacing: 12
 
-                Text {
-                    text: "Record can't start"
-                    color: Theme.text
-                    font.family: Theme.familyBody
-                    font.pixelSize: 14
-                    font.weight: Font.Medium
+                Rectangle {
+                    width: 22
+                    height: 22
+                    radius: Theme.radiusSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.25)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "!"
+                        color: Theme.err
+                        font.family: Theme.familyBody
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
                 }
-                Text {
-                    text: recCtrl.last_error
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 13
-                    width: parent.width
-                    wrapMode: Text.WordWrap
+
+                Column {
+                    id: errCol
+                    width: parent.width - 22 - 12 - 28 - 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        text: "Record can't start"
+                        color: Theme.err
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        text: recCtrl.last_error
+                        color: Theme.text2
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                Rectangle {
+                    width: 24
+                    height: 24
+                    radius: Theme.radiusSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: dismissRecErrArea.containsMouse
+                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.20)
+                        : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "×"
+                        color: dismissRecErrArea.containsMouse ? Theme.err : Theme.text2
+                        font.family: Theme.familyBody
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
+                    MouseArea {
+                        id: dismissRecErrArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: recErrBanner._dismissed = true
+                    }
                 }
             }
         }
 
         AmbientRec {
             width: parent.width
-            height: parent.height - tb.height - (recCtrl.last_error !== "" ? 80 : 0)
+            height: parent.height - tb.height
+                - (recErrBanner.visible ? recErrBanner.height : 0)
             // After stop the AmbientRec drops back to "idle" so the
             // central button switches from a square (stop) back to a
             // circle (arm again) and the "RECORDING" pulse stops. The

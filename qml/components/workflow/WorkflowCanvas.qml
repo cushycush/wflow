@@ -1009,6 +1009,32 @@ Item {
                                     :  cardItem.status === "error"   ? Theme.err
                                     :  cardItem.status === "skipped" ? Theme.text3
                                     :  Theme.lineSoft
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                                // Brief flash on status transitions so
+                                // ok / error / skipped lands visibly
+                                // mid-run instead of just snapping in.
+                                onColorChanged: if (cardItem.status !== "") flashAnim.restart()
+                                SequentialAnimation {
+                                    id: flashAnim
+                                    running: false
+                                    NumberAnimation {
+                                        target: statusDot
+                                        property: "scale"
+                                        from: 1.0
+                                        to: 1.7
+                                        duration: 140
+                                        easing.type: Easing.OutQuad
+                                    }
+                                    NumberAnimation {
+                                        target: statusDot
+                                        property: "scale"
+                                        from: 1.7
+                                        to: 1.0
+                                        duration: 220
+                                        easing.type: Easing.InQuad
+                                    }
+                                }
                             }
 
                             // Quick-delete. Hover-revealed × pill at

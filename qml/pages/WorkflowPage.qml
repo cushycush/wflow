@@ -998,15 +998,17 @@ Item {
         Rectangle {
             id: errorBanner
             property bool _dismissed: false
+            // Mirror last_error so the change handler reliably fires
+            // (cxx-qt snake_case Q_PROPERTY → function-syntax
+            // Connections handler doesn't catch it; property binding
+            // does).
+            property string _lastErrorMirror: wfCtrl.last_error
+            on_LastErrorMirrorChanged: _dismissed = false
+
             width: parent.width
             height: visible ? 44 : 0
             visible: !_dismissed && wfCtrl.last_error.length > 0
             color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.10)
-            // Reset dismissal whenever a new error arrives.
-            Connections {
-                target: wfCtrl
-                function onLastErrorChanged() { errorBanner._dismissed = false }
-            }
 
             Rectangle {
                 anchors.bottom: parent.bottom
