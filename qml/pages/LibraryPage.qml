@@ -88,7 +88,9 @@ Item {
         if (!path || path.length === 0) return
         const parts = path.split("/")
         const next = Object.assign({}, root.expandedFolders)
-        for (let i = 1; i < parts.length; ++i) {
+        // Expand every prefix INCLUDING the path itself, so opening a
+        // folder reveals its direct children in the sidebar tree.
+        for (let i = 1; i <= parts.length; ++i) {
             next[parts.slice(0, i).join("/")] = true
         }
         root.expandedFolders = next
