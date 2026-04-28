@@ -3,8 +3,13 @@ import QtQuick.Controls
 import Wflow
 
 // Community catalog. Browse and import workflows submitted by other users.
-// Read-pane by design — submission, discussion, profiles, ratings all live on
-// the web. The app only consumes the catalog.
+// Read-pane by design. Submission, discussion, profiles, ratings all live on
+// the web; the app only consumes the catalog.
+//
+// Talks to wflows.com over the v0 JSON API (see ExploreController). The
+// mock workflow list at the bottom of this file is the offline / pre-
+// network fallback; once /api/v0/featured + /api/v0/browse return data
+// the live results take over via _liveWorkflows.
 Item {
     id: root
     signal openWorkflow(string id)      // emitted after import to route to the editor
@@ -12,10 +17,93 @@ Item {
     property string selectedCategory: "All"
     property var selectedWorkflow: null
 
+    // The bridge controller. Single instance per page — the chrome's
+    // pending-deeplink handoff (see Main.qml) uses its own instance,
+    // which is fine because both call into the same store.
+    ExploreController {
+        id: catalog
+
+        // Wire imports straight into the page's openWorkflow signal so
+        // the user lands in the editor as soon as the .kdl is on disk.
+        onImport_succeeded: (id) => {
+            root.selectedWorkflow = null
+            root.openWorkflow(id)
+        }
+        onImport_failed: (reason) => {
+            console.warn("import failed:", reason)
+            // Surface in the detail drawer too — the user already
+            // clicked Install and is waiting for feedback.
+            root._lastImportError = reason
+        }
+    }
+    property string _lastImportError: ""
+
+    Component.onCompleted: {
+        catalog.fetch_featured()
+        catalog.fetch_browse("", "", "", "", 0, 24)
+    }
+
     function selectWorkflow(id) {
-        const wf = root.communityWorkflows.find(w => w.id === id)
+        const wf = (root._liveWorkflows.length > 0
+            ? root._liveWorkflows
+            : root.communityWorkflows).find(w => w.id === id)
         if (wf) root.selectedWorkflow = wf
     }
+
+    function _openInBrowser(detailUrl) {
+        if (!detailUrl) return
+        Qt.openUrlExternally(detailUrl)
+    }
+
+    // Map a remote /api/v0 row into the shape the existing card / hero /
+    // detail components already expect. Done in one place so the UI
+    // doesn't sprout `wf.kinds || wf.actionTypes` ladders everywhere.
+    function _toCardShape(row) {
+        const kinds = (row.actionTypes || []).map(a => a.kind || a)
+        return {
+            // The local UI uses a synthetic id of the form
+            // "@author/slug" so subsequent lookups land back on the
+            // same row without any lookup table.
+            id: "@" + row.handle + "/" + row.slug,
+            handle: row.handle,
+            slug: row.slug,
+            title: row.title,
+            subtitle: row.description || "",
+            author: row.handle,
+            category: "Community",
+            kinds: kinds,
+            imports: row.installCount || 0,
+            forks: row.remixCount || 0,
+            steps: row.stepCount || kinds.length,
+            hasShell: kinds.indexOf("shell") >= 0,
+            trending: false,
+            newSubmission: false,
+            heroPalette: "amber",
+            // Pass-throughs the detail drawer / install button need.
+            rawUrl: row.rawUrl || "",
+            detailUrl: row.detailUrl || "",
+            deeplink: row.deeplink || ""
+        }
+    }
+
+    readonly property var _featuredRows: {
+        try {
+            const j = JSON.parse(catalog.featured_json)
+            return (j.data || []).map(_toCardShape)
+        } catch (e) { return [] }
+    }
+    readonly property var _browseRows: {
+        try {
+            const j = JSON.parse(catalog.browse_json)
+            return (j.data || []).map(_toCardShape)
+        } catch (e) { return [] }
+    }
+    readonly property var _liveWorkflows: _featuredRows.concat(
+        // De-dupe browse against featured so a featured workflow doesn't
+        // appear twice on the same page.
+        _browseRows.filter(b =>
+            !_featuredRows.some(f => f.id === b.id))
+    )
 
     // ==== Mock community workflows ====
     // Shape: { id, title, subtitle, author, category, kinds, imports, forks, steps, hasShell, trending, newSubmission }
@@ -59,13 +147,22 @@ Item {
           imports: 691, forks: 51, steps: 5, hasShell: true }
     ]
 
-    readonly property var featured: communityWorkflows[0]
-    readonly property var trending: communityWorkflows.filter(w => w.trending)
-    readonly property var newSubmissions: communityWorkflows.filter(w => w.newSubmission)
+    // Prefer live data once the bridge has populated featured + browse;
+    // fall back to the mock catalog before the network resolves so the
+    // page never paints empty.
+    readonly property var _activeCatalog: _liveWorkflows.length > 0
+        ? _liveWorkflows
+        : communityWorkflows
+
+    readonly property var featured: _liveWorkflows.length > 0
+        ? _featuredRows[0]
+        : communityWorkflows[0]
+    readonly property var trending: _activeCatalog.filter(w => w.trending)
+    readonly property var newSubmissions: _activeCatalog.filter(w => w.newSubmission)
     readonly property var filtered: (
         selectedCategory === "All"
-            ? communityWorkflows
-            : communityWorkflows.filter(w => w.category === selectedCategory)
+            ? _activeCatalog
+            : _activeCatalog.filter(w => w.category === selectedCategory)
     )
 
     Column {
@@ -273,12 +370,24 @@ Item {
         open: root.selectedWorkflow !== null
         onClosed: root.selectedWorkflow = null
         onImported: (id) => {
-            // TODO: actually import via bridge; for now route to editor.
-            root.selectedWorkflow = null
-            root.openWorkflow(id)
+            const wf = root.selectedWorkflow
+            // Live entries carry handle + slug; fall back to id-based
+            // routing for any leftover mock cards (only matters before
+            // the network call lands or in offline mode).
+            if (wf && wf.handle && wf.slug) {
+                root._lastImportError = ""
+                catalog.import_workflow(wf.handle, wf.slug)
+            } else {
+                root.selectedWorkflow = null
+                root.openWorkflow(id)
+            }
         }
         onDryRunRequested: (id) => {
-            // TODO: dry-run walk-through; mocked.
+            // Dry-run walk-through is on the roadmap. For now, kick the
+            // user to the workflow's page on wflows.com, where the
+            // hosted preview already shows steps + KDL.
+            const wf = root.selectedWorkflow
+            if (wf && wf.detailUrl) root._openInBrowser(wf.detailUrl)
         }
     }
 }

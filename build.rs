@@ -66,6 +66,7 @@ fn main() {
             QmlFile::from("qml/pages/SettingsPage.qml"),
         ]),
     )
+    .file("src/bridge/explore.rs")
     .file("src/bridge/library.rs")
     .file("src/bridge/state.rs")
     .file("src/bridge/workflow.rs")
