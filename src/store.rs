@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use crate::actions::Workflow;
 use crate::kdl_format;
 
-fn workflows_dir() -> Result<PathBuf> {
+pub fn workflows_dir() -> Result<PathBuf> {
     let base = dirs::config_dir().context("no XDG config dir")?;
     let dir = base.join("wflow").join("workflows");
     fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;

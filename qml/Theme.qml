@@ -114,7 +114,16 @@ QtObject {
     // every Behavior / NumberAnimation / ColorAnimation should read instead of
     // the raw constants. Infinite animations (pulses, shimmers, ambient washes)
     // should gate their `running` flag on `!Theme.reduceMotion`.
-    property bool reduceMotion: false
+    //
+    // Mirrors StateController.reduce_motion so the user's choice survives a
+    // restart. Flip via `Theme.applyReduceMotion(bool)` from the Settings
+    // page; direct assignment also works but won't persist.
+    property bool reduceMotion: theme._state.reduce_motion
+
+    function applyReduceMotion(on) {
+        reduceMotion = on
+        theme._state.apply_reduce_motion(on)
+    }
 
     // ============ Feature flags ============
     // Explore is mock data until wflows.com has a real catalog backend. The

@@ -37,6 +37,16 @@ pub struct State {
     /// to whichever scheme the binary was built against.
     #[serde(default = "default_theme_mode")]
     pub theme_mode: String,
+    /// Honour the desktop "reduce motion" intent. When true, animation
+    /// durations collapse to zero — useful for users with vestibular
+    /// sensitivities or anyone who finds Qt Quick's animations
+    /// distracting.
+    #[serde(default)]
+    pub reduce_motion: bool,
+    /// Default sort for the Library grid. One of "recent", "name",
+    /// "last_run". Anything else falls back to "recent".
+    #[serde(default = "default_library_sort")]
+    pub library_sort: String,
 }
 
 fn default_schema() -> u32 {
@@ -47,6 +57,10 @@ fn default_theme_mode() -> String {
     "auto".to_string()
 }
 
+fn default_library_sort() -> String {
+    "recent".to_string()
+}
+
 impl Default for State {
     fn default() -> Self {
         Self {
@@ -54,6 +68,8 @@ impl Default for State {
             first_run_at: None,
             tutorials: BTreeMap::new(),
             theme_mode: default_theme_mode(),
+            reduce_motion: false,
+            library_sort: default_library_sort(),
         }
     }
 }

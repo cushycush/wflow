@@ -47,7 +47,8 @@ Item {
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
-                      root.currentPage === "workflow" ? 2 : 3
+                      root.currentPage === "workflow" ? 2 :
+                      root.currentPage === "record" ? 3 : 4
 
         LibraryPage {
             onNewWorkflow: root.newWorkflow()
@@ -277,6 +278,9 @@ Item {
         RecordPage {
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
+        SettingsPage {
+            onClose: root.navigate("library")
+        }
     }
 
     // Floating nav bar — rounded-rect style matching the editor's
@@ -468,6 +472,83 @@ Item {
                     ToolTip.text: Theme.mode === "auto"
                         ? "Theme: follow system"
                         : Theme.mode === "light" ? "Theme: light" : "Theme: dark"
+                }
+            }
+
+            // Settings — gear icon. Highlights when on the Settings
+            // page so the user has a clear "you are here" without
+            // adding a fifth tab to the pill.
+            Rectangle {
+                id: settingsBtn
+                width: 28; height: 28; radius: Theme.radiusSm
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property bool isActive: root.currentPage === "settings"
+                color: isActive
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    : (settingsArea.containsMouse ? Theme.surface2 : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // Cog: an outer toothed ring + inner hub. Drawn from
+                // small Rectangles rather than a Unicode glyph so
+                // weight reads consistent with the moon/auto icons
+                // next to it (the Unicode ⚙ is too heavy and brand-
+                // ambiguous at this size).
+                Item {
+                    anchors.centerIn: parent
+                    width: 16
+                    height: 16
+
+                    // Eight teeth, evenly distributed.
+                    Repeater {
+                        model: 8
+                        delegate: Rectangle {
+                            width: 3
+                            height: 4
+                            radius: 1
+                            color: settingsBtn.isActive ? Theme.accent : Theme.text2
+                            x: 8 - width / 2
+                                + Math.cos(index * Math.PI / 4 - Math.PI / 2) * 6.5
+                                - Math.sin(index * Math.PI / 4 - Math.PI / 2) * 0
+                            y: 8 - height / 2
+                                + Math.sin(index * Math.PI / 4 - Math.PI / 2) * 6.5
+                            transform: Rotation {
+                                origin.x: 1.5
+                                origin.y: 2
+                                angle: index * 45
+                            }
+                        }
+                    }
+
+                    // Outer ring.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 11
+                        height: 11
+                        radius: width / 2
+                        color: settingsBtn.isActive ? Theme.accent : Theme.text2
+                    }
+                    // Inner cut-out reveals the button bg, producing a
+                    // donut / cog hub.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 4
+                        height: 4
+                        radius: width / 2
+                        color: settingsBtn.isActive
+                            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                            : (settingsArea.containsMouse ? Theme.surface2 : Theme.surface)
+                    }
+                }
+
+                MouseArea {
+                    id: settingsArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.navigate("settings")
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Settings"
                 }
             }
         }

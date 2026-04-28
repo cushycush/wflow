@@ -32,6 +32,9 @@ pub mod qobject {
         #[qproperty(bool, is_first_run)]
         #[qproperty(QString, templates_json)]
         #[qproperty(QString, theme_mode)]
+        #[qproperty(bool, reduce_motion)]
+        #[qproperty(QString, library_sort)]
+        #[qproperty(QString, store_path)]
         type StateController = super::StateControllerRust;
 
         /// Persist that the user has seen the welcome card. Idempotent
@@ -54,6 +57,21 @@ pub mod qobject {
         #[qinvokable]
         fn apply_theme_mode(self: Pin<&mut StateController>, mode: QString);
 
+        /// Persist the reduce-motion preference. Accepts true or false.
+        #[qinvokable]
+        fn apply_reduce_motion(self: Pin<&mut StateController>, on: bool);
+
+        /// Persist the default library sort. Accepts "recent", "name",
+        /// "last_run"; anything else falls back to "recent".
+        #[qinvokable]
+        fn apply_library_sort(self: Pin<&mut StateController>, sort: QString);
+
+        /// Reveal the workflows folder in the system file manager.
+        /// Best-effort: opens the folder via xdg-open. No-op if the
+        /// platform's opener isn't available.
+        #[qinvokable]
+        fn reveal_store_dir(self: Pin<&mut StateController>);
+
         /// Instantiate the named template into the user's library and
         /// return the new workflow id. Empty string on failure.
         #[qinvokable]
@@ -75,6 +93,9 @@ pub struct StateControllerRust {
     pub is_first_run: bool,
     pub templates_json: QString,
     pub theme_mode: QString,
+    pub reduce_motion: bool,
+    pub library_sort: QString,
+    pub store_path: QString,
     inner: state::State,
 }
 
@@ -83,13 +104,24 @@ impl Default for StateControllerRust {
         let inner = state::load();
         let templates_json = templates_to_json();
         let theme_mode = QString::from(&inner.theme_mode);
+        let library_sort = QString::from(&inner.library_sort);
+        let store_path = QString::from(&store_path_display());
         Self {
             is_first_run: inner.is_first_run(),
             templates_json,
             theme_mode,
+            reduce_motion: inner.reduce_motion,
+            library_sort,
+            store_path,
             inner,
         }
     }
+}
+
+fn store_path_display() -> String {
+    crate::store::workflows_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "(unavailable)".to_string())
 }
 
 impl qobject::StateController {
@@ -136,6 +168,51 @@ impl qobject::StateController {
         state::save(&snapshot);
         if !already {
             self.as_mut().set_theme_mode(QString::from(&m));
+        }
+    }
+
+    fn apply_reduce_motion(mut self: Pin<&mut Self>, on: bool) {
+        use cxx_qt::CxxQtType;
+        let already = self.as_ref().rust().inner.reduce_motion == on;
+        self.as_mut().rust_mut().inner.reduce_motion = on;
+        let snapshot = self.as_ref().rust().inner.clone();
+        state::save(&snapshot);
+        if !already {
+            self.as_mut().set_reduce_motion(on);
+        }
+    }
+
+    fn apply_library_sort(mut self: Pin<&mut Self>, sort: QString) {
+        use cxx_qt::CxxQtType;
+        let mut s: String = sort.to_string();
+        if s != "recent" && s != "name" && s != "last_run" {
+            s = "recent".to_string();
+        }
+        let already = self.as_ref().rust().inner.library_sort == s;
+        self.as_mut().rust_mut().inner.library_sort = s.clone();
+        let snapshot = self.as_ref().rust().inner.clone();
+        state::save(&snapshot);
+        if !already {
+            self.as_mut().set_library_sort(QString::from(&s));
+        }
+    }
+
+    fn reveal_store_dir(self: Pin<&mut Self>) {
+        // Best-effort — open the folder in the user's file manager via
+        // xdg-open. Errors are logged, never bubbled up; failing to
+        // launch a file manager isn't an app-fatal condition.
+        let dir = match crate::store::workflows_dir() {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!("reveal_store_dir: workflows_dir failed: {e:#}");
+                return;
+            }
+        };
+        if let Err(e) = std::process::Command::new("xdg-open").arg(&dir).spawn() {
+            tracing::warn!(
+                "reveal_store_dir: xdg-open {} failed: {e}",
+                dir.display()
+            );
         }
     }
 
