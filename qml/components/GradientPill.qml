@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Wflow
 
 // The signature gradient-filled affordance used inside cards across
@@ -32,7 +31,7 @@ Rectangle {
     // When parented with an explicit width: parent.width (canvas
     // cards), this is ignored.
     implicitWidth: (iconChip.visible ? iconChip.width + 8 : 0) + valueText.implicitWidth + 24
-    radius: 8
+    radius: Theme.radiusMd
 
     // Left-to-right gradient. Qt Quick's Gradient defaults to vertical;
     // setting `orientation` to Horizontal aligns with the mockup, where
@@ -43,15 +42,10 @@ Rectangle {
         GradientStop { position: 1.0; color: root.grad[1] }
     }
 
-    // Inner highlight + soft outer glow shaped to the pill.
-    layer.enabled: true
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: Qt.rgba(0, 0, 0, 0.35)
-        shadowBlur: 0.6
-        shadowVerticalOffset: 4
-    }
-
+    // Inner highlight only — no drop shadow (banned per design
+    // principles: "Flat, not skeuomorphic. No drop shadows except for
+    // a true overlay"). The 1px top highlight gives the pill enough
+    // dimension that the gradient still reads as a raised affordance.
     Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
@@ -74,12 +68,18 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: visible ? 22 : 0
         height: 22
-        radius: 6
+        radius: Theme.radiusSm
         color: Qt.rgba(0, 0, 0, 0.22)
         Text {
             anchors.centerIn: parent
             text: root.icon
-            color: "#ffffff"
+            // The gradient under this chip can be any of the catFor()
+            // colors — using Theme.text here would render too-dark
+            // glyphs on the brighter pill kinds. The chip itself is
+            // an opaque dark fill, so a near-white tint reads on every
+            // kind. Tinted just off pure white per the no-pure-white
+            // design rule.
+            color: Theme.isDark ? "#f4f5f7" : "#fbfbfc"
             font.family: Theme.familyBody
             font.pixelSize: Theme.catGlyphSize(root.kind)
             font.weight: Font.Bold
@@ -99,7 +99,7 @@ Rectangle {
         text: root.text
         color: root.textColor
         font.family: Theme.familyBody
-        font.pixelSize: 13
+        font.pixelSize: Theme.fontSm
         font.weight: Font.DemiBold
         font.letterSpacing: -0.1
         elide: Text.ElideRight
@@ -111,14 +111,14 @@ Rectangle {
         anchors.rightMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         width: 22; height: 22
-        radius: 5
+        radius: Theme.radiusSm
         color: Qt.rgba(1, 1, 1, 0.15)
         Text {
             anchors.centerIn: parent
             text: root.trailingIcon
             color: root.textColor
             font.family: Theme.familyBody
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontXs
         }
     }
 

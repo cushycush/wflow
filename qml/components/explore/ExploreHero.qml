@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import Wflow
 
 // Featured workflow hero. Warm-amber bezel + a vertical mini-stack of
@@ -16,7 +15,7 @@ Rectangle {
     readonly property string firstKind: kinds.length > 0 ? kinds[0] : "wait"
 
     height: 220
-    radius: 18
+    radius: Theme.radiusMd
     // Two-layer fill: a warm amber wash drifting in from the top-left
     // over the regular surface so the bezel reads as light catching
     // an edge, not a solid tint.
@@ -26,20 +25,18 @@ Rectangle {
     border.width: 1
     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-    layer.enabled: true
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: Theme.shadowColor
-        shadowBlur: 1.0
-        shadowVerticalOffset: Theme.shadowYMid
-    }
+    // No drop shadow per the "flat, not skeuomorphic" design rule.
+    // The amber bezel + accent wash already give the hero enough
+    // visual weight without paying the MultiEffect blur cost.
 
     // Inner warm wash — restricted to the upper-left so the right
     // half (where the mini-stack sits) stays neutral.
     Rectangle {
         anchors.fill: parent
         anchors.margins: 1
-        radius: 17
+        // Match the parent radius minus the 1px margin so the inner
+        // wash hugs the bezel cleanly (no visible gap on tight zooms).
+        radius: parent.radius - 1
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop { position: 0.0; color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18) }
@@ -78,7 +75,7 @@ Rectangle {
                     text: "FEATURED TODAY"
                     color: Theme.accent
                     font.family: Theme.familyBody
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontXs
                     font.weight: Font.Bold
                     font.letterSpacing: 1.6
                     anchors.verticalCenter: parent.verticalCenter
@@ -87,7 +84,7 @@ Rectangle {
                     text: root.wf ? "·  curated by @wflow  ·  " + (root.wf.category || "uncategorized") : ""
                     color: Theme.text3
                     font.family: Theme.familyBody
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontXs
                     font.letterSpacing: 0.4
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -97,7 +94,7 @@ Rectangle {
                 text: root.wf ? root.wf.title : ""
                 color: Theme.text
                 font.family: Theme.familyBody
-                font.pixelSize: 26
+                font.pixelSize: Theme.fontXl
                 font.weight: Font.Bold
                 font.letterSpacing: -0.5
                 elide: Text.ElideRight
@@ -133,7 +130,7 @@ Rectangle {
                         text: root.wf ? "@" + root.wf.author : ""
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 13
+                        font.pixelSize: Theme.fontSm
                         font.weight: Font.DemiBold
                     }
                     Text {
@@ -142,7 +139,7 @@ Rectangle {
                             : ""
                         color: Theme.text3
                         font.family: Theme.familyMono
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontXs
                     }
                 }
             }
@@ -185,7 +182,7 @@ Rectangle {
                         text: "STEPS · " + (root.wf ? root.wf.steps : 0)
                         color: Theme.text3
                         font.family: Theme.familyBody
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontXs
                         font.letterSpacing: 1.4
                         font.weight: Font.Bold
                     }
@@ -194,7 +191,7 @@ Rectangle {
                         text: "PREVIEW"
                         color: Theme.text3
                         font.family: Theme.familyMono
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontXs
                         font.letterSpacing: 1.0
                     }
                 }
@@ -215,7 +212,7 @@ Rectangle {
                         (root.wf && (root.wf.steps - 4) === 1 ? "" : "s")
                     color: Theme.text3
                     font.family: Theme.familyMono
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontXs
                     leftPadding: 28
                     topPadding: 4
                 }
@@ -250,7 +247,7 @@ Rectangle {
             "notify":    ["\"Setup ready\"", "\"Done\"", "\"Sync complete\"", "\"Hi\""],
             "clipboard": ["{{selection}}", "screenshot.png", "{{url}}", "{{snippet}}"]
         })
-        const arr = samples[kind] || ["—"]
+        const arr = samples[kind] || ["…"]
         return arr[idx % arr.length]
     }
 }

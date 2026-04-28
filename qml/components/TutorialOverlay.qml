@@ -34,7 +34,7 @@ Rectangle {
 
     width: Math.min(Math.max(160, contentRow.implicitWidth + 24), 360)
     height: contentRow.implicitHeight + 18
-    radius: 8
+    radius: Theme.radiusMd
     color: Theme.surface3
     border.color: Theme.accent
     border.width: 1
@@ -44,7 +44,7 @@ Rectangle {
     Rectangle {
         anchors.fill: parent
         anchors.margins: 1
-        radius: 7
+        radius: parent.radius - 1
         color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.06)
     }
 

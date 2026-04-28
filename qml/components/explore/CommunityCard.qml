@@ -1,11 +1,11 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import Wflow
 
 // Community workflow card. Avatar byline up top, mini-stack preview
 // of the first 2-3 step kinds in the middle, stats + category tag at
-// the bottom. Multi-layer drop shadow and a subtle lift on hover.
+// the bottom. Hover lifts the surface tone — no drop shadow per the
+// "flat, not skeuomorphic" design rule.
 Rectangle {
     id: root
     property var wf
@@ -15,21 +15,13 @@ Rectangle {
 
     width: cardW
     height: cardH
-    radius: 14
+    radius: Theme.radiusMd
     color: cardArea.containsMouse ? Theme.surface2 : Theme.surface
     border.color: cardArea.containsMouse ? Theme.line : Theme.lineSoft
     border.width: 1
 
     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-    layer.enabled: true
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: Theme.shadowColor
-        shadowBlur: cardArea.containsMouse ? 1.0 : 0.7
-        shadowVerticalOffset: cardArea.containsMouse ? 14 : 8
-    }
 
     MouseArea {
         id: cardArea
@@ -64,7 +56,7 @@ Rectangle {
                     text: root.wf ? root.wf.title : ""
                     color: Theme.text
                     font.family: Theme.familyBody
-                    font.pixelSize: 14
+                    font.pixelSize: Theme.fontBase
                     font.weight: Font.Bold
                     font.letterSpacing: -0.2
                     elide: Text.ElideRight
@@ -74,7 +66,7 @@ Rectangle {
                     text: root.wf ? root.wf.subtitle : ""
                     color: Theme.text3
                     font.family: Theme.familyBody
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fontSm
                     wrapMode: Text.WordWrap
                     elide: Text.ElideRight
                     maximumLineCount: 2
@@ -112,7 +104,7 @@ Rectangle {
                     + (root.wf && (root.wf.steps - stack.kindsToShow.length) === 1 ? "" : "s")
                 color: Theme.text3
                 font.family: Theme.familyMono
-                font.pixelSize: 11
+                font.pixelSize: Theme.fontXs
                 leftPadding: 26
                 topPadding: 2
             }
@@ -135,14 +127,14 @@ Rectangle {
                     Text {
                         text: "★"
                         color: Theme.accent
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontXs
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         text: root.wf ? root.wf.imports : ""
                         color: Theme.text2
                         font.family: Theme.familyMono
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSm
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -151,14 +143,14 @@ Rectangle {
                     Text {
                         text: "⑂"
                         color: Theme.text3
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.fontXs
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         text: root.wf ? root.wf.forks : ""
                         color: Theme.text2
                         font.family: Theme.familyMono
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fontSm
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -172,7 +164,10 @@ Rectangle {
             Rectangle {
                 id: tag
                 anchors.verticalCenter: parent.verticalCenter
-                radius: 999
+                // The tag is a small pill — radius == half-height
+                // produces the classic capsule shape without the
+                // arbitrary 999 hack.
+                radius: height / 2
                 color: Theme.bg
                 border.color: Theme.lineSoft
                 border.width: 1
@@ -184,7 +179,7 @@ Rectangle {
                     text: root.wf ? root.wf.category : ""
                     color: Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fontXs
                     font.weight: Font.Medium
                 }
             }
@@ -205,7 +200,7 @@ Rectangle {
             "notify":    ["\"Done\"", "\"Synced\"", "\"Ready\""],
             "clipboard": ["{{selection}}", "screenshot.png", "{{url}}"]
         })
-        const arr = samples[kind] || ["—"]
+        const arr = samples[kind] || ["…"]
         return arr[idx % arr.length]
     }
 }

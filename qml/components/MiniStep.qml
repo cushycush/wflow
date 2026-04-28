@@ -22,7 +22,7 @@ Rectangle {
     property string icon: Theme.catGlyph(kind)
 
     implicitHeight: 32
-    radius: 9
+    radius: Theme.radiusMd
     color: Theme.surface
     border.color: Theme.lineSoft
     border.width: 1
@@ -43,7 +43,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 18
             height: 18
-            radius: 5
+            radius: Theme.radiusSm
             gradient: Gradient {
                 GradientStop { position: 0; color: root.grad[0] }
                 GradientStop { position: 1; color: root.grad[1] }
