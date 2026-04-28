@@ -255,156 +255,202 @@ Item {
     }
 
     function organizeVertical() {
-        // Main flow runs down the centre of the canvas; conditional
-        // branches fan out to the right and rejoin below the parent
-        // conditional. Branch height advances the main-flow cursor
-        // so the next top step lands below whichever branch is
-        // taller.
+        // Main flow runs down a centre column. Conditional branches
+        // fan to the RIGHT in a parallel column. Per the design:
+        // the first inner card's TOP edge aligns with the parent
+        // conditional's vertical midpoint, and the last inner card's
+        // BOTTOM edge aligns with the next-top's vertical midpoint —
+        // so the wires fork from / rejoin to the cards' midpoints.
         const list = root.actions || []
-        const next = {}
-        const x = paddingLeft + nodeW * 0.5  // centre column for top steps
-        let y = paddingTop
-        for (let i = 0; i < list.length; i++) {
-            const it = list[i]
-            if (!it || it._displayKind !== "top") continue
+        const tops = list.filter(it => it && it._displayKind === "top")
+        if (tops.length === 0) return
 
-            // Centre the top card on the column anchor.
-            const w = _widthForKind(it.rawKind)
-            next[it.id] = { x: x - w / 2 + nodeW / 2, y: y }
+        // Pick the centreline X so every top card centres on it, and
+        // the branch column lives well clear of the widest top card.
+        let maxTopW = nodeW
+        for (const t of tops) {
+            const w = cardWidths[t.id] || _widthForKind(t.rawKind)
+            if (w > maxTopW) maxTopW = w
+        }
+        const centerX = paddingLeft + maxTopW / 2 + nodeW
+        const branchX = centerX + maxTopW / 2 + gap * 2
+
+        const next = {}
+        let y = paddingTop
+        for (let i = 0; i < tops.length; i++) {
+            const it = tops[i]
+            const w = cardWidths[it.id] || _widthForKind(it.rawKind)
             const h = cardHeights[it.id] || nodeMinH
-            let bottomY = y + h + gap
+            next[it.id] = { x: centerX - w / 2, y: y }
+
+            let nextY = y + h + gap
 
             if (it.rawKind === "conditional") {
-                // Branch column to the right of the conditional.
                 const inner = _innerOf(list, it._topIdx)
-                const branchX = x + nodeW * 0.5 + gap
-                let innerY = y
-                for (const ic of inner) {
-                    next[ic.id] = { x: branchX, y: innerY }
-                    const ih = cardHeights[ic.id] || nodeMinH
-                    innerY += ih + gap
+                    .filter(ic => ic.rawKind !== "note")
+                if (inner.length > 0) {
+                    // First inner: top edge at when's midpoint.
+                    const branchTopY = y + h / 2
+                    let innerY = branchTopY
+                    let innerSpan = 0
+                    for (let k = 0; k < inner.length; k++) {
+                        const ic = inner[k]
+                        const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                        const ih = cardHeights[ic.id] || nodeMinH
+                        next[ic.id] = { x: branchX - iw / 2, y: innerY }
+                        innerY += ih
+                        innerSpan += ih
+                        if (k < inner.length - 1) {
+                            innerY += gap
+                            innerSpan += gap
+                        }
+                    }
+                    // Place next top so its midpoint lines up with
+                    // the last inner's bottom — the rejoin lands on
+                    // the next-top's centre. Use an estimated
+                    // height for the next top (same as ours) since
+                    // it isn't laid out yet.
+                    const branchEndY = branchTopY + innerSpan
+                    const nextTop = i + 1 < tops.length ? tops[i + 1] : null
+                    const nextH = nextTop
+                        ? (cardHeights[nextTop.id] || nodeMinH)
+                        : nodeMinH
+                    nextY = Math.max(y + h + gap, branchEndY - nextH / 2)
                 }
-                bottomY = Math.max(bottomY, innerY)
             }
 
-            y = bottomY
+            y = nextY
         }
         positions = next
         Qt.callLater(_zoomToFit)
     }
 
     function organizeHorizontal() {
-        // Main flow runs left-to-right along the centre row; branches
-        // drop below the conditional and rejoin past it.
+        // Main flow runs left-to-right along a centre row. Conditional
+        // branches drop BELOW the parent in a parallel row that
+        // starts at when's horizontal midpoint and ends at the next-
+        // top's horizontal midpoint.
         const list = root.actions || []
+        const tops = list.filter(it => it && it._displayKind === "top")
+        if (tops.length === 0) return
+
+        let maxTopH = nodeMinH
+        for (const t of tops) {
+            const h = cardHeights[t.id] || nodeMinH
+            if (h > maxTopH) maxTopH = h
+        }
+        const centerY = paddingTop + maxTopH / 2 + nodeMinH / 2
+        const branchY = centerY + maxTopH / 2 + gap * 2
+
         const next = {}
         let x = paddingLeft
-        const y = paddingTop + nodeMinH  // centre row anchor
-        for (let i = 0; i < list.length; i++) {
-            const it = list[i]
-            if (!it || it._displayKind !== "top") continue
-
-            const w = _widthForKind(it.rawKind)
+        for (let i = 0; i < tops.length; i++) {
+            const it = tops[i]
+            const w = cardWidths[it.id] || _widthForKind(it.rawKind)
             const h = cardHeights[it.id] || nodeMinH
-            next[it.id] = { x: x, y: y - h / 2 }
-            let advance = w + gap
+            next[it.id] = { x: x, y: centerY - h / 2 }
+
+            let nextX = x + w + gap
 
             if (it.rawKind === "conditional") {
                 const inner = _innerOf(list, it._topIdx)
-                let innerX = x
-                const innerY = y + h / 2 + gap
-                let widestInnerRow = 0
-                for (const ic of inner) {
-                    const iw = _widthForKind(ic.rawKind)
-                    next[ic.id] = { x: innerX, y: innerY }
-                    innerX += iw + gap
-                    widestInnerRow += iw + gap
+                    .filter(ic => ic.rawKind !== "note")
+                if (inner.length > 0) {
+                    const branchStartX = x + w / 2
+                    let innerX = branchStartX
+                    let innerSpan = 0
+                    for (let k = 0; k < inner.length; k++) {
+                        const ic = inner[k]
+                        const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                        const ih = cardHeights[ic.id] || nodeMinH
+                        next[ic.id] = { x: innerX, y: branchY - ih / 2 }
+                        innerX += iw
+                        innerSpan += iw
+                        if (k < inner.length - 1) {
+                            innerX += gap
+                            innerSpan += gap
+                        }
+                    }
+                    const branchEndX = branchStartX + innerSpan
+                    const nextTop = i + 1 < tops.length ? tops[i + 1] : null
+                    const nextW = nextTop
+                        ? (cardWidths[nextTop.id] || _widthForKind(nextTop.rawKind))
+                        : nodeW
+                    nextX = Math.max(x + w + gap, branchEndX - nextW / 2)
                 }
-                // Make the next top step start past whichever is
-                // wider — the conditional itself or its branch row.
-                advance = Math.max(advance, widestInnerRow)
             }
 
-            x += advance
+            x = nextX
         }
         positions = next
         Qt.callLater(_zoomToFit)
     }
     function organizeGrid() {
-        // Grid only lays out *top-level* cards on the grid; each
-        // conditional's inner branch cards stack in a column to the
-        // right of their parent so the branch reads like a sub-flow.
+        // Grid lays out top-level cards in a square-ish footprint.
+        // Conditional branch cards stack DIRECTLY BELOW their parent
+        // in the same grid cell (rather than to the right) so the
+        // no-wire from the parent to the next-top can travel along
+        // the row unobstructed by branch cards.
         const list = root.actions || []
         if (list.length === 0) return
-
         const tops = list.filter(it => it && it._displayKind === "top")
         if (tops.length === 0) return
 
-        // Square-ish grid footprint (preferred over viewport-fit so
-        // wide screens don't bias into a single long row).
         const cols = Math.max(1, Math.ceil(Math.sqrt(tops.length)))
 
-        // Per-column widths and per-row heights computed from each
-        // cell's largest top card. Branch cards extend rightward so
-        // we ALSO widen the column to fit the deepest branch.
+        // Cell footprint = top card + branch column underneath.
+        // Column width = max top width across cells in that column.
+        // Row height = max (top.h + branch column total height) across cells.
         const colWidths = []
         const rowHeights = []
-        const branchWidthByCell = {}  // "row,col" → branch width
-        const branchHeightByCell = {}
+        for (let i = 0; i < tops.length; i++) {
+            const a = tops[i]
+            const col = i % cols
+            const row = Math.floor(i / cols)
+            const w = cardWidths[a.id] || _widthForKind(a.rawKind)
+            let cellH = cardHeights[a.id] || nodeMinH
+            if (a.rawKind === "conditional") {
+                const inner = _innerOf(list, a._topIdx)
+                    .filter(ic => ic.rawKind !== "note")
+                let innerSpan = 0
+                for (let k = 0; k < inner.length; k++) {
+                    innerSpan += cardHeights[inner[k].id] || nodeMinH
+                    if (k < inner.length - 1) innerSpan += gap
+                }
+                if (innerSpan > 0) cellH += gap + innerSpan
+            }
+            colWidths[col] = Math.max(colWidths[col] || 0, w)
+            rowHeights[row] = Math.max(rowHeights[row] || 0, cellH)
+        }
+
+        const colX = [paddingLeft]
+        for (let c = 1; c < cols; c++) {
+            colX.push(colX[c - 1] + colWidths[c - 1] + gap * 2)
+        }
+        const rowY = [paddingTop]
+        for (let r = 1; r < rowHeights.length; r++) {
+            rowY.push(rowY[r - 1] + rowHeights[r - 1] + gap * 2)
+        }
+
+        const next = {}
         for (let i = 0; i < tops.length; i++) {
             const a = tops[i]
             const col = i % cols
             const row = Math.floor(i / cols)
             const w = cardWidths[a.id] || _widthForKind(a.rawKind)
             const h = cardHeights[a.id] || nodeMinH
+            // Centre top card on the column's centreline.
+            const centreX = colX[col] + colWidths[col] / 2
+            next[a.id] = { x: centreX - w / 2, y: rowY[row] }
 
-            let cellW = w
-            let cellH = h
             if (a.rawKind === "conditional") {
                 const inner = _innerOf(list, a._topIdx)
-                let innerH = 0
-                let innerW = 0
+                    .filter(ic => ic.rawKind !== "note")
+                let innerY = rowY[row] + h + gap
                 for (const ic of inner) {
                     const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
                     const ih = cardHeights[ic.id] || nodeMinH
-                    innerH += ih + gap
-                    innerW = Math.max(innerW, iw)
-                }
-                if (inner.length > 0) {
-                    cellW = w + gap + innerW
-                    cellH = Math.max(h, innerH)
-                }
-                branchWidthByCell[row + "," + col] = innerW
-                branchHeightByCell[row + "," + col] = innerH
-            }
-            colWidths[col] = Math.max(colWidths[col] || 0, cellW)
-            rowHeights[row] = Math.max(rowHeights[row] || 0, cellH)
-        }
-
-        const colX = [paddingLeft]
-        for (let c = 1; c < cols; c++) {
-            colX.push(colX[c - 1] + colWidths[c - 1] + gap)
-        }
-        const rowY = [paddingTop]
-        for (let r = 1; r < rowHeights.length; r++) {
-            rowY.push(rowY[r - 1] + rowHeights[r - 1] + gap)
-        }
-
-        const next = {}
-        for (let i = 0; i < tops.length; i++) {
-            const a = tops[i]
-            const col = i % cols
-            const row = Math.floor(i / cols)
-            next[a.id] = { x: colX[col], y: rowY[row] }
-
-            if (a.rawKind === "conditional") {
-                const inner = _innerOf(list, a._topIdx)
-                const w = cardWidths[a.id] || _widthForKind(a.rawKind)
-                let innerY = rowY[row]
-                const innerX = colX[col] + w + gap
-                for (const ic of inner) {
-                    next[ic.id] = { x: innerX, y: innerY }
-                    const ih = cardHeights[ic.id] || nodeMinH
+                    next[ic.id] = { x: centreX - iw / 2, y: innerY }
                     innerY += ih + gap
                 }
             }
@@ -857,36 +903,39 @@ Item {
                     readonly property var route:
                         _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
 
+                    // Plain coloured text floating above the wire
+                    // midpoint — no pill. The subtle bg (a tinted
+                    // rectangle a hair taller than the text) keeps
+                    // the glyph readable against the dot grid
+                    // without reading as a chip "sitting" on the
+                    // wire.
                     Rectangle {
-                        x: route.sx + (route.tx - route.sx) / 2 - width / 2
-                        y: route.sy + (route.ty - route.sy) / 2 - height / 2
-                        width: labelText.implicitWidth + 12
-                        height: 18
-                        radius: 9
-                        // Yes pill = ok-green tint; no pill = err-red.
-                        color: {
-                            if (modelData.label === "yes")
-                                return Qt.rgba(Theme.ok.r, Theme.ok.g, Theme.ok.b, 0.92)
-                            if (modelData.label === "no")
-                                return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
-                            return Qt.rgba(0.55, 0.78, 0.88, 0.92)
-                        }
-                        border.color: {
+                        readonly property color labelColor: {
                             if (modelData.label === "yes") return Theme.ok
                             if (modelData.label === "no") return Theme.err
-                            return Qt.rgba(0.32, 0.55, 0.70, 0.85)
+                            return Theme.text2
                         }
-                        border.width: 1
+                        // Centre on midpoint, then lift 12px so the
+                        // text reads as labelling the wire from
+                        // above instead of being threaded onto it.
+                        x: route.sx + (route.tx - route.sx) / 2 - width / 2
+                        y: route.sy + (route.ty - route.sy) / 2 - height / 2 - 14
+                        width: labelText.implicitWidth + 8
+                        height: labelText.implicitHeight + 4
+                        radius: 4
+                        color: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, 0.85)
+                        border.color: "transparent"
+                        border.width: 0
 
                         Text {
                             id: labelText
                             anchors.centerIn: parent
                             text: modelData.label
-                            color: Theme.accentText
+                            color: parent.labelColor
                             font.family: Theme.familyBody
-                            font.pixelSize: 10
+                            font.pixelSize: 11
                             font.weight: Font.Bold
-                            font.letterSpacing: 0.4
+                            font.letterSpacing: 0.5
                         }
                     }
                 }
@@ -2074,18 +2123,33 @@ Item {
     // Zoom) as icon-only buttons separated by thin dividers; full
     // labels appear in tooltips on hover. Trades label legibility
     // for canvas real estate.
+    readonly property int toolDockCollapsedW: 56
+    readonly property int toolDockExpandedW: 200
+
     Rectangle {
         id: toolDock
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: 12
-        width: 56
+        width: toolDockHover.containsMouse ? root.toolDockExpandedW : root.toolDockCollapsedW
         height: toolStack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
         border.width: 1
         z: 60
+        Behavior on width {
+            NumberAnimation { duration: Theme.dur(Theme.durBase); easing.type: Easing.OutCubic }
+        }
+
+        MouseArea {
+            id: toolDockHover
+            anchors.fill: parent
+            anchors.margins: -8
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+            propagateComposedEvents: true
+        }
 
         Component {
             id: toolBtnComp
@@ -2093,15 +2157,17 @@ Item {
                 id: toolBtn
                 property string glyph: ""
                 property string tip: ""
+                property string label: ""  // shown when dock expanded
                 property bool active: false
                 property var onActivate: null
                 property real glyphSize: 18
                 property bool useMono: false
 
-                width: 42
+                width: toolDock.width - 14
                 height: 42
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
                 radius: Theme.radiusSm
+                readonly property bool expanded: toolDockHover.containsMouse
                 color: active
                     ? Theme.accentWash(0.18)
                     : (toolBtnArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2112,12 +2178,29 @@ Item {
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
                 Text {
-                    anchors.centerIn: parent
+                    id: toolGlyph
+                    x: 9
+                    anchors.verticalCenter: parent.verticalCenter
                     text: toolBtn.glyph
                     color: toolBtn.active ? Theme.accent : Theme.text2
                     font.family: toolBtn.useMono ? Theme.familyMono : Theme.familyBody
                     font.pixelSize: toolBtn.glyphSize
                     font.weight: toolBtn.active ? Font.DemiBold : Font.Medium
+                    width: 24
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    anchors.left: toolGlyph.right
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: toolBtn.expanded && toolBtn.label !== ""
+                    opacity: toolBtn.expanded ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+                    text: toolBtn.label
+                    color: toolBtn.active ? Theme.accent : Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
                 }
                 MouseArea {
                     id: toolBtnArea
@@ -2125,7 +2208,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: if (toolBtn.onActivate) toolBtn.onActivate()
-                    ToolTip.visible: containsMouse
+                    ToolTip.visible: containsMouse && !toolBtn.expanded
                     ToolTip.delay: 400
                     ToolTip.text: toolBtn.tip
                 }
@@ -2136,7 +2219,7 @@ Item {
         Component {
             id: toolDivComp
             Item {
-                width: 32
+                width: toolDock.width - 14
                 height: 7
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
                 Rectangle {
@@ -2162,6 +2245,7 @@ Item {
                 onLoaded: {
                     item.glyph = "≡"
                     item.tip = "Tidy as a vertical stack"
+                    item.label = "Tidy vertical"
                     item.onActivate = () => organizeVertical()
                 }
             }
@@ -2170,6 +2254,7 @@ Item {
                 onLoaded: {
                     item.glyph = "⫼"
                     item.tip = "Tidy as a horizontal row"
+                    item.label = "Tidy horizontal"
                     item.onActivate = () => organizeHorizontal()
                 }
             }
@@ -2178,6 +2263,7 @@ Item {
                 onLoaded: {
                     item.glyph = "▦"
                     item.tip = "Tidy as a wrapping grid"
+                    item.label = "Tidy as grid"
                     item.onActivate = () => organizeGrid()
                 }
             }
@@ -2186,11 +2272,12 @@ Item {
 
             // ---- Wires
             Rectangle {
-                width: 42
+                width: toolDock.width - 14
                 height: 42
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "curve"
+                readonly property bool expanded: toolDockHover.containsMouse
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsCurveArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2200,12 +2287,29 @@ Item {
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {
-                    anchors.centerIn: parent
+                    id: wsCurveGlyph
+                    x: 9
+                    anchors.verticalCenter: parent.verticalCenter
                     text: "⌒"
                     color: parent.isOn ? Theme.accent : Theme.text2
                     font.family: Theme.familyBody
                     font.pixelSize: 18
                     font.weight: parent.isOn ? Font.DemiBold : Font.Medium
+                    width: 24
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    anchors.left: wsCurveGlyph.right
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: parent.expanded
+                    opacity: parent.expanded ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+                    text: "Curved wires"
+                    color: parent.parent.isOn ? Theme.accent : Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
                 }
                 MouseArea {
                     id: wsCurveArea
@@ -2213,17 +2317,18 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.wireStyle = "curve"
-                    ToolTip.visible: containsMouse
+                    ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Curved (Bezier) wires"
                 }
             }
             Rectangle {
-                width: 42
+                width: toolDock.width - 14
                 height: 42
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "ortho"
+                readonly property bool expanded: toolDockHover.containsMouse
                 color: isOn
                     ? Theme.accentWash(0.18)
                     : (wsOrthoArea.containsMouse ? Theme.surface2 : "transparent")
@@ -2233,12 +2338,29 @@ Item {
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {
-                    anchors.centerIn: parent
+                    id: wsOrthoGlyph
+                    x: 9
+                    anchors.verticalCenter: parent.verticalCenter
                     text: "⌐"
                     color: parent.isOn ? Theme.accent : Theme.text2
                     font.family: Theme.familyBody
                     font.pixelSize: 18
                     font.weight: parent.isOn ? Font.DemiBold : Font.Medium
+                    width: 24
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    anchors.left: wsOrthoGlyph.right
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: parent.expanded
+                    opacity: parent.expanded ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+                    text: "Stepped wires"
+                    color: parent.parent.isOn ? Theme.accent : Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
                 }
                 MouseArea {
                     id: wsOrthoArea
@@ -2246,7 +2368,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.wireStyle = "ortho"
-                    ToolTip.visible: containsMouse
+                    ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Stepped (90°) wires"
                 }
@@ -2260,25 +2382,42 @@ Item {
                 onLoaded: {
                     item.glyph = "+"
                     item.tip = "Zoom in"
+                    item.label = "Zoom in"
                     item.glyphSize = 16
                     item.onActivate = () => root._zoomBy(0.1)
                 }
             }
-            // Zoom percentage — readout, not button-shaped, but
-            // still clickable to reset to 100%.
             Rectangle {
-                width: 42
+                width: toolDock.width - 14
                 height: 26
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
+                readonly property bool expanded: toolDockHover.containsMouse
                 color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {
-                    anchors.centerIn: parent
+                    id: zPctGlyph
+                    x: 9
+                    anchors.verticalCenter: parent.verticalCenter
                     text: Math.round(root.zoom * 100) + "%"
                     color: Theme.text2
                     font.family: Theme.familyMono
                     font.pixelSize: 12
+                    width: 24
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    anchors.left: zPctGlyph.right
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: parent.expanded
+                    opacity: parent.expanded ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+                    text: "Reset zoom"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
                 }
                 MouseArea {
                     id: zPctArea
@@ -2286,7 +2425,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
-                    ToolTip.visible: containsMouse
+                    ToolTip.visible: containsMouse && !parent.expanded
                     ToolTip.delay: 400
                     ToolTip.text: "Reset zoom to 100%"
                 }
@@ -2296,6 +2435,7 @@ Item {
                 onLoaded: {
                     item.glyph = "−"
                     item.tip = "Zoom out"
+                    item.label = "Zoom out"
                     item.glyphSize = 16
                     item.onActivate = () => root._zoomBy(-0.1)
                 }
@@ -2305,6 +2445,7 @@ Item {
                 onLoaded: {
                     item.glyph = "⊡"
                     item.tip = "Fit all cards"
+                    item.label = "Fit all"
                     item.onActivate = () => root._zoomToFit()
                 }
             }

@@ -47,18 +47,41 @@ Item {
         ]}
     ]
 
+    // Expanded width gives room for the labels next to each icon.
+    // Collapsed = icon-only. Hover anywhere in the dock to slide it
+    // open; mouse out to slide back. Animation is fast enough not
+    // to feel laggy but slow enough to read as motion.
+    readonly property int collapsedW: 56
+    readonly property int expandedW: 200
+
     implicitWidth: dock.width
     implicitHeight: dock.height
 
     Rectangle {
         id: dock
         anchors.centerIn: parent
-        width: 56
+        width: dockHover.containsMouse ? root.expandedW : root.collapsedW
         height: stack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
         border.width: 1
+        Behavior on width {
+            NumberAnimation { duration: Theme.dur(Theme.durBase); easing.type: Easing.OutCubic }
+        }
+
+        // Hover detection on the entire dock. Drag operations
+        // (chipArea.dragging) keep the dock open even after the
+        // mouse leaves, so a long drag doesn't see the dock
+        // collapse mid-gesture.
+        MouseArea {
+            id: dockHover
+            anchors.fill: parent
+            anchors.margins: -8  // forgiving hover bounds
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton  // pass clicks through
+            propagateComposedEvents: true
+        }
 
         Column {
             id: stack
@@ -76,7 +99,7 @@ Item {
                     // on labels.
                     Item {
                         visible: model.index > 0
-                        width: 40
+                        width: dock.width - 14
                         height: 11
                         anchors.horizontalCenter: parent.horizontalCenter
                         Rectangle {
@@ -94,11 +117,15 @@ Item {
                         model: modelData.kinds
                         delegate: Rectangle {
                             id: chip
-                            width: 42
+                            // Chip width tracks the dock — when the
+                            // dock is expanded the chip stretches
+                            // to leave room for the label.
+                            width: dock.width - 14
                             height: 42
                             anchors.horizontalCenter: parent.horizontalCenter
                             radius: Theme.radiusSm
                             readonly property color catColor: Theme.catFor(modelData.kind)
+                            readonly property bool expanded: dockHover.containsMouse
                             color: chipArea.dragging
                                 ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.30)
                                 : (chipArea.containsMouse
@@ -112,10 +139,26 @@ Item {
                             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
                             CategoryIcon {
-                                anchors.centerIn: parent
+                                id: chipIcon
+                                x: 9  // fixed left position so labels align
+                                anchors.verticalCenter: parent.verticalCenter
                                 kind: modelData.kind
                                 size: 24
                                 hovered: chipArea.containsMouse || chipArea.dragging
+                            }
+
+                            Text {
+                                anchors.left: chipIcon.right
+                                anchors.leftMargin: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: chip.expanded
+                                opacity: chip.expanded ? 1.0 : 0.0
+                                Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+                                text: modelData.label
+                                color: chip.catColor
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                font.weight: Font.Medium
                             }
 
                             MouseArea {

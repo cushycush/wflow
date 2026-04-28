@@ -632,18 +632,23 @@ Item {
     // directory; the bridge handles that), and signal up so Main
     // can open a fragment tab.
     function _openUseImport(stepIndex) {
-        const steps = root._currentSteps
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        const step = steps[stepIndex]
-        if (!step || !step.action || step.action.kind !== "use") return
-        const name = step.action.name || ""
+        // The canvas's stepIdx is an index into root.actions, which
+        // since the conditional-as-branch refactor includes both
+        // top-level and inner-of-conditional cards. Reading from
+        // _currentSteps (the data tree at crumb depth) skipped the
+        // inner steps — opening "→ open import" on a `use` card
+        // inside a conditional did nothing. Use the shaped action's
+        // rawAction directly.
+        const acts = root.actions || []
+        if (stepIndex < 0 || stepIndex >= acts.length) return
+        const act = acts[stepIndex]
+        if (!act || act.rawKind !== "use") return
+        const name = (act.rawAction && act.rawAction.name) || ""
         if (name.length === 0) return
         const abs = wfCtrl.resolve_import_path(name) || ""
         if (abs.length === 0) {
-            // Either the name isn't in imports or the path didn't
-            // resolve. Open a placeholder fragment tab named after
-            // the import — at least the user sees what they tried
-            // to open. Future: surface a proper error toast.
+            // Name isn't in the imports map or the path didn't
+            // resolve. Future: surface a proper error toast.
             return
         }
         root.openFragmentRequested(abs, name)
