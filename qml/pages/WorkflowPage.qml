@@ -893,23 +893,16 @@ Item {
             onSubtitleCommitted: (t) => root._commitSubtitleEdit(t)
             onCrumbClicked: (depth) => root.popCrumbTo(depth)
 
-            // Compact save-state indicator to the left of the action buttons.
-            Text {
+            // Compact save-state chip to the left of the action
+            // buttons. Color tint changes per state; same chip
+            // treatment as crumb / kind chips elsewhere.
+            Rectangle {
                 visible: root.saveState !== "idle"
                 anchors.verticalCenter: parent.verticalCenter
-                font.family: Theme.familyBody
-                font.pixelSize: Theme.fontXs
-                font.weight: Font.Medium
-                text: {
-                    switch (root.saveState) {
-                    case "dirty":  return "● unsaved"
-                    case "saving": return "● saving…"
-                    case "saved":  return "✓ saved"
-                    case "error":  return "✗ save failed"
-                    }
-                    return ""
-                }
-                color: {
+                width: saveStateText.implicitWidth + 16
+                height: 22
+                radius: Theme.radiusSm
+                readonly property color tint: {
                     switch (root.saveState) {
                     case "dirty":  return Theme.text3
                     case "saving": return Theme.accent
@@ -917,6 +910,27 @@ Item {
                     case "error":  return Theme.err
                     }
                     return Theme.text3
+                }
+                color: Qt.rgba(tint.r, tint.g, tint.b, 0.18)
+                border.color: Qt.rgba(tint.r, tint.g, tint.b, 0.45)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    id: saveStateText
+                    anchors.centerIn: parent
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontXs
+                    font.weight: Font.DemiBold
+                    text: {
+                        switch (root.saveState) {
+                        case "dirty":  return "● unsaved"
+                        case "saving": return "● saving…"
+                        case "saved":  return "✓ saved"
+                        case "error":  return "✗ save failed"
+                        }
+                        return ""
+                    }
+                    color: parent.tint
                 }
             }
 
