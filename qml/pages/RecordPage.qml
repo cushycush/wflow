@@ -27,15 +27,24 @@ Item {
             a.push({ t_ms: t_ms, category: kind, body: summary })
             root.events = a
         }
-        // When the session has fully settled and events_json is fresh,
-        // re-hydrate from it so finalize sees the same view we render.
-        function onEvents_jsonChanged() {
-            if (recCtrl.state !== "stopped") return
-            try {
-                const raw = JSON.parse(recCtrl.events_json || "[]")
-                root.events = raw.map(ev => _shapeRecEvent(ev))
-            } catch (e) { /* keep local copy */ }
-        }
+    }
+
+    // Mirror recCtrl.events_json into a local property so we can hook
+    // a property-change handler that actually fires. Connections +
+    // `function onEvents_jsonChanged()` doesn't catch cxx-qt's auto-
+    // generated NOTIFY signal for snake_case Q_PROPERTY names — same
+    // gotcha that broke WorkflowPage's onWorkflow_jsonChanged. The
+    // property-binding path here is reliable.
+    property string _eventsJsonMirror: recCtrl.events_json
+    on_EventsJsonMirrorChanged: {
+        // When the session has fully settled and events_json is
+        // fresh, re-hydrate from it so finalize sees the same view
+        // we render.
+        if (recCtrl.state !== "stopped") return
+        try {
+            const raw = JSON.parse(_eventsJsonMirror || "[]")
+            root.events = raw.map(ev => _shapeRecEvent(ev))
+        } catch (e) { /* keep local copy */ }
     }
 
     function _shapeRecEvent(ev) {
@@ -228,14 +237,14 @@ Item {
                 Text {
                     text: "Record can't start"
                     color: Theme.text
-                    font.family: Theme.fontUi
+                    font.family: Theme.familyBody
                     font.pixelSize: 14
                     font.weight: Font.Medium
                 }
                 Text {
                     text: recCtrl.last_error
                     color: Theme.text2
-                    font.family: Theme.fontUi
+                    font.family: Theme.familyBody
                     font.pixelSize: 13
                     width: parent.width
                     wrapMode: Text.WordWrap

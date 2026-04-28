@@ -78,7 +78,19 @@ fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if sub_name.is_empty() || sub_name.starts_with('.') {
+            // Skip:
+            //   - empty / dotfile names
+            //   - names starting with `_` (convention: private)
+            //   - the conventional `lib` directory which holds
+            //     `use NAME` fragment files (bare step lists, not
+            //     full Workflow blocks). The walker would otherwise
+            //     try to parse them as workflows and warn-skip every
+            //     refresh.
+            if sub_name.is_empty()
+                || sub_name.starts_with('.')
+                || sub_name.starts_with('_')
+                || sub_name == "lib"
+            {
                 continue;
             }
             // Always recurse: nested dirs get their own folder names.
