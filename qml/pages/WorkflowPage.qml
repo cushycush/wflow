@@ -992,30 +992,96 @@ Item {
             }
         }
 
-        // Error banner — surface the last run / save error from the engine.
+        // Error banner — surface the last run / save error from the
+        // engine. Soft-tinted background, accent-bordered, with a
+        // dismissable × so a stale error doesn't haunt the editor.
         Rectangle {
+            id: errorBanner
+            property bool _dismissed: false
             width: parent.width
-            height: visible ? 36 : 0
-            visible: wfCtrl.last_error.length > 0
-            color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.15)
-            border.color: Theme.err
-            border.width: 1
+            height: visible ? 44 : 0
+            visible: !_dismissed && wfCtrl.last_error.length > 0
+            color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.10)
+            // Reset dismissal whenever a new error arrives.
+            Connections {
+                target: wfCtrl
+                function onLastErrorChanged() { errorBanner._dismissed = false }
+            }
+
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.45)
+            }
 
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 24
-                anchors.rightMargin: 24
-                spacing: 10
+                anchors.rightMargin: 16
+                spacing: 12
+
+                Rectangle {
+                    width: 22
+                    height: 22
+                    radius: Theme.radiusSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.25)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "!"
+                        color: Theme.err
+                        font.family: Theme.familyBody
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
+                }
+
                 Text {
-                    text: "● " + wfCtrl.last_error
+                    text: wfCtrl.last_error
                     color: Theme.err
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
-                    width: parent.width - 80
+                    width: parent.width - 22 - 12 - 28 - 12
+                }
+
+                Rectangle {
+                    width: 24
+                    height: 24
+                    radius: Theme.radiusSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: dismissErrArea.containsMouse
+                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.20)
+                        : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "×"
+                        color: dismissErrArea.containsMouse ? Theme.err : Theme.text2
+                        font.family: Theme.familyBody
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                    }
+                    MouseArea {
+                        id: dismissErrArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        // Clear by setting last_error="" through the
+                        // bridge — the property is read-only from QML
+                        // by default but we own a setter via cxx-qt.
+                        // Workaround: trigger another action that
+                        // resets it. For now, hide the banner client-
+                        // side until next change.
+                        onClicked: errorBanner._dismissed = true
+                    }
                 }
             }
+
         }
 
         Item {
@@ -1199,7 +1265,7 @@ Item {
 
             WorkflowCanvas {
                 id: canvasView
-                visible: root.workflowId.length > 0
+                visible: root.workflowId.length > 0 || root.fragmentMode
                 anchors.left: rail.right
                 anchors.right: inspectorContainer.left
                 anchors.top: parent.top

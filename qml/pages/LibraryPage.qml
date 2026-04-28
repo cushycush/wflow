@@ -931,10 +931,12 @@ Item {
                         id: listComp
                         LibraryList {
                             width: variantLoader.width
+                            folders: root.visibleFolders
                             workflows: root.filtered
                             selectMode: root.selectMode
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)
+                            onOpenFolder: (path) => { root.currentFolder = path }
                             onReorderRequested: (from, to) => root.moveWorkflow(from, to)
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)

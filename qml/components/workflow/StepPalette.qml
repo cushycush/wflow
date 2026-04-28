@@ -53,8 +53,8 @@ Item {
     Rectangle {
         id: dock
         anchors.centerIn: parent
-        width: 44
-        height: stack.implicitHeight + 12
+        width: 56
+        height: stack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
@@ -63,7 +63,7 @@ Item {
         Column {
             id: stack
             anchors.centerIn: parent
-            spacing: 2
+            spacing: 4
 
             Repeater {
                 model: root._categories
@@ -76,8 +76,8 @@ Item {
                     // on labels.
                     Item {
                         visible: model.index > 0
-                        width: 32
-                        height: 9
+                        width: 40
+                        height: 11
                         anchors.horizontalCenter: parent.horizontalCenter
                         Rectangle {
                             anchors.left: parent.left
@@ -94,8 +94,8 @@ Item {
                         model: modelData.kinds
                         delegate: Rectangle {
                             id: chip
-                            width: 32
-                            height: 32
+                            width: 42
+                            height: 42
                             anchors.horizontalCenter: parent.horizontalCenter
                             radius: Theme.radiusSm
                             readonly property color catColor: Theme.catFor(modelData.kind)
@@ -114,7 +114,7 @@ Item {
                             CategoryIcon {
                                 anchors.centerIn: parent
                                 kind: modelData.kind
-                                size: 18
+                                size: 24
                                 hovered: chipArea.containsMouse || chipArea.dragging
                             }
 

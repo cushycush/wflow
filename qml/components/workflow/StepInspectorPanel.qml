@@ -133,7 +133,7 @@ Item {
                     }
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 4
+                        spacing: 6
                         Text {
                             text: root.sel ? root.sel.summary : ""
                             color: Theme.text
@@ -141,11 +141,28 @@ Item {
                             font.pixelSize: Theme.fontLg
                             font.weight: Font.DemiBold
                         }
-                        Text {
-                            text: root.sel ? ("kind: " + root.sel.kind) : ""
-                            color: Theme.text3
-                            font.family: Theme.familyMono
-                            font.pixelSize: Theme.fontXs
+                        // Kind chip — small category-tinted pill so
+                        // the action category reads at a glance and
+                        // the inspector header carries the same
+                        // chip aesthetic as the breadcrumb / tabs.
+                        Rectangle {
+                            visible: root.sel != null
+                            width: kindChipText.implicitWidth + 14
+                            height: 20
+                            radius: Theme.radiusSm
+                            color: Qt.rgba(root.catColor.r, root.catColor.g, root.catColor.b, 0.18)
+                            border.color: Qt.rgba(root.catColor.r, root.catColor.g, root.catColor.b, 0.45)
+                            border.width: 1
+                            Text {
+                                id: kindChipText
+                                anchors.centerIn: parent
+                                text: root.sel ? root.sel.kind : ""
+                                color: root.catColor
+                                font.family: Theme.familyMono
+                                font.pixelSize: 10
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.5
+                            }
                         }
                     }
                 }

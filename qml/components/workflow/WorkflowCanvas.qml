@@ -1639,6 +1639,66 @@ Item {
         }
     }
 
+    // ============ Empty-state hint ============
+    // When no actions exist yet — the editor's first-impression
+    // surface — show a centered prompt pointing at the palette.
+    // Hidden the moment a step lands. The hint lives here (in the
+    // canvas, not the page) so it stays correctly positioned even
+    // when the inspector slides in or the breadcrumb appears.
+    Rectangle {
+        anchors.centerIn: parent
+        visible: (root.actions || []).length === 0
+        width: emptyCol.implicitWidth + 48
+        height: emptyCol.implicitHeight + 32
+        radius: Theme.radiusMd
+        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.92)
+        border.color: Theme.lineSoft
+        border.width: 1
+        z: 50
+
+        Column {
+            id: emptyCol
+            anchors.centerIn: parent
+            spacing: 8
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "An empty workflow."
+                color: Theme.text
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontMd
+                font.weight: Font.DemiBold
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Drag a step from the palette on the left to get started."
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+            }
+            Item { width: 1; height: 4 }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 6
+                Text {
+                    text: "←"
+                    color: Theme.accent
+                    font.family: Theme.familyBody
+                    font.pixelSize: 14
+                    font.weight: Font.Bold
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: "Type · Click · Shell · When · Repeat …"
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: Theme.fontXs
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+    }
+
     // ============ Floating UI ============
 
     // Vertical icon dock on the right edge of the canvas — Adobe /
@@ -1651,8 +1711,8 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: 12
-        width: 44
-        height: toolStack.implicitHeight + 12
+        width: 56
+        height: toolStack.implicitHeight + 16
         radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
@@ -1667,11 +1727,11 @@ Item {
                 property string tip: ""
                 property bool active: false
                 property var onActivate: null
-                property real glyphSize: 14
+                property real glyphSize: 18
                 property bool useMono: false
 
-                width: 32
-                height: 32
+                width: 42
+                height: 42
                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
                 radius: Theme.radiusSm
                 color: active
@@ -1758,8 +1818,8 @@ Item {
 
             // ---- Wires
             Rectangle {
-                width: 32
-                height: 32
+                width: 42
+                height: 42
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "curve"
@@ -1776,7 +1836,7 @@ Item {
                     text: "⌒"
                     color: parent.isOn ? Theme.accent : Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: 14
+                    font.pixelSize: 18
                     font.weight: parent.isOn ? Font.DemiBold : Font.Medium
                 }
                 MouseArea {
@@ -1791,8 +1851,8 @@ Item {
                 }
             }
             Rectangle {
-                width: 32
-                height: 32
+                width: 42
+                height: 42
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 readonly property bool isOn: root.wireStyle === "ortho"
@@ -1809,7 +1869,7 @@ Item {
                     text: "⌐"
                     color: parent.isOn ? Theme.accent : Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: 14
+                    font.pixelSize: 18
                     font.weight: parent.isOn ? Font.DemiBold : Font.Medium
                 }
                 MouseArea {
@@ -1839,8 +1899,8 @@ Item {
             // Zoom percentage — readout, not button-shaped, but
             // still clickable to reset to 100%.
             Rectangle {
-                width: 32
-                height: 22
+                width: 42
+                height: 26
                 anchors.horizontalCenter: parent.horizontalCenter
                 radius: Theme.radiusSm
                 color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
@@ -1850,7 +1910,7 @@ Item {
                     text: Math.round(root.zoom * 100) + "%"
                     color: Theme.text2
                     font.family: Theme.familyMono
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                 }
                 MouseArea {
                     id: zPctArea
