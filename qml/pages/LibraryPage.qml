@@ -615,12 +615,134 @@ Item {
                 }
             }
 
-            ScrollView {
+            // Folder breadcrumb — only visible when a specific
+            // folder is selected. Sits above the grid so the user
+            // can see (and click out of) the active folder. Treat
+            // the currentFolder name as a "/"-separated path so the
+            // row is ready for nested-folder support without a
+            // schema change here.
+            Item {
+                id: folderCrumb
                 anchors.left: folderRail.visible ? folderRail.right : parent.left
                 anchors.top: parent.top
                 anchors.right: parent.right
+                height: visible ? 40 : 0
+                visible: root.workflows.length > 0
+                    && root.currentFolder !== ""
+                    && root.currentFolder !== "__top__"
+
+                readonly property var crumbSegments: {
+                    if (!visible) return []
+                    return root.currentFolder.split("/").filter(s => s.length > 0)
+                }
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 24
+                    spacing: 6
+
+                    Text {
+                        text: "All workflows"
+                        color: rootCrumbArea.containsMouse ? Theme.accent : Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        font.weight: Font.Medium
+                        anchors.verticalCenter: parent.verticalCenter
+                        MouseArea {
+                            id: rootCrumbArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.currentFolder = ""
+                        }
+                    }
+
+                    Repeater {
+                        model: folderCrumb.crumbSegments
+                        delegate: Row {
+                            spacing: 6
+                            readonly property bool isLast:
+                                model.index === folderCrumb.crumbSegments.length - 1
+                            readonly property string targetPath:
+                                folderCrumb.crumbSegments.slice(0, model.index + 1).join("/")
+
+                            Text {
+                                text: "›"
+                                color: Theme.text3
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: modelData
+                                color: parent.isLast
+                                    ? Theme.text
+                                    : (segArea.containsMouse ? Theme.accent : Theme.text3)
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                font.weight: parent.isLast ? Font.DemiBold : Font.Medium
+                                anchors.verticalCenter: parent.verticalCenter
+                                MouseArea {
+                                    id: segArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: !parent.parent.isLast
+                                    cursorShape: enabled
+                                        ? Qt.PointingHandCursor
+                                        : Qt.ArrowCursor
+                                    onClicked:
+                                        root.currentFolder = parent.parent.targetPath
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // "This folder is empty" message — shown when the user
+            // is filtering to a folder (or top-level) that has no
+            // workflows, but the overall library is non-empty so the
+            // big EmptyState welcome is wrong.
+            Item {
+                anchors.left: folderRail.visible ? folderRail.right : parent.left
+                anchors.top: folderCrumb.visible ? folderCrumb.bottom : parent.top
+                anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 visible: root.workflows.length > 0
+                    && root.filtered.length === 0
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.searchQuery && root.searchQuery.length > 0
+                            ? "No workflows match “" + root.searchQuery + "”."
+                            : "This folder is empty."
+                        color: Theme.text2
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontMd
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: root.searchQuery && root.searchQuery.length > 0
+                            ? "Try a different search term, or pick another folder."
+                            : "Drag a workflow card here, or use “↳ Move to…” in select mode."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                    }
+                }
+            }
+
+            ScrollView {
+                anchors.left: folderRail.visible ? folderRail.right : parent.left
+                anchors.top: folderCrumb.visible ? folderCrumb.bottom : parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                visible: root.workflows.length > 0 && root.filtered.length > 0
                 contentWidth: availableWidth
                 clip: true
 

@@ -96,6 +96,16 @@ Item {
                     }
                 }
                 onReleased: {
+                    // Drag.dragType: Drag.Internal needs an explicit
+                    // Drag.drop() to fire the DropArea's onDropped —
+                    // mouse-release on its own only flips
+                    // Drag.active back to false and the drop is lost.
+                    // Call drop() before restoring the grid bindings
+                    // so the folder rail's DropArea sees the source
+                    // item.
+                    if (drag.active) {
+                        card.Drag.drop()
+                    }
                     // drag.target moves card.x / card.y away from the
                     // grid bindings. Whether the drop landed on a
                     // folder or not, restore the bindings so the
