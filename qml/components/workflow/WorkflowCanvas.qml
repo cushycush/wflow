@@ -50,6 +50,7 @@ Item {
     // they're annotations, not first-class operations.
     function _widthForKind(rawKind) {
         if (rawKind === "repeat") return containerW
+        if (rawKind === "conditional") return conditionalW
         if (rawKind === "note") return noteW
         return nodeW
     }
@@ -104,8 +105,10 @@ Item {
 
     readonly property int nodeW: 260
     readonly property int containerW: 360
+    readonly property int conditionalW: 300
     readonly property int noteW: 200
     readonly property int nodeMinH: 132
+    readonly property int conditionalMinH: 156
     readonly property int noteMinH: 56
     readonly property int gap: 36
     readonly property int _portR: 6
@@ -119,20 +122,28 @@ Item {
         const arr = root.actions || []
         const out = []
 
-        // Helper: index in `arr` of a conditional's first inner step
-        // (or -1 if the conditional has no inner steps).
+        // Helper: index in `arr` of a conditional's FIRST NON-NOTE
+        // inner step (notes are annotations and shouldn't anchor a
+        // wire). -1 if no operational inner exists.
         function firstInnerOf(parentTopIdx) {
+            let best = -1
+            let bestJ = Number.MAX_SAFE_INTEGER
             for (let i = 0; i < arr.length; i++) {
                 const it = arr[i]
                 if (!it) continue
                 if (it._displayKind === "inner"
                     && it._parentTopIdx === parentTopIdx
-                    && it._innerIdx === 0) return i
+                    && it.rawKind !== "note"
+                    && it._innerIdx < bestJ) {
+                    best = i
+                    bestJ = it._innerIdx
+                }
             }
-            return -1
+            return best
         }
 
-        // Helper: index in `arr` of a conditional's last inner step.
+        // Helper: index in `arr` of a conditional's LAST NON-NOTE
+        // inner step.
         function lastInnerOf(parentTopIdx) {
             let best = -1
             let bestJ = -1
@@ -141,6 +152,7 @@ Item {
                 if (!it) continue
                 if (it._displayKind === "inner"
                     && it._parentTopIdx === parentTopIdx
+                    && it.rawKind !== "note"
                     && it._innerIdx > bestJ) {
                     best = i
                     bestJ = it._innerIdx
@@ -199,20 +211,26 @@ Item {
                     if (nextTop >= 0) out.push({ from: i, to: nextTop })
                 }
             } else if (it._displayKind === "inner") {
-                // Inner step: chain to the next inner of the same
-                // parent, if any. If this is the last inner, the
-                // conditional's `top` branch above already added
-                // the rejoin wire.
+                // Inner step: chain to the next NON-NOTE inner of
+                // the same parent, if any. Notes are annotations —
+                // wires bridge over them just like at the top level.
+                // If this is the last inner, the conditional's
+                // `top` branch above already added the rejoin wire.
+                let bestJ = Number.MAX_SAFE_INTEGER
+                let bestK = -1
                 for (let j = 0; j < arr.length; j++) {
                     const next = arr[j]
                     if (!next) continue
                     if (next._displayKind !== "inner") continue
                     if (next._parentTopIdx !== it._parentTopIdx) continue
-                    if (next._innerIdx === it._innerIdx + 1) {
-                        out.push({ from: i, to: j })
-                        break
+                    if (next.rawKind === "note") continue
+                    if (next._innerIdx > it._innerIdx
+                        && next._innerIdx < bestJ) {
+                        bestJ = next._innerIdx
+                        bestK = j
                     }
                 }
+                if (bestK >= 0) out.push({ from: i, to: bestK })
             }
         }
         return out
@@ -229,54 +247,140 @@ Item {
 
     // ============ Layout actions (one-shot) ============
 
+    // Helper: items whose displayKind/parent matches.
+    function _innerOf(list, parentTopIdx) {
+        return list.filter(it => it && it._displayKind === "inner"
+            && it._parentTopIdx === parentTopIdx)
+            .sort((a, b) => a._innerIdx - b._innerIdx)
+    }
+
     function organizeVertical() {
+        // Main flow runs down the centre of the canvas; conditional
+        // branches fan out to the right and rejoin below the parent
+        // conditional. Branch height advances the main-flow cursor
+        // so the next top step lands below whichever branch is
+        // taller.
         const list = root.actions || []
         const next = {}
-        const x = paddingLeft
+        const x = paddingLeft + nodeW * 0.5  // centre column for top steps
         let y = paddingTop
         for (let i = 0; i < list.length; i++) {
-            next[list[i].id] = { x: x, y: y }
-            y += (cardHeights[list[i].id] || nodeMinH) + gap
+            const it = list[i]
+            if (!it || it._displayKind !== "top") continue
+
+            // Centre the top card on the column anchor.
+            const w = _widthForKind(it.rawKind)
+            next[it.id] = { x: x - w / 2 + nodeW / 2, y: y }
+            const h = cardHeights[it.id] || nodeMinH
+            let bottomY = y + h + gap
+
+            if (it.rawKind === "conditional") {
+                // Branch column to the right of the conditional.
+                const inner = _innerOf(list, it._topIdx)
+                const branchX = x + nodeW * 0.5 + gap
+                let innerY = y
+                for (const ic of inner) {
+                    next[ic.id] = { x: branchX, y: innerY }
+                    const ih = cardHeights[ic.id] || nodeMinH
+                    innerY += ih + gap
+                }
+                bottomY = Math.max(bottomY, innerY)
+            }
+
+            y = bottomY
         }
         positions = next
         Qt.callLater(_zoomToFit)
     }
+
     function organizeHorizontal() {
+        // Main flow runs left-to-right along the centre row; branches
+        // drop below the conditional and rejoin past it.
         const list = root.actions || []
         const next = {}
         let x = paddingLeft
+        const y = paddingTop + nodeMinH  // centre row anchor
         for (let i = 0; i < list.length; i++) {
-            next[list[i].id] = { x: x, y: paddingTop }
-            x += _widthForKind(list[i].rawKind) + gap
+            const it = list[i]
+            if (!it || it._displayKind !== "top") continue
+
+            const w = _widthForKind(it.rawKind)
+            const h = cardHeights[it.id] || nodeMinH
+            next[it.id] = { x: x, y: y - h / 2 }
+            let advance = w + gap
+
+            if (it.rawKind === "conditional") {
+                const inner = _innerOf(list, it._topIdx)
+                let innerX = x
+                const innerY = y + h / 2 + gap
+                let widestInnerRow = 0
+                for (const ic of inner) {
+                    const iw = _widthForKind(ic.rawKind)
+                    next[ic.id] = { x: innerX, y: innerY }
+                    innerX += iw + gap
+                    widestInnerRow += iw + gap
+                }
+                // Make the next top step start past whichever is
+                // wider — the conditional itself or its branch row.
+                advance = Math.max(advance, widestInnerRow)
+            }
+
+            x += advance
         }
         positions = next
         Qt.callLater(_zoomToFit)
     }
     function organizeGrid() {
+        // Grid only lays out *top-level* cards on the grid; each
+        // conditional's inner branch cards stack in a column to the
+        // right of their parent so the branch reads like a sub-flow.
         const list = root.actions || []
         if (list.length === 0) return
+
+        const tops = list.filter(it => it && it._displayKind === "top")
+        if (tops.length === 0) return
+
         // Square-ish grid footprint (preferred over viewport-fit so
         // wide screens don't bias into a single long row).
-        const cols = Math.max(1, Math.ceil(Math.sqrt(list.length)))
+        const cols = Math.max(1, Math.ceil(Math.sqrt(tops.length)))
 
-        // Container cards are 360px wide and routinely much taller
-        // than nodeMinH once inner steps land — fixed cell math
-        // (nodeW + gap, nodeMinH + gap) stacked them on top of each
-        // other. Compute per-column widths and per-row heights from
-        // the actual cards in each slot.
+        // Per-column widths and per-row heights computed from each
+        // cell's largest top card. Branch cards extend rightward so
+        // we ALSO widen the column to fit the deepest branch.
         const colWidths = []
         const rowHeights = []
-        for (let i = 0; i < list.length; i++) {
-            const a = list[i]
+        const branchWidthByCell = {}  // "row,col" → branch width
+        const branchHeightByCell = {}
+        for (let i = 0; i < tops.length; i++) {
+            const a = tops[i]
             const col = i % cols
             const row = Math.floor(i / cols)
             const w = cardWidths[a.id] || _widthForKind(a.rawKind)
             const h = cardHeights[a.id] || nodeMinH
-            colWidths[col] = Math.max(colWidths[col] || 0, w)
-            rowHeights[row] = Math.max(rowHeights[row] || 0, h)
+
+            let cellW = w
+            let cellH = h
+            if (a.rawKind === "conditional") {
+                const inner = _innerOf(list, a._topIdx)
+                let innerH = 0
+                let innerW = 0
+                for (const ic of inner) {
+                    const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                    const ih = cardHeights[ic.id] || nodeMinH
+                    innerH += ih + gap
+                    innerW = Math.max(innerW, iw)
+                }
+                if (inner.length > 0) {
+                    cellW = w + gap + innerW
+                    cellH = Math.max(h, innerH)
+                }
+                branchWidthByCell[row + "," + col] = innerW
+                branchHeightByCell[row + "," + col] = innerH
+            }
+            colWidths[col] = Math.max(colWidths[col] || 0, cellW)
+            rowHeights[row] = Math.max(rowHeights[row] || 0, cellH)
         }
 
-        // Cumulative origin per column / row.
         const colX = [paddingLeft]
         for (let c = 1; c < cols; c++) {
             colX.push(colX[c - 1] + colWidths[c - 1] + gap)
@@ -287,10 +391,23 @@ Item {
         }
 
         const next = {}
-        for (let i = 0; i < list.length; i++) {
+        for (let i = 0; i < tops.length; i++) {
+            const a = tops[i]
             const col = i % cols
             const row = Math.floor(i / cols)
-            next[list[i].id] = { x: colX[col], y: rowY[row] }
+            next[a.id] = { x: colX[col], y: rowY[row] }
+
+            if (a.rawKind === "conditional") {
+                const inner = _innerOf(list, a._topIdx)
+                const w = cardWidths[a.id] || _widthForKind(a.rawKind)
+                let innerY = rowY[row]
+                const innerX = colX[col] + w + gap
+                for (const ic of inner) {
+                    next[ic.id] = { x: innerX, y: innerY }
+                    const ih = cardHeights[ic.id] || nodeMinH
+                    innerY += ih + gap
+                }
+            }
         }
         positions = next
         Qt.callLater(_zoomToFit)
@@ -708,6 +825,72 @@ Item {
                 }
             }
 
+            // Wire labels — small pills along the wire that carry a
+            // label (currently "yes" / "no" on conditional branches).
+            // Sibling Repeater so the labels paint above the strokes
+            // without participating in the dash animation.
+            Repeater {
+                model: root._wirePairs
+                delegate: Item {
+                    visible: !!modelData.label
+                        && fromPos !== undefined
+                        && toPos !== undefined
+
+                    readonly property int fromIdx: modelData.from
+                    readonly property int toIdx: modelData.to
+                    readonly property string fromId:
+                        root.actions[fromIdx] ? root.actions[fromIdx].id : ""
+                    readonly property string toId:
+                        root.actions[toIdx] ? root.actions[toIdx].id : ""
+                    readonly property var fromPos: root.positions[fromId]
+                    readonly property var toPos: root.positions[toId]
+                    readonly property real fromH:
+                        root.cardHeights[fromId] || root.nodeMinH
+                    readonly property real toH:
+                        root.cardHeights[toId] || root.nodeMinH
+                    readonly property real fromW: root.cardWidths[fromId]
+                        || _widthForKind(root.actions[fromIdx]
+                            ? root.actions[fromIdx].rawKind : "")
+                    readonly property real toW: root.cardWidths[toId]
+                        || _widthForKind(root.actions[toIdx]
+                            ? root.actions[toIdx].rawKind : "")
+                    readonly property var route:
+                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+
+                    Rectangle {
+                        x: route.sx + (route.tx - route.sx) / 2 - width / 2
+                        y: route.sy + (route.ty - route.sy) / 2 - height / 2
+                        width: labelText.implicitWidth + 12
+                        height: 18
+                        radius: 9
+                        // Yes pill = ok-green tint; no pill = err-red.
+                        color: {
+                            if (modelData.label === "yes")
+                                return Qt.rgba(Theme.ok.r, Theme.ok.g, Theme.ok.b, 0.92)
+                            if (modelData.label === "no")
+                                return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
+                            return Qt.rgba(0.55, 0.78, 0.88, 0.92)
+                        }
+                        border.color: {
+                            if (modelData.label === "yes") return Theme.ok
+                            if (modelData.label === "no") return Theme.err
+                            return Qt.rgba(0.32, 0.55, 0.70, 0.85)
+                        }
+                        border.width: 1
+
+                        Text {
+                            id: labelText
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: Theme.accentText
+                            font.family: Theme.familyBody
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 0.4
+                        }
+                    }
+                }
+            }
         }
 
         // ============ Cards ============
@@ -832,26 +1015,33 @@ Item {
                     width: parent.width
                     height: cardItem.isNote
                         ? Math.max(root.noteMinH, noteBody.implicitHeight + 18)
-                        : Math.max(root.nodeMinH - 4, cardBody.implicitHeight + 24)
+                        : (cardItem.isConditional
+                            ? Math.max(root.conditionalMinH, cardBody.implicitHeight + 24)
+                            : Math.max(root.nodeMinH - 4, cardBody.implicitHeight + 24))
                     radius: cardItem.isNote ? 8 : 14
                     color: cardItem.cardBg
-                    // Containers carry a tinted border (their pill
-                    // colour) so when / unless / repeat read as
-                    // structural blocks at a glance — ordinary action
-                    // cards keep the neutral hairline. Notes get the
-                    // softest border so they recede next to operations.
+                    // Repeat containers + conditional decision cards
+                    // carry a tinted border (their kind colour) so the
+                    // structural / branch nodes read at a glance —
+                    // ordinary action cards keep the neutral hairline.
+                    // Notes get the softest border so they recede next
+                    // to operations.
                     border.color: cardItem.isActive
                         ? Theme.accent
                         : (cardItem.isSelected
                             ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
-                            : (cardItem.isContainer
+                            : ((cardItem.isContainer || cardItem.isConditional)
                                 ? Theme.catFor(cardItem.kind)
                                 : (cardItem.isNote
                                     ? Theme.lineSoft
                                     : (dragArea.containsMouse ? Theme.line : Theme.lineSoft))))
                     border.width: cardItem.isActive
                         ? 2.5
-                        : (cardItem.isSelected ? 2 : (cardItem.isContainer ? 1.5 : 1))
+                        : (cardItem.isSelected
+                            ? 2
+                            : ((cardItem.isContainer || cardItem.isConditional)
+                                ? 1.5
+                                : 1))
 
                     // Pulse a soft accent halo around the card while
                     // it's the active running step. Only allocates a
