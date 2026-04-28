@@ -28,13 +28,16 @@ Item {
             { kind: "move",      label: "Move"     },
             { kind: "scroll",    label: "Scroll"   }
         ]},
+        // `note` removed — per-step comments live on each step's
+        // `note` field, surfaced as a Comment textfield in the
+        // inspector. Standalone Action::Note steps in legacy files
+        // still render via the canvas annotation path.
         { label: "Effect", kinds: [
             { kind: "focus",     label: "Focus"    },
             { kind: "wait",      label: "Wait"     },
             { kind: "shell",     label: "Shell"    },
             { kind: "notify",    label: "Notify"   },
-            { kind: "clipboard", label: "Clipbd"   },
-            { kind: "note",      label: "Note"     }
+            { kind: "clipboard", label: "Clipbd"   }
         ]},
         { label: "Flow",   kinds: [
             { kind: "when",      label: "When"     },

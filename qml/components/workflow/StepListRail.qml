@@ -34,7 +34,8 @@ Item {
         { kind: "shell",     label: "Shell command" },
         { kind: "notify",    label: "Notification" },
         { kind: "clipboard", label: "Clipboard" },
-        { kind: "note",      label: "Note" },
+        // `note` is now a per-step comment field on the inspector,
+        // not an authorable step kind.
         { kind: "when",      label: "When (conditional)" },
         { kind: "unless",    label: "Unless (conditional)" },
         { kind: "repeat",    label: "Repeat block" },

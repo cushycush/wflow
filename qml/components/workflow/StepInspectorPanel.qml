@@ -928,6 +928,92 @@ Item {
                         }
                     }
 
+                    // Comment — per-step note that lives on the Step's
+                    // own `note` field, not as a separate Action::Note
+                    // step. Renders inline on the canvas card as an
+                    // italic subline. Empty clears the field.
+                    Column {
+                        width: parent.width
+                        spacing: 6
+                        visible: root.sel != null
+
+                        Row {
+                            spacing: 12
+                            width: parent.width
+                            Text {
+                                text: "Comment"
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 90
+                            }
+                            Text {
+                                text: "annotation, not run"
+                                color: Theme.text3
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                font.italic: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        Rectangle {
+                            id: commentBox
+                            width: parent.width
+                            height: 56
+                            radius: 6
+                            color: Theme.bg
+                            border.color: commentField.activeFocus
+                                ? root.catColor
+                                : Theme.lineSoft
+                            border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                            TextArea {
+                                id: commentField
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                placeholderText: "what does this step do, why is it here…"
+                                color: Theme.text
+                                placeholderTextColor: Theme.text3
+                                selectionColor: Theme.accentWash(0.4)
+                                selectedTextColor: Theme.text
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                wrapMode: TextEdit.Wrap
+                                background: Item {}
+
+                                // Resync from upstream when the
+                                // selected step changes (or when an
+                                // external save round-trip updates
+                                // root.sel.note). In-progress hand
+                                // edits stay live until commit.
+                                readonly property var syncKey: [
+                                    root.selectedIndex,
+                                    root.sel ? (root.sel.note || "") : ""
+                                ]
+                                onSyncKeyChanged: {
+                                    if (activeFocus) return
+                                    const incoming = (root.sel && root.sel.note) || ""
+                                    if (incoming !== text) text = incoming
+                                }
+                                Component.onCompleted: {
+                                    text = (root.sel && root.sel.note) || ""
+                                }
+
+                                function _commit() {
+                                    const v = text || ""
+                                    const cur = (root.sel && root.sel.note) || ""
+                                    if (v === cur) return
+                                    root.optionEdited(root.selectedIndex, "note", v)
+                                }
+                                onTextChanged: _commit()
+                                onEditingFinished: _commit()
+                            }
+                        }
+                    }
+
                     // Key: clear-modifiers
                     Row {
                         width: parent.width

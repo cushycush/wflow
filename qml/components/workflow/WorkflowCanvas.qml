@@ -1004,6 +1004,26 @@ Item {
                             width: parent.width
                         }
 
+                        // Per-step comment, surfaced from the
+                        // inspector's Comment field. Italic + smaller
+                        // so it reads as an annotation under the
+                        // step's primary value, not as another
+                        // operation. Hidden when empty so cards
+                        // without a note keep their compact height.
+                        Text {
+                            visible: cardItem.act
+                                && cardItem.act.note
+                                && cardItem.act.note.length > 0
+                            text: cardItem.act ? (cardItem.act.note || "") : ""
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            font.italic: true
+                            wrapMode: Text.Wrap
+                            width: parent.width
+                            leftPadding: 2
+                        }
+
                         Flow {
                             spacing: 6
                             visible: chipModel.length > 0

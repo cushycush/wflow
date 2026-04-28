@@ -206,6 +206,11 @@ Item {
         shaped.enabled = step.enabled !== false
         shaped.onError = step.on_error || "stop"
         shaped.rawAction = act
+        // Per-step comment (separate from the action's primary value
+        // — see `Step.note` in actions.rs). Surfaced in the inspector
+        // as the Comment field, rendered as an italic subline on
+        // each canvas card when non-empty.
+        shaped.note = step.note || ""
         return shaped
     }
 
@@ -279,6 +284,18 @@ Item {
         } else if (path === "on_error") {
             if ((step.on_error || "stop") === value) return
             step.on_error = value
+        } else if (path === "note") {
+            // Per-step comment. Empty string clears the field so
+            // serde drops it on round-trip and the encoded KDL
+            // doesn't carry a stray `note=""`.
+            const isEmpty = value === null || value === undefined || value === ""
+            if (isEmpty) {
+                if (step.note === undefined || step.note === null || step.note === "") return
+                delete step.note
+            } else {
+                if (step.note === value) return
+                step.note = value
+            }
         } else if (path.startsWith("action.")) {
             const key = path.slice(7)
             if (!step.action) return
