@@ -935,17 +935,29 @@ Item {
             // root so the folder survives a restart even with no
             // workflows in it. The bridge refresh then re-emits
             // workflowsChanged, which calls _refreshShaped() and
-            // pulls the new folder name into folderList.
+            // pulls the new folder name into folderList. Name can
+            // contain `/` for nested folders ("dev/test" creates
+            // workflows/dev/test/).
             libCtrl.create_folder(name)
             root.currentFolder = name
             newFolderInput.text = ""
             newFolderDialog.close()
         }
 
-        // Reset whenever the dialog opens so leftover text doesn't
-        // greet the user on a re-open, and focus the input.
+        // Reset whenever the dialog opens. If the user is currently
+        // viewing a folder, pre-fill the input with "<currentFolder>/"
+        // so creating a sub-folder is one keystroke instead of
+        // retyping the whole path.
         onOpened: {
-            newFolderInput.text = ""
+            const cur = root.currentFolder
+            if (cur && cur.length > 0 && cur !== "__top__") {
+                newFolderInput.text = cur + "/"
+                // Cursor at end so the user just types the new
+                // segment.
+                newFolderInput.cursorPosition = newFolderInput.text.length
+            } else {
+                newFolderInput.text = ""
+            }
             newFolderInput.forceActiveFocus()
         }
 

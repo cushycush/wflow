@@ -29,13 +29,14 @@ fn kdl_path_for(id: &str) -> Result<PathBuf> {
 }
 
 /// Return the .kdl path for a workflow id inside a specific folder.
-/// folder=None ⇒ top-level (workflows_dir directly). folder=Some(name)
-/// ⇒ workflows_dir/<name>/<safe_id>.kdl.
+/// folder=None ⇒ top-level (workflows_dir directly). folder=Some("a")
+/// ⇒ workflows_dir/a/<safe_id>.kdl. Nested paths like "a/b" produce
+/// workflows_dir/a/b/<safe_id>.kdl after sanitising each segment.
 fn kdl_path_for_in(id: &str, folder: Option<&str>) -> Result<PathBuf> {
     let mut p = workflows_dir()?;
     if let Some(f) = folder {
-        if !f.is_empty() {
-            p.push(safe_folder(f));
+        for seg in safe_folder_path_segments(f) {
+            p.push(seg);
         }
     }
     p.push(format!("{}.kdl", safe_id(id)));
@@ -46,9 +47,9 @@ fn legacy_json_path_for(id: &str) -> Result<PathBuf> {
     Ok(workflows_dir()?.join(format!("{}.json", safe_id(id))))
 }
 
-/// Sanitise a user-supplied folder name to a single safe directory
-/// segment. Strips path separators / colons / dots so it can't escape
-/// the workflows root.
+/// Sanitise a single user-supplied folder segment. Strips path
+/// separators / colons / dots so it can't escape the workflows root
+/// or accumulate dot-leakage like `..`.
 fn safe_folder(s: &str) -> String {
     s.chars()
         .map(|c| if matches!(c, '/' | '\\' | ':' | '.') { '_' } else { c })
@@ -57,10 +58,23 @@ fn safe_folder(s: &str) -> String {
         .to_string()
 }
 
+/// Sanitise a possibly-nested folder path like "a/b/c" into a list of
+/// safe segments. Empty segments (consecutive slashes, leading slash)
+/// are dropped; each segment passes through `safe_folder` so traversal
+/// (`..`) and Windows-style paths (`\\`, `:`) are neutralised. The
+/// joined path is guaranteed to stay inside the workflows root.
+fn safe_folder_path_segments(s: &str) -> Vec<String> {
+    s.split('/')
+        .map(|seg| safe_folder(seg))
+        .filter(|seg| !seg.is_empty())
+        .collect()
+}
+
 /// Recursively walk the workflows directory and call `visit` for each
-/// .kdl / .json file with its (path, folder-relative-to-root). Folders
-/// at depth ≥ 2 are flattened into the deepest segment (we only model
-/// one level for now).
+/// .kdl / .json file with its (path, folder-relative-to-root). Folder
+/// names accumulate as forward-slash-joined paths — a workflow at
+/// `<root>/a/b/wf.kdl` reports folder `Some("a/b")`. Top-level files
+/// report `None`.
 fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
     dir: &Path,
     folder: Option<&str>,
@@ -71,8 +85,6 @@ fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
         let p = entry.path();
         let ft = entry.file_type()?;
         if ft.is_dir() {
-            // One level of nesting — sub-sub-dirs surface their
-            // immediate parent as the folder, not the joined path.
             let sub_name = p
                 .file_name()
                 .and_then(|s| s.to_str())
@@ -93,8 +105,14 @@ fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
             {
                 continue;
             }
-            // Always recurse: nested dirs get their own folder names.
-            walk_workflow_files(&p, Some(&sub_name), visit)?;
+            // Accumulate the parent folder path so nested
+            // directories report their full relative location
+            // (`a/b`) instead of just the leaf segment (`b`).
+            let nested = match folder {
+                Some(parent) if !parent.is_empty() => format!("{parent}/{sub_name}"),
+                _ => sub_name.clone(),
+            };
+            walk_workflow_files(&p, Some(&nested), visit)?;
         } else {
             match p.extension().and_then(|s| s.to_str()) {
                 Some("kdl") | Some("json") => visit(&p, folder.map(|s| s.to_string())),
@@ -169,34 +187,65 @@ fn load_with(id: &str, expand: bool) -> Result<Workflow> {
     anyhow::bail!("no workflow with id {id}")
 }
 
-/// All folder names currently present as subdirectories under the
-/// workflows root. Includes empty subdirs (so a freshly-created
-/// folder shows up in the library before any workflow is in it).
+/// All folder paths currently present under the workflows root.
+/// Includes empty subdirs (so a freshly-created folder shows up
+/// before any workflow lives in it). Nested folders report their
+/// full relative path: a directory at `<root>/a/b/` shows up as
+/// `"a/b"`. Skips the same hidden / private / conventional `lib`
+/// directories the walker skips.
 pub fn list_folders() -> Result<Vec<String>> {
-    let dir = workflows_dir()?;
+    let root = workflows_dir()?;
     let mut out: Vec<String> = Vec::new();
-    if !dir.exists() { return Ok(out); }
-    for entry in fs::read_dir(&dir)? {
-        let entry = entry?;
-        let ft = entry.file_type()?;
-        if !ft.is_dir() { continue; }
-        if let Some(name) = entry.file_name().to_str() {
-            if name.starts_with('.') { continue; }
-            out.push(name.to_string());
-        }
+    if !root.exists() {
+        return Ok(out);
     }
+    list_folders_walk(&root, "", &mut out)?;
     out.sort();
     Ok(out)
 }
 
+fn list_folders_walk(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let ft = entry.file_type()?;
+        if !ft.is_dir() {
+            continue;
+        }
+        let name = match entry.file_name().to_str() {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        if name.is_empty()
+            || name.starts_with('.')
+            || name.starts_with('_')
+            || name == "lib"
+        {
+            continue;
+        }
+        let nested = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}/{name}")
+        };
+        out.push(nested.clone());
+        list_folders_walk(&entry.path(), &nested, out)?;
+    }
+    Ok(())
+}
+
 /// mkdir a folder under the workflows root so it persists in the
-/// library even before any workflow lives in it.
+/// library even before any workflow lives in it. Accepts nested
+/// paths like `"a/b"` — each segment is sanitised independently and
+/// the full chain is created with `fs::create_dir_all`.
 pub fn create_folder(name: &str) -> Result<()> {
-    let safe = safe_folder(name);
-    if safe.is_empty() {
+    let segments = safe_folder_path_segments(name);
+    if segments.is_empty() {
         anyhow::bail!("empty folder name");
     }
-    let dir = workflows_dir()?.join(&safe);
+    let mut dir = workflows_dir()?;
+    for seg in &segments {
+        dir.push(seg);
+    }
     fs::create_dir_all(&dir).with_context(|| format!("mkdir {}", dir.display()))?;
     Ok(())
 }
@@ -387,3 +436,36 @@ pub fn import_kdl(text: &str) -> Result<Workflow> {
     wf.modified = None;
     save(wf)
 }
+
+#[cfg(test)]
+mod folder_path_tests {
+    use super::*;
+
+    #[test]
+    fn nested_paths_segment_correctly() {
+        assert_eq!(safe_folder_path_segments("a/b"), vec!["a", "b"]);
+        assert_eq!(safe_folder_path_segments("a/b/c"), vec!["a", "b", "c"]);
+        // Empty input → no segments.
+        assert!(safe_folder_path_segments("").is_empty());
+        // Leading / trailing slash → dropped empties.
+        assert_eq!(safe_folder_path_segments("/a/"), vec!["a"]);
+        assert_eq!(safe_folder_path_segments("a//b"), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn traversal_attempts_neutralised() {
+        // `..` becomes `__` then trim → empty, dropped.
+        assert!(safe_folder_path_segments("..").is_empty());
+        assert_eq!(safe_folder_path_segments("../escape"), vec!["escape"]);
+        assert_eq!(safe_folder_path_segments("a/../b"), vec!["a", "b"]);
+        // Backslashes / colons collapse to `_` per character; the
+        // pair `:\\` therefore becomes `__` mid-segment (we don't
+        // collapse adjacent underscores — only trim them off the
+        // ends).
+        assert_eq!(
+            safe_folder_path_segments("c:\\windows/sneaky"),
+            vec!["c__windows", "sneaky"]
+        );
+    }
+}
+
