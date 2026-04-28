@@ -79,6 +79,10 @@ Item {
     // inspector. Pairs with editorContent.selectedInnerIndex on
     // WorkflowPage.
     signal selectInnerStep(int parentIndex, int innerIndex)
+    // Click the container's "→" affordance → push that container's
+    // index onto the crumb. WorkflowPage clears selection and the
+    // canvas re-renders against the inner step list.
+    signal openContainerRequested(int stepIndex)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -949,6 +953,50 @@ Item {
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
                                 font.letterSpacing: 0.8
+                            }
+
+                            // "→" enters this container as the canvas
+                            // root. Selection is cleared by the page;
+                            // a breadcrumb above the canvas surfaces
+                            // the depth and lets the user climb back.
+                            Rectangle {
+                                id: openContainer
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.rightMargin: 6
+                                anchors.topMargin: 4
+                                width: 22
+                                height: 18
+                                radius: 4
+                                color: openArea.containsMouse
+                                    ? Theme.accentWash(0.20)
+                                    : "transparent"
+                                border.color: openArea.containsMouse
+                                    ? Theme.accent
+                                    : Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "→"
+                                    color: openArea.containsMouse ? Theme.accent : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                }
+
+                                MouseArea {
+                                    id: openArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    ToolTip.text: "Open this container"
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 600
+                                    onClicked: root.openContainerRequested(cardItem.stepIdx)
+                                }
                             }
 
                             // Empty-state placeholder. Hidden once

@@ -67,11 +67,88 @@ Item {
     readonly property string subtitle: workflow.subtitle || ""
     readonly property int activeStepIndex: wfCtrl.active_step
     readonly property bool running: wfCtrl.running
+
+    // Breadcrumb path into the workflow tree. Each entry is an index
+    // into the step list at the previous depth: `[]` is the top
+    // level, `[3]` is the inner step list of `wf.steps[3]` (a
+    // when/unless/repeat container), `[3, 1]` is the inner list of
+    // its second inner step, and so on. The canvas always renders
+    // _currentSteps, never wf.steps directly.
+    property var crumb: []
+
+    // Walk the workflow according to crumb. Returns the steps array
+    // at that depth, or null if any index is out of range or the
+    // step at that index isn't a container. Pure read helper —
+    // mutators take `wf` and walk it themselves so the result is a
+    // live reference into their own clone.
+    function _stepsAtCrumb(wf) {
+        let steps = wf && wf.steps ? wf.steps : []
+        for (let i = 0; i < root.crumb.length; ++i) {
+            const idx = root.crumb[i]
+            if (idx < 0 || idx >= steps.length) return null
+            const a = steps[idx].action
+            if (!a || !Array.isArray(a.steps)) return null
+            steps = a.steps
+        }
+        return steps
+    }
+
+    // The step list currently being shown in the canvas. Empty array
+    // when the crumb points into a non-container (defensive — should
+    // never happen if crumb mutators only push container indices).
+    readonly property var _currentSteps: _stepsAtCrumb(workflow) || []
+
+    // Breadcrumb chip labels — workflow title plus a short summary
+    // for each container we've descended into. Bound reactively so
+    // editing a condition in the inspector updates the crumb chip.
+    readonly property var crumbLabels: {
+        const out = [root.title]
+        let steps = root.workflow && root.workflow.steps ? root.workflow.steps : []
+        for (let i = 0; i < root.crumb.length; ++i) {
+            const idx = root.crumb[i]
+            if (idx < 0 || idx >= steps.length) { out.push("?"); break }
+            const a = steps[idx].action
+            if (!a) { out.push("?"); break }
+            if (a.kind === "repeat") {
+                out.push("repeat × " + (a.count || 1))
+            } else if (a.kind === "conditional") {
+                const verb = a.negate ? "unless" : "when"
+                out.push(verb + " " + _condSummary(a.cond))
+            } else {
+                out.push("?")
+            }
+            steps = (a && Array.isArray(a.steps)) ? a.steps : []
+        }
+        return out
+    }
+
+    function pushCrumb(stepIndex) {
+        // Only descend into a flow-control container; ignore otherwise.
+        const steps = root._currentSteps
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action) return
+        if (action.kind !== "repeat" && action.kind !== "conditional") return
+        root.crumb = root.crumb.concat([stepIndex])
+        editorContent.selectedIndex = -1
+        editorContent.selectedInnerIndex = -1
+    }
+
+    function popCrumbTo(depth) {
+        if (depth < 0) depth = 0
+        if (depth >= root.crumb.length) return
+        root.crumb = root.crumb.slice(0, depth)
+        editorContent.selectedIndex = -1
+        editorContent.selectedInnerIndex = -1
+    }
+
     readonly property var actions: {
         // Shape the Rust-side Step[] into the { kind, summary, value, rawPrimary, editable }
-        // that the split-inspector delegates expect.
+        // that the split-inspector delegates expect. Driven by the
+        // crumb: at top level this is wf.steps; inside a container,
+        // it's the inner step list at that depth.
         const out = []
-        const steps = root.workflow.steps || []
+        const steps = root._currentSteps
         for (const s of steps) {
             out.push(root._stepToAction(s))
         }
@@ -180,7 +257,8 @@ Item {
     // the serde default kicks in on round-trip.
     function _commitOption(stepIndex, path, value) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         const step = _resolveStep(steps, stepIndex)
         if (!step) return
         if (path === "enabled") {
@@ -203,7 +281,6 @@ Item {
         } else {
             return
         }
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
@@ -245,7 +322,8 @@ Item {
 
     function _addStep(kind) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return ""
         const id = _uuid()
         steps.push({
             id: id,
@@ -253,7 +331,6 @@ Item {
             on_error: "stop",
             action: _defaultActionForKind(kind)
         })
-        wf.steps = steps
         root.workflow = wf
         editorContent.selectedIndex = steps.length - 1
         _scheduleSave()
@@ -273,7 +350,8 @@ Item {
     // and back to the drop spot.
     function _addStepAt(kind, x, y) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         const id = _uuid()
         steps.push({
             id: id,
@@ -281,7 +359,6 @@ Item {
             on_error: "stop",
             action: _defaultActionForKind(kind)
         })
-        wf.steps = steps
         // Pre-seed the position so _placeNewSteps skips this id.
         const next = Object.assign({}, canvasView.positions)
         next[id] = { x: Math.max(0, x), y: Math.max(0, y) }
@@ -294,10 +371,10 @@ Item {
 
     function _deleteStep(stepIndex) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         if (stepIndex < 0 || stepIndex >= steps.length) return
         steps.splice(stepIndex, 1)
-        wf.steps = steps
         root.workflow = wf
         // Keep selection valid: clamp into range, or collapse the
         // inspector when no steps remain.
@@ -328,12 +405,12 @@ Item {
     function _moveStep(from, to) {
         if (from === to) return
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         if (from < 0 || from >= steps.length) return
         if (to < 0 || to >= steps.length) return
         const [moved] = steps.splice(from, 1)
         steps.splice(to, 0, moved)
-        wf.steps = steps
         root.workflow = wf
         // Follow the moved step so the inspector keeps looking at
         // the same action the user just reordered.
@@ -364,14 +441,14 @@ Item {
 
     function _commitStepEdit(stepIndex, newPrimary) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         const target = _resolveStep(steps, stepIndex)
         if (!target) return
         const oldAction = target.action || {}
         const newAction = _mutateAction(oldAction, newPrimary)
         if (JSON.stringify(newAction) === JSON.stringify(oldAction)) return
         target.action = newAction
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
@@ -409,23 +486,23 @@ Item {
     // for the inspector's condition editor.
     function _commitCondition(stepIndex, newCond) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         const step = _resolveStep(steps, stepIndex)
         if (!step || !step.action || step.action.kind !== "conditional") return
         step.action.cond = newCond
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
 
     function _commitNegate(stepIndex, negate) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         const step = _resolveStep(steps, stepIndex)
         if (!step || !step.action || step.action.kind !== "conditional") return
         if ((step.action.negate === true) === negate) return
         step.action.negate = negate
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
@@ -434,7 +511,8 @@ Item {
     // step list. Used by the inspector's "+ Add inner step" button.
     function _addInnerStep(stepIndex, kind) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         if (stepIndex < 0 || stepIndex >= steps.length) return
         const action = steps[stepIndex].action
         if (!action) return
@@ -445,7 +523,6 @@ Item {
             on_error: "stop",
             action: _defaultActionForKind(kind)
         })
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
@@ -458,7 +535,8 @@ Item {
     function _moveStepToContainer(fromIndex, containerIndex) {
         if (fromIndex === containerIndex) return
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         if (fromIndex < 0 || fromIndex >= steps.length) return
         if (containerIndex < 0 || containerIndex >= steps.length) return
         const containerStep = steps[containerIndex]
@@ -468,13 +546,12 @@ Item {
         if (k !== "conditional" && k !== "repeat") return
         if (!Array.isArray(containerAction.steps)) containerAction.steps = []
 
-        // Remove from top-level. containerStep is still a live
-        // reference into the post-splice array so the push lands on
-        // the right object regardless of index shift.
+        // Remove from the current view's step list. containerStep is
+        // still a live reference into the post-splice array so the
+        // push lands on the right object regardless of index shift.
         const [moved] = steps.splice(fromIndex, 1)
         containerAction.steps.push(moved)
 
-        wf.steps = steps
         root.workflow = wf
 
         // Drop the now-orphan canvas position entry — the step is
@@ -497,13 +574,13 @@ Item {
 
     function _deleteInnerStep(stepIndex, innerIndex) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
-        const steps = wf.steps || []
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
         if (stepIndex < 0 || stepIndex >= steps.length) return
         const action = steps[stepIndex].action
         if (!action || !Array.isArray(action.steps)) return
         if (innerIndex < 0 || innerIndex >= action.steps.length) return
         action.steps.splice(innerIndex, 1)
-        wf.steps = steps
         root.workflow = wf
         _scheduleSave()
     }
@@ -661,6 +738,10 @@ Item {
     }
 
     function _reload() {
+        // Loading a different workflow always returns to the top of
+        // the tree — the previous workflow's container path is
+        // meaningless against the new step list.
+        root.crumb = []
         if (!root.workflowId) {
             root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
             root.saveState = "idle"
@@ -715,12 +796,17 @@ Item {
             width: parent.width
             title: root.title
             subtitle: root.subtitle
-            titleEditable: true
+            // Title stays editable at any depth — it always names the
+            // outermost workflow. Subtitle becomes a no-op while we're
+            // inside a container; the breadcrumb takes the same row.
+            titleEditable: root.crumb.length === 0
             subtitleEditable: true
             backVisible: true
+            crumbLabels: root.crumbLabels
             onBackClicked: root.backRequested()
             onTitleCommitted: (t) => root._commitTitleEdit(t)
             onSubtitleCommitted: (t) => root._commitSubtitleEdit(t)
+            onCrumbClicked: (depth) => root.popCrumbTo(depth)
 
             // Compact save-state indicator to the left of the action buttons.
             Text {
@@ -1021,6 +1107,7 @@ Item {
                 onAddInnerStepRequested: (stepIdx, kind) => root._addInnerStep(stepIdx, kind)
                 onDeleteInnerStepRequested: (stepIdx, innerIdx) => root._deleteInnerStep(stepIdx, innerIdx)
                 onMoveStepToContainerRequested: (fromIdx, toIdx) => root._moveStepToContainer(fromIdx, toIdx)
+                onOpenContainerRequested: (stepIdx) => root.pushCrumb(stepIdx)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }

@@ -20,6 +20,15 @@ Rectangle {
     property bool backVisible: false
     default property alias actions: actionRow.data
 
+    // Container-nav breadcrumb. `crumbLabels` is a parallel array
+    // where index 0 is the workflow root and the last entry is the
+    // currently-viewed depth. When non-empty, the breadcrumb row
+    // replaces the subtitle line so the topbar height stays at 56.
+    property var crumbLabels: []
+    signal crumbClicked(int depth)
+
+    readonly property bool _crumbVisible: root.crumbLabels.length > 1
+
     signal titleCommitted(string newTitle)
     signal subtitleCommitted(string newSubtitle)
     signal backClicked()
@@ -121,9 +130,57 @@ Rectangle {
                 onEditingFinished: _commit()
             }
 
-            // Subtitle.
+            // Crumb row — only shown when the user has descended into
+            // a container. Replaces the subtitle line so the topbar
+            // doesn't grow. Each chip but the last is clickable to
+            // pop back to that depth.
+            Row {
+                visible: root._crumbVisible
+                spacing: 6
+                Repeater {
+                    model: root.crumbLabels
+                    delegate: Row {
+                        spacing: 6
+                        readonly property bool isLast: model.index === root.crumbLabels.length - 1
+
+                        Text {
+                            text: modelData
+                            color: parent.isLast ? Theme.text2 : Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: Theme.fontXs
+                            font.weight: parent.isLast ? Font.DemiBold : Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: parent.parent.isLast
+                                    ? Qt.ArrowCursor
+                                    : Qt.PointingHandCursor
+                                enabled: !parent.parent.isLast
+                                onClicked: root.crumbClicked(model.index)
+                                onEntered: if (enabled) parent.color = Theme.accent
+                                onExited:  if (enabled) parent.color = Theme.text3
+                            }
+                        }
+
+                        Text {
+                            visible: !parent.isLast
+                            text: "›"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+            }
+
+            // Subtitle. Hidden while the crumb row is showing so the
+            // topbar doesn't try to render two metadata lines below
+            // the title.
             Text {
-                visible: !root.subtitleEditable && root.subtitle.length > 0
+                visible: !root._crumbVisible && !root.subtitleEditable && root.subtitle.length > 0
                 text: root.subtitle
                 color: Theme.text3
                 font.family: Theme.familyBody
@@ -133,7 +190,7 @@ Rectangle {
             }
             TextField {
                 id: subtitleField
-                visible: root.subtitleEditable
+                visible: !root._crumbVisible && root.subtitleEditable
                 width: parent.width
                 text: root.subtitle
                 placeholderText: "add a subtitle…"
