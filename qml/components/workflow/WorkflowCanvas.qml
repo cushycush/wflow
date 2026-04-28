@@ -43,10 +43,12 @@ Item {
 
     // Width a given step should render at — derived from the shaped
     // action's rawKind. Containers are wider so the inner-step drop
-    // zone has a meaningful visual footprint.
+    // zone has a meaningful visual footprint; notes are narrower
+    // since they're annotations, not first-class operations.
     function _widthForKind(rawKind) {
-        return (rawKind === "conditional" || rawKind === "repeat")
-            ? containerW : nodeW
+        if (rawKind === "conditional" || rawKind === "repeat") return containerW
+        if (rawKind === "note") return noteW
+        return nodeW
     }
 
     // "curve" (default Bezier) | "ortho" (straight segments, hard
@@ -96,8 +98,28 @@ Item {
 
     readonly property int nodeW: 260
     readonly property int containerW: 360
+    readonly property int noteW: 200
     readonly property int nodeMinH: 132
+    readonly property int noteMinH: 56
     readonly property int gap: 36
+
+    // Pairs of step indices that should be connected by a wire.
+    // Notes are annotations (engine skips them), so wires bridge
+    // over them — the previous operational step connects directly
+    // to the next operational step. Computed once per actions
+    // change; the wire Repeater uses this as its model.
+    readonly property var _wirePairs: {
+        const out = []
+        const arr = root.actions || []
+        let prev = -1
+        for (let i = 0; i < arr.length; i++) {
+            if (!arr[i]) continue
+            if (arr[i].rawKind === "note") continue
+            if (prev >= 0) out.push({ from: prev, to: i })
+            prev = i
+        }
+        return out
+    }
     // canvasOrigin centres the spawn area inside the 12k canvas
     // span, so the user can pan in every direction from the cards
     // (otherwise pan-left dead-ends at contentX = 0). paddingLeft /
@@ -498,18 +520,20 @@ Item {
                 z: 1
 
             Repeater {
-                model: Math.max(0, (root.actions || []).length - 1)
+                model: root._wirePairs
                 delegate: Shape {
-                    readonly property string fromId: root.actions[index] ? root.actions[index].id : ""
-                    readonly property string toId: root.actions[index + 1] ? root.actions[index + 1].id : ""
+                    readonly property int fromIdx: modelData.from
+                    readonly property int toIdx: modelData.to
+                    readonly property string fromId: root.actions[fromIdx] ? root.actions[fromIdx].id : ""
+                    readonly property string toId: root.actions[toIdx] ? root.actions[toIdx].id : ""
                     readonly property var fromPos: root.positions[fromId]
                     readonly property var toPos: root.positions[toId]
                     readonly property real fromH: root.cardHeights[fromId] || root.nodeMinH
                     readonly property real toH: root.cardHeights[toId] || root.nodeMinH
                     readonly property real fromW: root.cardWidths[fromId]
-                        || _widthForKind(root.actions[index] ? root.actions[index].rawKind : "")
+                        || _widthForKind(root.actions[fromIdx] ? root.actions[fromIdx].rawKind : "")
                     readonly property real toW: root.cardWidths[toId]
-                        || _widthForKind(root.actions[index + 1] ? root.actions[index + 1].rawKind : "")
+                        || _widthForKind(root.actions[toIdx] ? root.actions[toIdx].rawKind : "")
                     readonly property var route: _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
 
                     visible: fromPos !== undefined && toPos !== undefined
@@ -575,7 +599,7 @@ Item {
 
             delegate: Item {
                 id: cardItem
-                width: cardItem.isContainer ? root.containerW : root.nodeW
+                width: _widthForKind(rawKind)
                 height: card.height
                 z: dragArea.drag.active ? 100 : 2
 
@@ -590,13 +614,23 @@ Item {
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
                 readonly property bool isContainer:
                     rawKind === "conditional" || rawKind === "repeat"
+                // Notes are annotations, not workflow steps — the
+                // engine skips them at runtime. Render lighter so
+                // they read as canvas comments rather than first-
+                // class operations; wires also skip them (see
+                // _wirePairs at the canvas root).
+                readonly property bool isNote: rawKind === "note"
                 // True when a palette drag is hovering this card and
                 // it's a container — drives the inner-zone highlight
                 // so the user sees their drop will land inside.
                 readonly property bool isHoverDropTarget:
                     root.hoveredContainerIndex === model.index && isContainer
                 readonly property color cardBg:
-                    isSelected ? Theme.surface2 : Theme.surface
+                    isSelected ? Theme.surface2
+                        : (isNote
+                            ? Qt.rgba(Theme.surface3.r, Theme.surface3.g,
+                                      Theme.surface3.b, 0.35)
+                            : Theme.surface)
                 readonly property string status: {
                     const s = root.stepStatuses
                     if (!s) return ""
@@ -664,18 +698,23 @@ Item {
                 Rectangle {
                     id: card
                     width: parent.width
-                    height: Math.max(root.nodeMinH - 4, cardBody.implicitHeight + 24)
-                    radius: 14
+                    height: cardItem.isNote
+                        ? Math.max(root.noteMinH, noteBody.implicitHeight + 18)
+                        : Math.max(root.nodeMinH - 4, cardBody.implicitHeight + 24)
+                    radius: cardItem.isNote ? 8 : 14
                     color: cardItem.cardBg
                     // Containers carry a tinted border (their pill
                     // colour) so when / unless / repeat read as
                     // structural blocks at a glance — ordinary action
-                    // cards keep the neutral hairline.
+                    // cards keep the neutral hairline. Notes get the
+                    // softest border so they recede next to operations.
                     border.color: cardItem.isSelected
                         ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
                         : (cardItem.isContainer
                             ? Theme.catFor(cardItem.kind)
-                            : (dragArea.containsMouse ? Theme.line : Theme.lineSoft))
+                            : (cardItem.isNote
+                                ? Theme.lineSoft
+                                : (dragArea.containsMouse ? Theme.line : Theme.lineSoft)))
                     border.width: cardItem.isSelected ? 2 : (cardItem.isContainer ? 1.5 : 1)
 
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
@@ -750,8 +789,84 @@ Item {
                         }
                     }
 
+                    // Note-specific render — italic text with a soft
+                    // "note" prefix label. Notes don't get the pill
+                    // header, kind badge, status dot, or chip flow
+                    // because they aren't workflow operations.
+                    Column {
+                        id: noteBody
+                        visible: cardItem.isNote
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        anchors.topMargin: 10
+                        spacing: 4
+
+                        Row {
+                            spacing: 8
+                            width: parent.width
+
+                            Text {
+                                text: "¶ NOTE"
+                                color: Theme.text3
+                                font.family: Theme.familyBody
+                                font.pixelSize: 9
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1.2
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item {
+                                width: parent.width - 56 - noteDelBtn.width
+                                height: 1
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Rectangle {
+                                id: noteDelBtn
+                                width: 18; height: 18; radius: 9
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: noteDelArea.containsMouse
+                                    ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
+                                    : "transparent"
+                                opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "×"
+                                    color: noteDelArea.containsMouse ? "#ffffff" : Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 12
+                                    font.weight: Font.Bold
+                                }
+                                MouseArea {
+                                    id: noteDelArea
+                                    anchors.fill: parent
+                                    anchors.margins: -3
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.deleteStepRequested(cardItem.stepIdx)
+                                }
+                            }
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: cardItem.act
+                                ? (cardItem.act.value || "(empty)")
+                                : ""
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.italic: true
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
                     Column {
                         id: cardBody
+                        visible: !cardItem.isNote
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
@@ -1010,36 +1125,39 @@ Item {
                                 font.letterSpacing: 0.8
                             }
 
-                            // "→" enters this container as the canvas
-                            // root. Selection is cleared by the page;
-                            // a breadcrumb above the canvas surfaces
-                            // the depth and lets the user climb back.
+                            // "Open →" enters this container as the
+                            // canvas root. Selection is cleared by
+                            // the page; a breadcrumb above the canvas
+                            // surfaces the depth and lets the user
+                            // climb back. Tinted with the container's
+                            // category color so it reads as the
+                            // container's own action, not generic
+                            // chrome.
                             Rectangle {
                                 id: openContainer
                                 anchors.right: parent.right
                                 anchors.top: parent.top
-                                anchors.rightMargin: 6
+                                anchors.rightMargin: 8
                                 anchors.topMargin: 4
-                                width: 22
-                                height: 18
+                                width: openLabel.implicitWidth + 22
+                                height: 22
                                 radius: 4
                                 color: openArea.containsMouse
-                                    ? Theme.accentWash(0.20)
-                                    : "transparent"
-                                border.color: openArea.containsMouse
-                                    ? Theme.accent
-                                    : Theme.lineSoft
+                                    ? Theme.wash(Theme.catFor(cardItem.kind), 0.30)
+                                    : Theme.wash(Theme.catFor(cardItem.kind), 0.15)
+                                border.color: Theme.catFor(cardItem.kind)
                                 border.width: 1
                                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                                Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
                                 Text {
+                                    id: openLabel
                                     anchors.centerIn: parent
-                                    text: "→"
-                                    color: openArea.containsMouse ? Theme.accent : Theme.text2
+                                    text: "Open →"
+                                    color: Theme.catFor(cardItem.kind)
                                     font.family: Theme.familyBody
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 0.4
                                 }
 
                                 MouseArea {
@@ -1047,7 +1165,7 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    ToolTip.text: "Open this container"
+                                    ToolTip.text: "Open this container in a nested view"
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 600
                                     onClicked: root.openContainerRequested(cardItem.stepIdx)
