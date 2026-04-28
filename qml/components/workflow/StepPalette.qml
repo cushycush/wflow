@@ -2,118 +2,120 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Floating action palette for the canvas. Drag a chip onto the
-// canvas to add a step at the drop point.
+// Vertical icon dock for the canvas — Adobe / Figma style. Stacks
+// step-kind icons (input → effect → flow) in a thin column on the
+// canvas's left edge. Each icon-only button is a drag source: press
+// + drag to canvas drops a new step at the cursor position.
 //
-// Drag is handled manually (not Drag/DropArea) so we can show a
-// real card-shaped preview ghost in the canvas instead of the
-// system drag cursor. The chip's MouseArea forwards press / move
-// / release with scene-coordinate points, and the canvas renders
-// the ghost itself.
+// Drag is handled manually (not Drag/DropArea) so we can show a real
+// card-shaped preview ghost in the canvas instead of the system drag
+// cursor. The button's MouseArea forwards press / move / release with
+// scene-coordinate points, and the canvas renders the ghost itself.
+//
+// Hover any icon to see its kind label as a tooltip; the icon-only
+// dock trades label legibility for canvas real estate, and the
+// labels reappear on demand without the bottom strip eating screen.
 Item {
     id: root
     // The WorkflowCanvas instance to forward drag events to.
     property var canvas: null
 
-    // Three category rows: Input (the wdotool primitives), Effect (out-
-    // of-process side effects), and Flow (control structures). Each
-    // row is its own labelled strip — keeping them separated makes
-    // the palette scan as a structural map of the language rather
-    // than a flat blob of buttons.
+    // Three category groups separated by a thin divider in the dock:
+    // Input (the wdotool primitives), Effect (out-of-process side
+    // effects), and Flow (control structures). Each entry's `label`
+    // is what shows up as the hover tooltip.
     readonly property var _categories: [
-        { label: "Input",  kinds: [
-            { kind: "key",       label: "Key"      },
-            { kind: "type",      label: "Type"     },
-            { kind: "click",     label: "Click"    },
-            { kind: "move",      label: "Move"     },
-            { kind: "scroll",    label: "Scroll"   }
+        { kinds: [
+            { kind: "key",       label: "Press key" },
+            { kind: "type",      label: "Type text" },
+            { kind: "click",     label: "Mouse click" },
+            { kind: "move",      label: "Move cursor" },
+            { kind: "scroll",    label: "Scroll" }
         ]},
-        // `note` removed — per-step comments live on each step's
-        // `note` field, surfaced as a Comment textfield in the
-        // inspector. Standalone Action::Note steps in legacy files
-        // still render via the canvas annotation path.
-        { label: "Effect", kinds: [
-            { kind: "focus",     label: "Focus"    },
-            { kind: "wait",      label: "Wait"     },
-            { kind: "shell",     label: "Shell"    },
-            { kind: "notify",    label: "Notify"   },
-            { kind: "clipboard", label: "Clipbd"   }
+        { kinds: [
+            { kind: "focus",     label: "Focus window" },
+            { kind: "wait",      label: "Wait" },
+            { kind: "shell",     label: "Shell command" },
+            { kind: "notify",    label: "Notify" },
+            { kind: "clipboard", label: "Clipboard" }
         ]},
-        { label: "Flow",   kinds: [
-            { kind: "when",      label: "When"     },
-            { kind: "unless",    label: "Unless"   },
-            { kind: "repeat",    label: "Repeat"   },
-            { kind: "use",       label: "Use"      }
+        { kinds: [
+            { kind: "when",      label: "When (conditional)" },
+            { kind: "unless",    label: "Unless (conditional)" },
+            { kind: "repeat",    label: "Repeat block" },
+            { kind: "use",       label: "Use named import" }
         ]}
     ]
 
-    implicitHeight: tray.height
-    implicitWidth: tray.width
+    implicitWidth: dock.width
+    implicitHeight: dock.height
 
     Rectangle {
-        id: tray
+        id: dock
         anchors.centerIn: parent
-        width: trayCol.implicitWidth + 24
-        height: trayCol.implicitHeight + 16
-        radius: 18
+        width: 44
+        height: stack.implicitHeight + 12
+        radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
         border.color: Theme.lineSoft
         border.width: 1
 
         Column {
-            id: trayCol
+            id: stack
             anchors.centerIn: parent
-            spacing: 4
+            spacing: 2
 
             Repeater {
                 model: root._categories
-                delegate: Row {
-                    spacing: 4
+                delegate: Column {
+                    spacing: 2
 
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.label
-                        color: Theme.text3
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontXs
-                        font.weight: Font.Bold
-                        font.letterSpacing: 1.0
-                        width: 48
-                        rightPadding: 4
+                    // Thin divider above every category except the
+                    // first — visual separator between Input /
+                    // Effect / Flow without spending vertical space
+                    // on labels.
+                    Item {
+                        visible: model.index > 0
+                        width: 32
+                        height: 9
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 4
+                            anchors.rightMargin: 4
+                            height: 1
+                            color: Theme.lineSoft
+                        }
                     }
 
                     Repeater {
                         model: modelData.kinds
                         delegate: Rectangle {
                             id: chip
-                            width: 60
+                            width: 32
                             height: 32
-                            anchors.verticalCenter: parent.verticalCenter
-                            radius: 16
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            radius: Theme.radiusSm
+                            readonly property color catColor: Theme.catFor(modelData.kind)
                             color: chipArea.dragging
-                                ? Theme.accentWash(0.22)
-                                : (chipArea.containsMouse ? Theme.surface2 : Theme.surface)
-                            border.color: chipArea.dragging ? Theme.accent : Theme.lineSoft
+                                ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.30)
+                                : (chipArea.containsMouse
+                                    ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.15)
+                                    : "transparent")
+                            border.color: chipArea.dragging
+                                ? catColor
+                                : "transparent"
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                            Row {
+                            CategoryIcon {
                                 anchors.centerIn: parent
-                                spacing: 6
-                                CategoryIcon {
-                                    kind: modelData.kind
-                                    size: 16
-                                    hovered: chipArea.containsMouse
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.label
-                                    color: Theme.text2
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: Theme.fontXs
-                                    font.weight: Font.Medium
-                                }
+                                kind: modelData.kind
+                                size: 18
+                                hovered: chipArea.containsMouse || chipArea.dragging
                             }
 
                             MouseArea {
@@ -129,6 +131,11 @@ Item {
                                 preventStealing: true
                                 cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                                 property bool dragging: false
+
+                                ToolTip.visible: containsMouse && !dragging
+                                ToolTip.delay: 400
+                                ToolTip.text: modelData.label
+
                                 onPressed: (mouse) => {
                                     if (!root.canvas) return
                                     const scene = chip.mapToItem(null, mouse.x, mouse.y)

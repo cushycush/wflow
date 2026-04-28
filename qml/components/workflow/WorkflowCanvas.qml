@@ -1595,256 +1595,243 @@ Item {
 
     // ============ Floating UI ============
 
-    // Three stacked pills — Tidy / Wires / Zoom each on their own
-    // row so labels read cleanly and no row gets so wide it crowds
-    // the canvas. Each pill is a Rectangle wrapping a Row of icon
-    // buttons; spacing is tight (4px) and a leading label sets
-    // context for the row.
-    Column {
-        anchors.top: parent.top
+    // Vertical icon dock on the right edge of the canvas — Adobe /
+    // Figma style. Stacks the three control groups (Tidy → Wires →
+    // Zoom) as icon-only buttons separated by thin dividers; full
+    // labels appear in tooltips on hover. Trades label legibility
+    // for canvas real estate.
+    Rectangle {
+        id: toolDock
         anchors.right: parent.right
-        anchors.topMargin: 8
-        anchors.rightMargin: 8
-        spacing: 6
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: 12
+        width: 44
+        height: toolStack.implicitHeight + 12
+        radius: Theme.radiusMd
+        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
+        border.color: Theme.lineSoft
+        border.width: 1
         z: 60
 
-        // ---- Tidy
-        Rectangle {
-            anchors.right: parent.right
-            width: tidyRow.implicitWidth + 12
-            height: 34
-            radius: 8
-            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
-            border.color: Theme.lineSoft
-            border.width: 1
+        Component {
+            id: toolBtnComp
+            Rectangle {
+                id: toolBtn
+                property string glyph: ""
+                property string tip: ""
+                property bool active: false
+                property var onActivate: null
+                property real glyphSize: 14
+                property bool useMono: false
 
-            Row {
-                id: tidyRow
-                anchors.centerIn: parent
-                spacing: 4
+                width: 32
+                height: 32
+                anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                radius: Theme.radiusSm
+                color: active
+                    ? Theme.accentWash(0.18)
+                    : (toolBtnArea.containsMouse ? Theme.surface2 : "transparent")
+                border.color: active
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                    : "transparent"
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Tidy:"
-                    color: Theme.text3
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontXs
-                    rightPadding: 4
+                    anchors.centerIn: parent
+                    text: toolBtn.glyph
+                    color: toolBtn.active ? Theme.accent : Theme.text2
+                    font.family: toolBtn.useMono ? Theme.familyMono : Theme.familyBody
+                    font.pixelSize: toolBtn.glyphSize
+                    font.weight: toolBtn.active ? Font.DemiBold : Font.Medium
                 }
-
-                Repeater {
-                    model: [
-                        { glyph: "≡",  tip: "Tidy as a vertical stack",  action: organizeVertical   },
-                        { glyph: "⫼",  tip: "Tidy as a horizontal row",  action: organizeHorizontal },
-                        { glyph: "▦",  tip: "Tidy as a wrapping grid",   action: organizeGrid       }
-                    ]
-                    delegate: Rectangle {
-                        width: 28; height: 26; radius: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: orgArea.containsMouse ? Theme.surface2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.glyph
-                            color: Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: 14
-                        }
-                        MouseArea {
-                            id: orgArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: modelData.action()
-                            ToolTip.visible: containsMouse
-                            ToolTip.delay: 400
-                            ToolTip.text: modelData.tip
-                        }
-                    }
+                MouseArea {
+                    id: toolBtnArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (toolBtn.onActivate) toolBtn.onActivate()
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: toolBtn.tip
                 }
             }
         }
 
-        // ---- Wires
-        Rectangle {
-            anchors.right: parent.right
-            width: wiresRow.implicitWidth + 12
-            height: 34
-            radius: 8
-            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
-            border.color: Theme.lineSoft
-            border.width: 1
-
-            Row {
-                id: wiresRow
-                anchors.centerIn: parent
-                spacing: 4
-
-                Text {
+        // Thin divider between tool groups.
+        Component {
+            id: toolDivComp
+            Item {
+                width: 32
+                height: 7
+                anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Wires:"
-                    color: Theme.text3
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontXs
-                    rightPadding: 4
-                }
-
-                Repeater {
-                    model: [
-                        { id: "curve", glyph: "⌒", tip: "Curved (Bezier) wires" },
-                        { id: "ortho", glyph: "⌐", tip: "Stepped (90°) wires"   }
-                    ]
-                    delegate: Rectangle {
-                        readonly property bool isOn: root.wireStyle === modelData.id
-                        width: 28; height: 26; radius: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: isOn
-                            ? Theme.accentWash(0.16)
-                            : (wsArea.containsMouse ? Theme.surface2 : "transparent")
-                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.glyph
-                            color: parent.isOn ? Theme.accent : Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: 14
-                            font.weight: parent.isOn ? Font.DemiBold : Font.Medium
-                        }
-                        MouseArea {
-                            id: wsArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.wireStyle = modelData.id
-                            ToolTip.visible: containsMouse
-                            ToolTip.delay: 400
-                            ToolTip.text: modelData.tip
-                        }
-                    }
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+                    height: 1
+                    color: Theme.lineSoft
                 }
             }
         }
 
-        // ---- Zoom: − [percentage] + [Fit]
-        Rectangle {
-            anchors.right: parent.right
-            width: zoomRow.implicitWidth + 12
-            height: 34
-            radius: 8
-            color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
-            border.color: Theme.lineSoft
-            border.width: 1
+        Column {
+            id: toolStack
+            anchors.centerIn: parent
+            spacing: 2
 
-            Row {
-                id: zoomRow
-                anchors.centerIn: parent
-                spacing: 4
+            // ---- Tidy
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "≡"
+                    item.tip = "Tidy as a vertical stack"
+                    item.onActivate = () => organizeVertical()
+                }
+            }
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "⫼"
+                    item.tip = "Tidy as a horizontal row"
+                    item.onActivate = () => organizeHorizontal()
+                }
+            }
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "▦"
+                    item.tip = "Tidy as a wrapping grid"
+                    item.onActivate = () => organizeGrid()
+                }
+            }
 
+            Loader { sourceComponent: toolDivComp }
+
+            // ---- Wires
+            Rectangle {
+                width: 32
+                height: 32
+                anchors.horizontalCenter: parent.horizontalCenter
+                radius: Theme.radiusSm
+                readonly property bool isOn: root.wireStyle === "curve"
+                color: isOn
+                    ? Theme.accentWash(0.18)
+                    : (wsCurveArea.containsMouse ? Theme.surface2 : "transparent")
+                border.color: isOn
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                    : "transparent"
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Zoom:"
-                    color: Theme.text3
+                    anchors.centerIn: parent
+                    text: "⌒"
+                    color: parent.isOn ? Theme.accent : Theme.text2
                     font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontXs
-                    rightPadding: 4
+                    font.pixelSize: 14
+                    font.weight: parent.isOn ? Font.DemiBold : Font.Medium
                 }
-
-                Rectangle {
-                    width: 24; height: 26; radius: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: zOutArea.containsMouse ? Theme.surface2 : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "−"
-                        color: Theme.text2
-                        font.family: Theme.familyBody
-                        font.pixelSize: 16
-                        font.weight: Font.Medium
-                    }
-                    MouseArea {
-                        id: zOutArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._zoomBy(-0.1)
-                        ToolTip.visible: containsMouse
-                        ToolTip.delay: 400
-                        ToolTip.text: "Zoom out"
-                    }
+                MouseArea {
+                    id: wsCurveArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.wireStyle = "curve"
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Curved (Bezier) wires"
                 }
-
-                Rectangle {
-                    width: 44; height: 26; radius: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: Math.round(root.zoom * 100) + "%"
-                        color: Theme.text2
-                        font.family: Theme.familyMono
-                        font.pixelSize: 11
-                    }
-                    MouseArea {
-                        id: zPctArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
-                        ToolTip.visible: containsMouse
-                        ToolTip.delay: 400
-                        ToolTip.text: "Reset zoom to 100%"
-                    }
+            }
+            Rectangle {
+                width: 32
+                height: 32
+                anchors.horizontalCenter: parent.horizontalCenter
+                radius: Theme.radiusSm
+                readonly property bool isOn: root.wireStyle === "ortho"
+                color: isOn
+                    ? Theme.accentWash(0.18)
+                    : (wsOrthoArea.containsMouse ? Theme.surface2 : "transparent")
+                border.color: isOn
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                    : "transparent"
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "⌐"
+                    color: parent.isOn ? Theme.accent : Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 14
+                    font.weight: parent.isOn ? Font.DemiBold : Font.Medium
                 }
-
-                Rectangle {
-                    width: 24; height: 26; radius: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: zInArea.containsMouse ? Theme.surface2 : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "+"
-                        color: Theme.text2
-                        font.family: Theme.familyBody
-                        font.pixelSize: 14
-                        font.weight: Font.Medium
-                    }
-                    MouseArea {
-                        id: zInArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._zoomBy(0.1)
-                        ToolTip.visible: containsMouse
-                        ToolTip.delay: 400
-                        ToolTip.text: "Zoom in"
-                    }
+                MouseArea {
+                    id: wsOrthoArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.wireStyle = "ortho"
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Stepped (90°) wires"
                 }
+            }
 
-                Rectangle {
-                    width: 28; height: 26; radius: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: zFitArea.containsMouse ? Theme.surface2 : "transparent"
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "⊡"
-                        color: Theme.text2
-                        font.family: Theme.familyBody
-                        font.pixelSize: 14
-                    }
-                    MouseArea {
-                        id: zFitArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._zoomToFit()
-                        ToolTip.visible: containsMouse
-                        ToolTip.delay: 400
-                        ToolTip.text: "Fit all cards"
-                    }
+            Loader { sourceComponent: toolDivComp }
+
+            // ---- Zoom
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "+"
+                    item.tip = "Zoom in"
+                    item.glyphSize = 16
+                    item.onActivate = () => root._zoomBy(0.1)
+                }
+            }
+            // Zoom percentage — readout, not button-shaped, but
+            // still clickable to reset to 100%.
+            Rectangle {
+                width: 32
+                height: 22
+                anchors.horizontalCenter: parent.horizontalCenter
+                radius: Theme.radiusSm
+                color: zPctArea.containsMouse ? Theme.surface2 : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Text {
+                    anchors.centerIn: parent
+                    text: Math.round(root.zoom * 100) + "%"
+                    color: Theme.text2
+                    font.family: Theme.familyMono
+                    font.pixelSize: 10
+                }
+                MouseArea {
+                    id: zPctArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: "Reset zoom to 100%"
+                }
+            }
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "−"
+                    item.tip = "Zoom out"
+                    item.glyphSize = 16
+                    item.onActivate = () => root._zoomBy(-0.1)
+                }
+            }
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "⊡"
+                    item.tip = "Fit all cards"
+                    item.onActivate = () => root._zoomToFit()
                 }
             }
         }

@@ -1244,10 +1244,13 @@ Item {
                 // workflows (workflowId set) and fragment files
                 // (fragmentPath set). Fragment edits save through
                 // wfCtrl.save_fragment instead of wfCtrl.save.
+                // Docked to the canvas's left edge as a vertical
+                // icon strip; tooltips carry the full label so the
+                // strip can stay narrow.
                 visible: root.workflowId.length > 0 || root.fragmentMode
-                anchors.bottom: canvasView.bottom
-                anchors.horizontalCenter: canvasView.horizontalCenter
-                anchors.bottomMargin: 18
+                anchors.left: canvasView.left
+                anchors.verticalCenter: canvasView.verticalCenter
+                anchors.leftMargin: 12
                 z: 60
                 canvas: canvasView
             }
