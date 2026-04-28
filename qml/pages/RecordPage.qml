@@ -199,7 +199,7 @@ Item {
             id: tb
             width: parent.width
             title: "Record"
-            subtitle: recCtrl.state === "armed" ? "ready — perform the task"
+            subtitle: recCtrl.state === "armed" ? "ready. perform the task"
                     : recCtrl.state === "recording" ? "recording your actions"
                     : recCtrl.state === "stopped" ? "review and save the capture"
                     : "perform once, wflow transcribes it into a workflow"

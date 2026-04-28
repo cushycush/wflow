@@ -40,7 +40,7 @@ FocusScope {
         "click": ["(pixel 612, 208)"],
         "scroll": ["dy +180"],
         "wait": ["220 ms", "500 ms"],
-        "note": ["—"],
+        "note": ["…"],
         "move": ["(400, 300)"]
     })
 
@@ -51,7 +51,7 @@ FocusScope {
         const out = []
         for (let i = 0; i < total; i++) {
             const k = pool[i % pool.length]
-            const values = kindValues[k] || ["—"]
+            const values = kindValues[k] || ["…"]
             out.push({
                 kind: k,
                 summary: kindSummary[k] || k,

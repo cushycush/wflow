@@ -273,7 +273,7 @@ Item {
                     anchors.bottom: parent.top
                     anchors.bottomMargin: 4
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Start by adding a step — try Type text or Press key."
+                    text: "Start by adding a step. Try Type text or Press key."
                     visible: root.showTutorial
                     onDismissed: root.tutorialDismissed()
                     z: 10

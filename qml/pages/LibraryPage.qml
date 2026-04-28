@@ -348,7 +348,7 @@ Item {
             WfMenu {
                 id: moveToFolderMenu
                 WfMenuItem {
-                    text: "(Top level — clear folder)"
+                    text: "Top level (clears folder)"
                     onTriggered: {
                         for (const id of Object.keys(root.selectedIds)) {
                             libCtrl.set_folder(id, "")
@@ -567,7 +567,7 @@ Item {
                     : "No workflows yet"
 
                 description: stateCtrl.is_first_run
-                    ? "wflow runs sequences of keystrokes, clicks, shell commands, and waits — Shortcuts for Linux, with a plain-text workflow file underneath. Pick a starting point or record one from real input."
+                    ? "wflow runs sequences of keystrokes, clicks, shell commands, and waits. Shortcuts for Linux, with a plain-text workflow file underneath. Pick a starting point or record one from real input."
                     : "Create a new workflow by hand, or hit Record and wflow will transcribe a sequence of keys, clicks, and commands into one."
 
                 actionLabel: stateCtrl.is_first_run ? "+ New workflow" : "● Record a workflow"
@@ -1253,7 +1253,7 @@ Item {
                     font.weight: Font.DemiBold
                 }
                 Text {
-                    text: "Folders live as a tag on each workflow — pick a name now and drop any workflow on the folder to move it in."
+                    text: "Folders live as a tag on each workflow. Pick a name now and drop any workflow on the folder to move it in."
                     color: Theme.text3
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontSm

@@ -114,11 +114,11 @@ Dialog {
                         text: "Welcome to wflow."
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 28
+                        font.pixelSize: Theme.fontXl
                         font.weight: Font.Bold
                     }
                     Text {
-                        text: "Shortcuts for Linux. wflow runs sequences of keystrokes, clicks, shell commands, and waits — visually authored, plain-text on disk."
+                        text: "Shortcuts for Linux. wflow runs sequences of keystrokes, clicks, shell commands, and waits. Visually authored, plain-text on disk."
                         color: Theme.text2
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontMd
@@ -154,11 +154,11 @@ Dialog {
                         text: "Your saved workflows live in the library."
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 22
+                        font.pixelSize: Theme.fontLg
                         font.weight: Font.DemiBold
                     }
                     Text {
-                        text: "Click any card to open it in the editor. Right-click for Duplicate / Delete. Drag a card onto a folder tile to move it. Use the sidebar tree to nest folders — type 'a/b' in '+ New folder' to create both."
+                        text: "Click any card to open it in the editor. Right-click for Duplicate / Delete. Drag a card onto a folder tile to move it. Use the sidebar tree to nest folders. Type 'a/b' in '+ New folder' to create both."
                         color: Theme.text2
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
@@ -185,11 +185,11 @@ Dialog {
                         text: "Drag a step from the palette onto the canvas."
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 22
+                        font.pixelSize: Theme.fontLg
                         font.weight: Font.DemiBold
                     }
                     Text {
-                        text: "The dock on the left is your toolbox: Type, Click, Shell, When, Repeat, Use, and so on. Drop one onto the canvas to add it. Click any step to edit its details on the right. Containers (when / unless / repeat) have an 'Open →' button — click to descend into the inner sequence; use the breadcrumb to climb back."
+                        text: "The dock on the left is your toolbox: Type, Click, Shell, When, Repeat, Use, and so on. Drop one onto the canvas to add it. Click any step to edit its details on the right. Containers (when / unless / repeat) have an 'Open →' button. Click to descend into the inner sequence; use the breadcrumb to climb back."
                         color: Theme.text2
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
@@ -216,11 +216,11 @@ Dialog {
                         text: "Click ▶ Run to play the workflow. Or record one."
                         color: Theme.text
                         font.family: Theme.familyBody
-                        font.pixelSize: 22
+                        font.pixelSize: Theme.fontLg
                         font.weight: Font.DemiBold
                     }
                     Text {
-                        text: "Run plays each step in order, with a status indicator on the card as it goes. Record (the red tab in the nav) captures keystrokes, clicks, and window focus changes from your real input — useful for transcribing a manual sequence into a saved workflow. Workflows live as plain .kdl files under ~/.config/wflow/workflows."
+                        text: "Run plays each step in order, with a status indicator on the card as it goes. Record (the red tab in the nav) captures keystrokes, clicks, and window focus changes from your real input. Useful for transcribing a manual sequence into a saved workflow. Workflows live as plain .kdl files under ~/.config/wflow/workflows."
                         color: Theme.text2
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
