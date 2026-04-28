@@ -75,7 +75,10 @@ jobs:
           install -m644 -o builder -g builder \
               "packaging/aur/$PKG/PKGBUILD" "$WORK/PKGBUILD"
 
-          sudo -u builder -E env \
+          # -H sets HOME to builder's actual home; without it sudo
+          # inherits HOME=/github/home (owned by root in the GHA
+          # container) and `git config --global` fails to lock it.
+          sudo -u builder -H env \
               WORK="$WORK" PKG="$PKG" \
               AUR_USERNAME="$AUR_USERNAME" AUR_EMAIL="$AUR_EMAIL" \
               bash -eo pipefail -c '
