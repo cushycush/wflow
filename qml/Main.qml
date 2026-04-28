@@ -16,15 +16,20 @@ ApplicationWindow {
     property string currentPage: "library"        // "library" | "explore" | "workflow" | "record"
 
     // Open documents — one per tab in the workflow editor. Each
-    // entry is `{ kind, source, title }`:
+    // entry is `{ kind, source }`:
     //   kind   = "workflow" | "fragment"
     //   source = workflow id (kind==workflow) or absolute file path
     //            (kind==fragment)
-    //   title  = display label for the tab
     // The empty array means no editor tabs are open; opening a
     // workflow from Library appends (or activates an existing
     // matching tab) and switches to currentPage="workflow".
+    //
+    // Tab titles live in the parallel `docTitles` map keyed by
+    // source so that resolving a title from the loaded workflow
+    // doesn't mutate openDocs and tear down the WorkflowPage
+    // Repeater. Display lookup: docTitles[d.source] || d.source.
     property var openDocs: []
+    property var docTitles: ({})
     property int activeDocIndex: -1
 
     readonly property var activeDoc:
@@ -45,7 +50,7 @@ ApplicationWindow {
             activeDocIndex = existing
         } else {
             const next = openDocs.slice()
-            next.push({ kind: "workflow", source: id, title: id })
+            next.push({ kind: "workflow", source: id })
             openDocs = next
             activeDocIndex = next.length - 1
         }
@@ -58,22 +63,32 @@ ApplicationWindow {
             activeDocIndex = existing
         } else {
             const next = openDocs.slice()
-            next.push({
-                kind: "fragment",
-                source: path,
-                title: displayName || path.split("/").pop()
-            })
+            next.push({ kind: "fragment", source: path })
             openDocs = next
             activeDocIndex = next.length - 1
+            // Seed the title — fragment names come from the parent
+            // workflow's import key, which is more meaningful than
+            // the file's basename.
+            if (displayName && displayName.length > 0) {
+                _setDocTitle(activeDocIndex, displayName)
+            }
         }
         currentPage = "workflow"
     }
 
     function closeDoc(index) {
         if (index < 0 || index >= openDocs.length) return
+        const closed = openDocs[index]
         const next = openDocs.slice()
         next.splice(index, 1)
         openDocs = next
+        // Drop the cached title for this source so a later
+        // openWorkflowDoc with the same id starts fresh.
+        if (closed && closed.source && root.docTitles[closed.source]) {
+            const titles = Object.assign({}, root.docTitles)
+            delete titles[closed.source]
+            root.docTitles = titles
+        }
         if (next.length === 0) {
             activeDocIndex = -1
             currentPage = "library"
@@ -93,10 +108,11 @@ ApplicationWindow {
     function _setDocTitle(index, title) {
         if (index < 0 || index >= openDocs.length) return
         if (!title || title.length === 0) return
-        if (openDocs[index].title === title) return
-        const next = openDocs.slice()
-        next[index] = Object.assign({}, next[index], { title: title })
-        openDocs = next
+        const source = openDocs[index].source
+        if (root.docTitles[source] === title) return
+        const next = Object.assign({}, root.docTitles)
+        next[source] = title
+        root.docTitles = next
     }
 
     font.family: Theme.familyBody
@@ -122,6 +138,7 @@ ApplicationWindow {
         anchors.fill: parent
         currentPage: root.currentPage
         openDocs: root.openDocs
+        docTitles: root.docTitles
         activeDocIndex: root.activeDocIndex
         onNavigate: (page) => {
             root.currentPage = page

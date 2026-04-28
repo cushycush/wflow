@@ -12,8 +12,12 @@ Item {
     property string currentPage: "library"
     // Multi-tab editor state — owned by Main.qml. Empty array means
     // no editor tabs open; the workflow page area then renders an
-    // empty-state placeholder.
+    // empty-state placeholder. `docTitles` is a parallel { source:
+    // title } map kept out of openDocs so resolving a workflow's
+    // title from disk doesn't mutate openDocs and force the
+    // WorkflowPage Repeater to recreate every delegate.
     property var openDocs: []
+    property var docTitles: ({})
     property int activeDocIndex: -1
 
     signal navigate(string page)
@@ -70,8 +74,19 @@ Item {
                     fragmentPath: modelData.kind === "fragment" ? modelData.source : ""
                     onBackRequested: root.navigate("library")
                     onOpenFragmentRequested: (path, name) => root.openFragment(path, name)
-                    onTitleChanged: root.docTitleResolved(model.index, page.title)
-                    Component.onCompleted: root.docTitleResolved(model.index, page.title)
+                    // Sync the resolved title up so the tab strip can
+                    // show "[demo] navigation test" instead of the raw
+                    // workflow id. Skip the placeholder default — the
+                    // bridge replaces it with the real title once
+                    // workflow_jsonChanged fires, and we don't want to
+                    // overwrite a meaningful title with a placeholder
+                    // during transient reload states.
+                    onTitleChanged: {
+                        const t = page.title
+                        if (t && t !== "Untitled workflow") {
+                            root.docTitleResolved(model.index, t)
+                        }
+                    }
                 }
             }
 
@@ -304,7 +319,11 @@ Item {
                         }
 
                         Text {
-                            text: modelData.title || modelData.source
+                            // Prefer the resolved title (set after the
+                            // workflow loads from disk) but fall back
+                            // to the raw source so tabs always show
+                            // something during the brief load window.
+                            text: root.docTitles[modelData.source] || modelData.source
                             color: tabChip.isActive ? tabChip.tabAccent : Theme.text2
                             font.family: Theme.familyBody
                             font.pixelSize: Theme.fontSm
