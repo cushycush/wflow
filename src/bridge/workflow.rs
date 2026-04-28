@@ -12,7 +12,7 @@ use cxx_qt::Threading;
 use cxx_qt_lib::QString;
 
 use crate::actions::{RunEvent, StepOutcome, Workflow};
-use crate::{engine, security, store};
+use crate::{engine, kdl_format, security, store};
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -33,6 +33,28 @@ pub mod qobject {
         /// Load a workflow from disk into `workflow_json`.
         #[qinvokable]
         fn load(self: Pin<&mut WorkflowController>, id: QString);
+
+        /// Load a fragment file from an absolute path, wrapped in a
+        /// synthesized read-only Workflow so the rest of the editor
+        /// can render it through the same bindings as a normal
+        /// workflow. The synthetic id is `fragment:<abspath>`; the
+        /// title is the file's basename. `use` calls inside the
+        /// fragment are not expanded — they render as-is so the
+        /// user can click further into them.
+        #[qinvokable]
+        fn load_fragment(self: Pin<&mut WorkflowController>, path: QString);
+
+        /// Resolve an `imports[name]` entry to an absolute filesystem
+        /// path, taking the current workflow's directory as the base
+        /// for relative paths. Returns "" if the workflow_json is
+        /// invalid, the name is missing from the imports map, or the
+        /// resolved path can't be canonicalised. Used by the GUI to
+        /// open the target of a `use NAME` card in a fragment tab.
+        #[qinvokable]
+        fn resolve_import_path(
+            self: Pin<&mut WorkflowController>,
+            name: QString,
+        ) -> QString;
 
         /// Save a workflow passed in as JSON text.
         /// Returns the id the workflow was saved under (== input's id).
@@ -122,7 +144,10 @@ impl Default for WorkflowControllerRust {
 impl qobject::WorkflowController {
     fn load(mut self: Pin<&mut Self>, id: QString) {
         let id_s: String = id.to_string();
-        match store::load(&id_s) {
+        // GUI-side load: preserve the authored form so the editor can
+        // show `use NAME` cards + the imports map as written. The
+        // engine path expands in `run` before dispatch.
+        match store::load_authored(&id_s) {
             Ok(wf) => {
                 let json = serde_json::to_string(&wf).unwrap_or_else(|_| "{}".into());
                 self.as_mut().set_workflow_json(QString::from(&json));
@@ -132,6 +157,74 @@ impl qobject::WorkflowController {
             Err(e) => {
                 tracing::warn!(?e, "load {}", id_s);
                 self.as_mut().set_last_error(QString::from(&format!("{e:#}")));
+            }
+        }
+    }
+
+    fn load_fragment(mut self: Pin<&mut Self>, path: QString) {
+        let path_s: String = path.to_string();
+        let p = std::path::Path::new(&path_s);
+        match kdl_format::decode_fragment_file(p) {
+            Ok(steps) => {
+                let title = p
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("fragment")
+                    .to_string();
+                let mut wf = Workflow::new(title);
+                wf.id = format!("fragment:{}", p.to_string_lossy());
+                wf.steps = steps;
+                let json = serde_json::to_string(&wf).unwrap_or_else(|_| "{}".into());
+                self.as_mut().set_workflow_json(QString::from(&json));
+                self.as_mut().set_active_step(-1);
+                self.as_mut().set_last_error(QString::from(""));
+            }
+            Err(e) => {
+                tracing::warn!(?e, "load_fragment {}", path_s);
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("{e:#}")));
+            }
+        }
+    }
+
+    fn resolve_import_path(
+        mut self: Pin<&mut Self>,
+        name: QString,
+    ) -> QString {
+        let name_s: String = name.to_string();
+        let json: String = self.workflow_json.to_string();
+        let wf: Workflow = match serde_json::from_str(&json) {
+            Ok(wf) => wf,
+            Err(_) => return QString::from(""),
+        };
+        // For a fragment-mode page (id starts with "fragment:"), the
+        // base dir is the fragment file's parent. For a real workflow
+        // it's the workflow file's parent.
+        let base_dir = if let Some(stripped) = wf.id.strip_prefix("fragment:") {
+            std::path::Path::new(stripped)
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_default()
+        } else {
+            match store::path_of(&wf.id) {
+                Ok(p) => p.parent().map(|p| p.to_path_buf()).unwrap_or_default(),
+                Err(e) => {
+                    tracing::warn!(?e, "resolve_import_path: workflow has no on-disk path");
+                    return QString::from("");
+                }
+            }
+        };
+        let path_str = match wf.imports.get(&name_s) {
+            Some(p) => p.clone(),
+            None => return QString::from(""),
+        };
+        match kdl_format::resolve_import_path(&path_str, &base_dir) {
+            Ok(p) => QString::from(&p.to_string_lossy().to_string()),
+            Err(e) => {
+                tracing::warn!(?e, "resolve_import_path failed");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("{e:#}")));
+                QString::from("")
             }
         }
     }
@@ -167,7 +260,7 @@ impl qobject::WorkflowController {
             return;
         }
         let text: String = self.workflow_json.to_string();
-        let wf: Workflow = match serde_json::from_str(&text) {
+        let mut wf: Workflow = match serde_json::from_str(&text) {
             Ok(wf) => wf,
             Err(e) => {
                 tracing::warn!(?e, "run: bad workflow_json");
@@ -185,6 +278,33 @@ impl qobject::WorkflowController {
             Ok(p) => Some(p),
             Err(_) => None,
         };
+
+        // Expand `use NAME` references against the workflow's
+        // directory before handing the workflow to the engine. The
+        // editor preserves the authored form; the engine wants the
+        // inlined form. If the workflow has no on-disk path, expansion
+        // can still succeed for absolute import paths; relative paths
+        // would error (no base dir). The bridge surfaces that as
+        // last_error rather than crashing the run.
+        if let Some(p) = path.as_ref() {
+            if let Err(e) = kdl_format::expand_imports_in_place(&mut wf, p) {
+                tracing::warn!(?e, "expand_imports failed");
+                self.as_mut().set_last_error(QString::from(&format!("{e:#}")));
+                return;
+            }
+        } else if !wf.imports.is_empty() {
+            // Best effort for unsaved workflows: try to expand against
+            // an empty base dir. Absolute paths work; relative ones
+            // surface a path-resolution error to the user.
+            if let Err(e) = kdl_format::expand_imports_in_place(
+                &mut wf,
+                std::path::Path::new(""),
+            ) {
+                tracing::warn!(?e, "expand_imports failed (unsaved)");
+                self.as_mut().set_last_error(QString::from(&format!("{e:#}")));
+                return;
+            }
+        }
 
         match path {
             Some(p) => match security::check_trust(&p, security::TrustMode::Gui) {

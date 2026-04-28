@@ -98,7 +98,11 @@ pub fn list() -> Result<Vec<Workflow>> {
     let mut wfs: Vec<Workflow> = Vec::new();
     let mut seen_ids: std::collections::HashSet<String> = Default::default();
     walk_workflow_files(&dir, None, &mut |p, folder| {
-        match load_path(p) {
+        // Library list only needs metadata (title, subtitle, step
+        // count, etc.) — skip import expansion. Files with broken
+        // `use` references still appear in the listing; the error
+        // surfaces only when the user opens or runs them.
+        match load_path(p, false) {
             Ok(mut wf) => {
                 wf.folder = folder;
                 if seen_ids.insert(wf.id.clone()) {
@@ -134,8 +138,19 @@ fn find_path(id: &str) -> Result<Option<(PathBuf, Option<String>)>> {
 }
 
 pub fn load(id: &str) -> Result<Workflow> {
+    load_with(id, /* expand_imports */ true)
+}
+
+/// Load a workflow with `use NAME` references and the imports map
+/// preserved as authored. Use this for editing surfaces (the GUI);
+/// the engine still wants the expanded form via `load`.
+pub fn load_authored(id: &str) -> Result<Workflow> {
+    load_with(id, /* expand_imports */ false)
+}
+
+fn load_with(id: &str, expand: bool) -> Result<Workflow> {
     if let Some((path, folder)) = find_path(id)? {
-        let mut wf = load_path(&path)?;
+        let mut wf = load_path(&path, expand)?;
         wf.folder = folder;
         return Ok(wf);
     }
@@ -193,7 +208,7 @@ pub fn move_to_folder(id: &str, folder: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn load_path(p: &Path) -> Result<Workflow> {
+fn load_path(p: &Path, expand: bool) -> Result<Workflow> {
     if p.extension().and_then(|s| s.to_str()) == Some("json") {
         let bytes = fs::read(p).with_context(|| format!("read {}", p.display()))?;
         let s = String::from_utf8(bytes).with_context(|| format!("utf-8 {}", p.display()))?;
@@ -201,9 +216,14 @@ fn load_path(p: &Path) -> Result<Workflow> {
             .with_context(|| format!("parse json {}", p.display()))?;
         return Ok(wf);
     }
-    // KDL path: go through the include-expanding loader so
-    // `include "other.kdl"` resolves relative to this file.
-    let mut wf = kdl_format::decode_from_file(p)?;
+    // KDL path. The `expand` flag selects whether to inline `use NAME`
+    // references at load time (engine path) or preserve them so the
+    // editor can show / round-trip the file as authored.
+    let mut wf = if expand {
+        kdl_format::decode_from_file(p)?
+    } else {
+        kdl_format::decode_from_file_authored(p)?
+    };
     // The new format puts the id in the filename, not in the file.
     // The decoder leaves wf.id empty in that case; fill it from the
     // basename here. Legacy files still set id during decode and we

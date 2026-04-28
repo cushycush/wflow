@@ -17,7 +17,19 @@ import Wflow
 Item {
     id: root
     property string workflowId: ""
+    // Alternate load source: when set, the page loads a fragment
+    // file from disk instead of looking up a workflow by id, and
+    // renders in read-only mode. Set by the multi-doc tab strip
+    // when the user clicks "→ open" on a `use NAME` card.
+    property string fragmentPath: ""
+    readonly property bool fragmentMode: fragmentPath.length > 0
+
     signal backRequested()
+    // Fired when the user clicks "→ open" on a `use NAME` card.
+    // Carries the resolved absolute path and the import name (used
+    // as the tab title fallback). Routed up to Main.qml which adds
+    // a fragment doc to openDocs.
+    signal openFragmentRequested(string path, string displayName)
 
     WorkflowController { id: wfCtrl }
     // Owns the blank-workflow tutorial dismissal flag (and the
@@ -495,6 +507,29 @@ Item {
         _scheduleSave()
     }
 
+    // User clicked "→ open import" on a `use NAME` card. Look up
+    // NAME in the workflow's imports map, resolve to an absolute
+    // path (relative paths are relative to the workflow file's
+    // directory; the bridge handles that), and signal up so Main
+    // can open a fragment tab.
+    function _openUseImport(stepIndex) {
+        const steps = root._currentSteps
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const step = steps[stepIndex]
+        if (!step || !step.action || step.action.kind !== "use") return
+        const name = step.action.name || ""
+        if (name.length === 0) return
+        const abs = wfCtrl.resolve_import_path(name) || ""
+        if (abs.length === 0) {
+            // Either the name isn't in imports or the path didn't
+            // resolve. Open a placeholder fragment tab named after
+            // the import — at least the user sees what they tried
+            // to open. Future: surface a proper error toast.
+            return
+        }
+        root.openFragmentRequested(abs, name)
+    }
+
     function _commitNegate(stepIndex, negate) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = _stepsAtCrumb(wf)
@@ -602,6 +637,13 @@ Item {
     }
 
     function _scheduleSave() {
+        // Fragment view is read-only — every mutation handler still
+        // runs (the user might inspect-but-not-touch), and root.workflow
+        // updates so the UI reflects edits live, but we never schedule
+        // a save back to disk. The save is silently dropped at the
+        // boundary so the rest of the page (mutation helpers, action
+        // bindings) doesn't need fragment-mode branching.
+        if (root.fragmentMode) return
         root.saveState = "dirty"
         saveTimer.restart()
     }
@@ -719,6 +761,11 @@ Item {
         _positionsLoaded = false
         _reload()
     }
+    onFragmentPathChanged: {
+        _stableIdsEnsured = false
+        _positionsLoaded = false
+        _reload()
+    }
     Component.onCompleted: _reload()
 
     // Run on Ctrl+Enter — the editor is the only page where this is active,
@@ -738,10 +785,18 @@ Item {
     }
 
     function _reload() {
-        // Loading a different workflow always returns to the top of
+        // Loading a different document always returns to the top of
         // the tree — the previous workflow's container path is
         // meaningless against the new step list.
         root.crumb = []
+        if (root.fragmentMode) {
+            // Fragment mode: load by absolute path. Bridge wraps the
+            // fragment's bare step list into a synthetic workflow so
+            // the rest of the page (canvas, inspector) doesn't have
+            // to know the difference.
+            wfCtrl.load_fragment(root.fragmentPath)
+            return
+        }
         if (!root.workflowId) {
             root.workflow = { id: "", title: "Untitled workflow", subtitle: "", steps: [] }
             root.saveState = "idle"
@@ -799,8 +854,10 @@ Item {
             // Title stays editable at any depth — it always names the
             // outermost workflow. Subtitle becomes a no-op while we're
             // inside a container; the breadcrumb takes the same row.
-            titleEditable: root.crumb.length === 0
-            subtitleEditable: true
+            // Fragment view is read-only; title and subtitle are the
+            // synthesized basename, so no editing surface there.
+            titleEditable: !root.fragmentMode && root.crumb.length === 0
+            subtitleEditable: !root.fragmentMode
             backVisible: true
             crumbLabels: root.crumbLabels
             onBackClicked: root.backRequested()
@@ -844,12 +901,18 @@ Item {
                 // emoji — emoji glyphs render at full color-glyph
                 // height and made the Delete button visibly taller
                 // than its peers.
+                visible: !root.fragmentMode
                 text: "× Delete"
                 onClicked: root._askDelete()
             }
             // Workflow-level imports — name → path mapping that
             // `use` steps reference. Opens a dialog with the table.
+            // Imports are a workflow-level concept; fragments don't
+            // own their own imports map (they inherit the parent's
+            // when invoked via `use`), so the button is hidden in
+            // fragment view.
             SecondaryButton {
+                visible: !root.fragmentMode
                 text: "↳ Imports"
                                 + ((root.workflow.imports
                                     && Object.keys(root.workflow.imports).length > 0)
@@ -858,15 +921,43 @@ Item {
                 onClicked: importsDialog.open()
             }
             SecondaryButton {
+                visible: !root.fragmentMode
                 text: "↗ Share"
             }
+            // Fragments aren't standalone runnables — they're step
+            // snippets meant to be spliced into a parent workflow.
+            // Hide Run in fragment view so the user opens the parent
+            // workflow to run.
             PrimaryButton {
                 id: runBtn
+                visible: !root.fragmentMode
                 text: root.running ? "⏸ Running…" : "▶ Run"
                 leftPadding: 18
                 rightPadding: 18
                 enabled: (root.actions || []).length > 0 && !root.running
                 onClicked: wfCtrl.run()
+            }
+            // Fragment-mode badge — sits in place of the action
+            // buttons so the user always knows they're looking at a
+            // read-only view.
+            Rectangle {
+                visible: root.fragmentMode
+                anchors.verticalCenter: parent.verticalCenter
+                width: badgeText.implicitWidth + 16
+                height: 24
+                radius: 12
+                color: Theme.surface3
+                border.color: Theme.lineSoft
+                border.width: 1
+                Text {
+                    id: badgeText
+                    anchors.centerIn: parent
+                    text: "fragment · read-only"
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontXs
+                    font.weight: Font.Medium
+                }
             }
         }
 
@@ -1108,6 +1199,7 @@ Item {
                 onDeleteInnerStepRequested: (stepIdx, innerIdx) => root._deleteInnerStep(stepIdx, innerIdx)
                 onMoveStepToContainerRequested: (fromIdx, toIdx) => root._moveStepToContainer(fromIdx, toIdx)
                 onOpenContainerRequested: (stepIdx) => root.pushCrumb(stepIdx)
+                onOpenUseRequested: (stepIdx) => root._openUseImport(stepIdx)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
@@ -1116,7 +1208,10 @@ Item {
             // add a step at the drop point — palette uses the canvas
             // ref to drive an in-canvas card-shaped preview ghost.
             StepPalette {
-                visible: root.workflowId.length > 0
+                // Hidden in fragment view — fragments are read-only,
+                // so dragging in a new step would have nowhere to
+                // save to.
+                visible: !root.fragmentMode && root.workflowId.length > 0
                 anchors.bottom: canvasView.bottom
                 anchors.horizontalCenter: canvasView.horizontalCenter
                 anchors.bottomMargin: 18

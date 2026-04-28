@@ -280,9 +280,11 @@ pub struct Workflow {
     pub vars: std::collections::BTreeMap<String, String>,
     /// Named imports — maps short name → fragment-file path. Resolved
     /// at decode time by `kdl_format::expand_imports` when the step
-    /// tree contains `Action::Use { name }`. Empty by the time the
-    /// engine runs, so not serialized.
-    #[serde(skip, default)]
+    /// tree contains `Action::Use { name }`. Empty after the file
+    /// loader has expanded uses against it, but the GUI re-populates
+    /// it through the imports dialog and round-trips it back through
+    /// JSON ↔ KDL on save.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub imports: std::collections::BTreeMap<String, String>,
     /// Triggers that fire this workflow. Empty for hand-launched
     /// workflows; populated for ones the daemon should bind. Not yet

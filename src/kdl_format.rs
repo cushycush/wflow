@@ -347,31 +347,70 @@ fn kv_int(name: &str, v: i128) -> KdlNode {
 
 // ---------------------------------------------------------- Decoding --------
 
-/// Parse a KDL file and expand any `use NAME` nodes inside, resolving
-/// each name through the workflow's `imports { ... }` block.
-/// Wraps `decode` + `expand_imports(&wf.steps, path.parent(), ...)`.
-/// Use this (or `store::load_path`) whenever you have a file on disk;
-/// reserve `decode(text)` for in-memory content that shouldn't reach
-/// the filesystem.
-pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
+/// Parse a KDL file as authored — the imports map and any `use NAME`
+/// step nodes are preserved exactly as written. Use this for editing
+/// surfaces (the GUI editor) where the user wants to see, edit, and
+/// round-trip the file's structure faithfully. The engine will not
+/// dispatch `Action::Use` directly; callers that intend to run the
+/// workflow should call `expand_imports_in_place` first.
+pub fn decode_from_file_authored(path: &std::path::Path) -> Result<Workflow> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("read {}", path.display()))?;
-    let mut wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
+    let wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
+    Ok(wf)
+}
+
+/// Parse a KDL file and expand any `use NAME` nodes inside, resolving
+/// each name through the workflow's `imports { ... }` block. Wraps
+/// `decode` + `expand_imports`. Use this whenever the result is going
+/// straight to the engine (CLI run, headless dispatch); use the
+/// `_authored` variant when the result is going into an editor.
+pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
+    let mut wf = decode_from_file_authored(path)?;
+    expand_imports_in_place(&mut wf, path)?;
+    Ok(wf)
+}
+
+/// Expand `use NAME` references in `wf` against its imports map,
+/// inlining the target fragments' steps. Also clears `wf.imports`
+/// so re-encoding doesn't emit a now-redundant `imports {}` block.
+/// `path` is the workflow file's location — used as the base dir
+/// for resolving relative import paths and for cycle detection.
+pub fn expand_imports_in_place(
+    wf: &mut Workflow,
+    path: &std::path::Path,
+) -> Result<()> {
     let base_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     let mut visited = std::collections::HashSet::new();
-    // Canonicalize the top-level path too so a later import back to
-    // the same file is caught as a cycle.
     if let Ok(canon) = path.canonicalize() {
         visited.insert(canon);
     }
-    // Clone imports so the expansion pass can resolve `use name` without
-    // taking a mutable-vs-shared borrow on wf all at once.
     let imports = wf.imports.clone();
     expand_imports(&mut wf.steps, &base_dir, &imports, &mut visited)?;
-    // Imports have been fully resolved — clear them so re-encoding the
-    // workflow doesn't emit a now-redundant `imports {}` block.
     wf.imports.clear();
-    Ok(wf)
+    Ok(())
+}
+
+/// Decode a fragment file — a bare list of step nodes (no workflow
+/// wrapper, no schema line). Returns the steps as authored, without
+/// recursively expanding any `use` calls inside (a fragment viewed
+/// standalone has no parent imports map to resolve against; the
+/// caller is expected to render `use` cards as-is and let the user
+/// navigate further by clicking them).
+pub fn decode_fragment_file(path: &std::path::Path) -> Result<Vec<Step>> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("read {}", path.display()))?;
+    let doc: KdlDocument = text
+        .parse()
+        .with_context(|| format!("parse {}", path.display()))?;
+    let mut steps = Vec::new();
+    for node in doc.nodes() {
+        steps.push(
+            decode_step(node)
+                .with_context(|| format!("in fragment {}", path.display()))?,
+        );
+    }
+    Ok(steps)
 }
 
 /// Walk a step list and splice every `Action::Use` with the decoded
@@ -463,7 +502,7 @@ fn splice_fragment(
     Ok(())
 }
 
-fn resolve_import_path(
+pub fn resolve_import_path(
     path: &str,
     base_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {

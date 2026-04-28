@@ -83,6 +83,11 @@ Item {
     // index onto the crumb. WorkflowPage clears selection and the
     // canvas re-renders against the inner step list.
     signal openContainerRequested(int stepIndex)
+    // Click "→ open import" on a `use NAME` card. WorkflowPage
+    // resolves NAME through the workflow's imports map to an
+    // absolute path, then signals up to Main.qml which adds a new
+    // fragment tab. The canvas itself doesn't know about imports.
+    signal openUseRequested(int stepIndex)
     // Rewire from a card's overflow menu — `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
@@ -909,6 +914,56 @@ Item {
                                         font.pixelSize: 9
                                     }
                                 }
+                            }
+                        }
+
+                        // "→ open" affordance for `use` cards. Click
+                        // emits openUseRequested(stepIndex) which the
+                        // page resolves through the workflow's
+                        // imports map and routes up as
+                        // openFragmentRequested(absPath, name).
+                        Rectangle {
+                            visible: cardItem.rawKind === "use"
+                            width: parent.width
+                            height: 26
+                            radius: 6
+                            color: openUseArea.containsMouse
+                                ? Theme.accentWash(0.18)
+                                : Theme.surface3
+                            border.color: openUseArea.containsMouse
+                                ? Theme.accent
+                                : Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text {
+                                    text: "→"
+                                    color: openUseArea.containsMouse ? Theme.accent : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "open import"
+                                    color: openUseArea.containsMouse ? Theme.accent : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.weight: Font.Medium
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: openUseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.openUseRequested(cardItem.stepIdx)
                             }
                         }
 
