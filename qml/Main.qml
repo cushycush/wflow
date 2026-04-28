@@ -137,6 +137,29 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // Singleton ExploreController for deep-link handoff. ExplorePage
+    // owns its own instance for catalog fetches; this one is just a
+    // thin pipe for the wflow:// import URL captured at startup.
+    ExploreController {
+        id: deeplinkPipe
+        onImport_succeeded: (id) => root.openWorkflowDoc(id)
+        onImport_failed: (reason) => {
+            console.warn("deeplink import failed:", reason)
+        }
+    }
+
+    // wflow://import?source=<URL> arrives as a CLI arg. Decode the
+    // source, then call import_from_url with the embedded https:// URL.
+    function _resolveDeeplink(deeplinkUrl) {
+        const m = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
+        if (!m) {
+            console.warn("unknown deeplink shape:", deeplinkUrl)
+            return
+        }
+        const source = decodeURIComponent(m[1])
+        deeplinkPipe.import_from_url(source)
+    }
+
     ChromeFloating {
         id: chrome
         anchors.fill: parent
@@ -287,5 +310,14 @@ ApplicationWindow {
             // boot.
             Qt.callLater(() => Qt.callLater(tutorial.start))
         }
+        // Pending wflow://import?source=... URL from a browser handoff?
+        // Fire the import once the GUI is up. take_pending_deeplink
+        // clears the env var so a second poll wouldn't re-import.
+        Qt.callLater(() => {
+            const url = deeplinkPipe.take_pending_deeplink()
+            if (url && url.length > 0) {
+                _resolveDeeplink(url)
+            }
+        })
     }
 }

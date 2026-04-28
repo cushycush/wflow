@@ -2,10 +2,16 @@
 Type=Application
 Name=wflow
 GenericName=Workflow Editor
-Comment=Shortcuts for Linux — GUI + KDL workflow files
+Comment=Shortcuts for Linux. GUI + KDL workflow files
 Icon=io.github.cushycush.wflow
-Exec=wflow
+Exec=wflow %u
 Categories=Utility;Qt;
 Keywords=automation;workflow;shortcuts;wayland;macro;
 StartupNotify=true
 StartupWMClass=wflow
+# Register the wflow:// URL scheme so the website's "Open in wflow"
+# buttons (and any wflow://import?source=... link out in the wild)
+# route to this binary. The %u above passes the URL through to argv;
+# our Cli struct picks it up as the `deeplink` positional and the GUI
+# routes it to ExploreController.import_from_url after boot.
+MimeType=x-scheme-handler/wflow;
