@@ -78,13 +78,15 @@ Item {
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
     // The runner reports StepStart/StepDone with a flat leaf-only
-    // index — containers (when/unless/repeat) themselves don't emit
-    // events; only the leaves inside them do. Translate that flat
-    // index back to the top-level card index at the current crumb
-    // depth so the active-step pulse and status dots land on the
-    // right cards (the container card itself, when the runner is
-    // inside it).
-    readonly property int activeStepIndex: _flatToTopLevel(wfCtrl.active_step)
+    // index — containers (repeat) and branches (conditional) don't
+    // emit events themselves; only the leaves inside do. Translate
+    // that flat index back to a position in the canvas `actions`
+    // array so the active-step pulse and status dots land on the
+    // right cards. Conditional inner steps surface as their own
+    // cards (so the leaf maps directly to the inner card); repeat
+    // leaves all map to the repeat container card (it still owns
+    // the inline strip).
+    readonly property int activeStepIndex: _flatToActionsIdx(wfCtrl.active_step)
 
     function _flatLeafCount(step) {
         const a = step ? step.action : null
@@ -102,13 +104,44 @@ Item {
         for (const s of (steps || [])) total += _flatLeafCount(s)
         return total
     }
-    function _flatToTopLevel(flatIndex) {
+
+    function _findActionsIdx(predicate) {
+        const arr = root.actions || []
+        for (let i = 0; i < arr.length; i++) {
+            if (predicate(arr[i])) return i
+        }
+        return -1
+    }
+
+    function _flatToActionsIdx(flatIndex) {
         if (flatIndex < 0) return -1
         const steps = _stepsAtCrumb(root.workflow) || []
         let cursor = 0
         for (let i = 0; i < steps.length; i++) {
-            const len = _flatLeafCount(steps[i])
-            if (flatIndex >= cursor && flatIndex < cursor + len) return i
+            const step = steps[i]
+            const a = step ? step.action : null
+            if (a && a.kind === "conditional") {
+                // Inner steps of a conditional surface as their own
+                // canvas cards. Walk inner leaves and map to the
+                // matching inner card's actions index.
+                const inner = a.steps || []
+                for (let j = 0; j < inner.length; j++) {
+                    const innerLen = _flatLeafCount(inner[j])
+                    if (flatIndex >= cursor && flatIndex < cursor + innerLen) {
+                        return _findActionsIdx(x => x && x._displayKind === "inner"
+                            && x._parentTopIdx === i && x._innerIdx === j)
+                    }
+                    cursor += innerLen
+                }
+                continue
+            }
+            // Repeat: still a container; the repeat card aggregates
+            // all of its leaves' status. Plain leaf: 1:1.
+            const len = _flatLeafCount(step)
+            if (flatIndex >= cursor && flatIndex < cursor + len) {
+                return _findActionsIdx(x => x && x._displayKind === "top"
+                    && x._topIdx === i)
+            }
             cursor += len
         }
         return -1
@@ -197,14 +230,41 @@ Item {
     }
 
     readonly property var actions: {
-        // Shape the Rust-side Step[] into the { kind, summary, value, rawPrimary, editable }
-        // that the split-inspector delegates expect. Driven by the
-        // crumb: at top level this is wf.steps; inside a container,
-        // it's the inner step list at that depth.
+        // Shape the Rust-side Step[] into the { kind, summary, value,
+        // rawPrimary, editable } that the canvas delegates expect.
+        // Driven by the crumb: at top level this is wf.steps; inside
+        // a container, it's the inner step list at that depth.
+        //
+        // Conditionals (when/unless) are NOT containers in the visual
+        // model — they're branch decision points. Their inner steps
+        // surface as additional cards alongside the conditional, with
+        // the canvas drawing fork/rejoin wires. Each shaped action
+        // carries display metadata (_displayKind, _topIdx, _innerIdx,
+        // _parentTopIdx) the canvas reads for layout + wire routing.
         const out = []
         const steps = root._currentSteps
-        for (const s of steps) {
-            out.push(root._stepToAction(s))
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i]
+            const shaped = root._stepToAction(step)
+            shaped._displayKind = "top"
+            shaped._topIdx = i
+            shaped._innerIdx = -1
+            shaped._parentTopIdx = -1
+            out.push(shaped)
+            // Conditionals additionally surface their inner steps as
+            // siblings on the canvas. Repeat keeps the container
+            // model — it's a loop, not a branch.
+            if (step.action && step.action.kind === "conditional") {
+                const inner = step.action.steps || []
+                for (let j = 0; j < inner.length; j++) {
+                    const innerShaped = root._stepToAction(inner[j])
+                    innerShaped._displayKind = "inner"
+                    innerShaped._topIdx = -1
+                    innerShaped._innerIdx = j
+                    innerShaped._parentTopIdx = i
+                    out.push(innerShaped)
+                }
+            }
         }
         return out
     }
@@ -902,19 +962,18 @@ Item {
             if (wfCtrl.running) root.stepStatuses = ({})
         }
         function onStep_done(index, status, message) {
-            // Translate the flat leaf index to a top-level card
-            // index at the current crumb depth — the runner doesn't
-            // emit events for containers, but the canvas wants the
-            // container's status dot to track when steps are
-            // running inside it.
-            const topIdx = root._flatToTopLevel(index)
-            if (topIdx < 0) return
+            // Translate the flat leaf index to the actions array
+            // index — for conditional inner steps that's the inner
+            // card; for repeat leaves it's the repeat container; for
+            // plain top-level leaves it's the top card.
+            const idx = root._flatToActionsIdx(index)
+            if (idx < 0) return
             const next = Object.assign({}, root.stepStatuses)
-            // Don't downgrade an existing "error" — if any leaf in
-            // a container errored, the container shows error
-            // regardless of what later leaves did.
-            if (next[topIdx] === "error" && status !== "error") return
-            next[topIdx] = status
+            // Don't downgrade an existing "error" on a repeat
+            // container — if any leaf inside errored, the container
+            // shows error regardless of what later leaves did.
+            if (next[idx] === "error" && status !== "error") return
+            next[idx] = status
             root.stepStatuses = next
         }
         function onTrust_prompt_required(summary) {
@@ -1237,7 +1296,9 @@ Item {
 
             EmptyState {
                 anchors.fill: parent
-                visible: !root.workflowId
+                // A fragment tab has fragmentPath set but no
+                // workflowId — still a "loaded" state.
+                visible: !root.workflowId && !root.fragmentMode
                 title: "No workflow loaded"
                 description: "Pick one from the library, or create a new one."
                 actionLabel: ""
@@ -1246,7 +1307,7 @@ Item {
             // ---- Three-pane layout: rail | canvas | (slide-in) inspector ----
             StepListRail {
                 id: rail
-                visible: root.workflowId.length > 0
+                visible: root.workflowId.length > 0 || root.fragmentMode
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom

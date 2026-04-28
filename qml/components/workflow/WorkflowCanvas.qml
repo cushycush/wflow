@@ -43,11 +43,13 @@ Item {
     property var cardWidths: ({})   // { [id]: number }
 
     // Width a given step should render at — derived from the shaped
-    // action's rawKind. Containers are wider so the inner-step drop
-    // zone has a meaningful visual footprint; notes are narrower
-    // since they're annotations, not first-class operations.
+    // action's rawKind. Repeat is wider because its inner-step drop
+    // zone needs a meaningful footprint; conditionals (when/unless)
+    // are now narrower decision-card shapes since their inner steps
+    // surface as siblings on the canvas. Notes are narrower since
+    // they're annotations, not first-class operations.
     function _widthForKind(rawKind) {
-        if (rawKind === "conditional" || rawKind === "repeat") return containerW
+        if (rawKind === "repeat") return containerW
         if (rawKind === "note") return noteW
         return nodeW
     }
@@ -114,14 +116,104 @@ Item {
     // to the next operational step. Computed once per actions
     // change; the wire Repeater uses this as its model.
     readonly property var _wirePairs: {
-        const out = []
         const arr = root.actions || []
-        let prev = -1
+        const out = []
+
+        // Helper: index in `arr` of a conditional's first inner step
+        // (or -1 if the conditional has no inner steps).
+        function firstInnerOf(parentTopIdx) {
+            for (let i = 0; i < arr.length; i++) {
+                const it = arr[i]
+                if (!it) continue
+                if (it._displayKind === "inner"
+                    && it._parentTopIdx === parentTopIdx
+                    && it._innerIdx === 0) return i
+            }
+            return -1
+        }
+
+        // Helper: index in `arr` of a conditional's last inner step.
+        function lastInnerOf(parentTopIdx) {
+            let best = -1
+            let bestJ = -1
+            for (let i = 0; i < arr.length; i++) {
+                const it = arr[i]
+                if (!it) continue
+                if (it._displayKind === "inner"
+                    && it._parentTopIdx === parentTopIdx
+                    && it._innerIdx > bestJ) {
+                    best = i
+                    bestJ = it._innerIdx
+                }
+            }
+            return best
+        }
+
+        // Helper: next non-note "top" item index after `topIdx`.
+        function nextTopAfter(topIdx) {
+            for (let i = 0; i < arr.length; i++) {
+                const it = arr[i]
+                if (!it) continue
+                if (it._displayKind !== "top") continue
+                if (it.rawKind === "note") continue
+                if (it._topIdx > topIdx) return i
+            }
+            return -1
+        }
+
         for (let i = 0; i < arr.length; i++) {
-            if (!arr[i]) continue
-            if (arr[i].rawKind === "note") continue
-            if (prev >= 0) out.push({ from: prev, to: i })
-            prev = i
+            const it = arr[i]
+            if (!it) continue
+            if (it.rawKind === "note") continue
+
+            if (it._displayKind === "top") {
+                if (it.rawKind === "conditional") {
+                    // Branch: yes → first inner, no/skip → next top.
+                    const first = firstInnerOf(it._topIdx)
+                    const last = lastInnerOf(it._topIdx)
+                    const nextTop = nextTopAfter(it._topIdx)
+                    if (first >= 0) {
+                        out.push({ from: i, to: first, label: "yes" })
+                    }
+                    if (nextTop >= 0) {
+                        // The "no/skip" wire only renders when the
+                        // conditional has at least one inner step;
+                        // otherwise the conditional itself acts as a
+                        // single-edge passthrough and the next-top
+                        // wire below handles it.
+                        if (first >= 0) {
+                            out.push({ from: i, to: nextTop, label: "no" })
+                        } else {
+                            out.push({ from: i, to: nextTop })
+                        }
+                    }
+                    // Last inner reconnects to the next-top so the
+                    // yes-branch path rejoins the main flow.
+                    if (last >= 0 && nextTop >= 0) {
+                        out.push({ from: last, to: nextTop })
+                    }
+                } else {
+                    // Plain top step — wire to next top (notes
+                    // skipped via the helper).
+                    const nextTop = nextTopAfter(it._topIdx)
+                    if (nextTop >= 0) out.push({ from: i, to: nextTop })
+                }
+            } else if (it._displayKind === "inner") {
+                // Inner step: chain to the next inner of the same
+                // parent, if any. If this is the last inner, the
+                // conditional's `top` branch above already added
+                // the rejoin wire.
+                for (let j = 0; j < arr.length; j++) {
+                    const next = arr[j]
+                    if (!next) continue
+                    if (next._displayKind !== "inner") continue
+                    if (next._parentTopIdx !== it._parentTopIdx) continue
+                    if (next._innerIdx === it._innerIdx + 1) {
+                        out.push({ from: i, to: j })
+                        break
+                    }
+                }
+            }
         }
         return out
     }
@@ -294,6 +386,11 @@ Item {
         if (list.length === 0) return
         const wasEmpty = Object.keys(positions).length === 0
         const next = Object.assign({}, positions)
+
+        // Find any item whose position is already set so we can stack
+        // unplaced cards beneath the lowest of them. Inner cards
+        // (conditional branch steps) get placed offset to the right
+        // of their parent so the branch reads visually.
         let maxY = paddingTop
         for (let i = 0; i < list.length; i++) {
             const p = next[list[i].id]
@@ -302,13 +399,29 @@ Item {
                 maxY = Math.max(maxY, p.y + h + gap)
             }
         }
+
         let dirty = false
         for (let i = 0; i < list.length; i++) {
-            if (!next[list[i].id]) {
-                next[list[i].id] = { x: paddingLeft, y: maxY }
-                maxY += nodeMinH + gap
-                dirty = true
+            const item = list[i]
+            if (next[item.id]) continue
+            if (item._displayKind === "inner") {
+                // Inner step: position offset to the right of the
+                // parent conditional. If the parent isn't placed
+                // yet, fall through to the default stack.
+                const parent = list.find(it => it && it._displayKind === "top"
+                    && it._topIdx === item._parentTopIdx)
+                const parentPos = parent ? next[parent.id] : null
+                if (parentPos) {
+                    const branchX = parentPos.x + nodeW + 80
+                    const branchY = parentPos.y + (item._innerIdx * (nodeMinH + gap / 2))
+                    next[item.id] = { x: branchX, y: branchY }
+                    dirty = true
+                    continue
+                }
             }
+            next[item.id] = { x: paddingLeft, y: maxY }
+            maxY += nodeMinH + gap
+            dirty = true
         }
         if (dirty) {
             positions = next
@@ -618,8 +731,17 @@ Item {
                 readonly property string stepId: modelData ? modelData.id : ""
                 readonly property string kind: modelData ? modelData.kind : "wait"
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
+                // Container = a card that holds an inline inner-step
+                // strip. Repeat is the only one now — conditionals
+                // (when/unless) render as branch decision points
+                // with their inner steps drawn as siblings on the
+                // canvas, not nested inside.
                 readonly property bool isContainer:
-                    rawKind === "conditional" || rawKind === "repeat"
+                    rawKind === "repeat"
+                // Conditionals have their own visual shape: a leaf-
+                // ish decision card with explicit yes/no output ports.
+                readonly property bool isConditional:
+                    rawKind === "conditional"
                 // True when the engine is currently running this
                 // step. Drives the pulsing accent border so the user
                 // can see live which step is firing.

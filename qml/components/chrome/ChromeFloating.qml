@@ -317,23 +317,24 @@ Item {
 
             Item { width: 6; height: 1 }
 
-            // Editor isn't a top-level tab — it's a nested view you
-            // reach by clicking a workflow in Library, with a back
-            // arrow on the page itself. Keeping it as a tab
-            // produced an empty-state page when the user landed
-            // there without a selection, which had no useful
-            // affordances.
+            // Editor entry only appears when at least one doc is
+            // open — gives the user a way back to the editor from
+            // any page without having to re-pick a workflow from
+            // the library. The label carries the open-doc count so
+            // it reads as a stateful tab, not just nav.
             Repeater {
-                model: Theme.showExplore
-                    ? [
-                        { id: "library",  label: "Library" },
-                        { id: "explore",  label: "Explore" },
-                        { id: "record",   label: "Record" }
-                      ]
-                    : [
-                        { id: "library",  label: "Library" },
-                        { id: "record",   label: "Record" }
-                      ]
+                model: {
+                    const out = [{ id: "library", label: "Library" }]
+                    if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
+                    if ((root.openDocs || []).length > 0) {
+                        out.push({
+                            id: "workflow",
+                            label: "Editor (" + root.openDocs.length + ")"
+                        })
+                    }
+                    out.push({ id: "record", label: "Record" })
+                    return out
+                }
                 delegate: Rectangle {
                     id: tab
                     readonly property bool isActive: modelData.id === root.currentPage
