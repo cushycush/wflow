@@ -21,6 +21,7 @@ fn main() {
             QmlFile::from("qml/components/EmptyState.qml"),
             QmlFile::from("qml/components/FocusRing.qml"),
             QmlFile::from("qml/components/TutorialOverlay.qml"),
+            QmlFile::from("qml/components/TutorialCoach.qml"),
             QmlFile::from("qml/components/IntroTutorial.qml"),
             QmlFile::from("qml/components/PrimaryButton.qml"),
             QmlFile::from("qml/components/SecondaryButton.qml"),

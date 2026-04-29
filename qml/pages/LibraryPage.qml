@@ -15,6 +15,10 @@ Item {
     signal openWorkflow(string id)
     signal recordRequested()
 
+    // Exposed for the first-run TutorialCoach.
+    property alias topBar: tb
+    property alias folderRail: folderRail
+
     LibraryController { id: libCtrl }
     // Drives the first-launch welcome card + the New-workflow dialog's
     // template list. Per-page instance is fine for v0.3 — the only

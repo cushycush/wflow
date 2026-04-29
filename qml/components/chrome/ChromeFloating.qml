@@ -87,6 +87,7 @@ Item {
         }
 
         LibraryPage {
+            id: libraryPageInst
             onNewWorkflow: root.newWorkflow()
             onOpenWorkflow: (id) => root.openWorkflow(id)
             onRecordRequested: root.recordRequested()
@@ -319,12 +320,19 @@ Item {
         }
     }
 
+    // Exported for the first-run TutorialCoach so it can point at
+    // the floating pill as a single coach-mark target.
+    property alias pillContainer: navPill
+    property alias settingsButton: settingsBtn
+    property alias libraryPage: libraryPageInst
+
     // Floating nav bar — rounded-rect style matching the editor's
     // Tidy / Wires / Zoom pills (radius:Theme.radiusMd container,
     // radius:Theme.radiusSm tabs). Replaced the all-circle pill +
     // round logo + circle theme button with squared-off shapes so
     // the chrome reads consistent with the canvas surface.
     Rectangle {
+        id: navPill
         anchors.top: parent.top
         anchors.topMargin: 18
         anchors.horizontalCenter: parent.horizontalCenter

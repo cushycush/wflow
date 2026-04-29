@@ -136,25 +136,8 @@ ApplicationWindow {
 
     StateController { id: introState }
 
-    // First-launch tutorial. Shows once when state.toml is fresh
-    // AND the user hasn't already dismissed it. Marked seen on
-    // Skip / Get started so subsequent launches go straight to
-    // Library.
-    IntroTutorial {
-        id: introTutorial
-        stateCtrl: introState
-    }
-
-    Component.onCompleted: {
-        if (introState.is_first_run && !introState.tutorial_seen("intro_tour")) {
-            // Defer one tick so the chrome behind is laid out before
-            // the modal opens — avoids the dialog flashing over a
-            // half-rendered Library page.
-            Qt.callLater(introTutorial.start)
-        }
-    }
-
     ChromeFloating {
+        id: chrome
         anchors.fill: parent
         currentPage: root.currentPage
         openDocs: root.openDocs
@@ -173,5 +156,72 @@ ApplicationWindow {
         onCloseDoc: (index) => root.closeDoc(index)
         onDocTitleResolved: (index, title) => root._setDocTitle(index, title)
         onRecordRequested: root.currentPage = "record"
+    }
+
+    // First-launch tutorial. Coach-mark style — overlays the live
+    // app and animates between targets as the user advances. Each
+    // step is a single focused idea anchored to the relevant UI
+    // element; auto-navigates to the right page first when needed.
+    // Marked seen on Skip / Finish so subsequent launches go
+    // straight to Library.
+    TutorialCoach {
+        id: tutorial
+        stateCtrl: introState
+        onNavigateToPage: (page) => root.currentPage = page
+
+        steps: [
+            {
+                title: "Welcome to wflow",
+                body: "Shortcuts for Linux. wflow runs sequences of keystrokes, clicks, shell commands, and waits. Visually authored, plain-text on disk. Quick tour: about 30 seconds."
+            },
+            {
+                title: "The nav pill",
+                body: "Five main areas live here: Library, Explore, Editor, Record, Settings. Click a tab to switch.",
+                getTarget: () => chrome.pillContainer,
+                placement: "below"
+            },
+            {
+                title: "Your library",
+                body: "Saved workflows show up as cards. Click any card to open it in the editor; right-click for Duplicate / Delete.",
+                page: "library",
+                getTarget: () => chrome.libraryPage,
+                placement: "auto",
+                scrim: false
+            },
+            {
+                title: "Folders organize them",
+                body: "Drag a card onto a folder tile to move it in. Type 'a/b' in '+ New folder' to nest folders.",
+                page: "library",
+                getTarget: () => chrome.libraryPage.folderRail,
+                placement: "right"
+            },
+            {
+                title: "Start a workflow",
+                body: "Hit + New to start blank or from a template. Or click ● Record and wflow will transcribe a sequence of keys, clicks, and commands into one.",
+                page: "library",
+                getTarget: () => chrome.libraryPage.topBar,
+                placement: "below"
+            },
+            {
+                title: "Settings",
+                body: "Theme, motion, default sort, workflows folder. All here behind the gear.",
+                getTarget: () => chrome.settingsButton,
+                placement: "below"
+            },
+            {
+                title: "You're set",
+                body: "Click + New on the Library page to start your first workflow, or hit ● Record to capture one from real input."
+            }
+        ]
+    }
+
+    Component.onCompleted: {
+        if (introState.is_first_run && !introState.tutorial_seen("intro_tour")) {
+            // Defer two ticks so the chrome's first page transition
+            // settles before the coach overlay reads target rects —
+            // anchors aren't valid on the very first frame after
+            // boot.
+            Qt.callLater(() => Qt.callLater(tutorial.start))
+        }
     }
 }
