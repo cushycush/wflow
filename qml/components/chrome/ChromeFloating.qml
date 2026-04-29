@@ -44,11 +44,47 @@ Item {
 
     // Full-bleed pages
     StackLayout {
+        id: pageStack
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
                       root.currentPage === "workflow" ? 2 :
                       root.currentPage === "record" ? 3 : 4
+
+        // Subtle "page settles in" transition each time the active
+        // tab changes. Fade + tiny scale-up on the new page; the old
+        // page is replaced instantly because StackLayout only renders
+        // one child at a time. The cost is the offscreen pages get
+        // scaled too, but they're invisible so it doesn't matter, and
+        // the chrome (floating pill) sits outside this StackLayout so
+        // the nav itself doesn't move.
+        //
+        // Triggered via Connections rather than onCurrentIndexChanged
+        // so the animation also runs on the very first nav (where
+        // currentIndex doesn't change from its initial 0 but the user
+        // has clearly navigated). transformOrigin defaults to Center,
+        // which is what we want.
+        Connections {
+            target: root
+            function onCurrentPageChanged() { pageEnterAnim.restart() }
+        }
+        ParallelAnimation {
+            id: pageEnterAnim
+            NumberAnimation {
+                target: pageStack
+                property: "opacity"
+                from: 0; to: 1
+                duration: Theme.dur(Theme.durBase)
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: pageStack
+                property: "scale"
+                from: 0.985; to: 1.0
+                duration: Theme.dur(Theme.durBase)
+                easing.type: Easing.OutCubic
+            }
+        }
 
         LibraryPage {
             onNewWorkflow: root.newWorkflow()
