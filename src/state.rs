@@ -47,6 +47,12 @@ pub struct State {
     /// "last_run". Anything else falls back to "recent".
     #[serde(default = "default_library_sort")]
     pub library_sort: String,
+    /// User override for the workflows directory. None means the XDG
+    /// default at `$XDG_CONFIG_HOME/wflow/workflows`. Stored as a string
+    /// so a future cross-platform port doesn't have to carry a
+    /// PathBuf-shaped TOML schema.
+    #[serde(default)]
+    pub workflows_dir: Option<String>,
 }
 
 fn default_schema() -> u32 {
@@ -70,6 +76,7 @@ impl Default for State {
             theme_mode: default_theme_mode(),
             reduce_motion: false,
             library_sort: default_library_sort(),
+            workflows_dir: None,
         }
     }
 }

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import Wflow
 
@@ -20,6 +21,25 @@ Item {
     // — separate instances would each read from disk on creation, then
     // diverge as the user mutates one or the other.
     readonly property var ctrl: Theme._state
+
+    // For triggering a library refresh after the workflows folder
+    // changes. Page-local instance is fine — refresh() reads disk and
+    // updates its own QObject's state, which the Library page picks up
+    // through its own LibraryController on next visible.
+    LibraryController { id: libCtrl }
+
+    FolderDialog {
+        id: folderDialog
+        title: "Pick a workflows folder"
+        onAccepted: {
+            // selectedFolder is a file:// URL; QML's Qt.url machinery
+            // gives us the bare path through .toString().replace().
+            const u = selectedFolder.toString()
+            const path = u.startsWith("file://") ? u.slice(7) : u
+            pathField.text = decodeURIComponent(path)
+            ctrl.apply_store_path(pathField.text)
+        }
+    }
 
     // Page background mirrors LibraryPage / ExplorePage (transparent so
     // the chrome's DotGrid shows through).
@@ -126,38 +146,119 @@ Item {
                         }
                     }
 
-                    SettingRow {
-                        title: "Workflows folder"
-                        subtitle: "Where wflow saves your .kdl files."
+                    // Folder row gets its own block (not SettingRow) so
+                    // the input field can span full width while the
+                    // Reveal / Reset buttons sit on a second line under
+                    // it. Keeps the field comfortably clickable on long
+                    // paths.
+                    Column {
+                        width: parent.width
+                        spacing: 8
+
+                        Text {
+                            text: "Workflows folder"
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontBase
+                            font.weight: Font.Medium
+                        }
+                        Text {
+                            text: ctrl.store_path_is_default
+                                ? "Where wflow saves your .kdl files. Type a new path or click Browse to pick one."
+                                : "Custom location. Reset to use the default again."
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            wrapMode: Text.WordWrap
+                            width: parent.width
+                        }
+
+                        Rectangle {
+                            id: pathFrame
+                            width: parent.width
+                            height: 36
+                            radius: Theme.radiusSm
+                            color: Theme.surface2
+                            border.color: pathField.activeFocus
+                                ? Theme.accent
+                                : (pathError.text.length > 0 ? Theme.err : Theme.line)
+                            border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                            TextField {
+                                id: pathField
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: Item {}
+                                color: Theme.text
+                                placeholderText: ctrl.default_store_path
+                                placeholderTextColor: Theme.text3
+                                font.family: Theme.familyMono
+                                font.pixelSize: Theme.fontSm
+                                selectByMouse: true
+                                text: ctrl.store_path_is_default ? "" : ctrl.store_path
+                                onAccepted: ctrl.apply_store_path(text)
+                            }
+                        }
+
+                        Text {
+                            id: pathError
+                            text: ""
+                            visible: text.length > 0
+                            color: Theme.err
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            wrapMode: Text.WordWrap
+                            width: parent.width
+                        }
 
                         Row {
                             spacing: 8
 
-                            Rectangle {
-                                width: pathText.implicitWidth + 18
-                                height: 30
-                                radius: Theme.radiusSm
-                                color: Theme.surface2
-                                border.color: Theme.line
-                                border.width: 1
-                                anchors.verticalCenter: parent.verticalCenter
-
-                                Text {
-                                    id: pathText
-                                    anchors.centerIn: parent
-                                    text: ctrl.store_path
-                                    color: Theme.text2
-                                    font.family: Theme.familyMono
-                                    font.pixelSize: Theme.fontSm
-                                    elide: Text.ElideMiddle
-                                    width: Math.min(implicitWidth, 360)
-                                }
+                            SecondaryButton {
+                                text: "Apply"
+                                enabled: pathField.text.trim().length > 0
+                                    && pathField.text !== ctrl.store_path
+                                onClicked: ctrl.apply_store_path(pathField.text)
                             }
-
+                            SecondaryButton {
+                                text: "Browse…"
+                                onClicked: folderDialog.open()
+                            }
                             SecondaryButton {
                                 text: "Reveal"
-                                anchors.verticalCenter: parent.verticalCenter
                                 onClicked: ctrl.reveal_store_dir()
+                            }
+                            SecondaryButton {
+                                text: "Reset to default"
+                                visible: !ctrl.store_path_is_default
+                                onClicked: {
+                                    pathField.text = ""
+                                    pathError.text = ""
+                                    ctrl.reset_store_path()
+                                }
+                            }
+                        }
+                    }
+
+                    // Connect once at the page scope so we catch the
+                    // signals regardless of which control fired the
+                    // apply.
+                    Connections {
+                        target: ctrl
+                        function onStore_path_rejected(reason) {
+                            pathError.text = reason
+                        }
+                        function onStore_path_applied() {
+                            pathError.text = ""
+                            // The folder change might affect the next
+                            // library load. Refreshing right away means
+                            // the user can switch tabs and immediately
+                            // see the new folder's contents.
+                            if (typeof libCtrl !== "undefined" && libCtrl) {
+                                libCtrl.refresh()
                             }
                         }
                     }

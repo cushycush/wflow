@@ -1,23 +1,88 @@
 //! Workflow persistence.
 //!
-//! Workflows are stored as `.kdl` files at `$XDG_CONFIG_HOME/wflow/workflows/`.
-//! For backward compatibility we also read `.json` files written by earlier
-//! versions, and re-save them as KDL on the next write.
+//! Workflows are stored as `.kdl` files at `$XDG_CONFIG_HOME/wflow/workflows/`
+//! by default. The user can override this from the Settings page; the
+//! override lives in state.toml and is set on this module via
+//! `set_workflows_dir_override` at app startup. For backward
+//! compatibility we also read `.json` files written by earlier
+//! versions and re-save them as KDL on the next write.
 
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 
 use crate::actions::Workflow;
 use crate::kdl_format;
 
+// User-set workflow directory override. `None` means "use the default
+// at $XDG_CONFIG_HOME/wflow/workflows". The bridge populates this once
+// at startup from state.toml and writes through it on Settings changes;
+// CLI subcommands also call `default_workflows_dir()` directly when
+// they want to reach the default unconditionally.
+static OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// Path that *should* be used for workflows: the user's override if set,
+/// otherwise the XDG default. Creates the directory if it doesn't exist.
 pub fn workflows_dir() -> Result<PathBuf> {
+    if let Some(p) = OVERRIDE.read().ok().and_then(|g| g.clone()) {
+        fs::create_dir_all(&p).with_context(|| format!("create {}", p.display()))?;
+        return Ok(p);
+    }
+    default_workflows_dir()
+}
+
+/// XDG-default workflows directory, ignoring any user override. Used to
+/// display the "fallback" path in Settings + by tests / migrations that
+/// shouldn't follow a runtime override.
+pub fn default_workflows_dir() -> Result<PathBuf> {
     let base = dirs::config_dir().context("no XDG config dir")?;
     let dir = base.join("wflow").join("workflows");
     fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     Ok(dir)
+}
+
+/// Install or clear the user override. Pass `None` to revert to the
+/// XDG default. The path is validated only insofar as we try to
+/// `create_dir_all` it on the next read; the bridge can call
+/// `validate_workflows_dir(&path)` first to surface UI errors before
+/// committing.
+pub fn set_workflows_dir_override(path: Option<PathBuf>) {
+    if let Ok(mut g) = OVERRIDE.write() {
+        *g = path;
+    }
+}
+
+/// Probe a path to see if it's safe to use as a workflows directory:
+/// either it doesn't exist (we'll create it on first use) or it does
+/// exist as a directory we can write to. Returns Ok(()) on success,
+/// Err(reason) suitable for surfacing in the UI on failure.
+pub fn validate_workflows_dir(path: &Path) -> Result<()> {
+    if path.exists() {
+        if !path.is_dir() {
+            anyhow::bail!("path exists but isn't a directory");
+        }
+        // Probe write access by creating + deleting a probe file.
+        let probe = path.join(".wflow-probe");
+        match fs::write(&probe, b"") {
+            Ok(()) => {
+                let _ = fs::remove_file(&probe);
+                Ok(())
+            }
+            Err(e) => anyhow::bail!("not writable: {e}"),
+        }
+    } else {
+        // Verify the parent exists so we don't silently create a deeply
+        // nested path the user fat-fingered.
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                anyhow::bail!("parent directory does not exist: {}", parent.display());
+            }
+        }
+        Ok(())
+    }
 }
 
 fn safe_id(id: &str) -> String {

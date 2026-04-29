@@ -389,91 +389,9 @@ Item {
 
             Item { width: 2; height: 1 }
 
-            // Theme mode cycle: auto → light → dark → auto.
-            // Icon reflects the current mode, not the resolved theme, so the
-            // user can tell whether they've pinned it.
-            Rectangle {
-                id: themeBtn
-                width: 28; height: 28; radius: Theme.radiusSm
-                anchors.verticalCenter: parent.verticalCenter
-                color: themeArea.containsMouse ? Theme.surface2 : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-
-                // Sun icon — Unicode glyph reads fine at this size.
-                Text {
-                    anchors.centerIn: parent
-                    visible: Theme.mode === "light"
-                    text: "☀"
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 16
-                    font.weight: Font.Bold
-                }
-
-                // Moon — composed from two overlapping circles so we
-                // get a real crescent shape instead of the wispy
-                // outlined Unicode glyph (☾) that's hard to read at
-                // small sizes. The "carve" rectangle uses the
-                // button's hover/idle background colour so the
-                // crescent appears subtractive against the chrome.
-                Item {
-                    visible: Theme.mode === "dark"
-                    anchors.centerIn: parent
-                    width: 14
-                    height: 14
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: width / 2
-                        color: Theme.text2
-                    }
-                    Rectangle {
-                        x: parent.width * 0.32
-                        y: -1
-                        width: parent.width
-                        height: parent.height
-                        radius: width / 2
-                        color: themeArea.containsMouse ? Theme.surface2 : Theme.surface
-                    }
-                }
-
-                // Auto-mode — half-filled circle indicating "follow
-                // system". Same composition trick as the moon but
-                // with a vertical edge so it reads as half-light /
-                // half-dark.
-                Item {
-                    visible: Theme.mode === "auto"
-                    anchors.centerIn: parent
-                    width: 14
-                    height: 14
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: width / 2
-                        color: Theme.text2
-                    }
-                    Rectangle {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: parent.width / 2
-                        color: themeArea.containsMouse ? Theme.surface2 : Theme.surface
-                    }
-                }
-
-                MouseArea {
-                    id: themeArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Theme.cycleMode()
-                    ToolTip.visible: containsMouse
-                    ToolTip.delay: 400
-                    ToolTip.text: Theme.mode === "auto"
-                        ? "Theme: follow system"
-                        : Theme.mode === "light" ? "Theme: light" : "Theme: dark"
-                }
-            }
+            // (Theme cycle button moved to Settings — Ctrl+. still cycles
+            // for keyboard users; the chrome no longer carries it now
+            // that there's a real Settings page.)
 
             // Settings — gear icon. Highlights when on the Settings
             // page so the user has a clear "you are here" without
