@@ -119,11 +119,15 @@ pub mod qobject {
         fn cancel_trust(self: Pin<&mut WorkflowController>);
 
         /// Signalled after each step completes.
-        /// `status` is one of "ok" | "skipped" | "error".
+        /// `status` is one of "ok" | "skipped" | "error". `step_id`
+        /// is the action's stable id — needed by the canvas to attach
+        /// status dots to inner steps that don't have a corresponding
+        /// flat-index card (repeat children).
         #[qsignal]
         fn step_done(
             self: Pin<&mut WorkflowController>,
             index: i32,
+            step_id: QString,
             status: QString,
             message: QString,
         );
@@ -595,7 +599,7 @@ impl qobject::WorkflowController {
                         ctrl.as_mut().set_active_step_id(QString::from(&step_id));
                     }
                     RunEvent::StepDone {
-                        index, outcome, ..
+                        index, step_id, outcome, ..
                     } => {
                         let (status, message) = match &outcome {
                             StepOutcome::Ok { output, .. } => (
@@ -607,6 +611,7 @@ impl qobject::WorkflowController {
                         };
                         ctrl.as_mut().step_done(
                             index as i32,
+                            QString::from(&step_id),
                             QString::from(status),
                             QString::from(&message),
                         );

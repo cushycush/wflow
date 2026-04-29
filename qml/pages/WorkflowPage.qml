@@ -67,6 +67,12 @@ Item {
     // Per-step outcomes from the last run — { [stepIndex]: "ok"|"skipped"|"error" }.
     // Populated by the bridge's step_done signal; cleared when a new run starts.
     property var stepStatuses: ({})
+    // Same outcomes keyed by the engine's stable step_id, used to
+    // attach status dots to canvas inner steps that don't have a
+    // top-level card (repeat children). The flat-index `stepStatuses`
+    // map is still authoritative for top-level cards because it
+    // aggregates repeat-leaf outcomes onto the container.
+    property var stepStatusesById: ({})
 
     // Pending trust-prompt body. Populated when wfCtrl emits
     // `trust_prompt_required(summary)`; trustDialog reads it.
@@ -1334,22 +1340,34 @@ Item {
         function onRunningChanged() {
             // Clear previous statuses at the start of a fresh run so stale
             // glyphs from the last run don't bleed into the new one.
-            if (wfCtrl.running) root.stepStatuses = ({})
+            if (wfCtrl.running) {
+                root.stepStatuses = ({})
+                root.stepStatusesById = ({})
+            }
         }
-        function onStep_done(index, status, message) {
+        function onStep_done(index, step_id, status, message) {
             // Translate the flat leaf index to the actions array
             // index — for conditional inner steps that's the inner
             // card; for repeat leaves it's the repeat container; for
             // plain top-level leaves it's the top card.
             const idx = root._flatToActionsIdx(index)
-            if (idx < 0) return
-            const next = Object.assign({}, root.stepStatuses)
-            // Don't downgrade an existing "error" on a repeat
-            // container — if any leaf inside errored, the container
-            // shows error regardless of what later leaves did.
-            if (next[idx] === "error" && status !== "error") return
-            next[idx] = status
-            root.stepStatuses = next
+            if (idx >= 0) {
+                const next = Object.assign({}, root.stepStatuses)
+                // Don't downgrade an existing "error" on a repeat
+                // container — if any leaf inside errored, the container
+                // shows error regardless of what later leaves did.
+                if (!(next[idx] === "error" && status !== "error")) {
+                    next[idx] = status
+                    root.stepStatuses = next
+                }
+            }
+            if (step_id && step_id.length > 0) {
+                const byId = Object.assign({}, root.stepStatusesById)
+                if (!(byId[step_id] === "error" && status !== "error")) {
+                    byId[step_id] = status
+                    root.stepStatusesById = byId
+                }
+            }
         }
         function onTrust_prompt_required(summary) {
             root.trustSummary = summary
@@ -1961,6 +1979,8 @@ Item {
                 activeStepIndex: root.activeStepIndex
                 activeParentIndex: root.activeParentIndex
                 stepStatuses: root.stepStatuses
+                stepStatusesById: root.stepStatusesById
+                activeStepId: wfCtrl.active_step_id
                 groups: (root.workflow && root.workflow.groups) || []
                 onSelectStep: (i) => {
                     editorContent._setSingleSelection(i)

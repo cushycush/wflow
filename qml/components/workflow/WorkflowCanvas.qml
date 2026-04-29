@@ -42,13 +42,22 @@ Item {
     // conditional card pulses while its inner step is running.
     property int activeParentIndex: -1
     property var stepStatuses: ({})
+    // Same statuses keyed by stable step_id, so inner steps inside a
+    // repeat container (which don't surface as top-level cards) can
+    // resolve their own dot colour.
+    property var stepStatusesById: ({})
+    // The id of the step the engine is currently running. Used by
+    // inner step rows to pulse their dot green.
+    property string activeStepId: ""
     // Visual annotation rectangles drawn behind the step cards. Each
     // entry: { id, x, y, width, height, color, comment }.
     property var groups: []
 
     // Shared marquee state for the Shift / Ctrl drag handlers. Lives
     // here so the on-screen rect can read from one source regardless
-    // of which modifier fired the drag.
+    // of which modifier fired the drag. Coordinates are stored in
+    // WORLD space (logical, pre-zoom) so they line up with each
+    // card's own x/y for hit-testing without further conversion.
     property bool _marqueeActive: false
     property real _marqueeStartX: 0
     property real _marqueeStartY: 0
@@ -59,13 +68,24 @@ Item {
     readonly property real _marqueeRight:  Math.max(_marqueeStartX, _marqueeCurrentX)
     readonly property real _marqueeBottom: Math.max(_marqueeStartY, _marqueeCurrentY)
 
+    // Map a DragHandler's centroid scene position into WORLD coords.
+    // Going via scenePosition + world.mapFromItem dodges any
+    // ambiguity about which Item the handler's centroid.position is
+    // local to (Flickable vs. its contentItem) and correctly accounts
+    // for scroll offset + zoom in one shot.
+    function _handlerToWorld(handler) {
+        const sp = handler.centroid.scenePosition
+        return world.mapFromItem(null, sp.x, sp.y)
+    }
+
     function _marqueeOnActiveChanged(handler) {
         if (handler.active) {
+            const w = _handlerToWorld(handler)
+            _marqueeStartX = w.x
+            _marqueeStartY = w.y
+            _marqueeCurrentX = w.x
+            _marqueeCurrentY = w.y
             _marqueeActive = true
-            _marqueeStartX = handler.centroid.position.x
-            _marqueeStartY = handler.centroid.position.y
-            _marqueeCurrentX = _marqueeStartX
-            _marqueeCurrentY = _marqueeStartY
         } else {
             _marqueeActive = false
             _commitMarqueeSelection(
@@ -74,8 +94,9 @@ Item {
     }
     function _marqueeOnCentroidChanged(handler) {
         if (!handler.active) return
-        _marqueeCurrentX = handler.centroid.position.x
-        _marqueeCurrentY = handler.centroid.position.y
+        const w = _handlerToWorld(handler)
+        _marqueeCurrentX = w.x
+        _marqueeCurrentY = w.y
     }
 
     // Reactive position / size stores. Each card writes into these
@@ -121,25 +142,14 @@ Item {
         return Theme.accent
     }
 
-    // Convert a flick-local rect into world coordinates by adding
-    // the scroll offset and dividing by zoom. Used by the marquee
-    // and draw-group handlers.
-    function _flickRectToWorld(fLeft, fTop, fRight, fBottom) {
-        const z = root.zoom > 0 ? root.zoom : 1
-        return {
-            x: (fLeft + flick.contentX) / z,
-            y: (fTop + flick.contentY) / z,
-            width: (fRight - fLeft) / z,
-            height: (fBottom - fTop) / z
-        }
-    }
-
     // Alt+drag committed: emit a request to add a new group at the
-    // dragged-out rect. Tiny drags are ignored as misclicks.
-    function _commitDrawGroup(fLeft, fTop, fRight, fBottom) {
-        if ((fRight - fLeft) < 24 || (fBottom - fTop) < 24) return
-        const r = _flickRectToWorld(fLeft, fTop, fRight, fBottom)
-        root.addGroupRequested(r.x, r.y, r.width, r.height)
+    // dragged-out rect. Coords are already world-local. Tiny drags
+    // are ignored as misclicks; the threshold scales inversely with
+    // zoom so a small on-screen wiggle doesn't fail at 200% zoom.
+    function _commitDrawGroup(wL, wT, wR, wB) {
+        const minSpan = 24 / Math.max(0.01, root.zoom)
+        if ((wR - wL) < minSpan || (wB - wT) < minSpan) return
+        root.addGroupRequested(wL, wT, wR - wL, wB - wT)
     }
 
     // Drop a default-sized group at the current viewport center.
@@ -155,34 +165,35 @@ Item {
     }
 
     // Walk every visible card and find which rectangles intersect
-    // the marquee rect. Marquee comes in flick-local coordinates;
-    // card rects are tracked in world coordinates by `positions` /
-    // `cardWidths` / `cardHeights`. Convert flick → world by adding
-    // the scroll offset and dividing by zoom, then run the standard
-    // axis-aligned-rect overlap check.
-    function _commitMarqueeSelection(fLeft, fTop, fRight, fBottom) {
-        if ((fRight - fLeft) < 4 || (fBottom - fTop) < 4) return
-        const z = root.zoom > 0 ? root.zoom : 1
-        const wL = (fLeft   + flick.contentX) / z
-        const wT = (fTop    + flick.contentY) / z
-        const wR = (fRight  + flick.contentX) / z
-        const wB = (fBottom + flick.contentY) / z
+    // the marquee rect. Coordinates come in WORLD space (already
+    // unprojected from the handler's centroid via _handlerToWorld);
+    // card x/y are also world-local, so this is a plain AABB overlap
+    // test with no further conversion. Empty-marquee guard uses
+    // a small minimum span to avoid stray micro-drags.
+    function _commitMarqueeSelection(wL, wT, wR, wB) {
+        const minSpan = 4 / Math.max(0.01, root.zoom)
+        if ((wR - wL) < minSpan || (wB - wT) < minSpan) return
 
-        // Read positions straight off the rendered card delegates.
-        // The `positions` map is only populated when a card has been
-        // dragged or laid out by an organize* helper — fresh cards
-        // bound to default placements aren't in it. nodeRep.itemAt(i)
-        // returns the actual Item with its current x / y / width /
-        // height in world coordinates.
+        // Prefer card rects from positions/cardWidths/cardHeights
+        // (the source of truth) and fall back to the live delegate
+        // when the maps haven't caught up. Either way, all values
+        // are world-local.
         const next = ({})
         const acts = root.actions || []
         for (let i = 0; i < acts.length; i++) {
-            const card = nodeRep.itemAt(i)
-            if (!card) continue
-            const cx = card.x
-            const cy = card.y
-            const cw = card.width
-            const ch = card.height
+            const a = acts[i]
+            if (!a) continue
+            const p = root.positions[a.id]
+            const cw = root.cardWidths[a.id] || _widthForKind(a.rawKind)
+            const ch = root.cardHeights[a.id] || nodeMinH
+            let cx, cy
+            if (p) {
+                cx = p.x; cy = p.y
+            } else {
+                const card = nodeRep.itemAt(i)
+                if (!card) continue
+                cx = card.x; cy = card.y
+            }
             if (cx + cw > wL && cx < wR && cy + ch > wT && cy < wB) {
                 next[i] = true
             }
@@ -964,9 +975,9 @@ Item {
         }
 
         // Alt+drag on empty canvas draws a NEW group rectangle.
-        // Mirrors the marquee handler but on release commits the
-        // shape as a group (decorative annotation) instead of a
-        // selection. Same flick → world coordinate dance.
+        // Mirrors the marquee handler — coordinates live in WORLD
+        // space (already scroll/zoom-corrected) so the visual rect
+        // and the commit hit-test agree without further conversion.
         DragHandler {
             id: drawGroupHandler
             target: null
@@ -982,51 +993,21 @@ Item {
 
             onActiveChanged: {
                 if (active) {
-                    startX = centroid.position.x
-                    startY = centroid.position.y
-                    currentX = startX
-                    currentY = startY
+                    const w = root._handlerToWorld(this)
+                    startX = w.x
+                    startY = w.y
+                    currentX = w.x
+                    currentY = w.y
                 } else {
                     root._commitDrawGroup(left, top, right, bottom)
                 }
             }
             onCentroidChanged: {
                 if (!active) return
-                currentX = centroid.position.x
-                currentY = centroid.position.y
+                const w = root._handlerToWorld(this)
+                currentX = w.x
+                currentY = w.y
             }
-        }
-
-        // The marquee / draw-group rectangle visualization. Sits on
-        // flick (above the world transform) so its size doesn't
-        // scale with the zoom and the user always sees a
-        // screen-pixel rectangle. Different border colour for
-        // the draw-group variant so the two gestures read distinct.
-        Rectangle {
-            id: marqueeRect
-            visible: root._marqueeActive
-            x: root._marqueeLeft
-            y: root._marqueeTop
-            width: root._marqueeRight - root._marqueeLeft
-            height: root._marqueeBottom - root._marqueeTop
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
-            border.color: Theme.accent
-            border.width: 1
-            radius: 2
-            z: 50
-        }
-        Rectangle {
-            id: drawGroupRect
-            visible: drawGroupHandler.active
-            x: drawGroupHandler.left
-            y: drawGroupHandler.top
-            width: drawGroupHandler.right - drawGroupHandler.left
-            height: drawGroupHandler.bottom - drawGroupHandler.top
-            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
-            border.color: Theme.accent
-            border.width: 1.5
-            radius: Theme.radiusMd
-            z: 50
         }
 
         // Deselect on tap of empty area. TapHandler doesn't fire if
@@ -1046,6 +1027,39 @@ Item {
             height: root.contentH
             transformOrigin: Item.TopLeft
             scale: root.zoom
+
+            // Marquee + draw-group rectangles. Drawn inside `world`
+            // because their coordinates are stored in world space —
+            // the scale transform handles zoom for us, and the rects
+            // stay glued to the underlying cards as the user pans.
+            // Border widths are scaled inversely so the on-screen
+            // stroke stays a consistent ~1px regardless of zoom.
+            Rectangle {
+                id: marqueeRect
+                visible: root._marqueeActive
+                x: root._marqueeLeft
+                y: root._marqueeTop
+                width: root._marqueeRight - root._marqueeLeft
+                height: root._marqueeBottom - root._marqueeTop
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+                border.color: Theme.accent
+                border.width: 1 / Math.max(0.01, root.zoom)
+                radius: 2 / Math.max(0.01, root.zoom)
+                z: 50
+            }
+            Rectangle {
+                id: drawGroupRect
+                visible: drawGroupHandler.active
+                x: drawGroupHandler.left
+                y: drawGroupHandler.top
+                width: drawGroupHandler.right - drawGroupHandler.left
+                height: drawGroupHandler.bottom - drawGroupHandler.top
+                color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+                border.color: Theme.accent
+                border.width: 1.5 / Math.max(0.01, root.zoom)
+                radius: Theme.radiusMd / Math.max(0.01, root.zoom)
+                z: 50
+            }
 
             // ============ Group rectangles ============
             // Decorative annotations behind the wires + cards.
@@ -1593,43 +1607,22 @@ Item {
                     // ordinary action cards keep the neutral hairline.
                     // Notes get the softest border so they recede next
                     // to operations.
-                    border.color: cardItem.isActive
-                        ? Theme.accent
-                        : (cardItem.isSelected
-                            ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
-                            : ((cardItem.isContainer || cardItem.isConditional)
-                                ? Theme.catFor(cardItem.kind)
-                                : (cardItem.isNote
-                                    ? Theme.lineSoft
-                                    : (dragArea.containsMouse ? Theme.line : Theme.lineSoft))))
-                    border.width: cardItem.isActive
-                        ? 2.5
-                        : (cardItem.isSelected
-                            ? 2
-                            : ((cardItem.isContainer || cardItem.isConditional)
-                                ? 1.5
-                                : 1))
-
-                    // Pulse a soft accent halo around the card while
-                    // it's the active running step. Only allocates a
-                    // separate sibling Rectangle when isActive is true
-                    // so non-running cards don't carry the cost.
-                    Rectangle {
-                        visible: cardItem.isActive
-                        anchors.fill: parent
-                        anchors.margins: -4
-                        radius: parent.radius + 4
-                        color: "transparent"
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
-                        border.width: 2
-                        z: -1
-                        SequentialAnimation on opacity {
-                            running: cardItem.isActive && !Theme.reduceMotion
-                            loops: Animation.Infinite
-                            NumberAnimation { from: 0.6; to: 1.0; duration: 700; easing.type: Easing.InOutSine }
-                            NumberAnimation { from: 1.0; to: 0.6; duration: 700; easing.type: Easing.InOutSine }
-                        }
-                    }
+                    // Active-running indicator is the pulsing green
+                    // status dot in the header — the card border stays
+                    // its normal selection / kind colour so a flashing
+                    // accent halo doesn't compete with selection.
+                    border.color: cardItem.isSelected
+                        ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
+                        : ((cardItem.isContainer || cardItem.isConditional)
+                            ? Theme.catFor(cardItem.kind)
+                            : (cardItem.isNote
+                                ? Theme.lineSoft
+                                : (dragArea.containsMouse ? Theme.line : Theme.lineSoft)))
+                    border.width: cardItem.isSelected
+                        ? 2
+                        : ((cardItem.isContainer || cardItem.isConditional)
+                            ? 1.5
+                            : 1)
 
                     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
@@ -1898,16 +1891,38 @@ Item {
                                 id: statusDot
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 7; height: 7; radius: 3.5
-                                color: cardItem.status === "ok"      ? Theme.ok
+                                // Active running step pulses green; on
+                                // finish the dot stays in its terminal
+                                // colour (ok / err / skipped). Note the
+                                // running pulse fights the per-status
+                                // colour Behavior — that's fine, the
+                                // pulse opacity below masks it.
+                                color: cardItem.isActive             ? Theme.ok
+                                    :  cardItem.status === "ok"      ? Theme.ok
                                     :  cardItem.status === "error"   ? Theme.err
                                     :  cardItem.status === "skipped" ? Theme.text3
                                     :  Theme.lineSoft
                                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
+                                SequentialAnimation on opacity {
+                                    running: cardItem.isActive && !Theme.reduceMotion
+                                    loops: Animation.Infinite
+                                    alwaysRunToEnd: false
+                                    NumberAnimation { from: 1.0; to: 0.35; duration: 600; easing.type: Easing.InOutSine }
+                                    NumberAnimation { from: 0.35; to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+                                }
+                                // When the pulse animation stops the
+                                // opacity Behavior settles us back to
+                                // 1.0 cleanly. Without this binding
+                                // restoration, the dot can be left at
+                                // a mid-pulse value.
+                                onIsActiveLikeChanged: if (!cardItem.isActive) opacity = 1.0
+                                readonly property bool isActiveLike: cardItem.isActive
+
                                 // Brief flash on status transitions so
                                 // ok / error / skipped lands visibly
                                 // mid-run instead of just snapping in.
-                                onColorChanged: if (cardItem.status !== "") flashAnim.restart()
+                                onColorChanged: if (!cardItem.isActive && cardItem.status !== "") flashAnim.restart()
                                 SequentialAnimation {
                                     id: flashAnim
                                     running: false
@@ -2211,9 +2226,21 @@ Item {
                             Repeater {
                                 model: innerStrip.inner
                                 delegate: Rectangle {
+                                    id: innerRow
                                     readonly property bool isInnerSelected:
                                         root.selectedIndex === cardItem.stepIdx
                                         && root.selectedInnerIndex === model.index
+                                    readonly property string innerStepId:
+                                        modelData ? (modelData.id || "") : ""
+                                    readonly property bool innerIsActive:
+                                        innerStepId.length > 0
+                                        && root.activeStepId === innerStepId
+                                    readonly property string innerStatus: {
+                                        const m = root.stepStatusesById
+                                        if (!m || !innerStepId) return ""
+                                        const v = m[innerStepId]
+                                        return v === undefined ? "" : v
+                                    }
                                     width: parent.width
                                     height: 26
                                     radius: 5
@@ -2247,12 +2274,37 @@ Item {
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width - 14 - 6 - 14 - 6 - 22 - 6
+                                            // Subtract: num(14) + spacing(6) + icon(14)
+                                            // + spacing(6) + dot(7) + spacing(6) + del(22)
+                                            // + spacing(6).
+                                            width: parent.width - 14 - 6 - 14 - 6 - 7 - 6 - 22 - 6
                                             text: _innerSummary(modelData)
                                             color: Theme.text2
                                             font.family: Theme.familyBody
                                             font.pixelSize: 10
                                             elide: Text.ElideRight
+                                        }
+                                        Rectangle {
+                                            id: innerStatusDot
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 7; height: 7; radius: 3.5
+                                            color: innerRow.innerIsActive          ? Theme.ok
+                                                : innerRow.innerStatus === "ok"    ? Theme.ok
+                                                : innerRow.innerStatus === "error" ? Theme.err
+                                                : innerRow.innerStatus === "skipped" ? Theme.text3
+                                                : Theme.lineSoft
+                                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                                            SequentialAnimation on opacity {
+                                                running: innerRow.innerIsActive && !Theme.reduceMotion
+                                                loops: Animation.Infinite
+                                                alwaysRunToEnd: false
+                                                NumberAnimation { from: 1.0; to: 0.35; duration: 600; easing.type: Easing.InOutSine }
+                                                NumberAnimation { from: 0.35; to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+                                            }
+                                            // Reset opacity when the active state ends so a
+                                            // mid-pulse stop doesn't leave the dot dim.
+                                            readonly property bool pulseActive: innerRow.innerIsActive
+                                            onPulseActiveChanged: if (!pulseActive) opacity = 1.0
                                         }
                                         Rectangle {
                                             anchors.verticalCenter: parent.verticalCenter
