@@ -1,7 +1,24 @@
 # wflow backlog
 
-Follow-ups stacked behind the current redesign + wflows.com integration
-work. Roughly ordered by what feels closest to ready.
+As of 0.4.0 (2026-04-29), the editor redesign has shipped: free-position
+canvas, branch shapes, repeat containers, multi-select + marquee, undo /
+redo, group rectangles, the step-by-step debugger, run-feedback dots, and
+imports / fragments. What's left is mostly wflows.com integration (the
+target for v1.0) and the v0.5 daemon work.
+
+# v1.0 = wflows.com integration
+
+The Explore tab is hidden in 0.4.0 (`Theme.showExplore = false`). It
+flips back on once the items in this section are done, at which point
+we cut v1.0. Everything below this header is part of that release.
+
+## Re-enable Explore
+
+Flip `Theme.showExplore` back on. Don't ship until: the catalog is real
+data (not the mock fixture), the deeplink confirm dialog exists, and
+the detail drawer renders real fields + parsed steps. Without those
+three, Explore is install-without-warning + fake metadata; with them,
+it's a real catalog.
 
 ## Deeplink import: confirm dialog
 
@@ -29,6 +46,17 @@ Two follow-ups in one sweep:
    chords, and so on, which is what users will actually want to read
    before installing.
 
+## Sign-in + favorites tab
+
+Better Auth's session machinery on wflows.com would let the desktop
+authenticate and show a "My favorites" tab populated from the user's
+account. Same path enables posting comments and (eventually)
+publishing. The gate is the auth flow itself: Better Auth is browser-
+oriented, so the desktop probably wants a one-time "sign in via
+browser, paste token back" handoff rather than embedding a webview.
+
+# Other deferred work
+
 ## OS hotkey trigger sync
 
 Workflows on wflows.com carry trigger metadata. When a user installs
@@ -38,15 +66,6 @@ now they have to wire that up by hand. Once the v0.4 daemon ships
 should write the trigger into `~/.config/wflow/triggers.kdl` and ask
 the daemon to pick it up. This depends on the daemon, so it lives
 behind that work.
-
-## Sign-in + favorites tab
-
-Better Auth's session machinery on wflows.com would let the desktop
-authenticate and show a "My favorites" tab populated from the user's
-account. Same path enables posting comments and (eventually)
-publishing. The gate is the auth flow itself: Better Auth is browser-
-oriented, so the desktop probably wants a one-time "sign in via
-browser, paste token back" handoff rather than embedding a webview.
 
 ## Run-history telemetry (paid)
 
@@ -71,47 +90,6 @@ more complexity than the audience needs at the start.
 schema. When a workflow you installed publishes a new version, the
 desktop should ping the user with a "this got an update" toast and
 let them apply or dismiss. Free feature, low cost, high stickiness.
-
-## Group rectangles on the canvas
-
-Lets the user drop a colored background rectangle behind a group of
-steps with an editable comment label, so they can visually group
-"this section is the build half" / "this section is the deploy
-half" without touching the actual step structure. Requested
-alongside multi-select and the debug stepper (both shipped); the
-group rectangles want their own focused round because they touch
-more layers than the other two combined.
-
-What it'll need:
-
-- A new `Group` shape in the workflow data model (alongside `Step`
-  and `Action`) — fields: id, x / y / width / height in canvas
-  coordinates, color, comment text. Serialised in the KDL format
-  as a separate `groups { ... }` block; the engine ignores them
-  (groups don't run, they annotate).
-- KDL encode + decode pass plus round-trip tests.
-- Bridge: extend the workflow JSON the editor consumes so the
-  canvas sees groups alongside actions.
-- Canvas rendering: a layer below the step cards that draws each
-  group as a tinted rounded rectangle with its comment label in
-  the upper-left. Resize handles on the four corners; drag-the-
-  body to move; right-click for color picker + delete.
-- UI: a "Group selection" affordance — when steps are multi-
-  selected, an action button creates a group whose rect is the
-  bounding box of those steps. Plus a "Frame" or "+ Group" entry
-  in the tool dock for drawing one freehand on empty canvas.
-
-Notes on integration:
-
-- Z-order: groups always render below step cards and wires.
-- Drag interaction: clicking inside a group selects the group, not
-  the cards beneath it. Cards above the group keep their own
-  click handlers — Qt's z-ordering handles this naturally as long
-  as the group items render with a lower z than card items.
-- Color palette: reuse the category tints (catKey through
-  catRepeat) plus a small set of muted accents. No free-form
-  color picker for v1; predefined swatches keep groups from
-  fighting the rest of the UI.
 
 ## Smaller polish
 

@@ -126,11 +126,11 @@ QtObject {
     }
 
     // ============ Feature flags ============
-    // Explore is mock data until wflows.com has a real catalog backend. The
-    // page is visually shippable now (gradient pills, mini-stack previews,
-    // avatar bylines) so we flip the tab on while iterating; the imports
-    // are wired to local-route-to-editor placeholders, not network calls.
-    readonly property bool showExplore: true
+    // Explore is hidden in 0.4.0 — the page renders but the catalog is
+    // mock data until wflows.com integration lands. We'll flip this back
+    // on as part of the wflows.com release branch (sign-in, real detail
+    // drawer data, deeplink confirm dialog all land together).
+    readonly property bool showExplore: false
     readonly property int durFast: 120
     readonly property int durBase: 160
     readonly property int durSlow: 220

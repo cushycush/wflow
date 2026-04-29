@@ -21,7 +21,11 @@ import Wflow
 //   scrim       — true/false. Default true. Dims the page so the
 //                 target reads as the focal point.
 //
-// Lifecycle: stateCtrl marks "intro_tour" as seen on Skip / Finish.
+// Lifecycle: stateCtrl marks the tour key as seen on Skip / Finish.
+// The key is bumped (intro_tour → intro_tour_v2 → ...) whenever the
+// step list grows materially so existing users get one more pass at
+// the new content instead of silently inheriting the old "seen"
+// flag. Bump it again the next time you add a step.
 Item {
     id: root
     anchors.fill: parent
@@ -71,7 +75,7 @@ Item {
 
     function _finish() {
         open = false
-        if (stateCtrl) stateCtrl.mark_tutorial_seen("intro_tour")
+        if (stateCtrl) stateCtrl.mark_tutorial_seen("intro_tour_v2")
     }
 
     function _next() {

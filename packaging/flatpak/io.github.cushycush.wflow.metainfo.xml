@@ -64,6 +64,25 @@
   </provides>
 
   <releases>
+    <release version="0.4.0" date="2026-04-29">
+      <description>
+        <p>
+          The editor grows up. The canvas is now a real node-graph workspace: free-positioning cards with sticky positions, smart wires that auto-route between consecutive steps, branch shapes for when / unless conditionals, and a containerised drop zone for repeat. Drag chips from the palette dock to add steps anywhere; alt-drag empty canvas to draw a coloured group rectangle behind cards as a visual annotation.
+        </p>
+        <p>
+          Multi-select arrives. Shift- or ctrl-click to add cards to the current selection; shift- or ctrl-drag empty canvas to lasso a region. Selected cards move together, delete together, and the Delete key is now context-aware (Delete step / Delete N steps / Delete workflow). Undo and redo are wired up too.
+        </p>
+        <p>
+          Step-by-step debugging. The new Debug button next to Run pauses the engine between every action so you can Step, Continue, or Stop. The active card pulses while it's firing; the status dot in the header settles to green / red / grey on each leaf. Inner steps inside Repeat get their own dots and pulse on every iteration so loops are easy to read.
+        </p>
+        <p>
+          Composability via imports. A `use NAME` step splices in another workflow file as a fragment; the card carries an Open → button that loads the fragment in a new editor tab so you can edit imported pieces without leaving the editor.
+        </p>
+        <p>
+          The first-run tour now covers all of the above. Returning users get one auto-replay with the new content, then it stays out of the way (Settings has a Replay button).
+        </p>
+      </description>
+    </release>
     <release version="0.3.26" date="2026-04-27">
       <description>
         <p>

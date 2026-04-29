@@ -13,7 +13,8 @@ ApplicationWindow {
     title: "wflow"
     color: Theme.bg
 
-    property string currentPage: "explore"        // "library" | "explore" | "workflow" | "record" | "settings"
+    property string currentPage: Theme.showExplore ? "explore" : "library"
+    // valid values: "library" | "explore" | "workflow" | "record" | "settings"
 
     // Open documents — one per tab in the workflow editor. Each
     // entry is `{ kind, source }`:
@@ -177,7 +178,7 @@ ApplicationWindow {
             },
             {
                 title: "The nav pill",
-                body: "Five main areas live here: Library, Explore, Editor, Record, Settings. Click a tab to switch.",
+                body: "The main areas live here — Library, the editor, Record, Settings. Click a tab to switch.",
                 getTarget: () => chrome.pillContainer,
                 placement: "below"
             },
@@ -213,7 +214,23 @@ ApplicationWindow {
             },
             {
                 title: "▶ Run plays it back",
-                body: "The Run button at the top of the editor plays the workflow step by step. Each card shows a status dot as the engine fires it (ok, skipped, or error)."
+                body: "The Run button at the top of the editor plays the workflow start to finish. Each card's status dot pulses green while it's firing, then settles to green / red / grey for ok / error / skipped."
+            },
+            {
+                title: "⏯ Debug walks you through it",
+                body: "Hit Debug instead of Run and the engine pauses between every step — Step advances one action, Continue resumes, Stop bails. Inner steps inside a Repeat each get their own dot, so you can see the loop iterate."
+            },
+            {
+                title: "Selection + grouping",
+                body: "Shift- or Ctrl-click cards to multi-select; shift- or ctrl-drag empty canvas to lasso. Alt-drag to draw a coloured group rectangle behind cards — purely visual, the engine ignores them.",
+                page: "workflow",
+                getTarget: () => chrome.workflowSlot,
+                placement: "auto",
+                scrim: false
+            },
+            {
+                title: "Reuse with imports",
+                body: "Drop a `use NAME` step to splice in another workflow file. The card gets a → button that opens the fragment in a new tab so you can edit it without leaving the editor."
             },
             {
                 title: "● Record captures input",
@@ -238,7 +255,14 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        if (introState.is_first_run && !introState.tutorial_seen("intro_tour")) {
+        // Auto-fire the tour on any launch where the current tour
+        // version hasn't been marked seen. Bumping the key (intro_tour
+        // → intro_tour_v2) replays the tour once for returning users
+        // when major editor features land. The is_first_run flag is no
+        // longer gating this — it's only ever true on the very first
+        // launch, which would otherwise pin returning users to the
+        // first version they happened to see.
+        if (!introState.tutorial_seen("intro_tour_v2")) {
             // Defer two ticks so the chrome's first page transition
             // settles before the coach overlay reads target rects —
             // anchors aren't valid on the very first frame after

@@ -597,3 +597,124 @@ async fn clipboard_copy(text: &str) -> Result<Option<String>> {
     }
     Ok(None)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::{Action, OnError, Step, Workflow};
+    use std::sync::Mutex;
+
+    fn note_step(id: &str) -> Step {
+        Step {
+            id: id.into(),
+            enabled: true,
+            note: None,
+            on_error: OnError::Stop,
+            action: Action::Note { text: "noop".into() },
+        }
+    }
+
+    fn collect_events(wf: Workflow) -> Vec<RunEvent> {
+        let collected = Arc::new(Mutex::new(Vec::<RunEvent>::new()));
+        let sink_collected = collected.clone();
+        let sink: EventSink = Arc::new(move |ev| {
+            sink_collected.lock().unwrap().push(ev);
+        });
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(run_workflow(sink, wf)).unwrap();
+        let out = collected.lock().unwrap().clone();
+        out
+    }
+
+    /// A `repeat { count = 3 }` containing one inner step should fire
+    /// StepStart + StepDone three times — same step_id each iteration,
+    /// continuous flat indices. The bridge's per-iteration pulse
+    /// animation depends on this.
+    #[test]
+    fn repeat_emits_three_starts_with_stable_step_id() {
+        let inner = note_step("inner-A");
+        let repeat = Step {
+            id: "repeat-1".into(),
+            enabled: true,
+            note: None,
+            on_error: OnError::Stop,
+            action: Action::Repeat {
+                count: 3,
+                steps: vec![inner],
+            },
+        };
+        let mut wf = Workflow::new("test repeat");
+        wf.steps = vec![repeat];
+
+        let events = collect_events(wf);
+
+        let starts: Vec<(usize, String)> = events
+            .iter()
+            .filter_map(|ev| match ev {
+                RunEvent::StepStart { index, step_id } => Some((*index, step_id.clone())),
+                _ => None,
+            })
+            .collect();
+        let dones: Vec<(usize, String)> = events
+            .iter()
+            .filter_map(|ev| match ev {
+                RunEvent::StepDone { index, step_id, .. } => {
+                    Some((*index, step_id.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            starts.len(),
+            3,
+            "repeat count=3 should emit StepStart three times, got {starts:?}"
+        );
+        assert_eq!(starts.len(), dones.len(), "Start / Done counts should match");
+        for (_, id) in &starts {
+            assert_eq!(id, "inner-A", "step_id stays stable across iterations");
+        }
+        // Indices are continuous and increasing — the bridge keys
+        // its flat-index status map off these values.
+        assert_eq!(starts[0].0, 0);
+        assert_eq!(starts[1].0, 1);
+        assert_eq!(starts[2].0, 2);
+    }
+
+    /// StepDone now carries `step_id` so the QML can attach status
+    /// dots to inner repeat steps that don't have a top-level card.
+    /// Regression guard: every StepDone has a matching StepStart with
+    /// the same id and index.
+    #[test]
+    fn step_done_carries_matching_step_id() {
+        let mut wf = Workflow::new("test ids");
+        wf.steps = vec![note_step("alpha"), note_step("beta")];
+        let events = collect_events(wf);
+
+        let mut pairs = Vec::<(String, String)>::new();
+        let mut last_start: Option<(usize, String)> = None;
+        for ev in &events {
+            match ev {
+                RunEvent::StepStart { index, step_id } => {
+                    last_start = Some((*index, step_id.clone()));
+                }
+                RunEvent::StepDone {
+                    index, step_id, ..
+                } => {
+                    let (s_idx, s_id) = last_start
+                        .take()
+                        .expect("StepDone without preceding StepStart");
+                    assert_eq!(s_idx, *index, "Done index matches Start index");
+                    pairs.push((s_id, step_id.clone()));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0], ("alpha".into(), "alpha".into()));
+        assert_eq!(pairs[1], ("beta".into(), "beta".into()));
+    }
+}
