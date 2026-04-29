@@ -41,6 +41,25 @@ Item {
         }
     }
 
+    // Listen for store-path apply / reject signals at the page root.
+    // Connections is a QObject (not an Item), so it can't live inside a
+    // SettingSection's children list; placing it here scopes the ids
+    // (pathField, pathError) correctly without violating the parent's
+    // type expectations.
+    Connections {
+        target: ctrl
+        function onStore_path_rejected(reason) {
+            pathError.text = reason
+        }
+        function onStore_path_applied() {
+            pathError.text = ""
+            // Refresh the library right away so switching tabs after a
+            // folder change immediately shows the new folder's
+            // contents, not the previous one.
+            if (libCtrl) libCtrl.refresh()
+        }
+    }
+
     // Page background mirrors LibraryPage / ExplorePage (transparent so
     // the chrome's DotGrid shows through).
     Item {
@@ -239,26 +258,6 @@ Item {
                                     pathError.text = ""
                                     ctrl.reset_store_path()
                                 }
-                            }
-                        }
-                    }
-
-                    // Connect once at the page scope so we catch the
-                    // signals regardless of which control fired the
-                    // apply.
-                    Connections {
-                        target: ctrl
-                        function onStore_path_rejected(reason) {
-                            pathError.text = reason
-                        }
-                        function onStore_path_applied() {
-                            pathError.text = ""
-                            // The folder change might affect the next
-                            // library load. Refreshing right away means
-                            // the user can switch tabs and immediately
-                            // see the new folder's contents.
-                            if (typeof libCtrl !== "undefined" && libCtrl) {
-                                libCtrl.refresh()
                             }
                         }
                     }
