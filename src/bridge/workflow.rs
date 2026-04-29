@@ -27,6 +27,7 @@ pub mod qobject {
         #[qproperty(QString, workflow_json)]
         #[qproperty(i32, active_step)]
         #[qproperty(bool, running)]
+        #[qproperty(bool, paused)]
         #[qproperty(QString, last_error)]
         type WorkflowController = super::WorkflowControllerRust;
 
@@ -86,6 +87,26 @@ pub mod qobject {
         #[qinvokable]
         fn run(self: Pin<&mut WorkflowController>);
 
+        /// Run in debug mode. Same as `run` but the engine pauses
+        /// before each step and waits for `step_next`,
+        /// `continue_run`, or `stop_run` to advance. Emits the same
+        /// trust prompt for untrusted workflows.
+        #[qinvokable]
+        fn run_debug(self: Pin<&mut WorkflowController>);
+
+        /// Advance one step in a debug session. No-op when not paused.
+        #[qinvokable]
+        fn step_next(self: Pin<&mut WorkflowController>);
+
+        /// Resume a debug session, running the rest of the workflow
+        /// without pausing.
+        #[qinvokable]
+        fn continue_run(self: Pin<&mut WorkflowController>);
+
+        /// Halt the running workflow (debug or normal).
+        #[qinvokable]
+        fn stop_run(self: Pin<&mut WorkflowController>);
+
         /// Confirm a pending untrusted-workflow run. Marks the file
         /// trusted on disk and starts the engine.
         #[qinvokable]
@@ -130,11 +151,21 @@ pub struct WorkflowControllerRust {
     pub workflow_json: QString,
     pub active_step: i32,
     pub running: bool,
+    pub paused: bool,
     pub last_error: QString,
     /// Run-attempt state held between `run()` (which surfaces the
     /// trust prompt) and `confirm_trust()` / `cancel_trust()` (which
     /// resolve it). `None` outside that window.
     pending_trust: Option<PendingTrust>,
+    /// Whether the pending run should start in debug mode. Set in
+    /// `run_debug` before the trust prompt; consumed in
+    /// `confirm_trust` (or directly when the workflow is already
+    /// trusted).
+    pending_debug: bool,
+    /// Active debug session's command channel. Sender lives here so
+    /// step_next / continue_run / stop_run can talk to the engine.
+    /// `None` outside a debug run.
+    debug_tx: Option<tokio::sync::mpsc::Sender<engine::DebugCommand>>,
 }
 
 /// What we need to resume a run after the user confirms trust.
@@ -150,8 +181,11 @@ impl Default for WorkflowControllerRust {
             workflow_json: QString::from(""),
             active_step: -1,
             running: false,
+            paused: false,
             last_error: QString::from(""),
             pending_trust: None,
+            pending_debug: false,
+            debug_tx: None,
         }
     }
 }
@@ -382,12 +416,19 @@ impl qobject::WorkflowController {
             }
         }
 
+        let debug = self.as_ref().rust().pending_debug;
         match path {
             Some(p) => match security::check_trust(&p, security::TrustMode::Gui) {
                 Ok(security::TrustDecision::Trusted) => {
-                    self.as_mut()._start_engine(wf);
+                    self.as_mut().rust_mut().pending_debug = false;
+                    if debug {
+                        self.as_mut()._start_engine_debug(wf);
+                    } else {
+                        self.as_mut()._start_engine(wf);
+                    }
                 }
                 Ok(security::TrustDecision::Untrusted { canonical_path, hash }) => {
+                    // pending_debug stays set; confirm_trust reads it.
                     let summary = build_trust_summary(&wf);
                     self.as_mut().rust_mut().pending_trust = Some(PendingTrust {
                         path: canonical_path,
@@ -398,12 +439,18 @@ impl qobject::WorkflowController {
                 }
                 Err(e) => {
                     tracing::warn!(?e, "trust check failed");
+                    self.as_mut().rust_mut().pending_debug = false;
                     self.as_mut().set_last_error(QString::from(&format!("{e:#}")));
                 }
             },
             None => {
                 // Unsaved workflow — skip trust check, run directly.
-                self.as_mut()._start_engine(wf);
+                self.as_mut().rust_mut().pending_debug = false;
+                if debug {
+                    self.as_mut()._start_engine_debug(wf);
+                } else {
+                    self.as_mut()._start_engine(wf);
+                }
             }
         }
     }
@@ -421,7 +468,50 @@ impl qobject::WorkflowController {
             // Don't block the run — we still got the user's explicit
             // ok. Worst case the next run re-prompts.
         }
-        self.as_mut()._start_engine(pt.workflow);
+        // Honour run_debug's pending_debug flag if it's set, then
+        // clear it so a follow-up plain run() doesn't accidentally
+        // start in debug mode.
+        let debug = self.as_ref().rust().pending_debug;
+        self.as_mut().rust_mut().pending_debug = false;
+        if debug {
+            self.as_mut()._start_engine_debug(pt.workflow);
+        } else {
+            self.as_mut()._start_engine(pt.workflow);
+        }
+    }
+
+    fn run_debug(mut self: Pin<&mut Self>) {
+        // Reuse the same trust + workflow-prep flow as run(). The
+        // pending_debug flag is consumed in confirm_trust /
+        // _route_run, so the engine spawn picks the right entry
+        // point.
+        use cxx_qt::CxxQtType;
+        self.as_mut().rust_mut().pending_debug = true;
+        self.as_mut().run();
+    }
+
+    fn step_next(self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        if let Some(tx) = self.as_ref().rust().debug_tx.clone() {
+            // Best-effort. try_send so we don't block the Qt thread
+            // if the channel is full (it's never full at depth 4 in
+            // practice, but defensively).
+            let _ = tx.try_send(engine::DebugCommand::Step);
+        }
+    }
+
+    fn continue_run(self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        if let Some(tx) = self.as_ref().rust().debug_tx.clone() {
+            let _ = tx.try_send(engine::DebugCommand::Continue);
+        }
+    }
+
+    fn stop_run(self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        if let Some(tx) = self.as_ref().rust().debug_tx.clone() {
+            let _ = tx.try_send(engine::DebugCommand::Stop);
+        }
     }
 
     fn cancel_trust(mut self: Pin<&mut Self>) {
@@ -437,18 +527,67 @@ impl qobject::WorkflowController {
     /// user confirms via the trust dialog).
     fn _start_engine(mut self: Pin<&mut Self>, wf: Workflow) {
         self.as_mut().set_running(true);
+        self.as_mut().set_paused(false);
         self.as_mut().set_active_step(-1);
         self.as_mut().set_last_error(QString::from(""));
 
-        // Post updates back to the Qt thread from the async task.
-        let qt_thread = self.qt_thread();
+        let sink = self.as_mut()._build_sink();
 
-        let sink: engine::EventSink = Arc::new(move |ev: RunEvent| {
+        let wf_id = wf.id.clone();
+        tokio::spawn(async move {
+            if let Err(e) = engine::run_workflow(sink, wf).await {
+                tracing::warn!(?e, "run_workflow failed");
+            }
+            // `touch_last_run` on a best-effort basis — the Finished event
+            // has already fired from inside run_workflow.
+            store::touch_last_run(&wf_id);
+        });
+    }
+
+    /// Debug variant of _start_engine. Same setup but creates a
+    /// command channel, stashes the sender for step_next /
+    /// continue_run / stop_run to use, and runs the workflow under
+    /// PauseControl::on so the engine pauses before each step.
+    fn _start_engine_debug(mut self: Pin<&mut Self>, wf: Workflow) {
+        use cxx_qt::CxxQtType;
+        self.as_mut().set_running(true);
+        self.as_mut().set_paused(false);
+        self.as_mut().set_active_step(-1);
+        self.as_mut().set_last_error(QString::from(""));
+
+        // Bounded channel — a few buffered commands is plenty; the
+        // engine consumes each one before requesting the next, so
+        // depth 4 is generous.
+        let (tx, rx) = tokio::sync::mpsc::channel::<engine::DebugCommand>(4);
+        self.as_mut().rust_mut().debug_tx = Some(tx);
+
+        let sink = self.as_mut()._build_sink();
+
+        let wf_id = wf.id.clone();
+        let pause = engine::PauseControl::on(rx);
+        tokio::spawn(async move {
+            if let Err(e) = engine::run_workflow_with(sink, wf, pause).await {
+                tracing::warn!(?e, "run_workflow_with failed");
+            }
+            store::touch_last_run(&wf_id);
+        });
+    }
+
+    /// Build the shared event-sink closure used by both run modes.
+    /// Each event posts back to the Qt thread and updates the
+    /// matching qproperty / signal. Pulled out so the two engine
+    /// entry points stay short and identical apart from the
+    /// PauseControl + debug_tx handling.
+    fn _build_sink(mut self: Pin<&mut Self>) -> engine::EventSink {
+        let qt_thread = self.qt_thread();
+        Arc::new(move |ev: RunEvent| {
             let thread = qt_thread.clone();
             let _ = thread.queue(move |mut ctrl: Pin<&mut qobject::WorkflowController>| {
+                use cxx_qt::CxxQtType;
                 match ev {
                     RunEvent::Started { .. } => {}
                     RunEvent::StepStart { index, .. } => {
+                        ctrl.as_mut().set_paused(false);
                         ctrl.as_mut().set_active_step(index as i32);
                     }
                     RunEvent::StepDone {
@@ -471,24 +610,20 @@ impl qobject::WorkflowController {
                             ctrl.as_mut().set_last_error(QString::from(&message));
                         }
                     }
+                    RunEvent::Paused { index } => {
+                        ctrl.as_mut().set_paused(true);
+                        ctrl.as_mut().set_active_step(index as i32);
+                    }
                     RunEvent::Finished { ok, .. } => {
                         ctrl.as_mut().set_running(false);
+                        ctrl.as_mut().set_paused(false);
                         ctrl.as_mut().set_active_step(-1);
+                        ctrl.as_mut().rust_mut().debug_tx = None;
                         ctrl.as_mut().run_finished(ok);
                     }
                 }
             });
-        });
-
-        let wf_id = wf.id.clone();
-        tokio::spawn(async move {
-            if let Err(e) = engine::run_workflow(sink, wf).await {
-                tracing::warn!(?e, "run_workflow failed");
-            }
-            // `touch_last_run` on a best-effort basis — the Finished event
-            // has already fired from inside run_workflow.
-            store::touch_last_run(&wf_id);
-        });
+        })
     }
 }
 

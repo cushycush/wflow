@@ -623,6 +623,13 @@ pub enum RunEvent {
         index: usize,
         outcome: StepOutcome,
     },
+    /// Emitted while the engine is awaiting a debug command between
+    /// steps. `index` is the step that's about to run, not the one
+    /// just completed; the UI uses this to pulse the upcoming card
+    /// and flip the run/step buttons into their paused state.
+    Paused {
+        index: usize,
+    },
     Finished {
         run_id: String,
         ok: bool,

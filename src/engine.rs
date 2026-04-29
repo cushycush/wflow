@@ -19,8 +19,76 @@ use crate::wdo::LazyBackend;
 /// signal path owns the threading concerns; the engine stays pure Rust.
 pub type EventSink = Arc<dyn Fn(RunEvent) + Send + Sync>;
 
+/// Commands the bridge can send to a running debug session. The engine
+/// awaits the next one between steps when running under
+/// [`PauseControl::on`].
+#[derive(Debug, Clone, Copy)]
+pub enum DebugCommand {
+    /// Run the next single step, then pause again.
+    Step,
+    /// Run remaining steps without pausing.
+    Continue,
+    /// Halt the workflow immediately.
+    Stop,
+}
+
+/// Threaded through every recursive `run_steps` call so the engine can
+/// gate each step on a caller-supplied debug command channel without
+/// the rest of the dispatch logic having to know about debug mode.
+pub struct PauseControl {
+    state: PauseState,
+}
+
+enum PauseState {
+    /// Never pause; just run.
+    Off,
+    /// Pause before each step and wait for the next [`DebugCommand`].
+    On(tokio::sync::mpsc::Receiver<DebugCommand>),
+}
+
+impl PauseControl {
+    pub fn off() -> Self {
+        Self { state: PauseState::Off }
+    }
+    pub fn on(rx: tokio::sync::mpsc::Receiver<DebugCommand>) -> Self {
+        Self { state: PauseState::On(rx) }
+    }
+
+    /// Awaits before each step. Returns true to proceed, false to
+    /// halt the workflow. If the user picks Continue we flip to Off
+    /// so subsequent steps run without pausing.
+    async fn gate(&mut self, sink: &EventSink, idx: usize) -> bool {
+        match &mut self.state {
+            PauseState::Off => true,
+            PauseState::On(rx) => {
+                sink(RunEvent::Paused { index: idx });
+                match rx.recv().await {
+                    Some(DebugCommand::Step) => true,
+                    Some(DebugCommand::Continue) => {
+                        self.state = PauseState::Off;
+                        true
+                    }
+                    Some(DebugCommand::Stop) | None => false,
+                }
+            }
+        }
+    }
+}
+
 /// Run a workflow to completion (or first halting error).
 pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
+    run_workflow_with(sink, wf, PauseControl::off()).await
+}
+
+/// Run a workflow under explicit pause control. Identical to
+/// [`run_workflow`] when `pause` is `PauseControl::off`; with
+/// `PauseControl::on` the engine pauses before each step and emits
+/// [`RunEvent::Paused`] until the bridge sends a [`DebugCommand`].
+pub async fn run_workflow_with(
+    sink: EventSink,
+    wf: Workflow,
+    mut pause: PauseControl,
+) -> Result<()> {
     let run_id = Uuid::new_v4().to_string();
 
     sink(RunEvent::Started {
@@ -44,6 +112,7 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
         &mut index,
         &mut any_failed,
         &backend,
+        &mut pause,
     )
     .await?;
 
@@ -68,6 +137,7 @@ fn run_steps<'a>(
     index: &'a mut usize,
     any_failed: &'a mut bool,
     backend: &'a LazyBackend,
+    pause: &'a mut PauseControl,
 ) -> BoxFuture<'a, Result<Flow>> {
     Box::pin(async move {
         for step in steps {
@@ -76,7 +146,7 @@ fn run_steps<'a>(
             match &step.action {
                 Action::Repeat { count, steps: inner } if step.enabled => {
                     for _ in 0..*count {
-                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend, pause).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
@@ -87,7 +157,7 @@ fn run_steps<'a>(
                         .await
                         .unwrap_or(false);
                     if cond_holds ^ *negate {
-                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend, pause).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
@@ -98,6 +168,12 @@ fn run_steps<'a>(
 
             // Leaf step: emit StepStart, dispatch, emit StepDone.
             let idx = *index;
+            // Debug pause point. In normal runs PauseControl::Off
+            // returns true immediately; in debug runs we await the
+            // next command. Stop / channel-closed both halt the run.
+            if !pause.gate(sink, idx).await {
+                return Ok(Flow::Halt);
+            }
             *index += 1;
             sink(RunEvent::StepStart {
                 step_id: step.id.clone(),

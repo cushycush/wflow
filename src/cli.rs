@@ -1213,6 +1213,10 @@ fn print_event(
                 }
             }
         }
+        RunEvent::Paused { .. } => {
+            // The CLI never runs in debug mode; this branch is just
+            // here to keep the match exhaustive.
+        }
         RunEvent::Finished { ok, .. } => {
             let n = ran.load(std::sync::atomic::Ordering::SeqCst);
             if ok {

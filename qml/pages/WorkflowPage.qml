@@ -1175,14 +1175,63 @@ Item {
             // snippets meant to be spliced into a parent workflow.
             // Hide Run in fragment view so the user opens the parent
             // workflow to run.
+            // Run / debug control. When idle: Run + Debug. When in
+            // a debug session: Step / Continue / Stop. When in a
+            // normal run: Stop only.
             PrimaryButton {
                 id: runBtn
-                visible: !root.fragmentMode
-                text: root.running ? "⏸ Running…" : "▶ Run"
+                visible: !root.fragmentMode && !root.running
+                text: "▶ Run"
                 leftPadding: 18
                 rightPadding: 18
-                enabled: (root.actions || []).length > 0 && !root.running
+                enabled: (root.actions || []).length > 0
                 onClicked: wfCtrl.run()
+            }
+            SecondaryButton {
+                id: debugBtn
+                visible: !root.fragmentMode && !root.running
+                text: "⏯ Debug"
+                leftPadding: 14
+                rightPadding: 14
+                enabled: (root.actions || []).length > 0
+                onClicked: wfCtrl.run_debug()
+            }
+            // Paused-mode trio. wfCtrl.paused is true while the
+            // engine is awaiting a debug command between steps.
+            SecondaryButton {
+                visible: !root.fragmentMode && root.running && wfCtrl.paused
+                text: "↪ Step"
+                leftPadding: 14
+                rightPadding: 14
+                onClicked: wfCtrl.step_next()
+            }
+            SecondaryButton {
+                visible: !root.fragmentMode && root.running && wfCtrl.paused
+                text: "▶ Continue"
+                leftPadding: 14
+                rightPadding: 14
+                onClicked: wfCtrl.continue_run()
+            }
+            // Stop is visible during any active run (debug or normal)
+            // so the user can always bail.
+            SecondaryButton {
+                visible: !root.fragmentMode && root.running
+                text: "■ Stop"
+                leftPadding: 14
+                rightPadding: 14
+                onClicked: wfCtrl.stop_run()
+            }
+            // Idle "Running…" indicator for normal (non-debug) runs.
+            // Debug runs surface state through Step / Continue / Stop
+            // so they don't need this label.
+            Text {
+                visible: !root.fragmentMode && root.running && !wfCtrl.paused
+                text: "⏸ Running…"
+                color: Theme.text2
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+                font.weight: Font.Medium
+                anchors.verticalCenter: parent.verticalCenter
             }
             // Fragment-mode badge — sits in place of the workflow-only
             // action buttons (Run / Imports / Share / Delete) so the
