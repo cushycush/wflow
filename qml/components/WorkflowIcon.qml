@@ -42,11 +42,12 @@ Rectangle {
     // computed from `size` so the icon scales cleanly.
     Item {
         anchors.fill: parent
-        // Tuned so the trio's total span sits inside the same visual
-        // envelope as the folder tile's outlined ▢ glyph at the same
-        // outer 32 px size: cell ≈ 4 px and gap ≈ 1 px, giving a
-        // 14 px span that reads at parity with the folder.
-        readonly property int cell: Math.max(3, Math.round(root.size * 0.13))
+        // Outlined cells read visually lighter than solid fills, so
+        // the cell ratio is bumped slightly (0.13 → 0.16) to keep the
+        // glyph at the same perceived mass. 1 px stroke width keeps
+        // the squares legible at every size CategoryIcon ships at,
+        // including the 20 px chip-row variant.
+        readonly property int cell: Math.max(4, Math.round(root.size * 0.16))
         readonly property int gap:  Math.max(1, Math.round(root.size * 0.04))
         readonly property int span: 3 * cell + 2 * gap
         readonly property real startX: (root.size - span) / 2
@@ -58,7 +59,9 @@ Rectangle {
             width: parent.cell
             height: parent.cell
             radius: Math.max(1, Math.round(width * 0.2))
-            color: root._c
+            color: "transparent"
+            border.color: root._c
+            border.width: 1
         }
         Rectangle {
             x: parent.startX + parent.cell + parent.gap
@@ -66,7 +69,9 @@ Rectangle {
             width: parent.cell
             height: parent.cell
             radius: Math.max(1, Math.round(width * 0.2))
-            color: root._c
+            color: "transparent"
+            border.color: root._c
+            border.width: 1
         }
         Rectangle {
             x: parent.startX + 2 * (parent.cell + parent.gap)
@@ -74,7 +79,9 @@ Rectangle {
             width: parent.cell
             height: parent.cell
             radius: Math.max(1, Math.round(width * 0.2))
-            color: root._c
+            color: "transparent"
+            border.color: root._c
+            border.width: 1
         }
     }
 }

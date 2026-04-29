@@ -85,16 +85,18 @@ Item {
                     anchors.rightMargin: 20
                     spacing: 14
 
+                    // Same neutral palette as the grid view's folder
+                    // tile — see LibraryGrid for the rationale.
                     Rectangle {
                         width: 28; height: 28; radius: Theme.radiusSm
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                        color: Theme.wash(Theme.text2, 0.18)
+                        border.color: Theme.wash(Theme.text2, 0.45)
                         border.width: 1
                         Text {
                             anchors.centerIn: parent
                             text: "▢"
-                            color: Theme.accent
+                            color: Theme.text2
                             font.family: Theme.familyBody
                             font.pixelSize: 14
                             font.weight: Font.DemiBold

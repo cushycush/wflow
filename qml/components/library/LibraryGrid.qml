@@ -112,16 +112,21 @@ Item {
                     spacing: 10
                     width: parent.width
 
+                    // Folders use a quieter neutral palette so the
+                    // workflow icons (amber) hold the brand color.
+                    // Folders are organizational containers — they
+                    // recede; the workflows inside them are the
+                    // content the user came for.
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
-                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                        color: Theme.wash(Theme.text2, 0.18)
+                        border.color: Theme.wash(Theme.text2, 0.45)
                         border.width: 1
                         Text {
                             anchors.centerIn: parent
                             text: "▢"
-                            color: Theme.accent
+                            color: Theme.text2
                             font.family: Theme.familyBody
                             font.pixelSize: 16
                             font.weight: Font.DemiBold
