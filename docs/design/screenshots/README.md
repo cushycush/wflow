@@ -37,43 +37,50 @@ the app's dark theme (the default).
 
 ## How to capture
 
-Use `scripts/grab.sh`, which handles two annoyances at once: it
-resolves output paths under `docs/design/screenshots/` regardless
-of where you run it from, and it picks the right window-capture tool
-for whichever compositor is up (Hyprland, Sway, GNOME, KDE Plasma).
+Use `scripts/grab.sh`. The default doesn't care about focus: it
+queries the compositor for wflow's window by class, raises it, and
+captures its geometry directly. The terminal you launched the script
+from stays out of frame.
 
 ```fish
 # In one terminal: build + launch the app
 ./scripts/capture-screenshots.sh
 
-# In another terminal: capture the focused window
+# In another terminal: capture the wflow window
 ./scripts/grab.sh library-grid.dark
 # → docs/design/screenshots/library-grid.dark.png
 
-# Then in the app:
-#   - press Ctrl+. to flip to light theme
+# In the app:
+#   - press Ctrl+. to flip themes
 #   - ./scripts/grab.sh library-grid.light
 #   - navigate to the next surface (Editor, Record, Explore, Settings)
 #   - repeat
 ```
 
-If a modal / overlay isn't the topmost focused window (e.g. you want
-to capture the Explore detail drawer mid-animation, or a context
-menu), pass `-r` to fall back to a slurp region select:
+For modal / overlay states, `-r` falls back to slurp region select:
 
 ```fish
 ./scripts/grab.sh explore-detail.dark -r
 ```
 
-Under the hood:
-- **Hyprland**: `hyprctl -j activewindow` → geometry → `grim -g`.
-- **Sway / wayfire**: `swaymsg -t get_tree` → focused node geometry
-  → `grim -g`.
-- **GNOME**: native `gnome-screenshot --window --file=…`.
-- **KDE Plasma 6**: `spectacle --activewindow --background --nonotify`.
+For compositors that don't expose window-by-class lookup (vanilla
+GNOME, KDE Plasma without wlroots IPC), pass `-d N`. The script
+counts down for N seconds while you click on wflow, then captures
+whichever window is focused via the desktop's native tool:
 
-If none of those exist, `grab.sh` tells you to install one — or to
-pass `-r` for a manual region select via slurp.
+```fish
+./scripts/grab.sh settings.light -d 3
+```
+
+Under the hood:
+- **Hyprland**: `hyprctl -j clients` filter by class → focus + grim.
+- **Sway / wayfire**: `swaymsg -t get_tree` filter by app_id → focus
+  + grim.
+- **`-d` fallback**: `gnome-screenshot --window`, `spectacle
+  --activewindow`, or grim's active-window geometry, in that order.
+- **`-r`**: `slurp | grim -g`.
+
+If none of those exist, `grab.sh` tells you which to install.
 
 Window decorations are fine to include or crop — Claude Design only
 needs the app surface itself, but a little chrome doesn't hurt.
