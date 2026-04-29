@@ -632,6 +632,133 @@ Item {
         Qt.callLater(_zoomToFit)
     }
 
+    // Smart tidy. Picks the column count whose bounding box best
+    // matches the viewport aspect ratio, so _zoomToFit ends at the
+    // highest zoom (capped at 1.0). The Vertical / Horizontal /
+    // Grid layouts each have a fixed shape — fine for some cases,
+    // but they zoom the canvas way out when there are many steps
+    // because the layout is tall+narrow or short+wide. Smart Tidy
+    // sweeps 1..N columns, simulates each, and picks the layout
+    // that leaves cards readable at the closest-to-1.0 zoom.
+    //
+    // Layout shape per top card:
+    //   - plain leaf:    1 column slot
+    //   - conditional:   top + branch column to the right (yes-path
+    //                    inner steps), with rejoin handled by wires
+    //   - repeat:        container card keeps its inline inner strip
+    //
+    // Cards in the same column flow top-to-bottom; columns flow
+    // left-to-right. Conditional branches stay adjacent to their
+    // parent regardless of where the column wraps.
+    function organizeSmart() {
+        const list = root.actions || []
+        const tops = list.filter(it => it && it._displayKind === "top")
+        if (tops.length === 0) return
+        if (flick.width <= 0 || flick.height <= 0) return
+
+        // Per-top "cell" footprint. Conditionals carry a branchW /
+        // branchH because their inner steps surface as siblings; the
+        // smart layout reserves space for them inside the column.
+        const cells = tops.map(t => {
+            const w = cardWidths[t.id] || _widthForKind(t.rawKind)
+            const h = cardHeights[t.id] || nodeMinH
+            if (t.rawKind !== "conditional") {
+                return { top: t, w, h, branchW: 0, branchH: 0, inner: [] }
+            }
+            const inner = _innerOf(list, t._topIdx)
+                .filter(ic => ic.rawKind !== "note")
+            let branchW = 0
+            let branchH = 0
+            for (let k = 0; k < inner.length; k++) {
+                const iw = cardWidths[inner[k].id] || _widthForKind(inner[k].rawKind)
+                const ih = cardHeights[inner[k].id] || nodeMinH
+                if (iw > branchW) branchW = iw
+                branchH += ih
+                if (k < inner.length - 1) branchH += gap
+            }
+            return { top: t, w, h, branchW, branchH, inner }
+        })
+
+        const padding = 60
+
+        // Distribute cells across `cols` columns (column-major) and
+        // return per-column dimensions so we can size the bounding
+        // box without doing a full layout.
+        function simulate(cols) {
+            const perCol = Math.ceil(cells.length / cols)
+            const colW = new Array(cols).fill(0)
+            const colH = new Array(cols).fill(0)
+            for (let c = 0; c < cols; c++) {
+                const start = c * perCol
+                const end = Math.min(start + perCol, cells.length)
+                for (let i = start; i < end; i++) {
+                    const cell = cells[i]
+                    const totalW = cell.branchW > 0
+                        ? cell.w + gap * 2 + cell.branchW
+                        : cell.w
+                    if (totalW > colW[c]) colW[c] = totalW
+                    const cellH = Math.max(cell.h, cell.branchH)
+                    colH[c] += cellH
+                    if (i < end - 1) colH[c] += gap
+                }
+            }
+            const totalW = colW.reduce((a, b) => a + b, 0)
+                + Math.max(0, cols - 1) * gap * 2
+            const maxH = Math.max(...colH, 0)
+            return { perCol, colW, colH, totalW, maxH }
+        }
+
+        // Pick the column count that yields the highest fit zoom,
+        // capped at 1.0. Tie-break toward fewer columns so simple
+        // workflows stay close to the familiar vertical shape.
+        const maxCols = Math.min(cells.length, 6)
+        let best = null
+        for (let cols = 1; cols <= maxCols; cols++) {
+            const sim = simulate(cols)
+            const fitW = sim.totalW + padding * 2
+            const fitH = sim.maxH + padding * 2
+            const z = Math.min(
+                Math.min(flick.width / fitW, flick.height / fitH),
+                1.0)
+            if (!best || z > best.z + 0.005) {
+                best = { cols, z, sim }
+            }
+        }
+        if (!best) return
+
+        // Apply the layout. xCursor / yCursor walk top-down then
+        // wrap to the next column. Conditional branches sit at
+        // (top.x + top.w + gap*2, top.y + top.h/2) — same anchor
+        // organizeVertical uses, so the wires hit the parent's
+        // midpoint and rejoin to the next-top's midpoint.
+        const sim = best.sim
+        const next = {}
+        let xCursor = paddingLeft
+        for (let c = 0; c < best.cols; c++) {
+            let yCursor = paddingTop
+            const start = c * sim.perCol
+            const end = Math.min(start + sim.perCol, cells.length)
+            for (let i = start; i < end; i++) {
+                const cell = cells[i]
+                next[cell.top.id] = { x: xCursor, y: yCursor }
+                if (cell.inner.length > 0) {
+                    const branchX = xCursor + cell.w + gap * 2
+                    let branchY = yCursor + cell.h / 2
+                    for (let k = 0; k < cell.inner.length; k++) {
+                        const ic = cell.inner[k]
+                        const ih = cardHeights[ic.id] || nodeMinH
+                        next[ic.id] = { x: branchX, y: branchY }
+                        branchY += ih + gap
+                    }
+                }
+                yCursor += Math.max(cell.h, cell.branchH) + gap
+            }
+            xCursor += sim.colW[c] + gap * 2
+        }
+        positions = next
+        Qt.callLater(_zoomToFit)
+    }
+
     // Set zoom and contentX/Y so every card sits inside the viewport
     // with comfortable padding. Hits the zoom caps when the layout
     // is bigger / smaller than fits cleanly. Animated for the same
@@ -2889,7 +3016,21 @@ Item {
 
             Loader { sourceComponent: toolDivComp }
 
-            // ---- Tidy
+            // ---- Tidy. Smart-tidy first because it's the right
+            // default for most workflows: it picks a layout shape
+            // that keeps cards readable at the highest zoom that
+            // still fits the viewport, instead of always packing
+            // tall (vertical) or wide (horizontal). The other three
+            // stay for users who want a specific shape.
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "✦"
+                    item.tip = "Smart tidy — picks the layout that keeps cards readable"
+                    item.label = "Tidy smart"
+                    item.onActivate = () => organizeSmart()
+                }
+            }
             Loader {
                 sourceComponent: toolBtnComp
                 onLoaded: {

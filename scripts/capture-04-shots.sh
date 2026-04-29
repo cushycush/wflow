@@ -3,17 +3,16 @@
 #
 # Run this from the repo root with the screen unlocked. It builds the
 # debug binary if needed, launches it, and walks you through each
-# capture. Each step prints what to do (e.g. "open Morning standup,
-# multi-select three cards") and then counts down before grim fires.
-# Press Ctrl+C at any time to bail; partial captures stay in
-# docs/design/screenshots/.
+# capture. The editor shots use the bundled "Morning sync" template
+# laid out via Smart Tidy — readable cards at high zoom instead of
+# the everything-zoomed-out result of vertical / horizontal tidy.
 #
 # Output (all under docs/design/screenshots/):
-#   library.04.dark.png        — library, four-tab nav pill
-#   editor-canvas.04.dark.png  — populated editor with wires + branch
+#   library.04.dark.png        — library, eight cards, four-tab nav
+#   editor-canvas.04.dark.png  — Morning sync, smart-tidied
 #   editor-multiselect.04.dark — three cards lasso'd
 #   editor-debug.04.dark       — paused mid-run, active card pulsing
-#   editor-groups.04.dark      — group rectangle behind a few cards
+#   editor-groups.04.dark      — group rectangles behind the cards
 #
 # After the run, copy the ones you want into assets/screenshots/ and
 # update README.md to reference them.
@@ -66,19 +65,19 @@ shoot() {
 }
 
 shoot "library.04.dark" \
-    "Make sure you're on the Library page (Ctrl+1). Cards visible, no menus open."
+    "Library page (Ctrl+1). All eight templates visible, no menus open."
 
 shoot "editor-canvas.04.dark" \
-    "Open Morning standup (or any workflow with a conditional). Let the canvas auto-fit. Don't select anything."
+    "Open Morning sync. Hover the canvas tool dock (right side) and click ✦ Smart tidy. The whole flow should fit at a readable zoom."
 
 shoot "editor-multiselect.04.dark" \
-    "Shift- or ctrl-drag a marquee around 2–4 cards so they're highlighted in cyan."
+    "Still on Morning sync. Shift- or ctrl-drag a marquee around 3–4 cards so they highlight cyan."
 
 shoot "editor-debug.04.dark" \
-    "Click ⏯ Debug, then watch one step start to fire. Capture while one card is pulsing."
+    "Click ⏯ Debug. As soon as one card pulses green (StepStart), the timer fires."
 
 shoot "editor-groups.04.dark" \
-    "Alt-drag empty canvas to draw a group rectangle behind a few cards. Right-click → pick a tint. Double-click → type a comment."
+    "Click ▢ Add group in the tool dock or alt-drag a region over a few cards. Right-click → pick a tint. Double-click → type a label."
 
 echo
 echo "All saved to docs/design/screenshots/. Copy into assets/screenshots/"
