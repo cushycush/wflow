@@ -42,8 +42,12 @@ Rectangle {
     // computed from `size` so the icon scales cleanly.
     Item {
         anchors.fill: parent
-        readonly property int cell: Math.max(3, Math.round(root.size * 0.18))
-        readonly property int gap:  Math.max(1, Math.round(root.size * 0.05))
+        // Tuned so the trio's total span sits inside the same visual
+        // envelope as the folder tile's outlined ▢ glyph at the same
+        // outer 32 px size: cell ≈ 4 px and gap ≈ 1 px, giving a
+        // 14 px span that reads at parity with the folder.
+        readonly property int cell: Math.max(3, Math.round(root.size * 0.13))
+        readonly property int gap:  Math.max(1, Math.round(root.size * 0.04))
         readonly property int span: 3 * cell + 2 * gap
         readonly property real startX: (root.size - span) / 2
         readonly property real startY: startX
