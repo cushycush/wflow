@@ -3,11 +3,13 @@
 #
 # Usage:
 #   scripts/grab.sh <name>          # find wflow's window, capture it
+#   scripts/grab.sh <name> -w N     # wait N seconds before capturing
 #   scripts/grab.sh <name> -d N     # delay N seconds, capture focused
 #   scripts/grab.sh <name> -r       # slurp region select
 #
 # Examples:
 #   scripts/grab.sh library.dark
+#   scripts/grab.sh editor-palette.dark -w 3
 #   scripts/grab.sh editor-canvas.dark
 #   scripts/grab.sh explore-detail.dark -r
 #
@@ -15,6 +17,9 @@
 # Sway for wflow's window, raises it (in case another window is on
 # top), and grim captures that geometry directly. The terminal you
 # launched the script from stays out of frame.
+#
+# Use -w N to add a pre-capture wait so you can position the cursor
+# (hover the step palette, open a menu, etc.) before grim fires.
 #
 # If the compositor doesn't expose a way to find a window by class
 # (e.g. plain GNOME / KDE without wlroots IPC), pass -d N: the script
@@ -29,8 +34,9 @@ DEST_DIR="$ROOT/docs/design/screenshots"
 NAME="${1:-}"
 shift || true
 
-DELAY=0
+DELAY=3000
 MODE="auto"
+WAIT=0
 
 while (( $# )); do
     case "$1" in
@@ -40,6 +46,10 @@ while (( $# )); do
         -d|--delay)
             DELAY="${2:-0}"
             MODE="delay"
+            shift
+            ;;
+        -w|--wait)
+            WAIT="${2:-0}"
             shift
             ;;
         *)
@@ -61,6 +71,10 @@ Default (no flag): finds wflow's window via the compositor (Hyprland
 or Sway), raises it, and captures its geometry directly. Works while
 the terminal stays focused.
 
+  -w N   Wait N seconds BEFORE capturing. Lets you position the
+         cursor inside wflow (hover the step palette, open a menu,
+         etc.) so the captured frame includes the hover state.
+
   -d N   Delay N seconds, then capture whichever window is focused.
          Useful on GNOME / KDE where window-by-class lookup isn't
          exposed cleanly. Click on wflow within N seconds.
@@ -71,6 +85,7 @@ the terminal stays focused.
 Examples:
     $(basename "$0") library.dark
     $(basename "$0") editor-canvas.dark
+    $(basename "$0") editor-palette.dark -w 3
     $(basename "$0") settings.light -d 3
     $(basename "$0") explore-detail.dark -r
 
@@ -82,6 +97,19 @@ fi
 
 mkdir -p "$DEST_DIR"
 OUT="$DEST_DIR/${NAME}.png"
+
+# Pre-capture wait. Runs before any capture path so it composes with
+# auto / region / delay equally well. Exists for the "I want a hover
+# state in the frame" case: hit Enter on the script, then move the
+# cursor inside wflow before the timer expires.
+if (( WAIT > 0 )); then
+    echo "Position the cursor inside wflow. Capturing in $WAIT seconds..."
+    for ((i=WAIT; i>0; i--)); do
+        printf "  %d...\r" "$i"
+        sleep 1
+    done
+    echo
+fi
 
 # Region select: bypass all the find-wflow logic.
 if [[ "$MODE" == "region" ]]; then
