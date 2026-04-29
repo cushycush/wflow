@@ -254,6 +254,14 @@ Item {
         const steps = root._currentSteps
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i]
+            // Notes (step.action.kind === "note") used to render as
+            // soft annotation cards on the canvas. Group rectangles
+            // do that job better now, so notes are filtered out of
+            // the visual model entirely. The data round-trips
+            // through KDL unchanged — old workflows with notes load
+            // and re-save without losing them — but the canvas, the
+            // rail, the engine pause, and indices skip past them.
+            if (step.action && step.action.kind === "note") continue
             const shaped = root._stepToAction(step)
             shaped._displayKind = "top"
             shaped._topIdx = i
@@ -266,6 +274,8 @@ Item {
             if (step.action && step.action.kind === "conditional") {
                 const inner = step.action.steps || []
                 for (let j = 0; j < inner.length; j++) {
+                    if (inner[j] && inner[j].action
+                        && inner[j].action.kind === "note") continue
                     const innerShaped = root._stepToAction(inner[j])
                     innerShaped._displayKind = "inner"
                     innerShaped._topIdx = -1
@@ -639,6 +649,15 @@ Item {
         const g = wf.groups.find(g => g.id === id)
         if (!g) return
         g.comment = comment
+        root.workflow = wf
+        _scheduleSave()
+    }
+    function _editGroupColor(id, color) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) return
+        const g = wf.groups.find(g => g.id === id)
+        if (!g) return
+        g.color = color
         root.workflow = wf
         _scheduleSave()
     }
@@ -1181,18 +1200,29 @@ Item {
     // the same code path; multi-select bulk deletes from the highest
     // index down so each splice doesn't shift the indices the loop
     // hasn't visited yet.
+    //
+    // Stays enabled even with nothing selected so Delete is silently
+    // CLAIMED by the editor — otherwise it falls through to the
+    // global key chain and a focused control or system handler fires
+    // its own Delete action. The 'delete this workflow' button is in
+    // the top bar (clearly labelled); the Delete key only ever
+    // operates on canvas selection.
     Shortcut {
         sequence: "Delete"
-        enabled: root.visible && editorContent.selectedCount > 0
-        onActivated: root._bulkDeleteSelected()
+        enabled: root.visible
+        onActivated: {
+            if (editorContent.selectedCount > 0) root._bulkDeleteSelected()
+        }
     }
     // Backspace as the second key for the same action — folks coming
     // from macOS hit Backspace, folks on tiling Linux setups hit
     // Delete. Both work.
     Shortcut {
         sequence: "Backspace"
-        enabled: root.visible && editorContent.selectedCount > 0
-        onActivated: root._bulkDeleteSelected()
+        enabled: root.visible
+        onActivated: {
+            if (editorContent.selectedCount > 0) root._bulkDeleteSelected()
+        }
     }
     // Esc clears the selection (single or multi).
     Shortcut {
@@ -1366,8 +1396,11 @@ Item {
                 // height and made the Delete button visibly taller
                 // than its peers.
                 visible: !root.fragmentMode
-                text: "× Delete"
+                text: "× Delete workflow"
                 onClicked: root._askDelete()
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Delete this workflow from your library. The Delete key on the canvas removes selected steps."
             }
             // Workflow-level imports — name → path mapping that
             // `use` steps reference. Opens a dialog with the table.
@@ -1906,6 +1939,8 @@ Item {
                 onDeleteGroupRequested: (id) => root._deleteGroup(id)
                 onEditGroupCommentRequested: (id, comment) =>
                     root._editGroupComment(id, comment)
+                onEditGroupColorRequested: (id, color) =>
+                    root._editGroupColor(id, color)
                 onDeselectRequested: {
                     editorContent._setSingleSelection(-1)
                     editorContent.selectedInnerIndex = -1

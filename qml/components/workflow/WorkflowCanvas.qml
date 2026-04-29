@@ -212,6 +212,7 @@ Item {
     signal resizeGroupRequested(string id, real x, real y, real width, real height)
     signal deleteGroupRequested(string id)
     signal editGroupCommentRequested(string id, string comment)
+    signal editGroupColorRequested(string id, string color)
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
     // Inner-step mutations on flow-control containers (when / unless
@@ -1036,10 +1037,15 @@ Item {
             scale: root.zoom
 
             // ============ Group rectangles ============
-            // Decorative annotations behind the wires + cards. Drag to
-            // move, drag a corner to resize, double-click the comment
-            // to edit, right-click for color picker + delete. Engine
-            // ignores them entirely.
+            // Decorative annotations behind the wires + cards.
+            //
+            //   - left-click + drag the body  → move the group
+            //   - left-click + drag the corner → resize
+            //   - double-click the body       → edit the comment
+            //   - right-click                 → menu (color / delete)
+            //
+            // Engine ignores them entirely; they're for visual
+            // organisation only.
             Repeater {
                 id: groupLayer
                 model: root.groups
@@ -1048,31 +1054,41 @@ Item {
                     z: 0
                     readonly property string groupId: modelData.id
                     readonly property color tint: _groupColorFor(modelData.color)
+                    readonly property bool isHovered: hoverHandler.hovered
                     x: modelData.x
                     y: modelData.y
                     width: modelData.width
                     height: modelData.height
                     radius: Theme.radiusMd
-                    color: Qt.rgba(tint.r, tint.g, tint.b, 0.10)
-                    border.color: Qt.rgba(tint.r, tint.g, tint.b, 0.50)
-                    border.width: 1.5
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    color: Qt.rgba(tint.r, tint.g, tint.b,
+                        isHovered ? 0.16 : 0.10)
+                    border.color: Qt.rgba(tint.r, tint.g, tint.b,
+                        isHovered ? 0.85 : 0.50)
+                    border.width: isHovered ? 2 : 1.5
+                    Behavior on color       { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    Behavior on border.color{ ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    Behavior on border.width{ NumberAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                    // Body drag: clicking inside the group (but not on
-                    // the resize handle) drags the whole rectangle.
-                    // Cards on top still claim their own clicks first
-                    // because their MouseAreas have hoverEnabled and
-                    // sit at higher z; the group only ever sees clicks
-                    // on its visible body that aren't covered by a card.
+                    HoverHandler { id: hoverHandler }
+
+                    // ---- Body: drag to move ----
+                    // MouseArea on the body claims left-press
+                    // exclusively (preventStealing) so the canvas
+                    // pan handler can't take over mid-drag and
+                    // 'pan the canvas' under the user. Right-click
+                    // pops the menu; double-click opens the comment
+                    // editor.
                     MouseArea {
-                        id: groupBodyArea
+                        id: bodyArea
                         anchors.fill: parent
-                        anchors.rightMargin: 14   // resize handle area
-                        anchors.bottomMargin: 14
-                        cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        anchors.rightMargin: resizeHandle.width
+                        anchors.bottomMargin: resizeHandle.height
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        cursorShape: drag.active
+                            ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                         drag.target: groupItem
                         drag.threshold: 4
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        preventStealing: true
                         onPressed: (mouse) => {
                             if (mouse.button === Qt.RightButton) {
                                 groupMenu.popup()
@@ -1086,125 +1102,127 @@ Item {
                                     groupItem.groupId, groupItem.x, groupItem.y)
                             }
                         }
+                        onDoubleClicked: (mouse) => {
+                            if (mouse.button !== Qt.LeftButton) return
+                            commentEditor.text = modelData.comment || ""
+                            commentEditor.visible = true
+                            commentEditor.forceActiveFocus()
+                            commentEditor.selectAll()
+                        }
                     }
 
-                    // Bottom-right resize handle. A small dotted
-                    // triangle in the corner; drag to resize the rect.
+                    // ---- Resize handle (bottom-right corner) ----
+                    // Uses a DragHandler with translation rather than
+                    // a MouseArea with mouse.x math. translation is
+                    // the delta from press position in stable
+                    // coordinates, so width / height grow predictably
+                    // without the feedback loop the previous version
+                    // had.
                     Item {
-                        id: groupResize
-                        width: 14
-                        height: 14
+                        id: resizeHandle
+                        width: 18
+                        height: 18
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
+                        z: 2
+
                         Rectangle {
                             anchors.fill: parent
-                            anchors.margins: 3
-                            color: "transparent"
-                            border.color: groupItem.tint
-                            border.width: 1.5
+                            anchors.margins: 4
+                            color: groupItem.isHovered
+                                ? Qt.rgba(groupItem.tint.r, groupItem.tint.g, groupItem.tint.b, 0.85)
+                                : Qt.rgba(groupItem.tint.r, groupItem.tint.g, groupItem.tint.b, 0.50)
                             radius: 2
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                         }
-                        MouseArea {
-                            id: groupResizeArea
-                            anchors.fill: parent
+                        DragHandler {
+                            id: resizeHandler
+                            target: null
+                            grabPermissions: PointerHandler.TakeOverForbidden
                             cursorShape: Qt.SizeFDiagCursor
-                            property real _startX: 0
-                            property real _startY: 0
                             property real _startW: 0
                             property real _startH: 0
-                            onPressed: (mouse) => {
-                                _startX = groupItem.x
-                                _startY = groupItem.y
-                                _startW = groupItem.width
-                                _startH = groupItem.height
-                                mouse.accepted = true
+                            onActiveChanged: {
+                                if (active) {
+                                    _startW = groupItem.width
+                                    _startH = groupItem.height
+                                } else {
+                                    root.resizeGroupRequested(
+                                        groupItem.groupId,
+                                        groupItem.x, groupItem.y,
+                                        groupItem.width, groupItem.height)
+                                }
                             }
-                            onPositionChanged: (mouse) => {
-                                if (!pressed) return
-                                const dx = mouse.x + groupItem.width - _startW - groupResize.x
-                                const dy = mouse.y + groupItem.height - _startH - groupResize.y
-                                // Live-resize: bind to Width / Height
-                                // directly so the user sees the box
-                                // grow as they drag.
-                                groupItem.width = Math.max(80, _startW + dx)
-                                groupItem.height = Math.max(60, _startH + dy)
-                            }
-                            onReleased: {
-                                root.resizeGroupRequested(
-                                    groupItem.groupId,
-                                    groupItem.x, groupItem.y,
-                                    groupItem.width, groupItem.height)
+                            onTranslationChanged: {
+                                if (!active) return
+                                groupItem.width = Math.max(120, _startW + translation.x)
+                                groupItem.height = Math.max(80, _startH + translation.y)
                             }
                         }
                     }
 
-                    // Comment label, upper-left. Double-click to edit
-                    // inline; pressing Enter or losing focus commits.
-                    Item {
-                        id: groupCommentSlot
+                    // ---- Comment label, upper-left ----
+                    // Double-click ANYWHERE in the body opens the
+                    // editor (handled in bodyArea above) — no
+                    // separate MouseArea over the label, so the
+                    // body's drag isn't blocked when the user clicks
+                    // through the label area.
+                    Text {
+                        id: groupComment
+                        visible: !commentEditor.visible
+                        text: modelData.comment && modelData.comment.length > 0
+                            ? modelData.comment
+                            : "Double-click to name"
+                        color: groupItem.tint
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.2
+                        font.capitalization: modelData.comment && modelData.comment.length > 0
+                            ? Font.MixedCase
+                            : Font.AllUppercase
+                        elide: Text.ElideRight
                         anchors.left: parent.left
                         anchors.top: parent.top
-                        anchors.leftMargin: 10
-                        anchors.topMargin: 6
                         anchors.right: parent.right
+                        anchors.leftMargin: 12
+                        anchors.topMargin: 8
                         anchors.rightMargin: 12
-                        height: 20
-
-                        Text {
-                            id: groupComment
-                            visible: !commentEditor.visible
-                            text: modelData.comment && modelData.comment.length > 0
-                                ? modelData.comment
-                                : "Group"
-                            color: groupItem.tint
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
-                            font.weight: Font.Bold
-                            font.letterSpacing: 1.2
-                            font.capitalization: modelData.comment && modelData.comment.length > 0
-                                ? Font.MixedCase
-                                : Font.AllUppercase
-                            elide: Text.ElideRight
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            opacity: modelData.comment && modelData.comment.length > 0 ? 1 : 0.55
-                        }
-
-                        TextInput {
-                            id: commentEditor
-                            visible: false
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.comment || ""
-                            color: groupItem.tint
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontSm
-                            font.weight: Font.Medium
-                            selectByMouse: true
-                            onAccepted: _commit()
-                            onActiveFocusChanged: if (!activeFocus && visible) _commit()
-                            function _commit() {
-                                root.editGroupCommentRequested(
-                                    groupItem.groupId, text)
-                                visible = false
-                            }
-                            Keys.onEscapePressed: { visible = false }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.IBeamCursor
-                            onDoubleClicked: {
-                                commentEditor.text = modelData.comment || ""
-                                commentEditor.visible = true
-                                commentEditor.forceActiveFocus()
-                                commentEditor.selectAll()
-                            }
-                        }
+                        opacity: modelData.comment && modelData.comment.length > 0
+                            ? 1 : 0.50
                     }
 
+                    TextInput {
+                        id: commentEditor
+                        visible: false
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.leftMargin: 12
+                        anchors.topMargin: 6
+                        anchors.rightMargin: 12
+                        text: modelData.comment || ""
+                        color: groupItem.tint
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        font.weight: Font.Medium
+                        selectByMouse: true
+                        z: 3   // above bodyArea so typing doesn't bleed through
+                        onAccepted: _commit()
+                        onActiveFocusChanged: if (!activeFocus && visible) _commit()
+                        function _commit() {
+                            root.editGroupCommentRequested(
+                                groupItem.groupId, text)
+                            visible = false
+                        }
+                        Keys.onEscapePressed: { visible = false }
+                    }
+
+                    // ---- Right-click menu ----
+                    // Color swatches plus rename / delete. The
+                    // canvas tool dock's '▢ Add group' button lives
+                    // separately; this menu is for editing an
+                    // existing group.
                     WfMenu {
                         id: groupMenu
                         WfMenuItem {
@@ -1216,6 +1234,36 @@ Item {
                                 commentEditor.selectAll()
                             }
                         }
+                        MenuSeparator { }
+                        WfMenuItem {
+                            text: "● Amber"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "accent")
+                        }
+                        WfMenuItem {
+                            text: "● Green"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "click")
+                        }
+                        WfMenuItem {
+                            text: "● Blue"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "type")
+                        }
+                        WfMenuItem {
+                            text: "● Purple"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "key")
+                        }
+                        WfMenuItem {
+                            text: "● Pink"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "notify")
+                        }
+                        WfMenuItem {
+                            text: "● Orange"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "shell")
+                        }
+                        WfMenuItem {
+                            text: "● Neutral"
+                            onTriggered: root.editGroupColorRequested(groupItem.groupId, "neutral")
+                        }
+                        MenuSeparator { }
                         WfMenuItem {
                             text: "Delete group"
                             destructive: true

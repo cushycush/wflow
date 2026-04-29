@@ -171,7 +171,14 @@ fn run_steps<'a>(
             // Debug pause point. In normal runs PauseControl::Off
             // returns true immediately; in debug runs we await the
             // next command. Stop / channel-closed both halt the run.
-            if !pause.gate(sink, idx).await {
+            //
+            // Skip the gate for steps that will be skipped anyway
+            // (notes and disabled steps). Otherwise debug mode would
+            // pause on every annotation, which feels broken — the
+            // debugger should walk only through steps that actually
+            // execute.
+            let will_run = step.enabled && !matches!(step.action, Action::Note { .. });
+            if will_run && !pause.gate(sink, idx).await {
                 return Ok(Flow::Halt);
             }
             *index += 1;
