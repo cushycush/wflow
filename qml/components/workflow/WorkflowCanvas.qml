@@ -1255,7 +1255,12 @@ Item {
                                 groupItem.groupId, text)
                             visible = false
                         }
-                        Keys.onEscapePressed: { visible = false }
+                        // Escape commits the buffer too. Hiding before
+                        // calling _commit would bypass the focus-loss
+                        // commit hook (the gate `visible &&` is false
+                        // by then), losing the typed text — that was
+                        // the original bug.
+                        Keys.onEscapePressed: _commit()
                     }
 
                     // ---- Right-click menu ----

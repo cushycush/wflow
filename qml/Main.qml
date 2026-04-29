@@ -166,10 +166,23 @@ ApplicationWindow {
     // element; auto-navigates to the right page first when needed.
     // Marked seen on Skip / Finish so subsequent launches go
     // straight to Library.
+    //
+    // Editor steps need a populated workflow slot to make any visual
+    // sense — a `currentPage = "workflow"` with `openDocs == []`
+    // renders just an empty Item with no toolbar, no palette, no
+    // canvas. The nav callback below opens a new-draft on entry to
+    // the editor page so the chrome shows up; an unedited draft
+    // doesn't persist to disk so leaving it open after the tour is
+    // free.
     TutorialCoach {
         id: tutorial
         stateCtrl: introState
-        onNavigateToPage: (page) => root.currentPage = page
+        onNavigateToPage: (page) => {
+            root.currentPage = page
+            if (page === "workflow" && root.openDocs.length === 0) {
+                root.openWorkflowDoc("new-draft")
+            }
+        }
 
         steps: [
             {
