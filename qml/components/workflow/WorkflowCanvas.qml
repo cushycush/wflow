@@ -41,6 +41,38 @@ Item {
     // entry: { id, x, y, width, height, color, comment }.
     property var groups: []
 
+    // Shared marquee state for the Shift / Ctrl drag handlers. Lives
+    // here so the on-screen rect can read from one source regardless
+    // of which modifier fired the drag.
+    property bool _marqueeActive: false
+    property real _marqueeStartX: 0
+    property real _marqueeStartY: 0
+    property real _marqueeCurrentX: 0
+    property real _marqueeCurrentY: 0
+    readonly property real _marqueeLeft:   Math.min(_marqueeStartX, _marqueeCurrentX)
+    readonly property real _marqueeTop:    Math.min(_marqueeStartY, _marqueeCurrentY)
+    readonly property real _marqueeRight:  Math.max(_marqueeStartX, _marqueeCurrentX)
+    readonly property real _marqueeBottom: Math.max(_marqueeStartY, _marqueeCurrentY)
+
+    function _marqueeOnActiveChanged(handler) {
+        if (handler.active) {
+            _marqueeActive = true
+            _marqueeStartX = handler.centroid.position.x
+            _marqueeStartY = handler.centroid.position.y
+            _marqueeCurrentX = _marqueeStartX
+            _marqueeCurrentY = _marqueeStartY
+        } else {
+            _marqueeActive = false
+            _commitMarqueeSelection(
+                _marqueeLeft, _marqueeTop, _marqueeRight, _marqueeBottom)
+        }
+    }
+    function _marqueeOnCentroidChanged(handler) {
+        if (!handler.active) return
+        _marqueeCurrentX = handler.centroid.position.x
+        _marqueeCurrentY = handler.centroid.position.y
+    }
+
     // Reactive position / size stores. Each card writes into these
     // on drag-release and on size-change; wires + hit-tests read
     // from them. Width is per-card so containers (which are wider
@@ -103,6 +135,18 @@ Item {
         if ((fRight - fLeft) < 24 || (fBottom - fTop) < 24) return
         const r = _flickRectToWorld(fLeft, fTop, fRight, fBottom)
         root.addGroupRequested(r.x, r.y, r.width, r.height)
+    }
+
+    // Drop a default-sized group at the current viewport center.
+    // Used by the canvas tool dock's '▢ Add group' button so users
+    // who don't know about Alt+drag can still reach the feature.
+    function _addGroupAtViewportCenter() {
+        const z = root.zoom > 0 ? root.zoom : 1
+        const w = 320
+        const h = 200
+        const cx = (flick.contentX + flick.width  / 2) / z
+        const cy = (flick.contentY + flick.height / 2) / z
+        root.addGroupRequested(cx - w / 2, cy - h / 2, w, h)
     }
 
     // Walk every visible card and find which rectangles intersect
@@ -879,41 +923,32 @@ Item {
             }
         }
 
-        // Shift+drag on empty canvas draws a marquee rectangle and
-        // selects every card whose rect intersects it on release.
-        // Cards' own MouseAreas claim presses on themselves first,
-        // so this handler only ever runs over the empty backdrop.
-        // Coordinates are in flick's local space; the commit step
-        // unprojects them through scroll + zoom into world space
-        // for hit-testing against card positions.
+        // Shift OR Ctrl + drag on empty canvas draws a marquee
+        // rectangle and selects every card whose rect intersects it
+        // on release. Cards' own MouseAreas claim presses on
+        // themselves first, so this handler only ever runs over the
+        // empty backdrop. Coordinates are in flick's local space;
+        // the commit step unprojects them through scroll + zoom into
+        // world space for hit-testing against card positions.
+        //
+        // Qt's PointerHandler.acceptedModifiers is an exact match,
+        // not a flags-OR, so accepting two different modifiers means
+        // two handlers. They share state via root-level marquee*
+        // properties so the visualization rect doesn't care which
+        // one fired.
         DragHandler {
-            id: marqueeHandler
+            id: marqueeHandlerShift
             target: null
             acceptedModifiers: Qt.ShiftModifier
-            property real startX: 0
-            property real startY: 0
-            property real currentX: 0
-            property real currentY: 0
-            readonly property real left:   Math.min(startX, currentX)
-            readonly property real top:    Math.min(startY, currentY)
-            readonly property real right:  Math.max(startX, currentX)
-            readonly property real bottom: Math.max(startY, currentY)
-
-            onActiveChanged: {
-                if (active) {
-                    startX = centroid.position.x
-                    startY = centroid.position.y
-                    currentX = startX
-                    currentY = startY
-                } else {
-                    root._commitMarqueeSelection(left, top, right, bottom)
-                }
-            }
-            onCentroidChanged: {
-                if (!active) return
-                currentX = centroid.position.x
-                currentY = centroid.position.y
-            }
+            onActiveChanged: root._marqueeOnActiveChanged(this)
+            onCentroidChanged: root._marqueeOnCentroidChanged(this)
+        }
+        DragHandler {
+            id: marqueeHandlerCtrl
+            target: null
+            acceptedModifiers: Qt.ControlModifier
+            onActiveChanged: root._marqueeOnActiveChanged(this)
+            onCentroidChanged: root._marqueeOnCentroidChanged(this)
         }
 
         // Alt+drag on empty canvas draws a NEW group rectangle.
@@ -957,11 +992,11 @@ Item {
         // the draw-group variant so the two gestures read distinct.
         Rectangle {
             id: marqueeRect
-            visible: marqueeHandler.active
-            x: marqueeHandler.left
-            y: marqueeHandler.top
-            width: marqueeHandler.right - marqueeHandler.left
-            height: marqueeHandler.bottom - marqueeHandler.top
+            visible: root._marqueeActive
+            x: root._marqueeLeft
+            y: root._marqueeTop
+            width: root._marqueeRight - root._marqueeLeft
+            height: root._marqueeBottom - root._marqueeTop
             color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
             border.color: Theme.accent
             border.width: 1
@@ -2676,6 +2711,19 @@ Item {
             id: toolStack
             anchors.centerIn: parent
             spacing: 2
+
+            // ---- Group (annotation rectangle)
+            Loader {
+                sourceComponent: toolBtnComp
+                onLoaded: {
+                    item.glyph = "▢"
+                    item.tip = "Add a group rectangle"
+                    item.label = "Add group"
+                    item.onActivate = () => root._addGroupAtViewportCenter()
+                }
+            }
+
+            Loader { sourceComponent: toolDivComp }
 
             // ---- Tidy
             Loader {

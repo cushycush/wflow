@@ -943,6 +943,11 @@ Item {
             const savedPath = wfCtrl.save_fragment(root.fragmentPath, json)
             ok = (savedPath && savedPath.length > 0)
         } else {
+            // Bridge.save sets workflow_json with the round-tripped
+            // form, which echoes back to on_WorkflowJsonMirrorChanged.
+            // Suppress the echo so the undo tracker doesn't push a
+            // phantom snapshot for an edit that was already recorded.
+            root._suppressNextMirrorUpdate = true
             const newId = wfCtrl.save(json)
             ok = (newId && newId.length > 0)
         }
@@ -1237,7 +1242,19 @@ Item {
     // updates workflow_json, and the on<Local>Changed handler runs
     // reliably.
     property string _workflowJsonMirror: wfCtrl.workflow_json
+    // Set true by _saveNow before it calls wfCtrl.save(...). The
+    // bridge's save() re-emits workflow_json with the round-tripped
+    // serialization, which lands here as a no-op echo of the same
+    // workflow we just saved — but if we let it through, root.workflow
+    // gets reassigned, workflowChanged fires, and the undo tracker
+    // pushes a phantom snapshot for an edit that was already
+    // recorded. Skipping the next mirror update breaks that loop.
+    property bool _suppressNextMirrorUpdate: false
     on_WorkflowJsonMirrorChanged: {
+        if (root._suppressNextMirrorUpdate) {
+            root._suppressNextMirrorUpdate = false
+            return
+        }
         try {
             root.workflow = JSON.parse(_workflowJsonMirror || "{}")
         } catch (e) {
