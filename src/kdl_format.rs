@@ -94,11 +94,38 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(encode_step(step));
     }
 
+    // Visual-grouping rectangles. Decorative — engine ignores them
+    // — but they live alongside steps in the file so the canvas
+    // layout survives a reload.
+    if !wf.groups.is_empty() {
+        let mut groups_node = KdlNode::new("groups");
+        let mut groups_inner = KdlDocument::new();
+        for g in &wf.groups {
+            groups_inner.nodes_mut().push(encode_group(g));
+        }
+        groups_node.set_children(groups_inner);
+        inner.nodes_mut().push(groups_node);
+    }
+
     wf_node.set_children(inner);
     doc.nodes_mut().push(wf_node);
 
     doc.autoformat();
     doc.to_string()
+}
+
+fn encode_group(g: &crate::actions::Group) -> KdlNode {
+    let mut node = KdlNode::new("group");
+    // Comment is the positional argument (mirrors how `note "text"`
+    // works) so the file still reads naturally for human authors.
+    node.push(arg_str(&g.comment));
+    node.push(prop_str("id", &g.id));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("x", g.x));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("y", g.y));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("width", g.width));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("height", g.height));
+    node.push(prop_str("color", &g.color));
+    node
 }
 
 fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
@@ -640,6 +667,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
     let mut imports: std::collections::BTreeMap<String, String> = Default::default();
     let mut steps: Vec<Step> = Vec::new();
     let mut triggers: Vec<crate::actions::Trigger> = Vec::new();
+    let mut groups: Vec<crate::actions::Group> = Vec::new();
     let mut subtitle_seen = false;
 
     for node in children.nodes() {
@@ -693,6 +721,21 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
                     imports.insert(key, path);
                 }
             }
+            "groups" => {
+                let inner = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`groups` must have a block {{ ... }}"))?;
+                for grp_node in inner.nodes() {
+                    if grp_node.name().value() != "group" {
+                        bail!(
+                            "unexpected `{}` inside `groups {{ ... }}` — only \
+                             `group` nodes belong here",
+                            grp_node.name().value()
+                        );
+                    }
+                    groups.push(decode_group(grp_node)?);
+                }
+            }
             // Reserved guard: `id` and `title` and `recipe` are legacy
             // top-level fields and don't make sense inside the workflow
             // block. Reject loudly so a half-migrated file gets flagged.
@@ -725,11 +768,50 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
         vars,
         imports,
         triggers,
+        groups,
         created,
         modified,
         last_run,
         folder: None,
     })
+}
+
+fn decode_group(node: &KdlNode) -> Result<crate::actions::Group> {
+    use crate::actions::Group;
+    // The first positional string is the comment text — same shape
+    // as `note "text"`. Properties carry id, x, y, width, height,
+    // color.
+    let comment = first_string(node).unwrap_or_default();
+    let id = node
+        .get("id")
+        .and_then(|v| v.as_string().map(str::to_string))
+        .unwrap_or_else(|| {
+            // Generate one if missing — old hand-edited files might
+            // omit this and we'd rather render the group than reject
+            // the workflow.
+            uuid::Uuid::new_v4().to_string()
+        });
+    let x = node
+        .get("x")
+        .and_then(|v| v.as_float())
+        .unwrap_or(0.0);
+    let y = node
+        .get("y")
+        .and_then(|v| v.as_float())
+        .unwrap_or(0.0);
+    let width = node
+        .get("width")
+        .and_then(|v| v.as_float())
+        .unwrap_or(200.0);
+    let height = node
+        .get("height")
+        .and_then(|v| v.as_float())
+        .unwrap_or(120.0);
+    let color = node
+        .get("color")
+        .and_then(|v| v.as_string().map(str::to_string))
+        .unwrap_or_else(|| "accent".to_string());
+    Ok(Group { id, x, y, width, height, color, comment })
 }
 
 /// Legacy-format decoder: `schema 1`, top-level `id` / `title` /
@@ -853,6 +935,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
         vars,
         imports,
         triggers: Vec::new(),
+        groups: Vec::new(),
         created,
         modified,
         last_run,

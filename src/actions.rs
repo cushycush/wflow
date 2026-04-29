@@ -297,12 +297,44 @@ pub struct Workflow {
     pub modified: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
     pub last_run: Option<chrono::DateTime<chrono::Utc>>,
+    /// Visual annotation rectangles drawn behind the step cards on
+    /// the canvas — purely cosmetic, the engine ignores them.
+    /// Persisted in KDL alongside steps so a workflow's visual
+    /// layout survives reopening.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<Group>,
     /// Folder this workflow lives in, derived from the .kdl file's
     /// parent directory relative to the workflows root. None for
     /// top-level files. Not serialised — it's a filesystem fact,
     /// not workflow content.
     #[serde(skip, default)]
     pub folder: Option<String>,
+}
+
+/// A coloured rounded-rectangle annotation drawn behind step cards
+/// on the canvas. Used to visually group steps ("the build half",
+/// "the deploy half"). Has no semantics — the engine treats them as
+/// decoration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Named tint key from a fixed palette. Recognised values mirror
+    /// the category palette plus a few muted neutrals; the GUI
+    /// resolves the name to an actual hex color. Unrecognised names
+    /// fall back to the accent palette.
+    #[serde(default = "default_group_color")]
+    pub color: String,
+    /// Free-form annotation rendered in the rectangle's upper-left.
+    #[serde(default)]
+    pub comment: String,
+}
+
+fn default_group_color() -> String {
+    "accent".to_string()
 }
 
 impl Workflow {
@@ -316,6 +348,7 @@ impl Workflow {
             vars: Default::default(),
             imports: Default::default(),
             triggers: Vec::new(),
+            groups: Vec::new(),
             created: Some(now),
             modified: Some(now),
             last_run: None,

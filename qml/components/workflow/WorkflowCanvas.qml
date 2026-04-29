@@ -37,6 +37,9 @@ Item {
     property var selectedIndices: ({})
     property int activeStepIndex: -1
     property var stepStatuses: ({})
+    // Visual annotation rectangles drawn behind the step cards. Each
+    // entry: { id, x, y, width, height, color, comment }.
+    property var groups: []
 
     // Reactive position / size stores. Each card writes into these
     // on drag-release and on size-change; wires + hit-tests read
@@ -57,6 +60,49 @@ Item {
         if (rawKind === "conditional") return conditionalW
         if (rawKind === "note") return noteW
         return nodeW
+    }
+
+    // Resolve a group's color name to a Theme color. Recognised
+    // names mirror the category palette plus a couple of muted
+    // neutrals; unknown names fall back to accent so a user-typed
+    // color in the KDL file doesn't render as an invisible group.
+    function _groupColorFor(name) {
+        switch (name) {
+        case "key":       return Theme.catKey
+        case "type":      return Theme.catType
+        case "click":     return Theme.catClick
+        case "move":      return Theme.catMove
+        case "scroll":    return Theme.catScroll
+        case "focus":     return Theme.catFocus
+        case "shell":     return Theme.catShell
+        case "notify":    return Theme.catNotify
+        case "clipboard": return Theme.catClip
+        case "wait":      return Theme.catWait
+        case "neutral":   return Theme.text2
+        case "accent":    return Theme.accent
+        }
+        return Theme.accent
+    }
+
+    // Convert a flick-local rect into world coordinates by adding
+    // the scroll offset and dividing by zoom. Used by the marquee
+    // and draw-group handlers.
+    function _flickRectToWorld(fLeft, fTop, fRight, fBottom) {
+        const z = root.zoom > 0 ? root.zoom : 1
+        return {
+            x: (fLeft + flick.contentX) / z,
+            y: (fTop + flick.contentY) / z,
+            width: (fRight - fLeft) / z,
+            height: (fBottom - fTop) / z
+        }
+    }
+
+    // Alt+drag committed: emit a request to add a new group at the
+    // dragged-out rect. Tiny drags are ignored as misclicks.
+    function _commitDrawGroup(fLeft, fTop, fRight, fBottom) {
+        if ((fRight - fLeft) < 24 || (fBottom - fTop) < 24) return
+        const r = _flickRectToWorld(fLeft, fTop, fRight, fBottom)
+        root.addGroupRequested(r.x, r.y, r.width, r.height)
     }
 
     // Walk every visible card and find which rectangles intersect
@@ -115,6 +161,13 @@ Item {
     // Replace is the most-expected semantics for marquee.
     signal marqueeSelected(var indicesSet)
     signal deselectRequested()
+
+    // Group rectangle interactions.
+    signal addGroupRequested(real x, real y, real width, real height)
+    signal moveGroupRequested(string id, real x, real y)
+    signal resizeGroupRequested(string id, real x, real y, real width, real height)
+    signal deleteGroupRequested(string id)
+    signal editGroupCommentRequested(string id, string comment)
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
     // Inner-step mutations on flow-control containers (when / unless
@@ -863,9 +916,45 @@ Item {
             }
         }
 
-        // The marquee rectangle visualization. Sits on flick (above
-        // the world transform) so its size doesn't scale with the
-        // zoom and the user always sees a screen-pixel rectangle.
+        // Alt+drag on empty canvas draws a NEW group rectangle.
+        // Mirrors the marquee handler but on release commits the
+        // shape as a group (decorative annotation) instead of a
+        // selection. Same flick → world coordinate dance.
+        DragHandler {
+            id: drawGroupHandler
+            target: null
+            acceptedModifiers: Qt.AltModifier
+            property real startX: 0
+            property real startY: 0
+            property real currentX: 0
+            property real currentY: 0
+            readonly property real left:   Math.min(startX, currentX)
+            readonly property real top:    Math.min(startY, currentY)
+            readonly property real right:  Math.max(startX, currentX)
+            readonly property real bottom: Math.max(startY, currentY)
+
+            onActiveChanged: {
+                if (active) {
+                    startX = centroid.position.x
+                    startY = centroid.position.y
+                    currentX = startX
+                    currentY = startY
+                } else {
+                    root._commitDrawGroup(left, top, right, bottom)
+                }
+            }
+            onCentroidChanged: {
+                if (!active) return
+                currentX = centroid.position.x
+                currentY = centroid.position.y
+            }
+        }
+
+        // The marquee / draw-group rectangle visualization. Sits on
+        // flick (above the world transform) so its size doesn't
+        // scale with the zoom and the user always sees a
+        // screen-pixel rectangle. Different border colour for
+        // the draw-group variant so the two gestures read distinct.
         Rectangle {
             id: marqueeRect
             visible: marqueeHandler.active
@@ -877,6 +966,19 @@ Item {
             border.color: Theme.accent
             border.width: 1
             radius: 2
+            z: 50
+        }
+        Rectangle {
+            id: drawGroupRect
+            visible: drawGroupHandler.active
+            x: drawGroupHandler.left
+            y: drawGroupHandler.top
+            width: drawGroupHandler.right - drawGroupHandler.left
+            height: drawGroupHandler.bottom - drawGroupHandler.top
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+            border.color: Theme.accent
+            border.width: 1.5
+            radius: Theme.radiusMd
             z: 50
         }
 
@@ -897,6 +999,196 @@ Item {
             height: root.contentH
             transformOrigin: Item.TopLeft
             scale: root.zoom
+
+            // ============ Group rectangles ============
+            // Decorative annotations behind the wires + cards. Drag to
+            // move, drag a corner to resize, double-click the comment
+            // to edit, right-click for color picker + delete. Engine
+            // ignores them entirely.
+            Repeater {
+                id: groupLayer
+                model: root.groups
+                delegate: Rectangle {
+                    id: groupItem
+                    z: 0
+                    readonly property string groupId: modelData.id
+                    readonly property color tint: _groupColorFor(modelData.color)
+                    x: modelData.x
+                    y: modelData.y
+                    width: modelData.width
+                    height: modelData.height
+                    radius: Theme.radiusMd
+                    color: Qt.rgba(tint.r, tint.g, tint.b, 0.10)
+                    border.color: Qt.rgba(tint.r, tint.g, tint.b, 0.50)
+                    border.width: 1.5
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                    // Body drag: clicking inside the group (but not on
+                    // the resize handle) drags the whole rectangle.
+                    // Cards on top still claim their own clicks first
+                    // because their MouseAreas have hoverEnabled and
+                    // sit at higher z; the group only ever sees clicks
+                    // on its visible body that aren't covered by a card.
+                    MouseArea {
+                        id: groupBodyArea
+                        anchors.fill: parent
+                        anchors.rightMargin: 14   // resize handle area
+                        anchors.bottomMargin: 14
+                        cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        drag.target: groupItem
+                        drag.threshold: 4
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onPressed: (mouse) => {
+                            if (mouse.button === Qt.RightButton) {
+                                groupMenu.popup()
+                                mouse.accepted = true
+                            }
+                        }
+                        onReleased: (mouse) => {
+                            if (mouse.button === Qt.RightButton) return
+                            if (drag.active) {
+                                root.moveGroupRequested(
+                                    groupItem.groupId, groupItem.x, groupItem.y)
+                            }
+                        }
+                    }
+
+                    // Bottom-right resize handle. A small dotted
+                    // triangle in the corner; drag to resize the rect.
+                    Item {
+                        id: groupResize
+                        width: 14
+                        height: 14
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 3
+                            color: "transparent"
+                            border.color: groupItem.tint
+                            border.width: 1.5
+                            radius: 2
+                        }
+                        MouseArea {
+                            id: groupResizeArea
+                            anchors.fill: parent
+                            cursorShape: Qt.SizeFDiagCursor
+                            property real _startX: 0
+                            property real _startY: 0
+                            property real _startW: 0
+                            property real _startH: 0
+                            onPressed: (mouse) => {
+                                _startX = groupItem.x
+                                _startY = groupItem.y
+                                _startW = groupItem.width
+                                _startH = groupItem.height
+                                mouse.accepted = true
+                            }
+                            onPositionChanged: (mouse) => {
+                                if (!pressed) return
+                                const dx = mouse.x + groupItem.width - _startW - groupResize.x
+                                const dy = mouse.y + groupItem.height - _startH - groupResize.y
+                                // Live-resize: bind to Width / Height
+                                // directly so the user sees the box
+                                // grow as they drag.
+                                groupItem.width = Math.max(80, _startW + dx)
+                                groupItem.height = Math.max(60, _startH + dy)
+                            }
+                            onReleased: {
+                                root.resizeGroupRequested(
+                                    groupItem.groupId,
+                                    groupItem.x, groupItem.y,
+                                    groupItem.width, groupItem.height)
+                            }
+                        }
+                    }
+
+                    // Comment label, upper-left. Double-click to edit
+                    // inline; pressing Enter or losing focus commits.
+                    Item {
+                        id: groupCommentSlot
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.leftMargin: 10
+                        anchors.topMargin: 6
+                        anchors.right: parent.right
+                        anchors.rightMargin: 12
+                        height: 20
+
+                        Text {
+                            id: groupComment
+                            visible: !commentEditor.visible
+                            text: modelData.comment && modelData.comment.length > 0
+                                ? modelData.comment
+                                : "Group"
+                            color: groupItem.tint
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.2
+                            font.capitalization: modelData.comment && modelData.comment.length > 0
+                                ? Font.MixedCase
+                                : Font.AllUppercase
+                            elide: Text.ElideRight
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            opacity: modelData.comment && modelData.comment.length > 0 ? 1 : 0.55
+                        }
+
+                        TextInput {
+                            id: commentEditor
+                            visible: false
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.comment || ""
+                            color: groupItem.tint
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.Medium
+                            selectByMouse: true
+                            onAccepted: _commit()
+                            onActiveFocusChanged: if (!activeFocus && visible) _commit()
+                            function _commit() {
+                                root.editGroupCommentRequested(
+                                    groupItem.groupId, text)
+                                visible = false
+                            }
+                            Keys.onEscapePressed: { visible = false }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.IBeamCursor
+                            onDoubleClicked: {
+                                commentEditor.text = modelData.comment || ""
+                                commentEditor.visible = true
+                                commentEditor.forceActiveFocus()
+                                commentEditor.selectAll()
+                            }
+                        }
+                    }
+
+                    WfMenu {
+                        id: groupMenu
+                        WfMenuItem {
+                            text: "Rename"
+                            onTriggered: {
+                                commentEditor.text = modelData.comment || ""
+                                commentEditor.visible = true
+                                commentEditor.forceActiveFocus()
+                                commentEditor.selectAll()
+                            }
+                        }
+                        WfMenuItem {
+                            text: "Delete group"
+                            destructive: true
+                            onTriggered: root.deleteGroupRequested(groupItem.groupId)
+                        }
+                    }
+                }
+            }
 
             // ============ Wires (linear sequence) ============
 

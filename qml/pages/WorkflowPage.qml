@@ -552,6 +552,97 @@ Item {
         _scheduleSave()
     }
 
+    // ---- Group rectangles ----
+    //
+    // Groups are decorative annotations on the canvas — coloured
+    // rounded rects with a comment label, drawn behind the step
+    // cards. They live on root.workflow.groups and round-trip through
+    // the KDL `groups { ... }` block. The engine ignores them
+    // entirely; they're for visual organisation only.
+    function _newGroupId() { return "g-" + Math.floor(Math.random() * 1e9).toString(16) }
+    function _addGroup(x, y, w, h) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) wf.groups = []
+        wf.groups.push({
+            id: _newGroupId(),
+            x: x, y: y, width: Math.max(120, w), height: Math.max(80, h),
+            color: "accent",
+            comment: ""
+        })
+        root.workflow = wf
+        _scheduleSave()
+    }
+    function _addGroupAroundSelection() {
+        // Bounding box of currently-selected cards, padded so the
+        // group breathes around them. If nothing's selected, drop a
+        // default-sized group near the viewport center.
+        const selected = Object.keys(editorContent.selectedIndices).map(Number)
+        if (selected.length === 0) {
+            // Fallback — center on the viewport. canvasView's
+            // contentX / contentY aren't exposed; use a fixed offset.
+            _addGroup(160, 160, 320, 200)
+            return
+        }
+        const acts = root.actions || []
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const i of selected) {
+            const a = acts[i]
+            if (!a) continue
+            const pos = canvasView.positions[a.id]
+            if (!pos) continue
+            const cw = canvasView.cardWidths[a.id] || canvasView._widthForKind(a.rawKind)
+            const ch = canvasView.cardHeights[a.id] || canvasView.nodeMinH
+            if (pos.x < minX) minX = pos.x
+            if (pos.y < minY) minY = pos.y
+            if (pos.x + cw > maxX) maxX = pos.x + cw
+            if (pos.y + ch > maxY) maxY = pos.y + ch
+        }
+        if (!isFinite(minX)) {
+            _addGroup(160, 160, 320, 200)
+            return
+        }
+        const pad = 24
+        _addGroup(minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2)
+    }
+    function _moveGroup(id, x, y) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) return
+        const g = wf.groups.find(g => g.id === id)
+        if (!g) return
+        g.x = x
+        g.y = y
+        root.workflow = wf
+        _scheduleSave()
+    }
+    function _resizeGroup(id, x, y, w, h) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) return
+        const g = wf.groups.find(g => g.id === id)
+        if (!g) return
+        g.x = x
+        g.y = y
+        g.width = w
+        g.height = h
+        root.workflow = wf
+        _scheduleSave()
+    }
+    function _deleteGroup(id) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) return
+        wf.groups = wf.groups.filter(g => g.id !== id)
+        root.workflow = wf
+        _scheduleSave()
+    }
+    function _editGroupComment(id, comment) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        if (!wf.groups) return
+        const g = wf.groups.find(g => g.id === id)
+        if (!g) return
+        g.comment = comment
+        root.workflow = wf
+        _scheduleSave()
+    }
+
     // Delete every index in editorContent.selectedIndices in one
     // pass. Iterate descending so each splice doesn't invalidate the
     // indices we haven't processed yet (deleting flat index 7 leaves
@@ -1284,6 +1375,25 @@ Item {
             // snippets meant to be spliced into a parent workflow.
             // Hide Run in fragment view so the user opens the parent
             // workflow to run.
+            // Group selection — wraps the bounding box of the
+            // currently-selected cards in an annotation rectangle.
+            // Hidden until the user actually has something selected
+            // so the toolbar stays quiet by default.
+            SecondaryButton {
+                visible: !root.fragmentMode
+                    && editorContent.selectedCount >= 1
+                    && !root.running
+                text: "▢ Group"
+                leftPadding: 12
+                rightPadding: 12
+                onClicked: root._addGroupAroundSelection()
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: editorContent.selectedCount > 1
+                    ? "Wrap the selected steps in a group"
+                    : "Drop a group rectangle on the canvas"
+            }
+
             // Undo / redo. Sit before the run controls so the
             // primary affordance (Run) stays at the right edge of
             // the toolbar. Both icons are quiet hover-revealed
@@ -1749,6 +1859,7 @@ Item {
                 selectedIndices: editorContent.selectedIndices
                 activeStepIndex: root.activeStepIndex
                 stepStatuses: root.stepStatuses
+                groups: (root.workflow && root.workflow.groups) || []
                 onSelectStep: (i) => {
                     editorContent._setSingleSelection(i)
                     editorContent.selectedInnerIndex = -1
@@ -1771,6 +1882,13 @@ Item {
                     editorContent.selectedIndex = keys.length > 0 ? keys[0] : -1
                     editorContent.selectedInnerIndex = -1
                 }
+                onAddGroupRequested: (x, y, w, h) => root._addGroup(x, y, w, h)
+                onMoveGroupRequested: (id, x, y) => root._moveGroup(id, x, y)
+                onResizeGroupRequested: (id, x, y, w, h) =>
+                    root._resizeGroup(id, x, y, w, h)
+                onDeleteGroupRequested: (id) => root._deleteGroup(id)
+                onEditGroupCommentRequested: (id, comment) =>
+                    root._editGroupComment(id, comment)
                 onDeselectRequested: {
                     editorContent._setSingleSelection(-1)
                     editorContent.selectedInnerIndex = -1
