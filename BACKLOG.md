@@ -72,6 +72,47 @@ schema. When a workflow you installed publishes a new version, the
 desktop should ping the user with a "this got an update" toast and
 let them apply or dismiss. Free feature, low cost, high stickiness.
 
+## Group rectangles on the canvas
+
+Lets the user drop a colored background rectangle behind a group of
+steps with an editable comment label, so they can visually group
+"this section is the build half" / "this section is the deploy
+half" without touching the actual step structure. Requested
+alongside multi-select and the debug stepper (both shipped); the
+group rectangles want their own focused round because they touch
+more layers than the other two combined.
+
+What it'll need:
+
+- A new `Group` shape in the workflow data model (alongside `Step`
+  and `Action`) — fields: id, x / y / width / height in canvas
+  coordinates, color, comment text. Serialised in the KDL format
+  as a separate `groups { ... }` block; the engine ignores them
+  (groups don't run, they annotate).
+- KDL encode + decode pass plus round-trip tests.
+- Bridge: extend the workflow JSON the editor consumes so the
+  canvas sees groups alongside actions.
+- Canvas rendering: a layer below the step cards that draws each
+  group as a tinted rounded rectangle with its comment label in
+  the upper-left. Resize handles on the four corners; drag-the-
+  body to move; right-click for color picker + delete.
+- UI: a "Group selection" affordance — when steps are multi-
+  selected, an action button creates a group whose rect is the
+  bounding box of those steps. Plus a "Frame" or "+ Group" entry
+  in the tool dock for drawing one freehand on empty canvas.
+
+Notes on integration:
+
+- Z-order: groups always render below step cards and wires.
+- Drag interaction: clicking inside a group selects the group, not
+  the cards beneath it. Cards above the group keep their own
+  click handlers — Qt's z-ordering handles this naturally as long
+  as the group items render with a lower z than card items.
+- Color palette: reuse the category tints (catKey through
+  catRepeat) plus a small set of muted accents. No free-form
+  color picker for v1; predefined swatches keep groups from
+  fighting the rest of the UI.
+
 ## Smaller polish
 
 - Settings page: an "Advanced" disclosure for motion durations
