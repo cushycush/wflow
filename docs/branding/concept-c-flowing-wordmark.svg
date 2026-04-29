@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Concept C — wordmark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64"
+     font-family="system-ui, -apple-system, 'Hanken Grotesk', sans-serif">
+  <rect width="64" height="64" rx="14" fill="#e29846"/>
+  <path d="M 8 14 Q 16 26 24 14 Q 32 38 40 14 Q 48 50 56 14"
+        stroke="#1a1208" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M 53 11 L 58 14 L 53 17"
+        stroke="#1a1208" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <text x="76" y="44" font-size="36" font-weight="700"
+        fill="#15181f" letter-spacing="-1.2">flow</text>
+</svg>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Concept A — STEPPED VALLEYS
+
+  Custom lowercase w whose three valleys descend left-to-right. The
+  bottom of each downstroke lands lower than the previous one, so the
+  eye reads the letter as a workflow stepping through stages. The
+  final upstroke is the steepest, giving a strong "rising out" finish.
+
+  Palette: amber #e29846 background (Theme.accent), near-black
+  #1a1208 foreground (Theme.accentText). Same colors used everywhere
+  the brand mark appears in the desktop app.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
+  <rect width="64" height="64" rx="14" fill="#e29846"/>
+  <path d="M 8 14 L 16 26 L 24 14 L 32 38 L 40 14 L 48 50 L 56 14"
+        stroke="#1a1208" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

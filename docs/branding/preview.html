@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>wflow — logo concepts</title>
+<style>
+  :root {
+    --bg-dark: #07090e;
+    --bg-light: #f6f6f8;
+    --surface-dark: #15181f;
+    --surface-light: #ffffff;
+    --text-dark: #edeef1;
+    --text-light: #1c1d22;
+    --text2-dark: #a9acb4;
+    --text2-light: #55585f;
+    --accent: #e29846;
+    --line-dark: #2c2f37;
+    --line-light: #d4d5dc;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-dark);
+    line-height: 1.5;
+  }
+  header {
+    padding: 32px 32px 8px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  header h1 { margin: 0 0 4px; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  header p { margin: 0; color: var(--text2-dark); font-size: 14px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 32px 80px; }
+  .concepts { display: grid; grid-template-columns: 1fr; gap: 32px; }
+
+  .concept {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--line-dark);
+  }
+  .concept .meta {
+    padding: 16px 20px;
+    background: var(--surface-dark);
+  }
+  .concept h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .concept p { margin: 0; color: var(--text2-dark); font-size: 13px; }
+
+  .row {
+    padding: 28px 24px;
+    border-top: 1px solid var(--line-dark);
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    flex-wrap: wrap;
+  }
+  .row.dark { background: var(--bg-dark); }
+  .row.light { background: var(--bg-light); color: var(--text-light); }
+  .row.light { border-top-color: var(--line-light); }
+
+  .label {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    opacity: 0.6;
+    width: 64px;
+    flex-shrink: 0;
+  }
+
+  .sizes { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+  .size {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px;
+    opacity: 0.55;
+  }
+  .size img { display: block; }
+
+  .wordmark { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+  footer {
+    padding: 24px 32px;
+    max-width: 1100px;
+    margin: 0 auto;
+    color: var(--text2-dark);
+    font-size: 13px;
+    border-top: 1px solid var(--line-dark);
+  }
+  footer code {
+    background: var(--surface-dark);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>wflow logo concepts</h1>
+  <p>Three takes on a stepped-w mark. All three reuse the brand palette
+     (amber on near-black) so the chrome doesn't have to change. Each
+     pairs an icon and a wordmark; pick a direction and we'll iterate.</p>
+</header>
+
+<main>
+  <div class="concepts">
+
+    <!-- ===== CONCEPT A ===== -->
+    <article class="concept">
+      <div class="meta">
+        <h2>A · Stepped valleys</h2>
+        <p>Strict geometry. Four straight strokes, three valleys descending
+           left-to-right. Reads as a workflow stepping down through stages.
+           The final upstroke is the steepest, giving a "rising out" finish.</p>
+      </div>
+      <div class="row dark">
+        <div class="label">on dark</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-a-stepped-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+      <div class="row light">
+        <div class="label">on light</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-a-stepped-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-a-stepped-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ===== CONCEPT B ===== -->
+    <article class="concept">
+      <div class="meta">
+        <h2>B · Nodes &amp; wires</h2>
+        <p>Most literal. Four step cards at the peaks, thin wires
+           zigzagging through descending valleys. Reads as a tiny workflow
+           canvas in letter form. Loses fidelity at small sizes.</p>
+      </div>
+      <div class="row dark">
+        <div class="label">on dark</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-b-nodes-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+      <div class="row light">
+        <div class="label">on light</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-b-nodes-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-b-nodes-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ===== CONCEPT C ===== -->
+    <article class="concept">
+      <div class="meta">
+        <h2>C · Flowing single stroke</h2>
+        <p>Smooth. One continuous gesture with quadratic curves through
+           each valley, ending in a small chevron pointing right. Reads
+           as motion. Quietest of the three; the "step" is in the depth
+           differences, not the strokes themselves.</p>
+      </div>
+      <div class="row dark">
+        <div class="label">on dark</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-c-flowing-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+      <div class="row light">
+        <div class="label">on light</div>
+        <div class="sizes">
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="16"  height="16">  16</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="32"  height="32">  32</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="64"  height="64">  64</div>
+          <div class="size"><img src="concept-c-flowing-icon.svg" width="128" height="128"> 128</div>
+          <div class="wordmark"><img src="concept-c-flowing-wordmark.svg" width="240" height="64"></div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</main>
+
+<footer>
+  <p>Drop these into a browser via <code>open docs/branding/preview.html</code>
+     or hand them to Recraft / Logo Diffusion as a brief.</p>
+</footer>
+
+</body>
+</html>

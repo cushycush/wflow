@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Concept B — wordmark. Nodes-and-wires icon paired with "flow."
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64"
+     font-family="system-ui, -apple-system, 'Hanken Grotesk', sans-serif">
+  <rect width="64" height="64" rx="14" fill="#e29846"/>
+  <path d="M 8 18 L 16 30 L 24 18 L 32 42 L 40 18 L 48 50 L 56 18"
+        stroke="#1a1208" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"
+        opacity="0.6"/>
+  <circle cx="16" cy="30" r="1.6" fill="#1a1208"/>
+  <circle cx="32" cy="42" r="1.6" fill="#1a1208"/>
+  <circle cx="48" cy="50" r="1.6" fill="#1a1208"/>
+  <rect x="4"  y="10" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="20" y="10" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="36" y="10" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="52" y="10" width="8" height="8" rx="2" fill="#1a1208"/>
+
+  <text x="76" y="44" font-size="36" font-weight="700"
+        fill="#15181f" letter-spacing="-1.2">flow</text>
+</svg>
