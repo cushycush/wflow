@@ -501,18 +501,44 @@ Item {
     }
 
     function _deleteStep(stepIndex) {
+        // The canvas emits a flat-actions index (its Repeater's model
+        // is root.actions, where a conditional's inner steps surface
+        // as siblings). Pick the right tree-array branch off the
+        // metadata before splicing — using stepIndex directly against
+        // _stepsAtCrumb would delete the wrong step the moment a
+        // conditional appears in the workflow.
+        const acts = root.actions || []
+        if (stepIndex < 0 || stepIndex >= acts.length) return
+        const meta = acts[stepIndex]
+        if (!meta) return
+
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = _stepsAtCrumb(wf)
         if (!steps) return
-        if (stepIndex < 0 || stepIndex >= steps.length) return
-        steps.splice(stepIndex, 1)
+
+        if (meta._displayKind === "inner") {
+            const parentIdx = meta._parentTopIdx
+            const innerIdx = meta._innerIdx
+            if (parentIdx < 0 || parentIdx >= steps.length) return
+            const parent = steps[parentIdx]
+            const innerSteps = parent && parent.action ? parent.action.steps : null
+            if (!Array.isArray(innerSteps)) return
+            if (innerIdx < 0 || innerIdx >= innerSteps.length) return
+            innerSteps.splice(innerIdx, 1)
+        } else {
+            const i = meta._topIdx
+            if (i < 0 || i >= steps.length) return
+            steps.splice(i, 1)
+        }
+
         root.workflow = wf
         // Keep selection valid: clamp into range, or collapse the
         // inspector when no steps remain.
-        if (steps.length === 0) {
+        const newLen = (root.actions || []).length
+        if (newLen === 0) {
             editorContent.selectedIndex = -1
-        } else if (editorContent.selectedIndex >= steps.length) {
-            editorContent.selectedIndex = steps.length - 1
+        } else if (editorContent.selectedIndex >= newLen) {
+            editorContent.selectedIndex = newLen - 1
         }
         _scheduleSave()
     }

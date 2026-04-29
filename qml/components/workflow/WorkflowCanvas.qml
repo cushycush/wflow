@@ -963,6 +963,19 @@ Item {
                 // with their own model.index.
                 readonly property int stepIdx: model.index
                 readonly property bool isSelected: model.index === root.selectedIndex
+
+                // Hover aggregation. The card-level dragArea
+                // MouseArea loses containsMouse when the cursor moves
+                // onto a child MouseArea (rewire / delete / note-del),
+                // so any hover-revealed control gated on
+                // dragArea.containsMouse alone vanishes the moment the
+                // user tries to click it. Each child bumps this
+                // counter on entry/exit; the gate becomes
+                // `isHovered || isSelected` so the controls stay up
+                // while the cursor is anywhere on the card.
+                property int childHoverCount: 0
+                readonly property bool isHovered:
+                    dragArea.containsMouse || childHoverCount > 0
                 readonly property var act: modelData
                 readonly property string stepId: modelData ? modelData.id : ""
                 readonly property string kind: modelData ? modelData.kind : "wait"
@@ -1248,7 +1261,7 @@ Item {
                                 color: noteDelArea.containsMouse
                                     ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85)
                                     : "transparent"
-                                opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                                opacity: cardItem.isHovered || cardItem.isSelected ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
 
                                 Text {
@@ -1266,6 +1279,8 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: root.deleteStepRequested(cardItem.stepIdx)
+                                    onContainsMouseChanged: cardItem.childHoverCount =
+                                        Math.max(0, cardItem.childHoverCount + (containsMouse ? 1 : -1))
                                 }
                             }
                         }
@@ -1312,7 +1327,7 @@ Item {
                                     : Theme.surface3
                                 border.color: rewireArea.containsMouse ? Theme.accent : Theme.lineSoft
                                 border.width: 1
-                                opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                                opacity: cardItem.isHovered || cardItem.isSelected ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
                                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
@@ -1334,6 +1349,8 @@ Item {
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 400
                                     ToolTip.text: "Set predecessor / successor"
+                                    onContainsMouseChanged: cardItem.childHoverCount =
+                                        Math.max(0, cardItem.childHoverCount + (containsMouse ? 1 : -1))
                                 }
                             }
 
@@ -1416,7 +1433,7 @@ Item {
                                     : Theme.surface3
                                 border.color: deleteArea.containsMouse ? Theme.err : Theme.lineSoft
                                 border.width: 1
-                                opacity: dragArea.containsMouse || cardItem.isSelected ? 1 : 0
+                                opacity: cardItem.isHovered || cardItem.isSelected ? 1 : 0
                                 Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
                                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
@@ -1438,6 +1455,8 @@ Item {
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 400
                                     ToolTip.text: "Delete step"
+                                    onContainsMouseChanged: cardItem.childHoverCount =
+                                        Math.max(0, cardItem.childHoverCount + (containsMouse ? 1 : -1))
                                 }
                             }
                         }
