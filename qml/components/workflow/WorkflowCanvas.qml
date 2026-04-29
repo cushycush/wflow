@@ -3315,21 +3315,19 @@ Item {
              + " "   + route.tx + " " + route.ty
     }
 
-    // SVG path data for an orthogonal wire — three straight segments
-    // joined at hard 90° corners. The midpoint sits halfway along the
-    // routing axis so the elbow lands centred between the two cards.
-    // For column-wrap wires (target above source on the vertical
-    // axis), midY would land between the ends and the path would
-    // double back through the cards. Detect that and route through
-    // the empty space instead — down past source, across, up past
-    // target — using a six-segment U.
+    // SVG path data for an orthogonal wire. Forward flow is the
+    // classic three-segment Z elbow at midX / midY. Back-flow (the
+    // wire has to loop because the target is upstream geometrically)
+    // routes the long segment through a real column / row gap so
+    // the elbow doesn't cut back through the cards on the target's
+    // axis line.
     function _orthoPath(route) {
         if (!route) return ""
         const sd = route.sd || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
         const td = route.td || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
+        const padX = 24
+        const padY = 24
         if (route.axis === "h") {
-            // Forward horizontal flow if both tangents point right;
-            // simple Z elbow at midX.
             const forward = sd.x > 0 && td.x > 0 && route.tx > route.sx
             if (forward) {
                 const midX = (route.sx + route.tx) / 2
@@ -3338,11 +3336,20 @@ Item {
                      + " L " + midX     + " " + route.ty
                      + " L " + route.tx + " " + route.ty
             }
-            // Back-flow: detour out through the row gap above / below.
-            const padX = 24
+            // Back-flow horizontal: route the long segment through
+            // a row gap. When the cards are in clearly different
+            // rows, midY lives between them and the path is a clean
+            // U; if they share a row (yDelta small) detour above by
+            // a card-height-ish offset so the segment misses any
+            // intermediate cards on the same row.
+            const yDelta = Math.abs(route.ty - route.sy)
+            const midY = yDelta > 80
+                ? (route.sy + route.ty) / 2
+                : Math.min(route.sy, route.ty) - 80
             return "M " + route.sx + " " + route.sy
                  + " L " + (route.sx + sd.x * padX) + " " + route.sy
-                 + " L " + (route.sx + sd.x * padX) + " " + route.ty
+                 + " L " + (route.sx + sd.x * padX) + " " + midY
+                 + " L " + (route.tx - td.x * padX) + " " + midY
                  + " L " + (route.tx - td.x * padX) + " " + route.ty
                  + " L " + route.tx + " " + route.ty
         } else {
@@ -3354,13 +3361,18 @@ Item {
                      + " L " + route.tx + " " + midY
                      + " L " + route.tx + " " + route.ty
             }
-            // Back-flow / column-wrap: detour down past source, then
-            // across, then up past target. padY pushes the elbow into
-            // the empty space below source and above target.
-            const padY = 24
+            // Back-flow vertical: route the long segment through a
+            // column gap. midX lives in the gap when the cards are
+            // in different columns; otherwise detour right by a
+            // card-width-ish offset.
+            const xDelta = Math.abs(route.tx - route.sx)
+            const midX = xDelta > 80
+                ? (route.sx + route.tx) / 2
+                : Math.max(route.sx, route.tx) + 100
             return "M " + route.sx + " " + route.sy
                  + " L " + route.sx + " " + (route.sy + sd.y * padY)
-                 + " L " + route.tx + " " + (route.sy + sd.y * padY)
+                 + " L " + midX     + " " + (route.sy + sd.y * padY)
+                 + " L " + midX     + " " + (route.ty - td.y * padY)
                  + " L " + route.tx + " " + (route.ty - td.y * padY)
                  + " L " + route.tx + " " + route.ty
         }
@@ -3403,13 +3415,28 @@ Item {
         const xOverlap = !(fromPos.x + fromW <= toPos.x || toPos.x + toW <= fromPos.x)
         const yOverlap = !(fromPos.y + fromH <= toPos.y || toPos.y + toH <= fromPos.y)
 
+        // Pick the routing axis. The rule is "rows beat cols": if
+        // the cards aren't in the same row (Y ranges don't overlap)
+        // we route vertically, so the wire exits the source's bottom
+        // and enters the target's top — natural flow into the next
+        // row. Horizontal is reserved for cards that genuinely share
+        // a row (yOverlap true).
+        //
+        // Why this matters: for grid back-flow (card at the right
+        // edge of one row → card at the left edge of the next row)
+        // the magnitude-based pick would lean horizontal because the
+        // X delta is wider than the Y delta, and force the wire into
+        // a "exit right, loop around, enter left" lobe that visually
+        // double-crosses the row above. Vertical "exit bottom, enter
+        // top of the next row's card" reads as serpentine flow.
         let useVertical
         if (yOverlap && !xOverlap) {
             useVertical = false
-        } else if (xOverlap && !yOverlap) {
+        } else if (!yOverlap) {
             useVertical = true
         } else {
-            // Diagonal or both-overlap: pick by magnitude.
+            // Both ranges overlap (stacked / nested cards): fall
+            // back to magnitude.
             const dx = toCx - fromCx
             const dy = toCy - fromCy
             useVertical = Math.abs(dy) >= Math.abs(dx)
