@@ -864,6 +864,115 @@ Item {
     }
 
     Timer { id: saveTimer; interval: 600; repeat: false; onTriggered: root._saveNow() }
+
+    // ---- Undo / redo ----
+    //
+    // Watches root.workflow for changes and pushes the PREVIOUS
+    // snapshot onto the undo stack. _undoSkipNext lets the undo /
+    // redo helpers themselves apply a workflow without
+    // re-recording the change as a fresh edit (which would corrupt
+    // the stack). Stack caps at 80 entries — past that we drop the
+    // oldest.
+    //
+    // Coalesces rapid edits (typing in the inspector) into a single
+    // undoable entry by debouncing: pushes only once per ~600 ms
+    // burst. Below that threshold the snapshots are merged into the
+    // most recent stack entry.
+    property bool _undoSkipNext: false
+    property string _undoLastSnap: ""
+    property double _undoLastPushAt: 0
+    property var _undoStack: []
+    property var _redoStack: []
+    readonly property bool canUndo: _undoStack.length > 0
+    readonly property bool canRedo: _redoStack.length > 0
+    readonly property int _undoCap: 80
+    readonly property int _undoCoalesceMs: 600
+
+    Connections {
+        target: root
+        function onWorkflowChanged() {
+            const cur = JSON.stringify(root.workflow)
+            if (root._undoSkipNext) {
+                root._undoSkipNext = false
+                root._undoLastSnap = cur
+                return
+            }
+            const prev = root._undoLastSnap
+            root._undoLastSnap = cur
+            if (prev.length === 0 || prev === cur) return
+            const now = Date.now()
+            // Coalesce bursts. If the previous push was within
+            // _undoCoalesceMs, drop it and replace with the new
+            // 'before-burst' state. Otherwise push fresh.
+            const stack = root._undoStack.slice()
+            if (now - root._undoLastPushAt < root._undoCoalesceMs && stack.length > 0) {
+                // The most-recent entry already represents the
+                // pre-burst state. Don't overwrite it; just skip
+                // pushing the intra-burst snapshot.
+            } else {
+                stack.push(prev)
+                if (stack.length > root._undoCap) stack.shift()
+                root._undoStack = stack
+                root._undoLastPushAt = now
+            }
+            // Any forward edit invalidates redo.
+            if (root._redoStack.length > 0) root._redoStack = []
+        }
+    }
+
+    function _undo() {
+        const stack = root._undoStack
+        if (stack.length === 0) return
+        const next = stack.slice()
+        const snap = next.pop()
+        root._undoStack = next
+        // Push current onto redo.
+        const redoNext = root._redoStack.slice()
+        redoNext.push(JSON.stringify(root.workflow))
+        if (redoNext.length > root._undoCap) redoNext.shift()
+        root._redoStack = redoNext
+        // Apply without recording. Undo / redo never become their
+        // own undo entries.
+        root._undoSkipNext = true
+        root.workflow = JSON.parse(snap)
+        editorContent._clearSelection()
+        editorContent.selectedInnerIndex = -1
+        _scheduleSave()
+    }
+
+    function _redo() {
+        const stack = root._redoStack
+        if (stack.length === 0) return
+        const next = stack.slice()
+        const snap = next.pop()
+        root._redoStack = next
+        const undoNext = root._undoStack.slice()
+        undoNext.push(JSON.stringify(root.workflow))
+        if (undoNext.length > root._undoCap) undoNext.shift()
+        root._undoStack = undoNext
+        root._undoSkipNext = true
+        root.workflow = JSON.parse(snap)
+        editorContent._clearSelection()
+        editorContent.selectedInnerIndex = -1
+        _scheduleSave()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+Z"
+        enabled: root.visible && root.canUndo
+        onActivated: root._undo()
+    }
+    Shortcut {
+        sequence: "Ctrl+Shift+Z"
+        enabled: root.visible && root.canRedo
+        onActivated: root._redo()
+    }
+    // Some users coming from Windows expect Ctrl+Y for redo.
+    Shortcut {
+        sequence: "Ctrl+Y"
+        enabled: root.visible && root.canRedo
+        onActivated: root._redo()
+    }
     Timer { id: savedToast; interval: 1800; repeat: false
         onTriggered: if (root.saveState === "saved") root.saveState = "idle"
     }
@@ -1175,6 +1284,33 @@ Item {
             // snippets meant to be spliced into a parent workflow.
             // Hide Run in fragment view so the user opens the parent
             // workflow to run.
+            // Undo / redo. Sit before the run controls so the
+            // primary affordance (Run) stays at the right edge of
+            // the toolbar. Both icons are quiet hover-revealed
+            // glyphs; the labels speak for themselves at full size.
+            SecondaryButton {
+                visible: !root.fragmentMode
+                text: "↶"
+                leftPadding: 12
+                rightPadding: 12
+                enabled: root.canUndo && !root.running
+                onClicked: root._undo()
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Undo (Ctrl+Z)"
+            }
+            SecondaryButton {
+                visible: !root.fragmentMode
+                text: "↷"
+                leftPadding: 12
+                rightPadding: 12
+                enabled: root.canRedo && !root.running
+                onClicked: root._redo()
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Redo (Ctrl+Shift+Z)"
+            }
+
             // Run / debug control. When idle: Run + Debug. When in
             // a debug session: Step / Continue / Stop. When in a
             // normal run: Stop only.

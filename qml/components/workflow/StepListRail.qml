@@ -110,12 +110,28 @@ Item {
 
                             width: parent.width
                             height: 44
+                            // Selected → accent wash, not the kind tint, so a
+                            // multi-row range reads as one unified selection
+                            // instead of a variegated band of catColors.
                             color: {
-                                if (isSelected) return Qt.rgba(catColor.r, catColor.g, catColor.b, 0.15)
+                                if (isSelected) return Theme.wash(Theme.accent, 0.18)
                                 if (rowArea.containsMouse) return Theme.surface2
                                 return "transparent"
                             }
                             Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                            // 2px accent bar on the left edge of every
+                            // selected row — the canonical "this is
+                            // selected" indicator from CLAUDE.md (macOS /
+                            // VS Code source-list pattern).
+                            Rectangle {
+                                visible: stepRow.isSelected
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                width: 2
+                                color: Theme.accent
+                            }
 
                             MouseArea {
                                 id: rowArea
