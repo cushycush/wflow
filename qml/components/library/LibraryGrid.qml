@@ -196,6 +196,16 @@ Item {
             // row DropAreas can filter for it specifically. dragType
             // Internal keeps the drag inside the app — the LibraryPage
             // folder rail picks it up.
+            //
+            // Drag.hotSpot is the point on the dragged tile that
+            // the cursor is "holding." DropAreas use the hotSpot to
+            // decide whether the drag is over them, so a centered
+            // hotSpot means clicks at the bottom of the card register
+            // as drags from the card's middle — folders highlight by
+            // card-center, not cursor. We update the hotSpot on press
+            // (below, in the MouseArea) so it tracks the actual click
+            // point. Initial values still have to be valid for the
+            // very first press where onPressed hasn't fired yet.
             Drag.active: cardArea.drag.active
             Drag.dragType: Drag.Internal
             Drag.keys: ["wflow/workflow-id"]
@@ -221,6 +231,17 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 drag.target: card
                 drag.threshold: 8
+                // Snap Drag.hotSpot to the actual click point so drop
+                // detection follows the cursor rather than the card's
+                // geometric center. Without this, a click at the
+                // bottom of the card has its drag-over highlight
+                // anchored to the middle of the card, which makes
+                // small drop targets (folder rail rows) feel
+                // unreachable from anywhere except the card's centre.
+                onPressed: (mouse) => {
+                    card.Drag.hotSpot.x = mouse.x
+                    card.Drag.hotSpot.y = mouse.y
+                }
                 onClicked: (mouse) => {
                     card.forceActiveFocus()
                     if (mouse.button === Qt.RightButton) {
