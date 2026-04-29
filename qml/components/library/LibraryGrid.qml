@@ -322,8 +322,12 @@ Item {
                     spacing: 10
                     width: parent.width
 
-                    CategoryIcon {
-                        kind: card.wf.kinds && card.wf.kinds.length > 0 ? card.wf.kinds[0] : "wait"
+                    // Library cards lead with the workflow mark (a
+                    // brand-amber stair-step) so workflows are
+                    // recognizable as workflows, not as their first
+                    // step. The category-icon row below still shows
+                    // which kinds the workflow uses.
+                    WorkflowIcon {
                         size: 32
                         hovered: cardArea.containsMouse
                         anchors.verticalCenter: parent.verticalCenter

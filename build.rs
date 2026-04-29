@@ -16,6 +16,7 @@ fn main() {
             QmlFile::from("qml/components/IconButton.qml"),
             QmlFile::from("qml/components/CategoryChip.qml"),
             QmlFile::from("qml/components/CategoryIcon.qml"),
+            QmlFile::from("qml/components/WorkflowIcon.qml"),
             QmlFile::from("qml/components/ActionRow.qml"),
             QmlFile::from("qml/components/EmptyState.qml"),
             QmlFile::from("qml/components/FocusRing.qml"),

@@ -287,8 +287,11 @@ Item {
                         }
                     }
 
-                    CategoryIcon {
-                        kind: card.wf.kinds && card.wf.kinds.length > 0 ? card.wf.kinds[0] : "wait"
+                    // Workflow mark — see LibraryGrid for the
+                    // rationale. The category-icon row to the right
+                    // still shows which step kinds appear in the
+                    // workflow.
+                    WorkflowIcon {
                         size: 28
                         hovered: rowArea.containsMouse
                         anchors.verticalCenter: parent.verticalCenter
