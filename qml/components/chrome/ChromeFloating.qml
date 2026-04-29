@@ -348,7 +348,10 @@ Item {
                     // stay on the warm amber accent.
                     readonly property bool isRecord: modelData.id === "record"
                     readonly property color tabAccent: isRecord ? Theme.err : Theme.accent
-                    width: lbl.implicitWidth + 24
+                    readonly property color tabFg: tab.isRecord
+                        ? (tab.isActive ? Theme.err : Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85))
+                        : (tab.isActive ? Theme.accent : Theme.text2)
+                    width: tabContent.implicitWidth + 20
                     height: 28
                     radius: Theme.radiusSm
                     anchors.verticalCenter: parent.verticalCenter
@@ -363,17 +366,102 @@ Item {
                     Keys.onSpacePressed:  root.navigate(modelData.id)
                     FocusRing { }
 
-                    Text {
-                        id: lbl
+                    Row {
+                        id: tabContent
                         anchors.centerIn: parent
-                        text: modelData.label
-                        color: tab.isRecord
-                            ? (tab.isActive ? Theme.err : Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85))
-                            : (tab.isActive ? Theme.accent : Theme.text2)
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontSm
-                        font.weight: tab.isActive ? Font.DemiBold : Font.Medium
+                        spacing: 7
+
+                        // Per-tab icon. Drawn from primitives so it
+                        // renders identically across systems (Unicode
+                        // glyphs vary too much by font fallback). 12x12
+                        // box, color tracks tab.tabFg.
+                        Item {
+                            id: tabIcon
+                            width: 12
+                            height: 12
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            // Library: 2x2 grid of small squares.
+                            // Reads as "cards in a grid."
+                            Item {
+                                visible: modelData.id === "library"
+                                anchors.fill: parent
+                                Rectangle { x: 0; y: 0; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 7; y: 0; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 0; y: 7; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 7; y: 7; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                            }
+
+                            // Explore: magnifying glass.
+                            Item {
+                                visible: modelData.id === "explore"
+                                anchors.fill: parent
+                                // Hoop: outlined circle, radius 4.
+                                Rectangle {
+                                    x: 0; y: 0; width: 9; height: 9
+                                    radius: 4.5
+                                    color: "transparent"
+                                    border.color: tab.tabFg
+                                    border.width: 1.5
+                                }
+                                // Handle: short diagonal stub.
+                                Rectangle {
+                                    x: 7.5; y: 9.5
+                                    width: 4; height: 1.5
+                                    radius: 0.75
+                                    color: tab.tabFg
+                                    transform: Rotation {
+                                        origin.x: 0
+                                        origin.y: 0.75
+                                        angle: -45
+                                    }
+                                }
+                            }
+
+                            // Editor: two connected dots — the canvas's
+                            // node-wire-node motif at icon scale.
+                            Item {
+                                visible: modelData.id === "workflow"
+                                anchors.fill: parent
+                                Rectangle {
+                                    x: 0; y: 4.5; width: 4; height: 4
+                                    radius: 2
+                                    color: tab.tabFg
+                                }
+                                Rectangle {
+                                    x: 4; y: 5.75; width: 4; height: 1.5
+                                    color: tab.tabFg
+                                }
+                                Rectangle {
+                                    x: 8; y: 4.5; width: 4; height: 4
+                                    radius: 2
+                                    color: tab.tabFg
+                                }
+                            }
+
+                            // Record: solid filled red dot. Uses the
+                            // err palette directly so it reads as the
+                            // record glyph regardless of tab state.
+                            Rectangle {
+                                visible: modelData.id === "record"
+                                anchors.centerIn: parent
+                                width: 8; height: 8
+                                radius: 4
+                                color: tab.tabFg
+                            }
+                        }
+
+                        Text {
+                            id: lbl
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            color: tab.tabFg
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: tab.isActive ? Font.DemiBold : Font.Medium
+                        }
                     }
+
                     MouseArea {
                         id: tabArea
                         anchors.fill: parent
@@ -395,12 +483,14 @@ Item {
 
             // Settings — gear icon. Highlights when on the Settings
             // page so the user has a clear "you are here" without
-            // adding a fifth tab to the pill.
+            // adding a fifth tab to the pill. Sized to read at the
+            // same visual weight as the nav-tab icons.
             Rectangle {
                 id: settingsBtn
-                width: 28; height: 28; radius: Theme.radiusSm
+                width: 24; height: 24; radius: Theme.radiusSm
                 anchors.verticalCenter: parent.verticalCenter
                 readonly property bool isActive: root.currentPage === "settings"
+                readonly property color iconColor: isActive ? Theme.accent : Theme.text2
                 color: isActive
                     ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
                     : (settingsArea.containsMouse ? Theme.surface2 : "transparent")
@@ -408,49 +498,51 @@ Item {
 
                 // Cog: an outer toothed ring + inner hub. Drawn from
                 // small Rectangles rather than a Unicode glyph so
-                // weight reads consistent with the moon/auto icons
-                // next to it (the Unicode ⚙ is too heavy and brand-
-                // ambiguous at this size).
+                // weight tracks the nav-tab icons next to it
+                // (Unicode ⚙ is too heavy and brand-ambiguous at this
+                // size). Tuned smaller than the original to match the
+                // tab-icon visual mass.
                 Item {
                     anchors.centerIn: parent
-                    width: 16
-                    height: 16
+                    width: 13
+                    height: 13
 
-                    // Eight teeth, evenly distributed.
+                    // Eight teeth, evenly distributed around the ring.
                     Repeater {
                         model: 8
                         delegate: Rectangle {
-                            width: 3
-                            height: 4
+                            width: 2
+                            height: 3
                             radius: 1
-                            color: settingsBtn.isActive ? Theme.accent : Theme.text2
-                            x: 8 - width / 2
-                                + Math.cos(index * Math.PI / 4 - Math.PI / 2) * 6.5
-                                - Math.sin(index * Math.PI / 4 - Math.PI / 2) * 0
-                            y: 8 - height / 2
-                                + Math.sin(index * Math.PI / 4 - Math.PI / 2) * 6.5
+                            color: settingsBtn.iconColor
+                            x: 6.5 - width / 2
+                                + Math.cos(index * Math.PI / 4 - Math.PI / 2) * 5.25
+                            y: 6.5 - height / 2
+                                + Math.sin(index * Math.PI / 4 - Math.PI / 2) * 5.25
                             transform: Rotation {
-                                origin.x: 1.5
-                                origin.y: 2
+                                origin.x: 1
+                                origin.y: 1.5
                                 angle: index * 45
                             }
                         }
                     }
 
-                    // Outer ring.
+                    // Outer ring (the gear body).
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 11
-                        height: 11
+                        width: 9
+                        height: 9
                         radius: width / 2
-                        color: settingsBtn.isActive ? Theme.accent : Theme.text2
+                        color: settingsBtn.iconColor
                     }
                     // Inner cut-out reveals the button bg, producing a
-                    // donut / cog hub.
+                    // donut / cog hub. Tracks the parent button's
+                    // active / hover fill so the cut-out always
+                    // matches what's behind.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 4
-                        height: 4
+                        width: 3
+                        height: 3
                         radius: width / 2
                         color: settingsBtn.isActive
                             ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
