@@ -632,24 +632,28 @@ Item {
         Qt.callLater(_zoomToFit)
     }
 
-    // Smart tidy. Picks the column count whose bounding box best
-    // matches the viewport aspect ratio, so _zoomToFit ends at the
-    // highest zoom (capped at 1.0). The Vertical / Horizontal /
-    // Grid layouts each have a fixed shape — fine for some cases,
-    // but they zoom the canvas way out when there are many steps
-    // because the layout is tall+narrow or short+wide. Smart Tidy
-    // sweeps 1..N columns, simulates each, and picks the layout
-    // that leaves cards readable at the closest-to-1.0 zoom.
+    // Smart tidy. Lays the workflow out in reading order with as few
+    // columns as the viewport allows.
     //
-    // Layout shape per top card:
-    //   - plain leaf:    1 column slot
-    //   - conditional:   top + branch column to the right (yes-path
-    //                    inner steps), with rejoin handled by wires
-    //   - repeat:        container card keeps its inline inner strip
+    // Priorities, in order:
     //
-    // Cards in the same column flow top-to-bottom; columns flow
-    // left-to-right. Conditional branches stay adjacent to their
-    // parent regardless of where the column wraps.
+    //   1. Readable flow — cards stay in execution order down each
+    //      column, columns wrap newspaper-style left → right. A
+    //      single column is the most natural shape; two columns is
+    //      still easy to follow; three feels busy. Conditional
+    //      branches stay glued to their parent regardless of where
+    //      the column wraps. Repeat containers keep their inline
+    //      strip.
+    //   2. Zoom — the layout is sized to fit the viewport so cards
+    //      stay readable. We pick the FEWEST columns that hit a
+    //      readable zoom threshold (~0.8); only if even the widest
+    //      allowed shape can't reach that do we fall back to
+    //      whichever gives the best zoom.
+    //
+    // The fixed shapes (Vertical / Horizontal / Grid) stay available
+    // as deliberate overrides — Smart Tidy is the default because it
+    // gets the right answer for almost every workflow without the
+    // user having to guess.
     function organizeSmart() {
         const list = root.actions || []
         const tops = list.filter(it => it && it._displayKind === "top")
@@ -681,9 +685,11 @@ Item {
 
         const padding = 60
 
-        // Distribute cells across `cols` columns (column-major) and
-        // return per-column dimensions so we can size the bounding
-        // box without doing a full layout.
+        // Distribute cells across `cols` columns column-major
+        // (consecutive cells stay in the same column; columns wrap
+        // left-to-right) so the eye reads top-down then jumps to the
+        // top of the next column. Returns per-column dimensions so
+        // we can size the bounding box without doing a full layout.
         function simulate(cols) {
             const perCol = Math.ceil(cells.length / cols)
             const colW = new Array(cols).fill(0)
@@ -708,33 +714,50 @@ Item {
             return { perCol, colW, colH, totalW, maxH }
         }
 
-        // Pick the column count that yields the highest fit zoom,
-        // capped at 1.0. Tie-break toward fewer columns so simple
-        // workflows stay close to the familiar vertical shape.
-        const maxCols = Math.min(cells.length, 6)
-        let best = null
-        for (let cols = 1; cols <= maxCols; cols++) {
-            const sim = simulate(cols)
+        // Below this zoom, body text on the cards becomes painful to
+        // read at typical window sizes (1280×800 → ~1000×600 editor
+        // area at 0.78 = ~780×468 logical, comfortably above the
+        // pixel-grid threshold for the 13/14px fonts).
+        const READABLE_ZOOM = 0.78
+        // Cap at 3 — beyond that the eye loses the reading rhythm
+        // and the workflow stops reading like a sequence.
+        const MAX_COLS = Math.min(cells.length, 3)
+
+        function fitZoom(sim) {
             const fitW = sim.totalW + padding * 2
             const fitH = sim.maxH + padding * 2
-            const z = Math.min(
+            return Math.min(
                 Math.min(flick.width / fitW, flick.height / fitH),
                 1.0)
-            if (!best || z > best.z + 0.005) {
-                best = { cols, z, sim }
+        }
+
+        // Walk column counts in increasing order. The FIRST shape
+        // that hits readable zoom wins — fewer columns is always
+        // preferred for flow legibility. If no shape is readable,
+        // fall back to whichever produces the highest zoom.
+        let pick = null
+        let fallback = null
+        for (let cols = 1; cols <= MAX_COLS; cols++) {
+            const sim = simulate(cols)
+            const z = fitZoom(sim)
+            if (!fallback || z > fallback.z) fallback = { cols, z, sim }
+            if (z >= READABLE_ZOOM) {
+                pick = { cols, z, sim }
+                break
             }
         }
-        if (!best) return
+        if (!pick) pick = fallback
+        if (!pick) return
 
         // Apply the layout. xCursor / yCursor walk top-down then
         // wrap to the next column. Conditional branches sit at
         // (top.x + top.w + gap*2, top.y + top.h/2) — same anchor
         // organizeVertical uses, so the wires hit the parent's
         // midpoint and rejoin to the next-top's midpoint.
-        const sim = best.sim
+        const sim = pick.sim
         const next = {}
         let xCursor = paddingLeft
-        for (let c = 0; c < best.cols; c++) {
+        for (let c = 0; c < pick.cols; c++) {
             let yCursor = paddingTop
             const start = c * sim.perCol
             const end = Math.min(start + sim.perCol, cells.length)
