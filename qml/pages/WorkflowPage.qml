@@ -1337,6 +1337,11 @@ Item {
 
     Connections {
         target: wfCtrl
+        function onStep_started(index, step_id) {
+            // Forward to canvas so inner step rows can re-trigger
+            // their pulse on every iteration of a repeat.
+            if (canvasView) canvasView.stepStarted(step_id || "")
+        }
         function onRunningChanged() {
             // Clear previous statuses at the start of a fresh run so stale
             // glyphs from the last run don't bleed into the new one.

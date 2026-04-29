@@ -132,6 +132,20 @@ pub mod qobject {
             message: QString,
         );
 
+        /// Signalled when the engine begins a step. Carries the same
+        /// id/index the active_step / active_step_id qproperties also
+        /// receive, but as an unconditional signal — `set_active_step_id`
+        /// dedupes when the same id is set across iterations of a
+        /// `repeat`, which means QML never sees a binding change. This
+        /// signal fires every time so the inner-step pulse animation
+        /// can restart per iteration.
+        #[qsignal]
+        fn step_started(
+            self: Pin<&mut WorkflowController>,
+            index: i32,
+            step_id: QString,
+        );
+
         /// Signalled once the workflow finishes (or errors out).
         #[qsignal]
         fn run_finished(self: Pin<&mut WorkflowController>, ok: bool);
@@ -597,6 +611,10 @@ impl qobject::WorkflowController {
                         ctrl.as_mut().set_paused(false);
                         ctrl.as_mut().set_active_step(index as i32);
                         ctrl.as_mut().set_active_step_id(QString::from(&step_id));
+                        ctrl.as_mut().step_started(
+                            index as i32,
+                            QString::from(&step_id),
+                        );
                     }
                     RunEvent::StepDone {
                         index, step_id, outcome, ..

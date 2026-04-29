@@ -217,6 +217,11 @@ Item {
     readonly property real minZoom: 0.4
     readonly property real maxZoom: 1.6
 
+    // Fired by the page on every wfCtrl.step_started — used by inner
+    // step rows in repeat containers to flash on each iteration even
+    // when active_step_id stays unchanged across the loop.
+    signal stepStarted(string stepId)
+
     signal selectStep(int index)
     // Modifier-aware variants for shift / ctrl-click selection.
     signal rangeSelectStep(int index)
@@ -2218,9 +2223,23 @@ Item {
                             anchors.topMargin: 42
                             spacing: 3
 
+                            // Notes are workflow annotations — they don't
+                            // execute and shouldn't show up as inline
+                            // rows in a repeat container. They still
+                            // round-trip through KDL because
+                            // cardItem.act.rawAction.steps is the raw
+                            // backing array; we just filter the visual
+                            // model here.
                             readonly property var inner: {
                                 const ra = cardItem.act ? cardItem.act.rawAction : null
-                                return (ra && ra.steps) ? ra.steps : []
+                                const all = (ra && ra.steps) ? ra.steps : []
+                                const out = []
+                                for (let i = 0; i < all.length; i++) {
+                                    const s = all[i]
+                                    if (s && s.action && s.action.kind === "note") continue
+                                    out.push(s)
+                                }
+                                return out
                             }
 
                             Repeater {
@@ -2294,17 +2313,34 @@ Item {
                                                 : innerRow.innerStatus === "skipped" ? Theme.text3
                                                 : Theme.lineSoft
                                             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                                            SequentialAnimation on opacity {
-                                                running: innerRow.innerIsActive && !Theme.reduceMotion
-                                                loops: Animation.Infinite
-                                                alwaysRunToEnd: false
-                                                NumberAnimation { from: 1.0; to: 0.35; duration: 600; easing.type: Easing.InOutSine }
-                                                NumberAnimation { from: 0.35; to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+
+                                            // Per-iteration flash. The bridge sets
+                                            // active_step_id to the same inner-step id on
+                                            // every iteration of a repeat, which dedupes at
+                                            // the cxx-qt setter — QML never sees the
+                                            // binding change. The unconditional `stepStarted`
+                                            // signal lets us restart the pulse cleanly per
+                                            // iteration so the user gets one visible pulse
+                                            // per loop.
+                                            SequentialAnimation {
+                                                id: innerPulseAnim
+                                                NumberAnimation { target: innerStatusDot; property: "opacity"; from: 1.0; to: 0.35; duration: 220; easing.type: Easing.OutSine }
+                                                NumberAnimation { target: innerStatusDot; property: "opacity"; from: 0.35; to: 1.0; duration: 320; easing.type: Easing.InOutSine }
+                                                NumberAnimation { target: innerStatusDot; property: "scale";   from: 1.0; to: 1.5; duration: 0 }
+                                                NumberAnimation { target: innerStatusDot; property: "scale";   from: 1.5; to: 1.0; duration: 260; easing.type: Easing.InQuad }
                                             }
-                                            // Reset opacity when the active state ends so a
-                                            // mid-pulse stop doesn't leave the dot dim.
-                                            readonly property bool pulseActive: innerRow.innerIsActive
-                                            onPulseActiveChanged: if (!pulseActive) opacity = 1.0
+                                            Connections {
+                                                target: root
+                                                function onStepStarted(stepId) {
+                                                    if (Theme.reduceMotion) return
+                                                    if (!innerRow.innerStepId) return
+                                                    if (stepId !== innerRow.innerStepId) return
+                                                    innerPulseAnim.stop()
+                                                    innerStatusDot.opacity = 1.0
+                                                    innerStatusDot.scale = 1.0
+                                                    innerPulseAnim.start()
+                                                }
+                                            }
                                         }
                                         Rectangle {
                                             anchors.verticalCenter: parent.verticalCenter
