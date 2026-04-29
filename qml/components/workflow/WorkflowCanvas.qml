@@ -3481,17 +3481,36 @@ Item {
             // downstream out of the bottom; at the target the wire
             // arrives from above heading down INTO the top edge.
             //
-            // Back-flow exception: if the target has another card
-            // directly above it (no clearance for the wire to come
-            // down from above), enter from the BOTTOM instead. Wire
-            // dives below source, sweeps under the layout, and comes
-            // up into the target's bottom edge. Common case is a
-            // rejoin from a sub-branch's last inner step into the
-            // next-top card sitting in the middle of the layout —
-            // top-entry would force the lobe through whatever's
-            // stacked above, which reads as the wire "passing under"
-            // unrelated cards.
+            // Back-flow gets two exceptions:
+            //
+            //   - X ranges OVERLAP (cards stacked or close-diagonal):
+            //     use natural top→bottom edges. Wire exits the
+            //     source's top going UP and enters the target's
+            //     bottom going UP — short direct diagonal. The
+            //     strict lobe would dive below the source and rise
+            //     above the target for no reason; with the cards
+            //     close on the X axis there's no column gap to
+            //     route through, so the dive reads as a pointless
+            //     U-turn under the source.
+            //
+            //   - Target has cards directly above (no clearance):
+            //     enter from the bottom instead. Wire dives below
+            //     source, sweeps under, and comes up into target's
+            //     bottom. This is the rejoin-into-the-middle case.
+            //
+            // Otherwise (true column-wrap with clearance everywhere)
+            // the strict bottom→top rule produces the clean lobe
+            // through the column gap.
             const isBackFlow = toCy < fromCy
+            if (isBackFlow && xOverlap) {
+                return {
+                    sx: fromCx, sy: fromPos.y,
+                    tx: toCx,   ty: toPos.y + toH,
+                    axis: "v",
+                    sd: { x: 0, y: -1 },
+                    td: { x: 0, y: -1 }
+                }
+            }
             if (isBackFlow && _hasCardAbove(toPos.x, toPos.y, toW, toId)) {
                 return {
                     sx: fromCx, sy: fromPos.y + fromH,
