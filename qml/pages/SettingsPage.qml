@@ -12,6 +12,10 @@ import Wflow
 Item {
     id: root
     signal close()
+    // Routed up to Main.qml, which calls tutorial.start(). Lives on
+    // the page rather than as a direct call into the tutorial so
+    // SettingsPage stays unaware of where the coach lives.
+    signal showTutorRequested()
 
     // One controller for the whole page. Don't reach into Theme._state
     // because Theme is a singleton and binding mutations from a regular
@@ -259,6 +263,22 @@ Item {
                                     ctrl.reset_store_path()
                                 }
                             }
+                        }
+                    }
+                }
+
+                // ---- Help ----
+                SettingSection {
+                    title: "Help"
+                    Layout.fillWidth: true
+
+                    SettingRow {
+                        title: "Replay the tour"
+                        subtitle: "Show the seven-step welcome tour again. Useful for getting reoriented after a long break or before showing wflow to someone new."
+
+                        SecondaryButton {
+                            text: "Show tour"
+                            onClicked: root.showTutorRequested()
                         }
                     }
                 }

@@ -156,6 +156,7 @@ ApplicationWindow {
         onCloseDoc: (index) => root.closeDoc(index)
         onDocTitleResolved: (index, title) => root._setDocTitle(index, title)
         onRecordRequested: root.currentPage = "record"
+        onShowTutorRequested: tutorial.start()
     }
 
     // First-launch tutorial. Coach-mark style — overlays the live
@@ -203,14 +204,35 @@ ApplicationWindow {
                 placement: "below"
             },
             {
+                title: "The editor",
+                body: "Once you open a workflow, the editor appears here. Drag steps from a palette on the left, see them as cards on a canvas, click any step to edit details in a panel that slides in from the right.",
+                page: "workflow",
+                getTarget: () => chrome.workflowSlot,
+                placement: "auto",
+                scrim: false
+            },
+            {
+                title: "▶ Run plays it back",
+                body: "The Run button at the top of the editor plays the workflow step by step. Each card shows a status dot as the engine fires it (ok, skipped, or error)."
+            },
+            {
+                title: "● Record captures input",
+                body: "Click the big button to arm, perform the task, then click again to stop. wflow transcribes your keystrokes, clicks, and window-focus changes into a saved workflow. Esc cancels.",
+                page: "record",
+                getTarget: () => chrome.recordPage.recordSurface,
+                placement: "auto",
+                scrim: false
+            },
+            {
                 title: "Settings",
                 body: "Theme, motion, default sort, workflows folder. All here behind the gear.",
+                page: "library",
                 getTarget: () => chrome.settingsButton,
                 placement: "below"
             },
             {
                 title: "You're set",
-                body: "Click + New on the Library page to start your first workflow, or hit ● Record to capture one from real input."
+                body: "Click + New on the Library page to start your first workflow, or hit ● Record to capture one from real input. Settings has a button to replay this tour any time."
             }
         ]
     }

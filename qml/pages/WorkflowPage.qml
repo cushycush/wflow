@@ -24,6 +24,15 @@ Item {
     property string fragmentPath: ""
     readonly property bool fragmentMode: fragmentPath.length > 0
 
+    // Exposed so the first-run TutorialCoach can point at specific
+    // editor regions — canvas, palette, inspector, run button —
+    // when the editor section of the tour fires.
+    property alias canvasArea: canvasView
+    property alias paletteDock: paletteDockInst
+    property alias inspectorPanel: inspectorContainer
+    property alias runButton: runBtn
+    property alias stepRail: rail
+
     signal backRequested()
     // Fired when the user clicks "→ open" on a `use NAME` card.
     // Carries the resolved absolute path and the import name (used
@@ -1470,6 +1479,7 @@ Item {
             // add a step at the drop point — palette uses the canvas
             // ref to drive an in-canvas card-shaped preview ghost.
             StepPalette {
+                id: paletteDockInst
                 // Visible whenever a doc is loaded — both real
                 // workflows (workflowId set) and fragment files
                 // (fragmentPath set). Fragment edits save through

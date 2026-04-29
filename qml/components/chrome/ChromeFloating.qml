@@ -32,6 +32,9 @@ Item {
     // name instead of the raw id we stored at openWorkflowDoc time.
     signal docTitleResolved(int index, string title)
     signal recordRequested()
+    // Routed up from SettingsPage's "Replay the tour" button so
+    // Main.qml can reach into the TutorialCoach.
+    signal showTutorRequested()
 
     // App-wide dot-grid backdrop. Pages render on top; the ones
     // built as transparent Items (Library / Explore / Workflow) let
@@ -313,10 +316,13 @@ Item {
             }
         }
         RecordPage {
+            id: recordPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         SettingsPage {
+            id: settingsPageInst
             onClose: root.navigate("library")
+            onShowTutorRequested: root.showTutorRequested()
         }
     }
 
@@ -325,6 +331,8 @@ Item {
     property alias pillContainer: navPill
     property alias settingsButton: settingsBtn
     property alias libraryPage: libraryPageInst
+    property alias workflowSlot: workflowSlot
+    property alias recordPage: recordPageInst
 
     // Floating nav bar — rounded-rect style matching the editor's
     // Tidy / Wires / Zoom pills (radius:Theme.radiusMd container,

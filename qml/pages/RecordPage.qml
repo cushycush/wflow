@@ -14,6 +14,11 @@ Item {
 
     signal openWorkflow(string id)
 
+    // Exposed for the first-run TutorialCoach so the record-mode
+    // section of the tour can anchor on the ambient layout's record
+    // button.
+    property alias recordSurface: ambient
+
     RecorderController { id: recCtrl }
 
     property var events: []
@@ -314,6 +319,7 @@ Item {
         }
 
         AmbientRec {
+            id: ambient
             width: parent.width
             height: parent.height - tb.height
                 - (recErrBanner.visible ? recErrBanner.height : 0)
