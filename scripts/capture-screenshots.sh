@@ -85,6 +85,17 @@ capture() {
     echo "  ✓ $DEST/$name.png"
 }
 
+# 5-second countdown after Enter — gives you time to move the cursor
+# onto the element you want hovered before grim fires.
+countdown() {
+    echo "  position your cursor inside wflow now..."
+    for i in 5 4 3 2 1; do
+        printf "    %d...\r" "$i"
+        sleep 1
+    done
+    printf "    capture!     \n"
+}
+
 # Capture a (dark, light) pair for one surface. Prompts the user to
 # set up the state first; pressing 'n' skips both shots.
 pair() {
@@ -98,8 +109,10 @@ pair() {
         echo "  skipped"
         return
     fi
+    countdown
     capture "${base}.dark"
     flip_theme
+    countdown
     capture "${base}.light"
     flip_theme  # back to dark for the next surface
 }

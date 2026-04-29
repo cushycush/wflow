@@ -50,16 +50,24 @@ fi
 shoot() {
     local name="$1"
     local prompt="$2"
-    local wait="${3:-6}"
     echo
     echo "── $name ──"
     echo "  $prompt"
-    echo "  capturing in $wait seconds..."
-    for ((i=wait; i>0; i--)); do
+    read -r -p "  ready? [Enter to capture, n to skip, q to quit] " ans
+    case "$ans" in
+        n) echo "  skipped"; return ;;
+        q) echo "  quit"; exit 0 ;;
+    esac
+    # 5-second countdown after Enter so you can move the cursor
+    # onto the element you want hovered before grim fires. Gets
+    # hover states into the frame; without it grim catches whatever
+    # the cursor was over when you hit Enter (usually the terminal).
+    echo "  position your cursor inside wflow now..."
+    for i in 5 4 3 2 1; do
         printf "    %d...\r" "$i"
         sleep 1
     done
-    echo
+    printf "    capture!     \n"
     ./scripts/grab.sh "$name" >/dev/null
     echo "  ✓ saved docs/design/screenshots/$name.png"
 }
