@@ -1490,7 +1490,7 @@ Item {
                         || _widthForKind(root.actions[fromIdx] ? root.actions[fromIdx].rawKind : "")
                     readonly property real toW: root.cardWidths[toId]
                         || _widthForKind(root.actions[toIdx] ? root.actions[toIdx].rawKind : "")
-                    readonly property var route: _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+                    readonly property var route: _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
 
                     visible: fromPos !== undefined && toPos !== undefined
                     anchors.fill: parent
@@ -1576,7 +1576,7 @@ Item {
                         || _widthForKind(root.actions[toIdx]
                             ? root.actions[toIdx].rawKind : "")
                     readonly property var route:
-                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
 
                     // Plain coloured text floating above the wire
                     // midpoint — no pill. The subtle bg (a tinted
@@ -2708,7 +2708,7 @@ Item {
                         || _widthForKind(root.actions[toIdx]
                             ? root.actions[toIdx].rawKind : "")
                     readonly property var route:
-                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW)
+                        _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
                     visible: fromPos !== undefined && toPos !== undefined
 
                     // Port = a soft cyan halo behind a solid cyan
@@ -3398,7 +3398,29 @@ Item {
     //   - Diagonal / both overlap: pick whichever dimension has the
     //     larger centre-to-centre delta, so the curve's long side
     //     tracks along the natural flow direction.
-    function _routeWire(fromPos, toPos, fromH, toH, fromW, toW) {
+    // Returns true if any other card overlaps the target's X range
+    // and ends above the target's top — i.e., the wire can't enter
+    // the target's top edge without crossing that card. Used by the
+    // back-flow router to swap to bottom-entry when the natural
+    // top-entry would lobe through a stack of cards above the
+    // target. Linear scan over actions; cheap at typical workflow
+    // sizes.
+    function _hasCardAbove(tx, ty, tw, ignoreId) {
+        const list = root.actions || []
+        for (let i = 0; i < list.length; i++) {
+            const a = list[i]
+            if (!a || a.id === ignoreId) continue
+            const p = positions[a.id]
+            if (!p) continue
+            const w = cardWidths[a.id] || _widthForKind(a.rawKind)
+            const h = cardHeights[a.id] || nodeMinH
+            const xOverlap = !(p.x + w <= tx || tx + tw <= p.x)
+            if (xOverlap && p.y + h <= ty) return true
+        }
+        return false
+    }
+
+    function _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId) {
         if (!fromPos || !toPos) {
             return {
                 sx: 0, sy: 0, tx: 0, ty: 0, axis: "v",
@@ -3443,10 +3465,31 @@ Item {
         }
 
         if (useVertical) {
-            // Always exit BOTTOM of source, enter TOP of target.
+            // Default: exit BOTTOM of source, enter TOP of target.
             // sd / td both point DOWN — at the source the wire heads
             // downstream out of the bottom; at the target the wire
             // arrives from above heading down INTO the top edge.
+            //
+            // Back-flow exception: if the target has another card
+            // directly above it (no clearance for the wire to come
+            // down from above), enter from the BOTTOM instead. Wire
+            // dives below source, sweeps under the layout, and comes
+            // up into the target's bottom edge. Common case is a
+            // rejoin from a sub-branch's last inner step into the
+            // next-top card sitting in the middle of the layout —
+            // top-entry would force the lobe through whatever's
+            // stacked above, which reads as the wire "passing under"
+            // unrelated cards.
+            const isBackFlow = toCy < fromCy
+            if (isBackFlow && _hasCardAbove(toPos.x, toPos.y, toW, toId)) {
+                return {
+                    sx: fromCx, sy: fromPos.y + fromH,
+                    tx: toCx,   ty: toPos.y + toH,
+                    axis: "v",
+                    sd: { x: 0, y: 1 },
+                    td: { x: 0, y: -1 }
+                }
+            }
             return {
                 sx: fromCx, sy: fromPos.y + fromH,
                 tx: toCx,   ty: toPos.y,
