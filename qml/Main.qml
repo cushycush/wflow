@@ -198,7 +198,7 @@ ApplicationWindow {
             },
             {
                 title: "Start a workflow",
-                body: "Hit + New to start blank or from a template. Or click ● Record and wflow will transcribe a sequence of keys, clicks, and commands into one.",
+                body: "Hit + New to start blank or pick a template. The Record tab in the floating pill captures real input if you'd rather transcribe one.",
                 page: "library",
                 getTarget: () => chrome.libraryPage.topBar,
                 placement: "below"

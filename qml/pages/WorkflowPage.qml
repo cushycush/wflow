@@ -219,7 +219,7 @@ Item {
         if (!action) return
         if (action.kind !== "repeat" && action.kind !== "conditional") return
         root.crumb = root.crumb.concat([stepIndex])
-        editorContent.selectedIndex = -1
+        editorContent._setSingleSelection(-1)
         editorContent.selectedInnerIndex = -1
         // Center the viewport on the new content. The actions
         // binding has just changed and _placeNewSteps will seed
@@ -233,7 +233,7 @@ Item {
         if (depth < 0) depth = 0
         if (depth >= root.crumb.length) return
         root.crumb = root.crumb.slice(0, depth)
-        editorContent.selectedIndex = -1
+        editorContent._setSingleSelection(-1)
         editorContent.selectedInnerIndex = -1
         Qt.callLater(canvasView._zoomToFit)
     }
@@ -472,7 +472,7 @@ Item {
             action: _defaultActionForKind(kind)
         })
         root.workflow = wf
-        editorContent.selectedIndex = steps.length - 1
+        editorContent._setSingleSelection(steps.length - 1)
         _scheduleSave()
         return id
     }
@@ -545,11 +545,28 @@ Item {
         // inspector when no steps remain.
         const newLen = (root.actions || []).length
         if (newLen === 0) {
-            editorContent.selectedIndex = -1
+            editorContent._setSingleSelection(-1)
         } else if (editorContent.selectedIndex >= newLen) {
-            editorContent.selectedIndex = newLen - 1
+            editorContent._setSingleSelection(newLen - 1)
         }
         _scheduleSave()
+    }
+
+    // Delete every index in editorContent.selectedIndices in one
+    // pass. Iterate descending so each splice doesn't invalidate the
+    // indices we haven't processed yet (deleting flat index 7 leaves
+    // indices 0..6 unchanged; flat index 5's metadata still resolves
+    // to the same tree node).
+    function _bulkDeleteSelected() {
+        const indices = Object.keys(editorContent.selectedIndices)
+            .map(Number)
+            .filter(n => Number.isInteger(n) && n >= 0)
+            .sort((a, b) => b - a)
+        if (indices.length === 0) return
+        for (const i of indices) {
+            _deleteStep(i)
+        }
+        editorContent._clearSelection()
     }
 
     // Make the step at otherIdx the immediate predecessor of the
@@ -582,11 +599,11 @@ Item {
         // the same action the user just reordered.
         const sel = editorContent.selectedIndex
         if (sel === from) {
-            editorContent.selectedIndex = to
+            editorContent._setSingleSelection(to)
         } else if (from < sel && to >= sel) {
-            editorContent.selectedIndex = sel - 1
+            editorContent._setSingleSelection(sel - 1)
         } else if (from > sel && to <= sel) {
-            editorContent.selectedIndex = sel + 1
+            editorContent._setSingleSelection(sel + 1)
         }
         _scheduleSave()
     }
@@ -760,7 +777,7 @@ Item {
         // and focus the newly-arrived inner step.
         const newContainerIdx = fromIndex < containerIndex
             ? containerIndex - 1 : containerIndex
-        editorContent.selectedIndex = newContainerIdx
+        editorContent._setSingleSelection(newContainerIdx)
         editorContent.selectedInnerIndex = containerAction.steps.length - 1
 
         _scheduleSave()
@@ -953,6 +970,42 @@ Item {
         sequence: "Ctrl+S"
         enabled: root.visible && root.saveState !== "idle"
         onActivated: { saveTimer.stop(); root._saveNow() }
+    }
+
+    // Delete the current selection. Single-select still works through
+    // the same code path; multi-select bulk deletes from the highest
+    // index down so each splice doesn't shift the indices the loop
+    // hasn't visited yet.
+    Shortcut {
+        sequence: "Delete"
+        enabled: root.visible && editorContent.selectedCount > 0
+        onActivated: root._bulkDeleteSelected()
+    }
+    // Backspace as the second key for the same action — folks coming
+    // from macOS hit Backspace, folks on tiling Linux setups hit
+    // Delete. Both work.
+    Shortcut {
+        sequence: "Backspace"
+        enabled: root.visible && editorContent.selectedCount > 0
+        onActivated: root._bulkDeleteSelected()
+    }
+    // Esc clears the selection (single or multi).
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.visible && editorContent.selectedCount > 0
+        onActivated: editorContent._clearSelection()
+    }
+    // Ctrl+A selects every step at the current crumb depth.
+    Shortcut {
+        sequence: "Ctrl+A"
+        enabled: root.visible && (root.actions || []).length > 0
+        onActivated: {
+            const next = {}
+            const n = (root.actions || []).length
+            for (let i = 0; i < n; i++) next[i] = true
+            editorContent.selectedIndices = next
+            editorContent.selectedIndex = n > 0 ? n - 1 : -1
+        }
     }
 
     function _reload() {
@@ -1262,9 +1315,63 @@ Item {
             // -1 when the parent itself is selected; >= 0 means the
             // user clicked an inner mini-row of a flow-control
             // container, and the inspector edits the inner step.
+            //
+            // selectedIndex is the "anchor" — the most recent click,
+            // used by the inspector and by shift-click range
+            // expansion. selectedIndices is the full set of currently
+            // selected indices (object keyed by stringified index, so
+            // QML's binding system sees property changes when the
+            // map is replaced wholesale). The two stay in sync via
+            // the _setSingleSelection / _toggleSelected /
+            // _selectRange helpers below; nothing else should touch
+            // either property directly.
             property int selectedIndex: -1
             property int selectedInnerIndex: -1
-            readonly property bool inspectorOpen: selectedIndex >= 0
+            property var selectedIndices: ({})
+            readonly property int selectedCount:
+                Object.keys(selectedIndices).length
+            readonly property bool inspectorOpen:
+                selectedCount === 1 && selectedIndex >= 0
+
+            function _setSingleSelection(i) {
+                selectedIndex = i
+                if (i < 0) {
+                    selectedIndices = ({})
+                } else {
+                    const next = {}
+                    next[i] = true
+                    selectedIndices = next
+                }
+            }
+            function _toggleSelected(i) {
+                if (i < 0) return
+                const next = Object.assign({}, selectedIndices)
+                if (next[i]) {
+                    delete next[i]
+                    if (selectedIndex === i) {
+                        const remaining = Object.keys(next)
+                        selectedIndex = remaining.length === 1
+                            ? Number(remaining[0]) : -1
+                    }
+                } else {
+                    next[i] = true
+                    selectedIndex = i  // most recent click is the anchor
+                }
+                selectedIndices = next
+            }
+            function _selectRange(anchor, target) {
+                if (anchor < 0) {
+                    _setSingleSelection(target)
+                    return
+                }
+                const lo = Math.min(anchor, target)
+                const hi = Math.max(anchor, target)
+                const next = {}
+                for (let i = lo; i <= hi; i++) next[i] = true
+                selectedIndices = next
+                selectedIndex = target
+            }
+            function _clearSelection() { _setSingleSelection(-1) }
 
             // Walk into the workflow's nested step structure and shape
             // the resulting Step the same way root.actions shapes top-
@@ -1359,6 +1466,7 @@ Item {
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 selectedIndex: editorContent.selectedIndex
+                selectedIndices: editorContent.selectedIndices
                 stepStatuses: root.stepStatuses
 
                 showTutorial: _shouldShowBlankTutorial
@@ -1367,10 +1475,14 @@ Item {
                     root._tutorialDismissedThisSession = true
                 }
 
-                onSelectRequested: (i) => { editorContent.selectedIndex = i }
+                onSelectRequested: (i) => editorContent._setSingleSelection(i)
+                onRangeSelectRequested: (i) =>
+                    editorContent._selectRange(editorContent.selectedIndex, i)
+                onToggleSelectRequested: (i) =>
+                    editorContent._toggleSelected(i)
                 onAddStepRequested: (kind) => {
                     root._addStep(kind)
-                    editorContent.selectedIndex = (root.actions || []).length - 1
+                    editorContent._setSingleSelection((root.actions || []).length - 1)
                 }
                 onDeleteStepRequested: (stepIndex) => root._deleteStep(stepIndex)
                 onMoveStepRequested: (from, to) => root._moveStep(from, to)
@@ -1411,7 +1523,7 @@ Item {
                     onValueEdited: (stepIndex, newPrimary) => root._commitStepEdit(stepIndex, newPrimary)
                     onOptionEdited: (stepIndex, path, value) => root._commitOption(stepIndex, path, value)
                     onCloseRequested: {
-                        editorContent.selectedIndex = -1
+                        editorContent._setSingleSelection(-1)
                         editorContent.selectedInnerIndex = -1
                     }
                     onSelectStep: (i) => {
@@ -1422,7 +1534,7 @@ Item {
                         if (editorContent.selectedInnerIndex >= 0) {
                             editorContent.selectedInnerIndex = i
                         } else {
-                            editorContent.selectedIndex = i
+                            editorContent._setSingleSelection(i)
                             editorContent.selectedInnerIndex = -1
                         }
                     }
@@ -1449,18 +1561,37 @@ Item {
                 actions: root.actions
                 selectedIndex: editorContent.selectedIndex
                 selectedInnerIndex: editorContent.selectedInnerIndex
+                selectedIndices: editorContent.selectedIndices
                 activeStepIndex: root.activeStepIndex
                 stepStatuses: root.stepStatuses
                 onSelectStep: (i) => {
-                    editorContent.selectedIndex = i
+                    editorContent._setSingleSelection(i)
+                    editorContent.selectedInnerIndex = -1
+                }
+                onRangeSelectStep: (i) => {
+                    editorContent._selectRange(editorContent.selectedIndex, i)
+                    editorContent.selectedInnerIndex = -1
+                }
+                onToggleSelectStep: (i) => {
+                    editorContent._toggleSelected(i)
+                    editorContent.selectedInnerIndex = -1
+                }
+                onMarqueeSelected: (set) => {
+                    // Replace current selection with the marquee
+                    // result. The anchor becomes the highest-numbered
+                    // index so subsequent shift-clicks expand from
+                    // there as the user expects.
+                    editorContent.selectedIndices = set
+                    const keys = Object.keys(set).map(Number).sort((a, b) => b - a)
+                    editorContent.selectedIndex = keys.length > 0 ? keys[0] : -1
                     editorContent.selectedInnerIndex = -1
                 }
                 onDeselectRequested: {
-                    editorContent.selectedIndex = -1
+                    editorContent._setSingleSelection(-1)
                     editorContent.selectedInnerIndex = -1
                 }
                 onSelectInnerStep: (parentIdx, innerIdx) => {
-                    editorContent.selectedIndex = parentIdx
+                    editorContent._setSingleSelection(parentIdx)
                     editorContent.selectedInnerIndex = innerIdx
                 }
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)

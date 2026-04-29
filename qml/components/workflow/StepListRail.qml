@@ -13,9 +13,19 @@ Item {
     property var actions: []
     property int activeStepIndex: -1
     property int selectedIndex: -1
+    // Map of indices currently selected, keyed by stringified index.
+    // Single-click sets a 1-entry map; shift-click expands a range
+    // from the anchor (selectedIndex) to the clicked row; ctrl-click
+    // toggles individual rows.
+    property var selectedIndices: ({})
     property var stepStatuses: ({})
 
     signal selectRequested(int index)
+    // Shift-click: select every index from the anchor to `index`.
+    // Page resolves the anchor from its current selectedIndex.
+    signal rangeSelectRequested(int index)
+    // Ctrl/Cmd-click: toggle individual index in/out of the set.
+    signal toggleSelectRequested(int index)
     signal addStepRequested(string kind)
     signal deleteStepRequested(int stepIndex)
     signal moveStepRequested(int from, int to)
@@ -82,7 +92,13 @@ Item {
                         model: root.actions
                         delegate: Rectangle {
                             id: stepRow
-                            readonly property bool isSelected: model.index === root.selectedIndex
+                            // Multi-select aware. selectedIndices is the
+                            // set; when nothing's there yet (page hasn't
+                            // wired it up), fall through to the legacy
+                            // selectedIndex int so existing single-select
+                            // behaviour keeps working.
+                            readonly property bool isSelected:
+                                root.selectedIndices && root.selectedIndices[model.index] === true
                             readonly property bool isActive: model.index === root.activeStepIndex
                             readonly property string status: {
                                 const s = root.stepStatuses
@@ -106,7 +122,19 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.selectRequested(model.index)
+                                // Click semantics:
+                                //   plain click → single select
+                                //   shift+click → range from anchor
+                                //   ctrl/cmd+click → toggle this row
+                                onClicked: (mouse) => {
+                                    if (mouse.modifiers & Qt.ShiftModifier) {
+                                        root.rangeSelectRequested(model.index)
+                                    } else if (mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier)) {
+                                        root.toggleSelectRequested(model.index)
+                                    } else {
+                                        root.selectRequested(model.index)
+                                    }
+                                }
                             }
 
                             Row {

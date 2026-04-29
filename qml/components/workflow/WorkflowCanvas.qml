@@ -31,6 +31,10 @@ Item {
     property var actions: []
     property int selectedIndex: 0
     property int selectedInnerIndex: -1
+    // Multi-selection set, keyed by stringified index. Cards check
+    // both this and selectedIndex so callers that don't wire up the
+    // map keep working with the legacy single-select semantics.
+    property var selectedIndices: ({})
     property int activeStepIndex: -1
     property var stepStatuses: ({})
 
@@ -55,6 +59,38 @@ Item {
         return nodeW
     }
 
+    // Walk every visible card and find which rectangles intersect
+    // the marquee rect. Marquee comes in flick-local coordinates;
+    // card rects are tracked in world coordinates by `positions` /
+    // `cardWidths` / `cardHeights`. Convert flick → world by adding
+    // the scroll offset and dividing by zoom, then run the standard
+    // axis-aligned-rect overlap check.
+    function _commitMarqueeSelection(fLeft, fTop, fRight, fBottom) {
+        if ((fRight - fLeft) < 4 || (fBottom - fTop) < 4) return
+        const z = root.zoom > 0 ? root.zoom : 1
+        const wL = (fLeft   + flick.contentX) / z
+        const wT = (fTop    + flick.contentY) / z
+        const wR = (fRight  + flick.contentX) / z
+        const wB = (fBottom + flick.contentY) / z
+
+        const next = ({})
+        const acts = root.actions || []
+        for (let i = 0; i < acts.length; i++) {
+            const a = acts[i]
+            if (!a) continue
+            const pos = root.positions[a.id]
+            if (!pos) continue
+            const cw = root.cardWidths[a.id] || _widthForKind(a.rawKind)
+            const ch = root.cardHeights[a.id] || nodeMinH
+            if (pos.x + cw > wL && pos.x < wR && pos.y + ch > wT && pos.y < wB) {
+                next[i] = true
+            }
+        }
+        if (Object.keys(next).length > 0) {
+            root.marqueeSelected(next)
+        }
+    }
+
     // "curve" (default Bezier) | "ortho" (straight segments, hard
     // 90° corners). Doesn't affect the marching-dash animation —
     // dashes still flow along whichever path shape is active.
@@ -70,6 +106,14 @@ Item {
     readonly property real maxZoom: 1.6
 
     signal selectStep(int index)
+    // Modifier-aware variants for shift / ctrl-click selection.
+    signal rangeSelectStep(int index)
+    signal toggleSelectStep(int index)
+    // Shift+drag rectangle on empty canvas committed: emits the new
+    // selectedIndices set the page should adopt. Page replaces the
+    // current selection with this set rather than merging because
+    // Replace is the most-expected semantics for marquee.
+    signal marqueeSelected(var indicesSet)
     signal deselectRequested()
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
@@ -758,10 +802,13 @@ Item {
         // (not the canvas), and pressing on a card and releasing
         // without motion still fires its click. Everywhere else
         // — the empty grid background between cards — this
-        // handler takes the gesture and pans.
+        // handler takes the gesture and pans. acceptedModifiers
+        // restricts pan to bare drags so shift+drag is free for
+        // marquee selection.
         DragHandler {
             id: panHandler
             target: null
+            acceptedModifiers: Qt.NoModifier
             property real _startX: 0
             property real _startY: 0
             onActiveChanged: {
@@ -777,6 +824,60 @@ Item {
                 flick.contentX = Math.max(0, Math.min(maxX, _startX - translation.x))
                 flick.contentY = Math.max(0, Math.min(maxY, _startY - translation.y))
             }
+        }
+
+        // Shift+drag on empty canvas draws a marquee rectangle and
+        // selects every card whose rect intersects it on release.
+        // Cards' own MouseAreas claim presses on themselves first,
+        // so this handler only ever runs over the empty backdrop.
+        // Coordinates are in flick's local space; the commit step
+        // unprojects them through scroll + zoom into world space
+        // for hit-testing against card positions.
+        DragHandler {
+            id: marqueeHandler
+            target: null
+            acceptedModifiers: Qt.ShiftModifier
+            property real startX: 0
+            property real startY: 0
+            property real currentX: 0
+            property real currentY: 0
+            readonly property real left:   Math.min(startX, currentX)
+            readonly property real top:    Math.min(startY, currentY)
+            readonly property real right:  Math.max(startX, currentX)
+            readonly property real bottom: Math.max(startY, currentY)
+
+            onActiveChanged: {
+                if (active) {
+                    startX = centroid.position.x
+                    startY = centroid.position.y
+                    currentX = startX
+                    currentY = startY
+                } else {
+                    root._commitMarqueeSelection(left, top, right, bottom)
+                }
+            }
+            onCentroidChanged: {
+                if (!active) return
+                currentX = centroid.position.x
+                currentY = centroid.position.y
+            }
+        }
+
+        // The marquee rectangle visualization. Sits on flick (above
+        // the world transform) so its size doesn't scale with the
+        // zoom and the user always sees a screen-pixel rectangle.
+        Rectangle {
+            id: marqueeRect
+            visible: marqueeHandler.active
+            x: marqueeHandler.left
+            y: marqueeHandler.top
+            width: marqueeHandler.right - marqueeHandler.left
+            height: marqueeHandler.bottom - marqueeHandler.top
+            color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
+            border.color: Theme.accent
+            border.width: 1
+            radius: 2
+            z: 50
         }
 
         // Deselect on tap of empty area. TapHandler doesn't fire if
@@ -962,7 +1063,9 @@ Item {
                 // so inner Repeaters (rewire menu) don't shadow it
                 // with their own model.index.
                 readonly property int stepIdx: model.index
-                readonly property bool isSelected: model.index === root.selectedIndex
+                readonly property bool isSelected:
+                    (root.selectedIndices && root.selectedIndices[model.index] === true)
+                    || model.index === root.selectedIndex
 
                 // Hover aggregation. The card-level dragArea
                 // MouseArea loses containsMouse when the cursor moves
@@ -1216,7 +1319,17 @@ Item {
                                 next[cardItem.stepId] = { x: cardItem.x, y: cardItem.y }
                                 root.positions = next
                             } else {
-                                root.selectStep(model.index)
+                                // Shift / ctrl click semantics match
+                                // the rail: shift = range from anchor,
+                                // ctrl/cmd = toggle individual.
+                                const m = mouse.modifiers
+                                if (m & Qt.ShiftModifier) {
+                                    root.rangeSelectStep(model.index)
+                                } else if (m & (Qt.ControlModifier | Qt.MetaModifier)) {
+                                    root.toggleSelectStep(model.index)
+                                } else {
+                                    root.selectStep(model.index)
+                                }
                             }
                         }
                     }

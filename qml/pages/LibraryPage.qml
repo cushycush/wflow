@@ -395,11 +395,8 @@ Item {
                 text: "+ New workflow"
                 onClicked: root._openNewDialog()
             }
-            SecondaryButton {
-                visible: !root.selectMode
-                text: "● Record"
-                onClicked: root.recordRequested()
-            }
+            // (Record button removed — the Record tab in the floating
+            // nav pill is the canonical entry point now.)
         }
 
         // Esc cancels select mode (matches the subtitle hint).
