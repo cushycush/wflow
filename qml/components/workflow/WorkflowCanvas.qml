@@ -2990,9 +2990,9 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: if (toolBtn.onActivate) toolBtn.onActivate()
-                    ToolTip.visible: containsMouse && !toolBtn.expanded
-                    ToolTip.delay: 400
-                    ToolTip.text: toolBtn.tip
+                    // No tooltip — the dock expands on hover and shows
+                    // the same label inline, so a floating tooltip
+                    // would just be the same text twice.
                     onContainsMouseChanged: {
                         toolDock.chipHoverCount = Math.max(
                             0,
@@ -3131,9 +3131,6 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.wireStyle = "curve"
-                    ToolTip.visible: containsMouse && !parent.expanded
-                    ToolTip.delay: 400
-                    ToolTip.text: "Curved (Bezier) wires"
                     onContainsMouseChanged: {
                         toolDock.chipHoverCount = Math.max(
                             0,
@@ -3187,9 +3184,6 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.wireStyle = "ortho"
-                    ToolTip.visible: containsMouse && !parent.expanded
-                    ToolTip.delay: 400
-                    ToolTip.text: "Stepped (90°) wires"
                     onContainsMouseChanged: {
                         toolDock.chipHoverCount = Math.max(
                             0,
@@ -3249,9 +3243,6 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
-                    ToolTip.visible: containsMouse && !parent.expanded
-                    ToolTip.delay: 400
-                    ToolTip.text: "Reset zoom to 100%"
                     onContainsMouseChanged: {
                         toolDock.chipHoverCount = Math.max(
                             0,
