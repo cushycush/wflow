@@ -3284,14 +3284,31 @@ Item {
     // ============ Helpers ============
 
     // SVG path data for a Bezier-style wire. Control points are
-    // pulled along the routing axis so the curve eases out of the
-    // source and into the target.
+    // pulled along the source/target tangent directions (route.sd,
+    // route.td) so the curve eases out of the source going
+    // downstream and into the target going upstream. For a normal
+    // adjacent-card chain that's a straight short curve; for a
+    // column-wrap wire (target far above source in a different
+    // column) it produces a sweeping lobe that exits the bottom of
+    // source, sweeps through the column gap, and enters the top of
+    // target — instead of cutting straight up through the cards
+    // above source.
     function _curvePath(route) {
         if (!route) return ""
-        const c1x = route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.sx
-        const c1y = route.axis === "h" ? route.sy : (route.sy + (route.ty - route.sy) / 2)
-        const c2x = route.axis === "h" ? (route.sx + (route.tx - route.sx) / 2) : route.tx
-        const c2y = route.axis === "h" ? route.ty : (route.sy + (route.ty - route.sy) / 2)
+        const sd = route.sd || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
+        const td = route.td || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
+        const dist = Math.hypot(route.tx - route.sx, route.ty - route.sy)
+        // k scales with wire length so adjacent cards get a tight
+        // little curve and column-wrap wires get enough offset for
+        // the lobe to clearly leave / enter on the right edges.
+        const k = Math.max(40, Math.min(dist * 0.4, 240))
+        // c1 sits along source tangent from start; c2 sits along
+        // negative target tangent from end (so the curve's tangent
+        // at end points along td INTO the target).
+        const c1x = route.sx + sd.x * k
+        const c1y = route.sy + sd.y * k
+        const c2x = route.tx - td.x * k
+        const c2y = route.ty - td.y * k
         return "M " + route.sx + " " + route.sy
              + " C " + c1x + " " + c1y
              + " "   + c2x + " " + c2y
@@ -3301,38 +3318,81 @@ Item {
     // SVG path data for an orthogonal wire — three straight segments
     // joined at hard 90° corners. The midpoint sits halfway along the
     // routing axis so the elbow lands centred between the two cards.
+    // For column-wrap wires (target above source on the vertical
+    // axis), midY would land between the ends and the path would
+    // double back through the cards. Detect that and route through
+    // the empty space instead — down past source, across, up past
+    // target — using a six-segment U.
     function _orthoPath(route) {
         if (!route) return ""
+        const sd = route.sd || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
+        const td = route.td || (route.axis === "h" ? { x: 1, y: 0 } : { x: 0, y: 1 })
         if (route.axis === "h") {
-            const midX = (route.sx + route.tx) / 2
+            // Forward horizontal flow if both tangents point right;
+            // simple Z elbow at midX.
+            const forward = sd.x > 0 && td.x > 0 && route.tx > route.sx
+            if (forward) {
+                const midX = (route.sx + route.tx) / 2
+                return "M " + route.sx + " " + route.sy
+                     + " L " + midX     + " " + route.sy
+                     + " L " + midX     + " " + route.ty
+                     + " L " + route.tx + " " + route.ty
+            }
+            // Back-flow: detour out through the row gap above / below.
+            const padX = 24
             return "M " + route.sx + " " + route.sy
-                 + " L " + midX     + " " + route.sy
-                 + " L " + midX     + " " + route.ty
+                 + " L " + (route.sx + sd.x * padX) + " " + route.sy
+                 + " L " + (route.sx + sd.x * padX) + " " + route.ty
+                 + " L " + (route.tx - td.x * padX) + " " + route.ty
                  + " L " + route.tx + " " + route.ty
         } else {
-            const midY = (route.sy + route.ty) / 2
+            const forward = sd.y > 0 && td.y > 0 && route.ty > route.sy
+            if (forward) {
+                const midY = (route.sy + route.ty) / 2
+                return "M " + route.sx + " " + route.sy
+                     + " L " + route.sx + " " + midY
+                     + " L " + route.tx + " " + midY
+                     + " L " + route.tx + " " + route.ty
+            }
+            // Back-flow / column-wrap: detour down past source, then
+            // across, then up past target. padY pushes the elbow into
+            // the empty space below source and above target.
+            const padY = 24
             return "M " + route.sx + " " + route.sy
-                 + " L " + route.sx + " " + midY
-                 + " L " + route.tx + " " + midY
+                 + " L " + route.sx + " " + (route.sy + sd.y * padY)
+                 + " L " + route.tx + " " + (route.sy + sd.y * padY)
+                 + " L " + route.tx + " " + (route.ty - td.y * padY)
                  + " L " + route.tx + " " + route.ty
         }
     }
 
-    // Pick exit / entry sides per pair so wires avoid the obvious
-    // collisions:
-    //   - Same row (cards' Y ranges overlap, X ranges don't): horizontal
-    //     axis. Wire travels through the column-gap.
-    //   - Same column (X ranges overlap, Y ranges don't): vertical
-    //     axis. Wire travels through the row-gap.
-    //   - Diagonal (neither overlap): vertical axis. The horizontal
-    //     leg of the path lives in the row-gap, which is usually
-    //     empty even in dense grids; the horizontal alternative
-    //     would put the leg in the source's row, where it crosses
-    //     other cards.
-    //   - Both ranges overlap (cards stacked / nested): fall back
-    //     to the magnitude heuristic.
+    // Pick exit / entry sides per pair so the wire reads as a flow
+    // continuation rather than a physical-shortest-path connector.
+    //
+    // Rules:
+    //   - Vertical axis: ALWAYS exit the source's bottom and enter
+    //     the target's top. For a normal chain (target below) this
+    //     is a short straight curve; for a column-wrap (target above
+    //     in a different column) the directional Bezier dives below
+    //     source, sweeps through the column gap, and rises into
+    //     target's top — visually unambiguous as "next step in flow".
+    //   - Horizontal axis: exit right of source, enter left of
+    //     target when the target is to the right (the common case);
+    //     reversed for back-flows.
+    //
+    // Axis pick:
+    //   - Same row (cards' Y ranges overlap, X ranges don't): horizontal.
+    //   - Same column (X ranges overlap, Y ranges don't): vertical.
+    //   - Diagonal / both overlap: pick whichever dimension has the
+    //     larger centre-to-centre delta, so the curve's long side
+    //     tracks along the natural flow direction.
     function _routeWire(fromPos, toPos, fromH, toH, fromW, toW) {
-        if (!fromPos || !toPos) return { sx: 0, sy: 0, tx: 0, ty: 0, axis: "v" }
+        if (!fromPos || !toPos) {
+            return {
+                sx: 0, sy: 0, tx: 0, ty: 0, axis: "v",
+                sd: { x: 0, y: 1 }, td: { x: 0, y: 1 }
+            }
+        }
         if (!fromW) fromW = nodeW
         if (!toW)   toW   = nodeW
         const fromCx = fromPos.x + fromW / 2
@@ -3348,25 +3408,45 @@ Item {
             useVertical = false
         } else if (xOverlap && !yOverlap) {
             useVertical = true
-        } else if (!xOverlap && !yOverlap) {
-            useVertical = true
         } else {
+            // Diagonal or both-overlap: pick by magnitude.
             const dx = toCx - fromCx
             const dy = toCy - fromCy
             useVertical = Math.abs(dy) >= Math.abs(dx)
         }
 
-        if (!useVertical) {
-            if (toCx > fromCx) {
-                return { sx: fromPos.x + fromW, sy: fromCy, tx: toPos.x,        ty: toCy, axis: "h" }
-            } else {
-                return { sx: fromPos.x,         sy: fromCy, tx: toPos.x + toW,  ty: toCy, axis: "h" }
+        if (useVertical) {
+            // Always exit BOTTOM of source, enter TOP of target.
+            // sd / td both point DOWN — at the source the wire heads
+            // downstream out of the bottom; at the target the wire
+            // arrives from above heading down INTO the top edge.
+            return {
+                sx: fromCx, sy: fromPos.y + fromH,
+                tx: toCx,   ty: toPos.y,
+                axis: "v",
+                sd: { x: 0, y: 1 },
+                td: { x: 0, y: 1 }
             }
         } else {
-            if (toCy > fromCy) {
-                return { sx: fromCx, sy: fromPos.y + fromH, tx: toCx, ty: toPos.y,         axis: "v" }
+            // Horizontal: exit / enter on the side that matches the
+            // flow direction. Forward = right-out / left-in; back =
+            // mirror.
+            if (toCx >= fromCx) {
+                return {
+                    sx: fromPos.x + fromW, sy: fromCy,
+                    tx: toPos.x,            ty: toCy,
+                    axis: "h",
+                    sd: { x: 1, y: 0 },
+                    td: { x: 1, y: 0 }
+                }
             } else {
-                return { sx: fromCx, sy: fromPos.y,         tx: toCx, ty: toPos.y + toH,   axis: "v" }
+                return {
+                    sx: fromPos.x,         sy: fromCy,
+                    tx: toPos.x + toW,     ty: toCy,
+                    axis: "h",
+                    sd: { x: -1, y: 0 },
+                    td: { x: -1, y: 0 }
+                }
             }
         }
     }
