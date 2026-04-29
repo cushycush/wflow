@@ -3428,25 +3428,20 @@ Item {
                 td: { x: 0, y: 1 }
             }
         } else {
-            // Horizontal: exit / enter on the side that matches the
-            // flow direction. Forward = right-out / left-in; back =
-            // mirror.
-            if (toCx >= fromCx) {
-                return {
-                    sx: fromPos.x + fromW, sy: fromCy,
-                    tx: toPos.x,            ty: toCy,
-                    axis: "h",
-                    sd: { x: 1, y: 0 },
-                    td: { x: 1, y: 0 }
-                }
-            } else {
-                return {
-                    sx: fromPos.x,         sy: fromCy,
-                    tx: toPos.x + toW,     ty: toCy,
-                    axis: "h",
-                    sd: { x: -1, y: 0 },
-                    td: { x: -1, y: 0 }
-                }
+            // Always exit RIGHT of source, enter LEFT of target.
+            // Mirrors the vertical convention: horizontal flow is
+            // strictly left-to-right at the edges, so the wire reads
+            // as "next step" out of source's right side and into
+            // target's left side. Back-flow pairs (target physically
+            // to the left of source) get a sweeping lobe that exits
+            // right, loops around, and arrives from the left —
+            // analogous to the vertical column-wrap U.
+            return {
+                sx: fromPos.x + fromW, sy: fromCy,
+                tx: toPos.x,            ty: toCy,
+                axis: "h",
+                sd: { x: 1, y: 0 },
+                td: { x: 1, y: 0 }
             }
         }
     }
