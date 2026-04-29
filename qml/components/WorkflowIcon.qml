@@ -36,17 +36,16 @@ Rectangle {
         Behavior on border.color { ColorAnimation { duration: Theme.dur(160) } }
     }
 
-    // The stair-step glyph. Three cells, each sized at ~22% of the
-    // icon's edge, offset along the diagonal so the trio reads as
-    // three sequential steps with consistent spacing. Coordinates
-    // are computed from `size` so the icon scales without retuning.
+    // The stair-step glyph. Three cells stepping down-right,
+    // tightened so the icon's visual mass matches the folder tile's
+    // single-glyph icon at the same outer size. Coordinates are
+    // computed from `size` so the icon scales cleanly.
     Item {
         anchors.fill: parent
-        // Inset the drawing area so the stair has breathing room
-        // inside the rounded square's padding.
-        readonly property real cell: Math.max(3, Math.round(root.size * 0.22))
-        readonly property real step: cell + Math.max(1, Math.round(root.size * 0.06))
-        readonly property real startX: (root.size - (3 * cell + 2 * Math.max(1, Math.round(root.size * 0.06))) / 1.0) / 2.0 - cell * 0.05
+        readonly property int cell: Math.max(3, Math.round(root.size * 0.18))
+        readonly property int gap:  Math.max(1, Math.round(root.size * 0.05))
+        readonly property int span: 3 * cell + 2 * gap
+        readonly property real startX: (root.size - span) / 2
         readonly property real startY: startX
 
         Rectangle {
@@ -58,16 +57,16 @@ Rectangle {
             color: root._c
         }
         Rectangle {
-            x: parent.startX + parent.step
-            y: parent.startY + parent.step
+            x: parent.startX + parent.cell + parent.gap
+            y: parent.startY + parent.cell + parent.gap
             width: parent.cell
             height: parent.cell
             radius: Math.max(1, Math.round(width * 0.2))
             color: root._c
         }
         Rectangle {
-            x: parent.startX + parent.step * 2
-            y: parent.startY + parent.step * 2
+            x: parent.startX + 2 * (parent.cell + parent.gap)
+            y: parent.startY + 2 * (parent.cell + parent.gap)
             width: parent.cell
             height: parent.cell
             radius: Math.max(1, Math.round(width * 0.2))

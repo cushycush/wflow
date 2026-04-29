@@ -52,17 +52,17 @@ Rectangle {
     // weight at every size; outliers get pulled in or out from there.
     function _glyphRatio(k) {
         switch (k) {
-        case "wait":      return 0.66   // ⏱ has lots of inner space, render bigger
+        case "wait":      return 0.78   // ⏱ has lots of inner whitespace, render much bigger
         case "shell":     return 0.46   // ❯ is wide; trim it back
-        case "repeat":    return 0.58   // ↻ also wants a touch bigger
-        case "scroll":    return 0.58   // ⇅ too
-        case "move":      return 0.58   // ↔ too
-        case "clipboard": return 0.58   // ⎘
-        case "type":      return 0.50   // letter T sits naturally smaller
-        case "key":       return 0.56   // ⌘
-        case "click":     return 0.54   // ◉ is dense, scale it down a touch
-        case "notify":    return 0.58   // ◐
-        case "note":      return 0.55   // ¶
+        case "repeat":    return 0.60
+        case "scroll":    return 0.58
+        case "move":      return 0.58
+        case "clipboard": return 0.58
+        case "type":      return 0.52
+        case "key":       return 0.56
+        case "click":     return 0.54
+        case "notify":    return 0.58
+        case "note":      return 0.55
         case "when":      return 0.58
         case "unless":    return 0.58
         case "use":       return 0.58
@@ -72,22 +72,30 @@ Rectangle {
 
     // Per-kind centering nudge (in fractional-of-size units, so the
     // tuning still reads at any icon size). Positive y pushes the
-    // glyph DOWN; positive x pushes it RIGHT. Most Unicode glyphs
-    // hang slightly above center because their bounding box reserves
-    // descender space they don't use — a small +y on most kinds
-    // pulls them back to the visual middle.
+    // glyph DOWN; positive x pushes it RIGHT. Defaults to a small
+    // +y on most kinds because Qt's Text bounding box reserves
+    // descender space that most of these glyphs don't use, leaving
+    // the glyph hanging above the visual center. Per-kind overrides
+    // here are tuned by eye against the rendered output — adjust
+    // when a kind reads off in the editor or library.
     function _nudgeX(k) {
         switch (k) {
-        case "shell":  return 0.04   // ❯ has empty space on the left
-        case "notify": return 0.03   // ◐ is heavier on the left half
+        case "type":   return 0.04    // T sits visually left of its bounding box
+        case "shell":  return -0.02   // ❯ leans right; pull it back
+        case "notify": return -0.03   // ◐ is heavier on the left, pull leftward to compensate
         }
         return 0.0
     }
     function _nudgeY(k) {
         switch (k) {
-        case "wait":   return 0.04   // ⏱ stem hangs slightly low
-        case "note":   return -0.04  // ¶ has a descender
-        case "type":   return 0.02   // T reads slightly high otherwise
+        case "click":     return -0.02   // ◉ floats high but the glyph is dense, lift it
+        case "shell":     return -0.02   // ❯ chevron sits low against the cap line
+        case "notify":    return -0.01   // pull up off the descender padding
+        case "clipboard": return -0.01
+        case "use":       return -0.01   // @ glyph hangs slightly low
+        case "type":      return 0.06    // T reads quite high; push down hardest
+        case "wait":      return 0.04    // timer's pendulum hangs slightly low
+        case "note":      return -0.04   // pilcrow has its own descender
         }
         return 0.03   // generic small downward nudge for descender padding
     }
