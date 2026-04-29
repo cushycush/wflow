@@ -3437,28 +3437,31 @@ Item {
         const xOverlap = !(fromPos.x + fromW <= toPos.x || toPos.x + toW <= fromPos.x)
         const yOverlap = !(fromPos.y + fromH <= toPos.y || toPos.y + toH <= fromPos.y)
 
-        // Pick the routing axis. The rule is "rows beat cols": if
-        // the cards aren't in the same row (Y ranges don't overlap)
-        // we route vertically, so the wire exits the source's bottom
-        // and enters the target's top — natural flow into the next
-        // row. Horizontal is reserved for cards that genuinely share
-        // a row (yOverlap true).
+        // Pick the routing axis. The rules:
         //
-        // Why this matters: for grid back-flow (card at the right
-        // edge of one row → card at the left edge of the next row)
-        // the magnitude-based pick would lean horizontal because the
-        // X delta is wider than the Y delta, and force the wire into
-        // a "exit right, loop around, enter left" lobe that visually
-        // double-crosses the row above. Vertical "exit bottom, enter
-        // top of the next row's card" reads as serpentine flow.
+        //   1. Same row (Y ranges overlap, X don't), target to the
+        //      right of source → HORIZONTAL forward. This is the
+        //      conditional yes-branch entry: parent → first inner.
+        //   2. Same row, target to the LEFT of source → VERTICAL.
+        //      Strict right-out/left-in would produce a horizontal
+        //      back-flow lobe that swings out past source and curls
+        //      back. The canonical example is a rejoin wire from
+        //      the last inner of a yes-branch into the next-top
+        //      sitting below-left — going vertical reads as flow
+        //      continuing down into the main column.
+        //   3. Different rows (Y ranges don't overlap) → VERTICAL.
+        //      Wire exits the source's bottom and enters the
+        //      target's top, which reads as serpentine flow into
+        //      the next row.
+        //   4. Both ranges overlap (stacked / nested) → magnitude.
         let useVertical
         if (yOverlap && !xOverlap) {
-            useVertical = false
+            // Same-row pair. Forward → horizontal; back → vertical.
+            useVertical = toCx < fromCx
         } else if (!yOverlap) {
             useVertical = true
         } else {
-            // Both ranges overlap (stacked / nested cards): fall
-            // back to magnitude.
+            // Both ranges overlap (rare nested case): magnitude.
             const dx = toCx - fromCx
             const dy = toCy - fromCy
             useVertical = Math.abs(dy) >= Math.abs(dx)
