@@ -37,25 +37,43 @@ the app's dark theme (the default).
 
 ## How to capture
 
-The Wayland-friendly path is `grim` (Hyprland / Sway / KDE Plasma
-6+) or `gnome-screenshot -i` (GNOME). On Wayland, capturing a
-specific window typically needs `slurp` for the region picker.
-
-Quick capture loop using the bundled helper script:
+Use `scripts/grab.sh`, which handles two annoyances at once: it
+resolves output paths under `docs/design/screenshots/` regardless
+of where you run it from, and it picks the right window-capture tool
+for whichever compositor is up (Hyprland, Sway, GNOME, KDE Plasma).
 
 ```fish
-# Build + launch with deterministic config (uses XDG fallback)
+# In one terminal: build + launch the app
 ./scripts/capture-screenshots.sh
 
-# When the app window is visible, in another terminal:
-grim -g "$(slurp)" docs/design/screenshots/library-grid.dark.png
+# In another terminal: capture the focused window
+./scripts/grab.sh library-grid.dark
+# → docs/design/screenshots/library-grid.dark.png
 
 # Then in the app:
 #   - press Ctrl+. to flip to light theme
-#   - re-capture as library-grid.light.png
+#   - ./scripts/grab.sh library-grid.light
 #   - navigate to the next surface (Editor, Record, Explore, Settings)
 #   - repeat
 ```
+
+If a modal / overlay isn't the topmost focused window (e.g. you want
+to capture the Explore detail drawer mid-animation, or a context
+menu), pass `-r` to fall back to a slurp region select:
+
+```fish
+./scripts/grab.sh explore-detail.dark -r
+```
+
+Under the hood:
+- **Hyprland**: `hyprctl -j activewindow` → geometry → `grim -g`.
+- **Sway / wayfire**: `swaymsg -t get_tree` → focused node geometry
+  → `grim -g`.
+- **GNOME**: native `gnome-screenshot --window --file=…`.
+- **KDE Plasma 6**: `spectacle --activewindow --background --nonotify`.
+
+If none of those exist, `grab.sh` tells you to install one — or to
+pass `-r` for a manual region select via slurp.
 
 Window decorations are fine to include or crop — Claude Design only
 needs the app surface itself, but a little chrome doesn't hurt.
