@@ -36,6 +36,11 @@ Item {
     // map keep working with the legacy single-select semantics.
     property var selectedIndices: ({})
     property int activeStepIndex: -1
+    // Companion to activeStepIndex — if the active step is INNER
+    // (an inner step of a conditional), this is the actions index of
+    // the parent conditional. Card delegates check both so the
+    // conditional card pulses while its inner step is running.
+    property int activeParentIndex: -1
     property var stepStatuses: ({})
     // Visual annotation rectangles drawn behind the step cards. Each
     // entry: { id, x, y, width, height, color, comment }.
@@ -163,16 +168,22 @@ Item {
         const wR = (fRight  + flick.contentX) / z
         const wB = (fBottom + flick.contentY) / z
 
+        // Read positions straight off the rendered card delegates.
+        // The `positions` map is only populated when a card has been
+        // dragged or laid out by an organize* helper — fresh cards
+        // bound to default placements aren't in it. nodeRep.itemAt(i)
+        // returns the actual Item with its current x / y / width /
+        // height in world coordinates.
         const next = ({})
         const acts = root.actions || []
         for (let i = 0; i < acts.length; i++) {
-            const a = acts[i]
-            if (!a) continue
-            const pos = root.positions[a.id]
-            if (!pos) continue
-            const cw = root.cardWidths[a.id] || _widthForKind(a.rawKind)
-            const ch = root.cardHeights[a.id] || nodeMinH
-            if (pos.x + cw > wL && pos.x < wR && pos.y + ch > wT && pos.y < wB) {
+            const card = nodeRep.itemAt(i)
+            if (!card) continue
+            const cx = card.x
+            const cy = card.y
+            const cw = card.width
+            const ch = card.height
+            if (cx + cw > wL && cx < wR && cy + ch > wT && cy < wB) {
                 next[i] = true
             }
         }
@@ -1167,6 +1178,10 @@ Item {
                     // separate MouseArea over the label, so the
                     // body's drag isn't blocked when the user clicks
                     // through the label area.
+                    // Read-only label. Wraps so multi-line comments
+                    // render across the top of the group; Enter on
+                    // its own line breaks visually like the editor's
+                    // input.
                     Text {
                         id: groupComment
                         visible: !commentEditor.visible
@@ -1181,18 +1196,24 @@ Item {
                         font.capitalization: modelData.comment && modelData.comment.length > 0
                             ? Font.MixedCase
                             : Font.AllUppercase
-                        elide: Text.ElideRight
+                        wrapMode: Text.WordWrap
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.right: parent.right
                         anchors.leftMargin: 12
                         anchors.topMargin: 8
-                        anchors.rightMargin: 12
+                        anchors.rightMargin: resizeHandle.width + 4
                         opacity: modelData.comment && modelData.comment.length > 0
                             ? 1 : 0.50
                     }
 
-                    TextInput {
+                    // Multi-line editor: TextEdit (not TextInput) so
+                    // Enter inserts a newline. Plain Enter no longer
+                    // commits — Esc and focus-loss do — because the
+                    // expected mental model for a labelled box is
+                    // "type, get out by clicking elsewhere," like the
+                    // step inspector's text fields.
+                    TextEdit {
                         id: commentEditor
                         visible: false
                         anchors.left: parent.left
@@ -1200,15 +1221,15 @@ Item {
                         anchors.right: parent.right
                         anchors.leftMargin: 12
                         anchors.topMargin: 6
-                        anchors.rightMargin: 12
+                        anchors.rightMargin: resizeHandle.width + 4
                         text: modelData.comment || ""
                         color: groupItem.tint
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
                         font.weight: Font.Medium
+                        wrapMode: TextEdit.WordWrap
                         selectByMouse: true
                         z: 3   // above bodyArea so typing doesn't bleed through
-                        onAccepted: _commit()
                         onActiveFocusChanged: if (!activeFocus && visible) _commit()
                         function _commit() {
                             root.editGroupCommentRequested(
@@ -1472,7 +1493,9 @@ Item {
                 // True when the engine is currently running this
                 // step. Drives the pulsing accent border so the user
                 // can see live which step is firing.
-                readonly property bool isActive: model.index === root.activeStepIndex
+                readonly property bool isActive:
+                    model.index === root.activeStepIndex
+                    || model.index === root.activeParentIndex
                 // Notes are annotations, not workflow steps — the
                 // engine skips them at runtime. Render lighter so
                 // they read as canvas comments rather than first-

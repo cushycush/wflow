@@ -46,76 +46,77 @@ Dialog {
 
     onAccepted: root.confirmed()
 
-    contentItem: Item {
-        anchors.fill: parent
+    // contentItem is the Column directly so its implicitHeight
+    // propagates up to the Dialog and the background stretches to
+    // contain everything. Wrapping in an Item with anchors.fill:
+    // parent gave the Dialog a zero implicitHeight to read, leaving
+    // long messages spilling out past the background.
+    padding: 24
+    contentItem: Column {
+        spacing: 16
 
         Column {
-            anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
-
-            Column {
+            width: parent.width
+            spacing: 6
+            Text {
+                text: root.title
+                color: Theme.text
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontXl
+                font.weight: Font.DemiBold
+                wrapMode: Text.WordWrap
                 width: parent.width
-                spacing: 6
-                Text {
-                    text: root.title
-                    color: Theme.text
-                    font.family: Theme.familyBody
-                    font.pixelSize: Theme.fontXl
-                    font.weight: Font.DemiBold
-                    wrapMode: Text.WordWrap
-                    width: parent.width
+            }
+            Text {
+                visible: root.message.length > 0
+                text: root.message
+                color: Theme.text2
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+                lineHeight: 1.4
+                wrapMode: Text.WordWrap
+                width: parent.width
+            }
+        }
+
+        Row {
+            width: parent.width
+            spacing: 8
+            layoutDirection: Qt.RightToLeft
+
+            // Inline destructive button — red instead of accent
+            // when destructive is true. Falls back to the same
+            // accent fill PrimaryButton uses otherwise.
+            Button {
+                id: confirmBtn
+                text: root.confirmText
+                topPadding: 8
+                bottomPadding: 8
+                leftPadding: 14
+                rightPadding: 14
+
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: root.destructive
+                        ? (confirmBtn.hovered ? Qt.lighter(Theme.err, 1.1) : Theme.err)
+                        : (confirmBtn.hovered ? Theme.accentHi : Theme.accent)
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                 }
-                Text {
-                    visible: root.message.length > 0
-                    text: root.message
-                    color: Theme.text2
+                contentItem: Text {
+                    text: confirmBtn.text
+                    color: "white"
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontSm
-                    wrapMode: Text.WordWrap
-                    width: parent.width
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
+
+                onClicked: root.accept()
             }
-
-            Row {
-                width: parent.width
-                spacing: 8
-                layoutDirection: Qt.RightToLeft
-
-                // Inline destructive button — red instead of accent
-                // when destructive is true. Falls back to the same
-                // accent fill PrimaryButton uses otherwise.
-                Button {
-                    id: confirmBtn
-                    text: root.confirmText
-                    topPadding: 8
-                    bottomPadding: 8
-                    leftPadding: 14
-                    rightPadding: 14
-
-                    background: Rectangle {
-                        radius: Theme.radiusSm
-                        color: root.destructive
-                            ? (confirmBtn.hovered ? Qt.lighter(Theme.err, 1.1) : Theme.err)
-                            : (confirmBtn.hovered ? Theme.accentHi : Theme.accent)
-                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    }
-                    contentItem: Text {
-                        text: confirmBtn.text
-                        color: "white"
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontSm
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onClicked: root.accept()
-                }
-                SecondaryButton {
-                    text: "Cancel"
-                    onClicked: root.reject()
-                }
+            SecondaryButton {
+                text: "Cancel"
+                onClicked: root.reject()
             }
         }
     }

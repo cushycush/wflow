@@ -26,6 +26,7 @@ pub mod qobject {
         #[qml_element]
         #[qproperty(QString, workflow_json)]
         #[qproperty(i32, active_step)]
+        #[qproperty(QString, active_step_id)]
         #[qproperty(bool, running)]
         #[qproperty(bool, paused)]
         #[qproperty(QString, last_error)]
@@ -150,6 +151,7 @@ pub mod qobject {
 pub struct WorkflowControllerRust {
     pub workflow_json: QString,
     pub active_step: i32,
+    pub active_step_id: QString,
     pub running: bool,
     pub paused: bool,
     pub last_error: QString,
@@ -180,6 +182,7 @@ impl Default for WorkflowControllerRust {
         Self {
             workflow_json: QString::from(""),
             active_step: -1,
+            active_step_id: QString::from(""),
             running: false,
             paused: false,
             last_error: QString::from(""),
@@ -586,9 +589,10 @@ impl qobject::WorkflowController {
                 use cxx_qt::CxxQtType;
                 match ev {
                     RunEvent::Started { .. } => {}
-                    RunEvent::StepStart { index, .. } => {
+                    RunEvent::StepStart { index, step_id } => {
                         ctrl.as_mut().set_paused(false);
                         ctrl.as_mut().set_active_step(index as i32);
+                        ctrl.as_mut().set_active_step_id(QString::from(&step_id));
                     }
                     RunEvent::StepDone {
                         index, outcome, ..
@@ -618,6 +622,7 @@ impl qobject::WorkflowController {
                         ctrl.as_mut().set_running(false);
                         ctrl.as_mut().set_paused(false);
                         ctrl.as_mut().set_active_step(-1);
+                        ctrl.as_mut().set_active_step_id(QString::from(""));
                         ctrl.as_mut().rust_mut().debug_tx = None;
                         ctrl.as_mut().run_finished(ok);
                     }

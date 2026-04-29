@@ -95,7 +95,42 @@ Item {
     // cards (so the leaf maps directly to the inner card); repeat
     // leaves all map to the repeat container card (it still owns
     // the inline strip).
-    readonly property int activeStepIndex: _flatToActionsIdx(wfCtrl.active_step)
+    // Active card index, derived by matching the engine's
+    // active_step_id against the shaped actions array. ID matching
+    // is robust against falsy conditionals (where the engine skips
+    // inner steps but the QML mapping would otherwise miscount the
+    // flat index) and against note-filtering. The flat-index path
+    // _flatToActionsIdx still exists for code that needs it but
+    // isn't used here.
+    readonly property int activeStepIndex: {
+        const id = wfCtrl.active_step_id || ""
+        if (id.length === 0) return -1
+        const arr = root.actions || []
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] && arr[i].id === id) return i
+        }
+        return -1
+    }
+    // When an inner step of a conditional is running, also light up
+    // the parent conditional card. Engine doesn't emit StepStart for
+    // the conditional itself — it just descends into inner steps —
+    // so without this the conditional card sits dark while its
+    // contents fire.
+    readonly property int activeParentIndex: {
+        const i = activeStepIndex
+        if (i < 0) return -1
+        const arr = root.actions || []
+        const a = arr[i]
+        if (!a || a._displayKind !== "inner") return -1
+        for (let j = 0; j < arr.length; j++) {
+            const candidate = arr[j]
+            if (candidate && candidate._displayKind === "top"
+                && candidate._topIdx === a._parentTopIdx) {
+                return j
+            }
+        }
+        return -1
+    }
 
     function _flatLeafCount(step) {
         const a = step ? step.action : null
@@ -1396,11 +1431,27 @@ Item {
                 // height and made the Delete button visibly taller
                 // than its peers.
                 visible: !root.fragmentMode
-                text: "× Delete workflow"
-                onClicked: root._askDelete()
+                // Switches between 'Delete step(s)' when canvas
+                // selection is non-empty and 'Delete workflow'
+                // when nothing's selected. Same button click runs
+                // the right action either way.
+                text: editorContent.selectedCount > 0
+                    ? (editorContent.selectedCount === 1
+                        ? "× Delete step"
+                        : "× Delete " + editorContent.selectedCount + " steps")
+                    : "× Delete workflow"
+                onClicked: {
+                    if (editorContent.selectedCount > 0) {
+                        root._bulkDeleteSelected()
+                    } else {
+                        root._askDelete()
+                    }
+                }
                 ToolTip.visible: hovered
                 ToolTip.delay: 400
-                ToolTip.text: "Delete this workflow from your library. The Delete key on the canvas removes selected steps."
+                ToolTip.text: editorContent.selectedCount > 0
+                    ? "Delete the selected step(s). Same as the Delete key."
+                    : "Delete this workflow from your library."
             }
             // Workflow-level imports — name → path mapping that
             // `use` steps reference. Opens a dialog with the table.
@@ -1908,6 +1959,7 @@ Item {
                 selectedInnerIndex: editorContent.selectedInnerIndex
                 selectedIndices: editorContent.selectedIndices
                 activeStepIndex: root.activeStepIndex
+                activeParentIndex: root.activeParentIndex
                 stepStatuses: root.stepStatuses
                 groups: (root.workflow && root.workflow.groups) || []
                 onSelectStep: (i) => {

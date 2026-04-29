@@ -380,8 +380,11 @@ Item {
             // it reads as a stateful tab, not just nav.
             Repeater {
                 model: {
-                    const out = [{ id: "library", label: "Library" }]
+                    const out = []
+                    // Explore leads now — the catalog of community
+                    // workflows is what most users want to see first.
                     if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
+                    out.push({ id: "library", label: "Library" })
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",

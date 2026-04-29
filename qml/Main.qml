@@ -13,7 +13,7 @@ ApplicationWindow {
     title: "wflow"
     color: Theme.bg
 
-    property string currentPage: "library"        // "library" | "explore" | "workflow" | "record"
+    property string currentPage: "explore"        // "library" | "explore" | "workflow" | "record" | "settings"
 
     // Open documents — one per tab in the workflow editor. Each
     // entry is `{ kind, source }`:
