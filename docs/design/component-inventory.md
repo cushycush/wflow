@@ -8,6 +8,124 @@ When designing new components for either platform (desktop or
 website), match the visual treatments here so the language stays
 unified.
 
+## Glossary — surfaces and regions
+
+Canonical names for the windows, panels, and regions you'll point at
+in conversation or in screenshot filenames. Use these terms exactly:
+they're how the codebase names things and how this doc + the design
+brief refer back to them.
+
+### App-shell chrome
+
+| Term                    | What it is                                                                            | Anchor                                              |
+|-------------------------|---------------------------------------------------------------------------------------|-----------------------------------------------------|
+| **Floating nav pill**   | Top-center capsule with Library / Explore / Editor / Record + a gear for Settings.    | `qml/components/chrome/ChromeFloating.qml`          |
+| **Tab strip**           | IDE-style row of open editor docs above the workflow body.                            | `tabBar` in `ChromeFloating.qml`                    |
+| **Top bar**             | Page-level header — title, subtitle, action buttons on the right.                     | `qml/components/TopBar.qml`                         |
+| **Dot grid**            | Subtle dotted backdrop behind every page.                                             | `qml/components/DotGrid.qml`                        |
+
+### Pages (the top-level destinations)
+
+| Term         | Surface                                              | File                              |
+|--------------|------------------------------------------------------|-----------------------------------|
+| **Library**  | Workflow grid + folder rail.                         | `qml/pages/LibraryPage.qml`       |
+| **Explore**  | Community catalog (talks to wflows.com).             | `qml/pages/ExplorePage.qml`       |
+| **Editor**   | Workflow authoring surface.                          | `qml/pages/WorkflowPage.qml`      |
+| **Record**   | Capture mode with the ambient red wash.              | `qml/pages/RecordPage.qml`        |
+| **Settings** | Preferences page.                                    | `qml/pages/SettingsPage.qml`      |
+
+### Editor surfaces
+
+The surface most people will need to refer to. Quick spatial map:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  top bar (title, subtitle, Delete / Imports / Run …)     │
+├────────────┬─────────────────────────────┬───────────────┤
+│            │                             │               │
+│  step list │                             │               │
+│   ("rail") │     canvas                  │   inspector   │
+│            │                             │   (slides in  │
+│            │  ┌─palette─┐    ┌─tooldock─┐│   on select)  │
+│            │  │ icons   │    │ tidy/wire││               │
+│            │  │ (drag)  │    │ /zoom    ││               │
+│            │  └─────────┘    └──────────┘│               │
+│            │                             │               │
+└────────────┴─────────────────────────────┴───────────────┘
+```
+
+| Term                    | What it is                                                                            | Anchor                                              |
+|-------------------------|---------------------------------------------------------------------------------------|-----------------------------------------------------|
+| **Canvas**              | Free-form 2D workspace where step cards and wires live.                               | `qml/components/workflow/WorkflowCanvas.qml`        |
+| **Step palette**        | Vertical icon dock on the **left edge of the canvas** — drag to drop a new step.      | `qml/components/workflow/StepPalette.qml`           |
+| **Tool dock**           | Vertical icon dock on the **right edge of the canvas** (Tidy / Wires / Zoom).         | `toolDock` in `WorkflowCanvas.qml`                  |
+| **Inspector**           | Right-side panel that slides in when a step is selected. Edits the step's properties. | `qml/components/workflow/StepInspectorPanel.qml`    |
+| **Step list** / **rail**| Numbered list of steps on the **left side** of the editor body.                       | `qml/components/workflow/StepListRail.qml`          |
+| **Crumb** / breadcrumb  | Navigation chip showing where you are when drilled into a container's inner steps.    | inline in `WorkflowPage.qml`                        |
+| **Step card**           | A single step rendered on the canvas.                                                 | `Repeater` delegate in `WorkflowCanvas.qml`         |
+| **Wire**                | Line connecting two step cards.                                                       | `_wirePairs` in `WorkflowCanvas.qml`                |
+| **Port dot**            | Small circle at a card's edge where a wire attaches.                                  | inline in `WorkflowCanvas.qml`                      |
+| **Drag preview** / ghost| Card-shaped placeholder following the cursor during a palette drag.                   | inline in `WorkflowCanvas.qml`                      |
+| **Gradient pill**       | Colorful labeled chip inside a step card showing the action's value.                  | `qml/components/GradientPill.qml`                   |
+
+The "slide-in menu on the right" is the **inspector**.
+
+### Library surfaces
+
+| Term                  | What it is                                                                  | Anchor                                          |
+|-----------------------|-----------------------------------------------------------------------------|-------------------------------------------------|
+| **Library grid**      | Card grid of workflows.                                                     | `qml/components/library/LibraryGrid.qml`        |
+| **Library list**      | Compact row layout (alternative to the grid).                               | `qml/components/library/LibraryList.qml`        |
+| **Layout switcher**   | Small segmented control to flip between grid and list.                      | `qml/components/library/LibraryLayoutSwitcher.qml` |
+| **Folder rail**       | Folder tree sidebar.                                                        | `folderRail` in `LibraryPage.qml`               |
+| **Workflow card**     | One workflow entry in the grid.                                             | inline in `LibraryGrid.qml`                     |
+
+### Explore surfaces
+
+| Term                  | What it is                                                                  | Anchor                                          |
+|-----------------------|-----------------------------------------------------------------------------|-------------------------------------------------|
+| **Hero**              | Featured workflow card at the top.                                          | `qml/components/explore/ExploreHero.qml`        |
+| **Category pills**    | Horizontal capsule filters.                                                 | `qml/components/explore/CategoryPills.qml`      |
+| **Community card**    | One workflow card in the grid.                                              | `qml/components/explore/CommunityCard.qml`      |
+| **Detail drawer**     | Right-side slide-in shown when you click a workflow card.                   | `qml/components/explore/ExploreDetail.qml`      |
+| **Mini step**         | Compact step preview row used inside hero / card / drawer.                  | `qml/components/MiniStep.qml`                   |
+
+### Record surfaces
+
+| Term                  | What it is                                                                  | Anchor                                          |
+|-----------------------|-----------------------------------------------------------------------------|-------------------------------------------------|
+| **Ambient layout**    | Breathing radial-gradient backdrop that shifts color by state.              | `qml/components/record/AmbientRec.qml`          |
+| **Record button**     | Big central capture-toggle.                                                 | inside `AmbientRec.qml`                         |
+| **Event drawer**      | Bottom rectangle listing captured events.                                   | inside `AmbientRec.qml`                         |
+
+### Modals + overlays
+
+| Term                  | What it is                                                                  | Anchor                                          |
+|-----------------------|-----------------------------------------------------------------------------|-------------------------------------------------|
+| **Confirm dialog**    | Generic yes/no with a destructive variant.                                  | `qml/components/WfConfirmDialog.qml`            |
+| **Menu**              | Right-click + dropdown menus.                                               | `qml/components/WfMenu.qml`, `WfMenuItem.qml`   |
+| **Tutorial overlay**  | Inline arrow tooltip pointing at a UI affordance.                           | `qml/components/TutorialOverlay.qml`            |
+| **Intro tutorial**    | Four-step first-launch modal.                                               | `qml/components/IntroTutorial.qml`              |
+| **New workflow dialog** | Modal for creating a workflow (blank or from template).                   | `qml/components/workflow/NewWorkflowDialog.qml` |
+| **Folder dialog**     | Native Qt `FolderDialog` for picking the workflows folder.                  | inline in `SettingsPage.qml`                    |
+
+### Screenshot naming convention
+
+Using these names, the manifest reads cleanly:
+
+```
+library.dark.png             ← Library page, grid layout
+library-empty.dark.png       ← Library on first launch
+editor-canvas.dark.png       ← Editor with canvas in focus
+editor-inspector.dark.png    ← Editor with the inspector slid in
+editor-palette.dark.png      ← Editor with the step palette expanded
+record-idle.dark.png         ← Record page, idle (amber)
+record-recording.dark.png    ← Record page, capturing (red)
+explore-grid.dark.png        ← Explore page, hero + grid
+explore-detail.dark.png      ← Explore detail drawer open
+settings.dark.png            ← Settings page
+```
+
 ## Buttons + form controls
 
 ### `PrimaryButton`

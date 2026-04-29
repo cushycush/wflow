@@ -14,7 +14,7 @@ light for each. Filenames use `<surface>.<theme>.png`.
 | `library-grid.dark.png`           | Library, grid layout, populated     | Several workflows visible                  |
 | `library-empty.dark.png`          | Library on first launch             | Empty state with the welcome card          |
 | `editor-canvas.dark.png`          | Workflow editor, canvas view        | A workflow with 6+ steps + a conditional   |
-| `editor-detail.dark.png`          | Editor with a step selected         | Inspector panel slid in on the right       |
+| `editor-inspector.dark.png`       | Editor with a step selected         | Inspector panel slid in on the right       |
 | `record-idle.dark.png`            | Record page, idle (amber)           | Big central button, no events captured     |
 | `record-recording.dark.png`       | Record page, recording (red)        | A few events visible in the bottom drawer  |
 | `explore-grid.dark.png`           | Explore page, grid + featured       | Hero + trending + new + browse             |
@@ -23,7 +23,7 @@ light for each. Filenames use `<surface>.<theme>.png`.
 | `library-grid.light.png`          | (same as above, light theme)        |                                            |
 | `library-empty.light.png`         |                                     |                                            |
 | `editor-canvas.light.png`         |                                     |                                            |
-| `editor-detail.light.png`         |                                     |                                            |
+| `editor-inspector.light.png`      |                                     |                                            |
 | `record-idle.light.png`           |                                     |                                            |
 | `record-recording.light.png`      |                                     |                                            |
 | `explore-grid.light.png`          |                                     |                                            |
