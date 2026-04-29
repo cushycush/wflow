@@ -3439,25 +3439,33 @@ Item {
 
         // Pick the routing axis. The rules:
         //
-        //   1. Same row (Y ranges overlap, X don't), target to the
-        //      right of source → HORIZONTAL forward. This is the
-        //      conditional yes-branch entry: parent → first inner.
-        //   2. Same row, target to the LEFT of source → VERTICAL.
-        //      Strict right-out/left-in would produce a horizontal
-        //      back-flow lobe that swings out past source and curls
-        //      back. The canonical example is a rejoin wire from
-        //      the last inner of a yes-branch into the next-top
-        //      sitting below-left — going vertical reads as flow
-        //      continuing down into the main column.
-        //   3. Different rows (Y ranges don't overlap) → VERTICAL.
-        //      Wire exits the source's bottom and enters the
-        //      target's top, which reads as serpentine flow into
-        //      the next row.
-        //   4. Both ranges overlap (stacked / nested) → magnitude.
+        //   1. Same row (Y ranges overlap, X don't), forward (target
+        //      right of source) → HORIZONTAL forward. Conditional
+        //      yes-branch entry sits here.
+        //   2. Same row, back-flow, target meaningfully BELOW source
+        //      → VERTICAL. Going down-and-left reads as flow
+        //      continuing into the next step. The canonical example
+        //      is the rejoin wire from a yes-branch's last inner
+        //      into the next-top sitting half a card-height below.
+        //   3. Same row, back-flow, target at the same y or ABOVE
+        //      source → HORIZONTAL back-flow. Vertical here would
+        //      force a U-turn (dive below source, come back up to
+        //      target above), which reads as the wire ducking
+        //      under and pointlessly re-emerging. The horizontal
+        //      lobe (exit right, sweep around, enter left) is the
+        //      natural shape for true back-flow.
+        //   4. Different rows (Y ranges don't overlap) → VERTICAL.
+        //      Serpentine flow into the next row.
+        //   5. Both ranges overlap (stacked / nested) → magnitude.
         let useVertical
         if (yOverlap && !xOverlap) {
-            // Same-row pair. Forward → horizontal; back → vertical.
-            useVertical = toCx < fromCx
+            if (toCx > fromCx) {
+                useVertical = false                 // forward
+            } else if (toCy > fromCy) {
+                useVertical = true                  // back-flow, target below
+            } else {
+                useVertical = false                 // back-flow, target same/above
+            }
         } else if (!yOverlap) {
             useVertical = true
         } else {
