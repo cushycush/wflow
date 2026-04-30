@@ -6,14 +6,15 @@ decisions to what's actually shipped.
 
 ## Manifest
 
-The full set is 18 PNGs: 9 surfaces × 2 themes. Capture both dark and
-light for each. Filenames use `<surface>.<theme>.png`.
+The full set is 20 PNGs: 10 surfaces × 2 themes. Capture both dark
+and light for each. Filenames use `<surface>.<theme>.png`.
 
 | File                              | Surface                             | Notes                                      |
 |-----------------------------------|-------------------------------------|--------------------------------------------|
 | `library-grid.dark.png`           | Library, grid layout, populated     | Several workflows visible                  |
 | `library-empty.dark.png`          | Library on first launch             | Empty state with the welcome card          |
 | `editor-canvas.dark.png`          | Workflow editor, canvas view        | A workflow with 6+ steps + a conditional   |
+| `editor-step-palette.dark.png`    | Editor palette dock expanded        | Hover over the left dock so labels slide in next to each colored chip |
 | `editor-inspector.dark.png`       | Editor with a step selected         | Inspector panel slid in on the right       |
 | `record-idle.dark.png`            | Record page, idle (amber)           | Big central button, no events captured     |
 | `record-recording.dark.png`       | Record page, recording (red)        | A few events visible in the bottom drawer  |
@@ -23,6 +24,7 @@ light for each. Filenames use `<surface>.<theme>.png`.
 | `library-grid.light.png`          | (same as above, light theme)        |                                            |
 | `library-empty.light.png`         |                                     |                                            |
 | `editor-canvas.light.png`         |                                     |                                            |
+| `editor-step-palette.light.png`   |                                     |                                            |
 | `editor-inspector.light.png`      |                                     |                                            |
 | `record-idle.light.png`           |                                     |                                            |
 | `record-recording.light.png`      |                                     |                                            |
