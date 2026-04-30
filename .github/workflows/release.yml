@@ -106,6 +106,15 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          # Publish via a PAT (RELEASE_PAT) instead of GITHUB_TOKEN
+          # so the release.published event can trigger downstream
+          # workflows (aur-publish.yml). GitHub deliberately blocks
+          # GITHUB_TOKEN-driven events from dispatching other
+          # workflows to prevent recursion; a PAT bypasses that.
+          # Falls back to GITHUB_TOKEN if the secret isn't set so
+          # the workflow still produces a release in that case
+          # (just without auto-AUR-publish).
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
           # Publish immediately. The wflow-bin AUR package downloads
           # from /releases/download/v<ver>/, which 404s on draft
           # releases — auto-publish so the bin package can install
