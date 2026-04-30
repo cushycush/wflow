@@ -2,27 +2,24 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// A single community-workflow card, shared by the trending row, the new row,
-// and the browse grid on Explore. Shows import count (not stars) as the
-// primary social signal.
+// Community workflow card. Avatar byline up top, mini-stack preview
+// of the first 2-3 step kinds in the middle, stats + category tag at
+// the bottom. Hover lifts the surface tone — no drop shadow per the
+// "flat, not skeuomorphic" design rule.
 Rectangle {
     id: root
-    property var wf                           // { id, title, subtitle, author, category, kinds, imports, forks, steps, hasShell }
+    property var wf
     property real cardW: 280
-    property real cardH: 150
+    property real cardH: 200
     signal activated(string id)
-
-    readonly property color catColor: Theme.catFor(
-        wf && wf.kinds && wf.kinds.length > 0 ? wf.kinds[0] : "wait")
 
     width: cardW
     height: cardH
     radius: Theme.radiusMd
     color: cardArea.containsMouse ? Theme.surface2 : Theme.surface
-    border.color: cardArea.containsMouse
-        ? Theme.wash(catColor, 0.42)
-        : Theme.lineSoft
+    border.color: cardArea.containsMouse ? Theme.line : Theme.lineSoft
     border.width: 1
+
     Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
@@ -36,107 +33,174 @@ Rectangle {
 
     Column {
         anchors.fill: parent
-        anchors.margins: 14
-        spacing: 8
+        anchors.margins: 16
+        spacing: 12
 
+        // Header: avatar + title + tagline (2 lines max).
         Row {
-            spacing: 10
             width: parent.width
+            spacing: 12
 
-            CategoryIcon {
-                kind: root.wf && root.wf.kinds && root.wf.kinds.length > 0 ? root.wf.kinds[0] : "wait"
-                size: 32
-                hovered: cardArea.containsMouse
+            Avatar {
+                handle: root.wf ? "@" + root.wf.author : ""
+                size: 30
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             Column {
-                width: parent.width - 32 - 10
+                width: parent.width - 30 - 12
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
+                spacing: 1
 
                 Text {
                     text: root.wf ? root.wf.title : ""
                     color: Theme.text
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontBase
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-                Text {
-                    text: root.wf ? ("@" + root.wf.author) : ""
-                    color: Theme.text3
-                    font.family: Theme.familyMono
-                    font.pixelSize: Theme.fontXs
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-            }
-        }
-
-        Text {
-            text: root.wf ? root.wf.subtitle : ""
-            color: Theme.text2
-            font.family: Theme.familyBody
-            font.pixelSize: Theme.fontXs
-            lineHeight: 1.3
-            wrapMode: Text.Wrap
-            elide: Text.ElideRight
-            maximumLineCount: 2
-            width: parent.width
-        }
-
-        Item { width: 1; height: Math.max(0, parent.height - 14 - 32 - 8 - 30 - 8 - 18 - 14) }
-
-        Row {
-            spacing: 8
-            width: parent.width
-
-            Text {
-                text: root.wf ? (root.wf.imports + " imports") : ""
-                color: Theme.text2
-                font.family: Theme.familyMono
-                font.pixelSize: Theme.fontXs
-                font.weight: Font.Medium
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Rectangle {
-                width: 2; height: 2; radius: 1
-                color: Theme.text3
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.wf && root.wf.steps !== undefined
-            }
-            Text {
-                text: root.wf ? (root.wf.steps + " steps") : ""
-                color: Theme.text3
-                font.family: Theme.familyMono
-                font.pixelSize: Theme.fontXs
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Item { width: 1; height: 1; }  // spacer
-
-            // Shell warning pip
-            Rectangle {
-                visible: root.wf && root.wf.hasShell
-                width: 18; height: 18; radius: 9
-                anchors.verticalCenter: parent.verticalCenter
-                color: Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.18)
-                border.color: Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.5)
-                border.width: 1
-                Text {
-                    anchors.centerIn: parent
-                    text: "›"
-                    color: Theme.warn
-                    font.family: Theme.familyBody
-                    font.pixelSize: 12
                     font.weight: Font.Bold
+                    font.letterSpacing: -0.2
+                    elide: Text.ElideRight
+                    width: parent.width
                 }
-                ToolTip.visible: shellHover.containsMouse
-                ToolTip.delay: 400
-                ToolTip.text: "Contains shell commands — review before import"
-                MouseArea { id: shellHover; anchors.fill: parent; hoverEnabled: true }
+                Text {
+                    text: root.wf ? root.wf.subtitle : ""
+                    color: Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    width: parent.width
+                    lineHeight: 1.3
+                }
             }
         }
+
+        // Mini step-stack — up to 3, plus a "+N more" sentinel.
+        Column {
+            id: stack
+            width: parent.width
+            spacing: 4
+
+            readonly property var kindsToShow: {
+                if (!root.wf || !root.wf.kinds) return []
+                return root.wf.kinds.slice(0, Math.min(3, root.wf.kinds.length))
+            }
+
+            Repeater {
+                model: stack.kindsToShow.length
+                delegate: MiniStep {
+                    width: stack.width
+                    kind: stack.kindsToShow[index]
+                    label: ""
+                    value: _previewFor(stack.kindsToShow[index], index)
+                }
+            }
+
+            Text {
+                visible: root.wf && root.wf.steps > stack.kindsToShow.length
+                text: "+ " + (root.wf ? (root.wf.steps - stack.kindsToShow.length) : 0)
+                    + " more step"
+                    + (root.wf && (root.wf.steps - stack.kindsToShow.length) === 1 ? "" : "s")
+                color: Theme.text3
+                font.family: Theme.familyMono
+                font.pixelSize: Theme.fontXs
+                leftPadding: 26
+                topPadding: 2
+            }
+        }
+
+        Item { id: spacer; height: Math.max(0, parent.height - parent.spacing * 2 - 64 - stack.height); width: 1 }
+
+        // Footer: stats on the left, category tag on the right.
+        Row {
+            width: parent.width
+            spacing: 12
+
+            Row {
+                id: statsRow
+                spacing: 12
+                anchors.verticalCenter: parent.verticalCenter
+
+                Row {
+                    spacing: 4
+                    Text {
+                        text: "★"
+                        color: Theme.accent
+                        font.pixelSize: Theme.fontXs
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: root.wf ? root.wf.imports : ""
+                        color: Theme.text2
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+                Row {
+                    spacing: 4
+                    Text {
+                        text: "⑂"
+                        color: Theme.text3
+                        font.pixelSize: Theme.fontXs
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: root.wf ? root.wf.forks : ""
+                        color: Theme.text2
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontSm
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            Item {
+                width: Math.max(0, parent.width - statsRow.width - tag.width - 24)
+                height: 1
+            }
+
+            Rectangle {
+                id: tag
+                anchors.verticalCenter: parent.verticalCenter
+                // The tag is a small pill — radius == half-height
+                // produces the classic capsule shape without the
+                // arbitrary 999 hack.
+                radius: height / 2
+                color: Theme.bg
+                border.color: Theme.lineSoft
+                border.width: 1
+                width: tagText.implicitWidth + 16
+                height: 22
+                Text {
+                    id: tagText
+                    anchors.centerIn: parent
+                    text: root.wf ? root.wf.category : ""
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontXs
+                    font.weight: Font.Medium
+                }
+            }
+        }
+    }
+
+    // Sample-step helper — until each catalog entry carries real
+    // per-step data, fabricate a plausible value per kind so users
+    // see the SHAPE of the workflow at a glance.
+    function _previewFor(kind, idx) {
+        const samples = ({
+            "key":       ["ctrl + l", "super + space", "alt + tab"],
+            "type":      ["{{branch}}", "localhost:3000", "{{snippet}}"],
+            "click":     ["primary", "context", "double"],
+            "shell":     ["git status", "kitty -e nvim", "firefox {{url}}"],
+            "focus":     ["kitty", "firefox", "slack"],
+            "wait":      ["200ms", "window kitty", "1500ms"],
+            "notify":    ["\"Done\"", "\"Synced\"", "\"Ready\""],
+            "clipboard": ["{{selection}}", "screenshot.png", "{{url}}"]
+        })
+        const arr = samples[kind] || ["…"]
+        return arr[idx % arr.length]
     }
 }

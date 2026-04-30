@@ -94,11 +94,38 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(encode_step(step));
     }
 
+    // Visual-grouping rectangles. Decorative — engine ignores them
+    // — but they live alongside steps in the file so the canvas
+    // layout survives a reload.
+    if !wf.groups.is_empty() {
+        let mut groups_node = KdlNode::new("groups");
+        let mut groups_inner = KdlDocument::new();
+        for g in &wf.groups {
+            groups_inner.nodes_mut().push(encode_group(g));
+        }
+        groups_node.set_children(groups_inner);
+        inner.nodes_mut().push(groups_node);
+    }
+
     wf_node.set_children(inner);
     doc.nodes_mut().push(wf_node);
 
     doc.autoformat();
     doc.to_string()
+}
+
+fn encode_group(g: &crate::actions::Group) -> KdlNode {
+    let mut node = KdlNode::new("group");
+    // Comment is the positional argument (mirrors how `note "text"`
+    // works) so the file still reads naturally for human authors.
+    node.push(arg_str(&g.comment));
+    node.push(prop_str("id", &g.id));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("x", g.x));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("y", g.y));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("width", g.width));
+    node.entries_mut().push(kdl::KdlEntry::new_prop("height", g.height));
+    node.push(prop_str("color", &g.color));
+    node
 }
 
 fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
@@ -127,6 +154,18 @@ fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
     }
     node.set_children(inner);
     node
+}
+
+/// Encode a list of steps as a bare KDL fragment — the format used
+/// by the `use NAME` import targets. No `workflow` wrapper, no
+/// schema, no title or imports map; just the step nodes one after
+/// another. Mirrors the parser side (`decode_fragment_file`).
+pub fn encode_fragment(steps: &[Step]) -> String {
+    let mut doc = KdlDocument::new();
+    for step in steps {
+        doc.nodes_mut().push(encode_step(step));
+    }
+    doc.to_string()
 }
 
 fn encode_step(step: &Step) -> KdlNode {
@@ -263,11 +302,6 @@ fn encode_step(step: &Step) -> KdlNode {
             n.set_children(inner);
             n
         }
-        Action::Include { path } => {
-            let mut n = KdlNode::new("include");
-            n.push(arg_str(path));
-            n
-        }
         Action::Use { name } => {
             let mut n = KdlNode::new("use");
             n.push(arg_str(name));
@@ -310,6 +344,15 @@ fn encode_step(step: &Step) -> KdlNode {
         };
         node.push(prop_str("on-error", v));
     }
+    // Stable step id. Emitted with a leading underscore so it reads
+    // as "internal metadata" alongside `disabled` / `comment` /
+    // `on-error`. The id round-trips through encode/decode so GUI
+    // features keyed on step.id (canvas card positions, comments,
+    // future per-step state) survive `wflow edit` and any other
+    // save-and-reload cycle.
+    if !step.id.is_empty() {
+        node.push(prop_str("_id", &step.id));
+    }
     node
 }
 
@@ -343,53 +386,89 @@ fn kv_int(name: &str, v: i128) -> KdlNode {
 
 // ---------------------------------------------------------- Decoding --------
 
-/// Parse a KDL file and expand any `include "path.kdl"` nodes inside.
-/// Wraps `decode` + `expand_includes(&wf.steps, path.parent(), ...)`.
-/// Use this (or `store::load_path`) whenever you have a file on disk;
-/// reserve `decode(text)` for in-memory content that shouldn't reach
-/// the filesystem.
-pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
+/// Parse a KDL file as authored — the imports map and any `use NAME`
+/// step nodes are preserved exactly as written. Use this for editing
+/// surfaces (the GUI editor) where the user wants to see, edit, and
+/// round-trip the file's structure faithfully. The engine will not
+/// dispatch `Action::Use` directly; callers that intend to run the
+/// workflow should call `expand_imports_in_place` first.
+pub fn decode_from_file_authored(path: &std::path::Path) -> Result<Workflow> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("read {}", path.display()))?;
-    let mut wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
-    let base_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-    let mut visited = std::collections::HashSet::new();
-    // Canonicalize the top-level path too so a later include back to
-    // the same file is caught as a cycle.
-    if let Ok(canon) = path.canonicalize() {
-        visited.insert(canon);
-    }
-    // Clone imports so the expansion pass can resolve `use name` without
-    // taking a mutable-vs-shared borrow on wf all at once.
-    let imports = wf.imports.clone();
-    expand_includes(&mut wf.steps, &base_dir, &imports, &mut visited)?;
-    // Imports have been fully resolved — clear them so re-encoding the
-    // workflow doesn't emit a now-redundant `imports {}` block.
-    wf.imports.clear();
+    let wf = decode(&text).with_context(|| format!("parse {}", path.display()))?;
     Ok(wf)
 }
 
-/// Walk a step list and splice every `Action::Include` with the
-/// decoded top-level nodes of the target fragment file. Recurses
-/// into `repeat` / `when` / `unless` blocks so nested includes
-/// resolve. Cycles are detected via a visited-set of canonicalized
-/// paths; the current file is removed from the set after its subtree
-/// is expanded so the same file can be included in multiple sibling
-/// branches without false-positive cycle errors.
-pub fn expand_includes(
+/// Parse a KDL file and expand any `use NAME` nodes inside, resolving
+/// each name through the workflow's `imports { ... }` block. Wraps
+/// `decode` + `expand_imports`. Use this whenever the result is going
+/// straight to the engine (CLI run, headless dispatch); use the
+/// `_authored` variant when the result is going into an editor.
+pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
+    let mut wf = decode_from_file_authored(path)?;
+    expand_imports_in_place(&mut wf, path)?;
+    Ok(wf)
+}
+
+/// Expand `use NAME` references in `wf` against its imports map,
+/// inlining the target fragments' steps. Also clears `wf.imports`
+/// so re-encoding doesn't emit a now-redundant `imports {}` block.
+/// `path` is the workflow file's location — used as the base dir
+/// for resolving relative import paths and for cycle detection.
+pub fn expand_imports_in_place(
+    wf: &mut Workflow,
+    path: &std::path::Path,
+) -> Result<()> {
+    let base_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let mut visited = std::collections::HashSet::new();
+    if let Ok(canon) = path.canonicalize() {
+        visited.insert(canon);
+    }
+    let imports = wf.imports.clone();
+    expand_imports(&mut wf.steps, &base_dir, &imports, &mut visited)?;
+    wf.imports.clear();
+    Ok(())
+}
+
+/// Decode a fragment file — a bare list of step nodes (no workflow
+/// wrapper, no schema line). Returns the steps as authored, without
+/// recursively expanding any `use` calls inside (a fragment viewed
+/// standalone has no parent imports map to resolve against; the
+/// caller is expected to render `use` cards as-is and let the user
+/// navigate further by clicking them).
+pub fn decode_fragment_file(path: &std::path::Path) -> Result<Vec<Step>> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("read {}", path.display()))?;
+    let doc: KdlDocument = text
+        .parse()
+        .with_context(|| format!("parse {}", path.display()))?;
+    let mut steps = Vec::new();
+    for node in doc.nodes() {
+        steps.push(
+            decode_step(node)
+                .with_context(|| format!("in fragment {}", path.display()))?,
+        );
+    }
+    Ok(steps)
+}
+
+/// Walk a step list and splice every `Action::Use` with the decoded
+/// top-level nodes of the target fragment file (looked up through the
+/// workflow's imports map). Recurses into `repeat` / `when` / `unless`
+/// blocks so nested uses resolve. Cycles are detected via a visited-set
+/// of canonicalized paths; the current file is removed from the set
+/// after its subtree is expanded so the same fragment can be used in
+/// multiple sibling branches without false-positive cycle errors.
+pub fn expand_imports(
     steps: &mut Vec<Step>,
     base_dir: &std::path::Path,
     imports: &std::collections::BTreeMap<String, String>,
     visited: &mut std::collections::HashSet<std::path::PathBuf>,
 ) -> Result<()> {
-    use std::collections::HashSet;
     let old = std::mem::take(steps);
     let mut expanded: Vec<Step> = Vec::with_capacity(old.len());
     for mut step in old {
         match step.action {
-            Action::Include { path } => {
-                splice_fragment(&path, base_dir, imports, visited, &mut expanded)?;
-            }
             Action::Use { name } => {
                 let path = imports.get(&name).ok_or_else(|| {
                     let known: Vec<&str> = imports.keys().map(String::as_str).collect();
@@ -406,12 +485,12 @@ pub fn expand_includes(
                 splice_fragment(path, base_dir, imports, visited, &mut expanded)?;
             }
             Action::Repeat { count, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, imports, visited)?;
+                expand_imports(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Repeat { count, steps: inner };
                 expanded.push(step);
             }
             Action::Conditional { cond, negate, steps: mut inner } => {
-                expand_includes(&mut inner, base_dir, imports, visited)?;
+                expand_imports(&mut inner, base_dir, imports, visited)?;
                 step.action = Action::Conditional { cond, negate, steps: inner };
                 expanded.push(step);
             }
@@ -423,8 +502,7 @@ pub fn expand_includes(
 }
 
 /// Load a fragment file, decode its top-level nodes as steps, recurse
-/// into further includes/uses, and extend `out` with the result. Shared
-/// between `include "path"` and `use name`.
+/// into further uses, and extend `out` with the result.
 fn splice_fragment(
     path: &str,
     base_dir: &std::path::Path,
@@ -433,23 +511,23 @@ fn splice_fragment(
     out: &mut Vec<Step>,
 ) -> Result<()> {
     use std::collections::HashSet;
-    let resolved = resolve_include_path(path, base_dir)?;
+    let resolved = resolve_import_path(path, base_dir)?;
     if visited.contains(&resolved) {
         bail!(
-            "include cycle detected: `{}` already in the include chain",
+            "import cycle detected: `{}` already in the import chain",
             resolved.display()
         );
     }
     let text = std::fs::read_to_string(&resolved)
-        .with_context(|| format!("read include `{}`", resolved.display()))?;
+        .with_context(|| format!("read import `{}`", resolved.display()))?;
     let doc: KdlDocument = text
         .parse()
-        .with_context(|| format!("parse include `{}`", resolved.display()))?;
+        .with_context(|| format!("parse import `{}`", resolved.display()))?;
     let mut inner: Vec<Step> = Vec::new();
     for node in doc.nodes() {
         inner.push(
             decode_step(node)
-                .with_context(|| format!("in include `{}`", resolved.display()))?,
+                .with_context(|| format!("in import `{}`", resolved.display()))?,
         );
     }
     let inner_base = resolved
@@ -458,12 +536,12 @@ fn splice_fragment(
         .unwrap_or_else(|| base_dir.to_path_buf());
     let mut nested_visited: HashSet<std::path::PathBuf> = visited.clone();
     nested_visited.insert(resolved.clone());
-    expand_includes(&mut inner, &inner_base, imports, &mut nested_visited)?;
+    expand_imports(&mut inner, &inner_base, imports, &mut nested_visited)?;
     out.extend(inner);
     Ok(())
 }
 
-fn resolve_include_path(
+pub fn resolve_import_path(
     path: &str,
     base_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
@@ -485,7 +563,7 @@ fn resolve_include_path(
     };
     combined
         .canonicalize()
-        .with_context(|| format!("resolving include `{path}` relative to {}", base_dir.display()))
+        .with_context(|| format!("resolving import `{path}` relative to {}", base_dir.display()))
 }
 
 /// Top-level decode. Detects which file format we're reading and
@@ -589,6 +667,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
     let mut imports: std::collections::BTreeMap<String, String> = Default::default();
     let mut steps: Vec<Step> = Vec::new();
     let mut triggers: Vec<crate::actions::Trigger> = Vec::new();
+    let mut groups: Vec<crate::actions::Group> = Vec::new();
     let mut subtitle_seen = false;
 
     for node in children.nodes() {
@@ -642,6 +721,21 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
                     imports.insert(key, path);
                 }
             }
+            "groups" => {
+                let inner = node
+                    .children()
+                    .ok_or_else(|| anyhow!("`groups` must have a block {{ ... }}"))?;
+                for grp_node in inner.nodes() {
+                    if grp_node.name().value() != "group" {
+                        bail!(
+                            "unexpected `{}` inside `groups {{ ... }}` — only \
+                             `group` nodes belong here",
+                            grp_node.name().value()
+                        );
+                    }
+                    groups.push(decode_group(grp_node)?);
+                }
+            }
             // Reserved guard: `id` and `title` and `recipe` are legacy
             // top-level fields and don't make sense inside the workflow
             // block. Reject loudly so a half-migrated file gets flagged.
@@ -674,10 +768,50 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
         vars,
         imports,
         triggers,
+        groups,
         created,
         modified,
         last_run,
+        folder: None,
     })
+}
+
+fn decode_group(node: &KdlNode) -> Result<crate::actions::Group> {
+    use crate::actions::Group;
+    // The first positional string is the comment text — same shape
+    // as `note "text"`. Properties carry id, x, y, width, height,
+    // color.
+    let comment = first_string(node).unwrap_or_default();
+    let id = node
+        .get("id")
+        .and_then(|v| v.as_string().map(str::to_string))
+        .unwrap_or_else(|| {
+            // Generate one if missing — old hand-edited files might
+            // omit this and we'd rather render the group than reject
+            // the workflow.
+            uuid::Uuid::new_v4().to_string()
+        });
+    let x = node
+        .get("x")
+        .and_then(|v| v.as_float())
+        .unwrap_or(0.0);
+    let y = node
+        .get("y")
+        .and_then(|v| v.as_float())
+        .unwrap_or(0.0);
+    let width = node
+        .get("width")
+        .and_then(|v| v.as_float())
+        .unwrap_or(200.0);
+    let height = node
+        .get("height")
+        .and_then(|v| v.as_float())
+        .unwrap_or(120.0);
+    let color = node
+        .get("color")
+        .and_then(|v| v.as_string().map(str::to_string))
+        .unwrap_or_else(|| "accent".to_string());
+    Ok(Group { id, x, y, width, height, color, comment })
 }
 
 /// Legacy-format decoder: `schema 1`, top-level `id` / `title` /
@@ -801,9 +935,11 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
         vars,
         imports,
         triggers: Vec::new(),
+        groups: Vec::new(),
         created,
         modified,
         last_run,
+        folder: None,
     })
 }
 
@@ -1043,10 +1179,6 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 steps,
             }
         }
-        "include" => {
-            let path = first_string(node)?;
-            Action::Include { path }
-        }
         "use" => {
             // Unquoted bareword, `use dev-setup`, parses as a single
             // string arg in KDL v2 — same path as quoted form.
@@ -1083,6 +1215,15 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
     step.enabled = !disabled;
     step.note = comment;
     step.on_error = on_error;
+    // Honor a stable id if one was emitted on encode. Otherwise
+    // keep the fresh UUID Step::new just generated — that's the
+    // first-time-decode path (legacy files / hand-authored .kdl
+    // without an _id property).
+    if let Some(saved_id) = prop_string(node, "_id") {
+        if !saved_id.is_empty() {
+            step.id = saved_id;
+        }
+    }
     Ok(step)
 }
 
@@ -1290,13 +1431,12 @@ fn action_props(kind: &str) -> &'static [&'static str] {
         // required. `env` may pair with `equals`.
         "when" => &["window", "file", "env", "equals"],
         "unless" => &["window", "file", "env", "equals"],
-        "include" => &[],
         "use" => &[],
         _ => &[],
     }
 }
 
-const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error"];
+const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error", "_id"];
 
 /// Walk every named entry on a step node and fail if any name isn't in
 /// the action's allowlist or the common list. Unnamed (positional)
@@ -1533,88 +1673,7 @@ mod tests {
     }
 
     #[test]
-    fn include_splices_fragment_and_detects_cycles() {
-        use std::collections::HashSet;
-        let dir = tempfile::tempdir().unwrap();
-        let frag_a = dir.path().join("a.kdl");
-        let frag_b = dir.path().join("b.kdl");
-
-        // a.kdl: three step nodes (a valid fragment — no schema/id/title wrapper).
-        std::fs::write(&frag_a, r#"key "a1"
-type "a2"
-include "b.kdl""#).unwrap();
-        // b.kdl: one step node.
-        std::fs::write(&frag_b, r#"key "b1""#).unwrap();
-
-        // Main workflow including a.
-        let main = dir.path().join("main.kdl");
-        std::fs::write(
-            &main,
-            r#"schema 1
-id "main"
-title "Main"
-recipe {
-    include "a.kdl"
-    key "end"
-}"#,
-        )
-        .unwrap();
-
-        let wf = decode_from_file(&main).unwrap();
-        // a's two leaf steps + b's one step (via a's include b) + "end" = 4.
-        assert_eq!(wf.steps.len(), 4);
-        let chords: Vec<String> = wf
-            .steps
-            .iter()
-            .filter_map(|s| match &s.action {
-                Action::WdoKey { chord, .. } => Some(chord.clone()),
-                Action::WdoType { text, .. } => Some(format!("type:{text}")),
-                _ => None,
-            })
-            .collect();
-        // "end" normalizes to the X11 keysym "End".
-        assert_eq!(chords, vec!["a1", "type:a2", "b1", "End"]);
-
-        // Cycle: c.kdl includes itself.
-        let c = dir.path().join("c.kdl");
-        std::fs::write(&c, r#"include "c.kdl""#).unwrap();
-        let main_c = dir.path().join("main_c.kdl");
-        std::fs::write(
-            &main_c,
-            r#"schema 1
-id "mc"
-title "MC"
-recipe { include "c.kdl" }"#,
-        )
-        .unwrap();
-        let err = decode_from_file(&main_c).unwrap_err();
-        assert!(
-            format!("{err:#}").contains("cycle"),
-            "got: {err:#}"
-        );
-
-        // The same fragment used twice in different sibling branches is
-        // fine — visited is reset per branch.
-        let twice = dir.path().join("twice.kdl");
-        std::fs::write(
-            &twice,
-            r#"schema 1
-id "twice"
-title "Twice"
-recipe {
-    include "b.kdl"
-    include "b.kdl"
-}"#,
-        )
-        .unwrap();
-        let wf = decode_from_file(&twice).unwrap();
-        assert_eq!(wf.steps.len(), 2);
-
-        let _: HashSet<()> = Default::default(); // keep import pattern obvious
-    }
-
-    #[test]
-    fn imports_and_use_splice_like_include() {
+    fn imports_and_use_splice_fragments() {
         let dir = tempfile::tempdir().unwrap();
         let dev = dir.path().join("dev.kdl");
         std::fs::write(&dev, "shell \"dev-step\"\nkey \"ctrl+l\"").unwrap();
@@ -1698,7 +1757,7 @@ recipe { }"#,
     }
 
     #[test]
-    fn include_inside_repeat_and_when() {
+    fn use_expands_inside_repeat_and_when() {
         let dir = tempfile::tempdir().unwrap();
         let frag = dir.path().join("frag.kdl");
         std::fs::write(&frag, r#"key "inner""#).unwrap();
@@ -1708,12 +1767,13 @@ recipe { }"#,
             r#"schema 1
 id "m"
 title "M"
+imports { frag "frag.kdl" }
 recipe {
     repeat 2 {
-        include "frag.kdl"
+        use frag
     }
     when env="HOME" {
-        include "frag.kdl"
+        use frag
     }
 }"#,
         )
@@ -1727,6 +1787,55 @@ recipe {
             Action::Conditional { steps, .. } => assert_eq!(steps.len(), 1),
             _ => panic!("expected when"),
         }
+    }
+
+    #[test]
+    fn use_cycle_is_detected() {
+        // A fragment that `use`s a name resolving back to itself (the
+        // parent's imports map is inherited into nested splices) should
+        // produce a cycle error instead of recursing forever.
+        let dir = tempfile::tempdir().unwrap();
+        let frag = dir.path().join("frag.kdl");
+        std::fs::write(&frag, "use frag").unwrap();
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+imports { frag "frag.kdl" }
+recipe { use frag }"#,
+        )
+        .unwrap();
+        let err = decode_from_file(&main).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("cycle"),
+            "expected cycle error, got: {err:#}"
+        );
+    }
+
+    #[test]
+    fn same_import_in_sibling_branches_is_fine() {
+        // Visited is reset per sibling branch, so the same fragment used
+        // twice at the top level is not a cycle.
+        let dir = tempfile::tempdir().unwrap();
+        let frag = dir.path().join("frag.kdl");
+        std::fs::write(&frag, r#"key "f""#).unwrap();
+        let main = dir.path().join("main.kdl");
+        std::fs::write(
+            &main,
+            r#"schema 1
+id "m"
+title "M"
+imports { frag "frag.kdl" }
+recipe {
+    use frag
+    use frag
+}"#,
+        )
+        .unwrap();
+        let wf = decode_from_file(&main).unwrap();
+        assert_eq!(wf.steps.len(), 2);
     }
 
     #[test]
@@ -2504,5 +2613,63 @@ recipe {
         assert_eq!(wf.title, "Legacy Workflow");
         assert_eq!(wf.subtitle.as_deref(), Some("from before v0.4"));
         assert_eq!(wf.steps.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod fragment_roundtrip {
+    use super::*;
+
+    #[test]
+    fn fragment_encode_then_decode_preserves_steps() {
+        // Build a fragment-shaped step list — the "use NAME" import
+        // target form: bare nodes, no workflow wrapper.
+        let dir = tempfile::tempdir().unwrap();
+        let frag_path = dir.path().join("frag.kdl");
+        let original = r#"note "Loaded from preamble."
+shell "echo hi"
+key "ctrl+l"
+when window="Firefox" {
+    note "Inside the conditional."
+}
+"#;
+        std::fs::write(&frag_path, original).unwrap();
+
+        // Decode it as a fragment.
+        let steps = decode_fragment_file(&frag_path).unwrap();
+        assert_eq!(steps.len(), 4);
+
+        // Re-encode and round-trip.
+        let re_encoded = encode_fragment(&steps);
+        let frag_path_2 = dir.path().join("frag2.kdl");
+        std::fs::write(&frag_path_2, re_encoded.as_bytes()).unwrap();
+        let steps2 = decode_fragment_file(&frag_path_2).unwrap();
+        assert_eq!(steps2.len(), 4);
+
+        // Spot-check: the conditional's inner step survived nesting.
+        match &steps2[3].action {
+            Action::Conditional { steps: inner, .. } => {
+                assert_eq!(inner.len(), 1);
+            }
+            _ => panic!("expected Conditional at index 3"),
+        }
+    }
+
+    #[test]
+    fn fragment_encode_omits_workflow_wrapper() {
+        // No "workflow" / "schema" / "imports" / "title" tokens in
+        // the fragment output — it must be a bare list of step
+        // nodes, otherwise the fragment file becomes a malformed
+        // workflow file that wouldn't decode as a fragment again.
+        let mut wf = Workflow::new("title-not-emitted");
+        wf.steps.push(Step::new(Action::Note { text: "hi".into() }));
+        let body = encode_fragment(&wf.steps);
+        assert!(!body.contains("workflow"));
+        assert!(!body.contains("schema"));
+        assert!(!body.contains("imports"));
+        assert!(!body.contains("title-not-emitted"));
+        // And the step itself IS in the output.
+        assert!(body.contains("note"));
+        assert!(body.contains("hi"));
     }
 }

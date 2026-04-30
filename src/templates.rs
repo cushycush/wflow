@@ -1,19 +1,6 @@
-//! Discovery for the example workflow templates shown in the GUI's
-//! `+ New workflow → From Template` tab.
-//!
-//! Lookup order:
-//!
-//!   1. Each `$XDG_DATA_DIRS/wflow/examples/*.kdl` (the path AUR and
-//!      Flathub install into). Distros can ship updated examples
-//!      without a binary rebuild.
-//!   2. The seven bundled-via-`include_str!` examples baked into the
-//!      binary at compile time. Last-resort fallback so `cargo install`
-//!      users always have working templates.
-//!
-//! Bad files in the XDG path are skipped with a warn; missing or empty
-//! XDG path falls through to bundled. A misparseable bundled example
-//! is a packaging bug and panics on first call (we tolerate user data
-//! corruption, not our own).
+//! Templates for `+ New workflow → From Template`. Reads
+//! `$XDG_DATA_DIRS/wflow/examples/*.kdl` first, falls back to the
+//! `include_str!`-bundled set. Distro-shipped templates win.
 
 use std::path::PathBuf;
 
@@ -30,6 +17,7 @@ pub struct Template {
 
 /// Order = UI order.
 const BUNDLED: &[(&str, &str)] = &[
+    ("morning-sync", include_str!("../examples/morning-sync.kdl")),
     ("dev-setup", include_str!("../examples/dev-setup.kdl")),
     (
         "screenshot-and-share",
@@ -200,10 +188,11 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn bundled_returns_seven_templates() {
+    fn bundled_returns_eight_templates() {
         let t = bundled();
-        assert_eq!(t.len(), 7);
+        assert_eq!(t.len(), 8);
         let ids: Vec<&str> = t.iter().map(|t| t.id.as_str()).collect();
+        assert!(ids.contains(&"morning-sync"));
         assert!(ids.contains(&"dev-setup"));
         assert!(ids.contains(&"loop-tab-thru"));
     }
@@ -223,7 +212,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         std::env::set_var("WFLOW_TEMPLATES_DIR_OVERRIDE", "/nonexistent/xyz/wflow");
         let t = discover();
-        assert_eq!(t.len(), 7);
+        assert_eq!(t.len(), 8);
         std::env::remove_var("WFLOW_TEMPLATES_DIR_OVERRIDE");
     }
 

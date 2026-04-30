@@ -14,7 +14,60 @@ use crate::wdo::LazyBackend;
 /// Thread-safe sink. Owned by the bridge so threading concerns stay there.
 pub type EventSink = Arc<dyn Fn(RunEvent) + Send + Sync>;
 
+#[derive(Debug, Clone, Copy)]
+pub enum DebugCommand {
+    /// Run one step, then pause.
+    Step,
+    /// Run the rest without pausing.
+    Continue,
+    Stop,
+}
+
+pub struct PauseControl {
+    state: PauseState,
+}
+
+enum PauseState {
+    Off,
+    On(tokio::sync::mpsc::Receiver<DebugCommand>),
+}
+
+impl PauseControl {
+    pub fn off() -> Self {
+        Self { state: PauseState::Off }
+    }
+    pub fn on(rx: tokio::sync::mpsc::Receiver<DebugCommand>) -> Self {
+        Self { state: PauseState::On(rx) }
+    }
+
+    /// Returns false to halt. Continue flips state to Off.
+    async fn gate(&mut self, sink: &EventSink, idx: usize) -> bool {
+        match &mut self.state {
+            PauseState::Off => true,
+            PauseState::On(rx) => {
+                sink(RunEvent::Paused { index: idx });
+                match rx.recv().await {
+                    Some(DebugCommand::Step) => true,
+                    Some(DebugCommand::Continue) => {
+                        self.state = PauseState::Off;
+                        true
+                    }
+                    Some(DebugCommand::Stop) | None => false,
+                }
+            }
+        }
+    }
+}
+
 pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
+    run_workflow_with(sink, wf, PauseControl::off()).await
+}
+
+pub async fn run_workflow_with(
+    sink: EventSink,
+    wf: Workflow,
+    mut pause: PauseControl,
+) -> Result<()> {
     let run_id = Uuid::new_v4().to_string();
 
     sink(RunEvent::Started {
@@ -35,6 +88,7 @@ pub async fn run_workflow(sink: EventSink, wf: Workflow) -> Result<()> {
         &mut index,
         &mut any_failed,
         &backend,
+        &mut pause,
     )
     .await?;
 
@@ -57,13 +111,14 @@ fn run_steps<'a>(
     index: &'a mut usize,
     any_failed: &'a mut bool,
     backend: &'a LazyBackend,
+    pause: &'a mut PauseControl,
 ) -> BoxFuture<'a, Result<Flow>> {
     Box::pin(async move {
         for step in steps {
             match &step.action {
                 Action::Repeat { count, steps: inner } if step.enabled => {
                     for _ in 0..*count {
-                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend, pause).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
@@ -74,7 +129,7 @@ fn run_steps<'a>(
                         .await
                         .unwrap_or(false);
                     if cond_holds ^ *negate {
-                        if run_steps(inner, sink, vars, index, any_failed, backend).await? == Flow::Halt {
+                        if run_steps(inner, sink, vars, index, any_failed, backend, pause).await? == Flow::Halt {
                             return Ok(Flow::Halt);
                         }
                     }
@@ -85,6 +140,12 @@ fn run_steps<'a>(
 
             // Leaf step.
             let idx = *index;
+            // Debug walks only through steps that execute. Notes and
+            // disabled steps don't gate on the pause command.
+            let will_run = step.enabled && !matches!(step.action, Action::Note { .. });
+            if will_run && !pause.gate(sink, idx).await {
+                return Ok(Flow::Halt);
+            }
             *index += 1;
             sink(RunEvent::StepStart {
                 step_id: step.id.clone(),
@@ -243,7 +304,6 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             negate: *negate,
             steps: steps.clone(),
         },
-        Action::Include { path } => Action::Include { path: path.clone() },
         Action::Use { name } => Action::Use { name: name.clone() },
     })
 }
@@ -291,14 +351,12 @@ async fn run_action_value(action: &Action, backend: &LazyBackend) -> StepOutcome
         Action::Notify { title, body } => notify(title, body.as_deref()).await,
         Action::Clipboard { text } => clipboard_copy(text).await,
         Action::Note { .. } => Ok(None),
-        // Flow-control actions are handled inline by `run_steps`;
-        // include/use should have been expanded at decode time.
-        // Reaching any of these here means something bypassed the path.
+        // run_steps handles repeat/when/unless inline; `use` is decoded
+        // away. Reaching here means something bypassed those paths.
         Action::Repeat { .. }
         | Action::Conditional { .. }
-        | Action::Include { .. }
         | Action::Use { .. } => Err(anyhow!(
-            "internal: flow-control action reached dispatch (likely an unexpanded include / use)"
+            "internal: flow-control action reached dispatch (likely an unexpanded `use`)"
         )),
     };
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -489,4 +547,116 @@ async fn clipboard_copy(text: &str) -> Result<Option<String>> {
         return Err(anyhow!("wl-copy exit {status}"));
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::{Action, OnError, Step, Workflow};
+    use std::sync::Mutex;
+
+    fn note_step(id: &str) -> Step {
+        Step {
+            id: id.into(),
+            enabled: true,
+            note: None,
+            on_error: OnError::Stop,
+            action: Action::Note { text: "noop".into() },
+        }
+    }
+
+    fn collect_events(wf: Workflow) -> Vec<RunEvent> {
+        let collected = Arc::new(Mutex::new(Vec::<RunEvent>::new()));
+        let sink_collected = collected.clone();
+        let sink: EventSink = Arc::new(move |ev| {
+            sink_collected.lock().unwrap().push(ev);
+        });
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(run_workflow(sink, wf)).unwrap();
+        let out = collected.lock().unwrap().clone();
+        out
+    }
+
+    #[test]
+    fn repeat_emits_three_starts_with_stable_step_id() {
+        let inner = note_step("inner-A");
+        let repeat = Step {
+            id: "repeat-1".into(),
+            enabled: true,
+            note: None,
+            on_error: OnError::Stop,
+            action: Action::Repeat {
+                count: 3,
+                steps: vec![inner],
+            },
+        };
+        let mut wf = Workflow::new("test repeat");
+        wf.steps = vec![repeat];
+
+        let events = collect_events(wf);
+
+        let starts: Vec<(usize, String)> = events
+            .iter()
+            .filter_map(|ev| match ev {
+                RunEvent::StepStart { index, step_id } => Some((*index, step_id.clone())),
+                _ => None,
+            })
+            .collect();
+        let dones: Vec<(usize, String)> = events
+            .iter()
+            .filter_map(|ev| match ev {
+                RunEvent::StepDone { index, step_id, .. } => {
+                    Some((*index, step_id.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            starts.len(),
+            3,
+            "repeat count=3 should emit StepStart three times, got {starts:?}"
+        );
+        assert_eq!(starts.len(), dones.len(), "Start / Done counts should match");
+        for (_, id) in &starts {
+            assert_eq!(id, "inner-A", "step_id stays stable across iterations");
+        }
+        // Continuous flat indices; the bridge keys status off them.
+        assert_eq!(starts[0].0, 0);
+        assert_eq!(starts[1].0, 1);
+        assert_eq!(starts[2].0, 2);
+    }
+
+    #[test]
+    fn step_done_carries_matching_step_id() {
+        let mut wf = Workflow::new("test ids");
+        wf.steps = vec![note_step("alpha"), note_step("beta")];
+        let events = collect_events(wf);
+
+        let mut pairs = Vec::<(String, String)>::new();
+        let mut last_start: Option<(usize, String)> = None;
+        for ev in &events {
+            match ev {
+                RunEvent::StepStart { index, step_id } => {
+                    last_start = Some((*index, step_id.clone()));
+                }
+                RunEvent::StepDone {
+                    index, step_id, ..
+                } => {
+                    let (s_idx, s_id) = last_start
+                        .take()
+                        .expect("StepDone without preceding StepStart");
+                    assert_eq!(s_idx, *index, "Done index matches Start index");
+                    pairs.push((s_id, step_id.clone()));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0], ("alpha".into(), "alpha".into()));
+        assert_eq!(pairs[1], ("beta".into(), "beta".into()));
+    }
 }

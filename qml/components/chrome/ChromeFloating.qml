@@ -8,21 +8,66 @@ import Wflow
 Item {
     id: root
     property string currentPage: "library"
-    property string currentWorkflowId: ""
+    // docTitles is parallel to openDocs so updating a title doesn't
+    // mutate openDocs and force the WorkflowPage Repeater to rebuild.
+    property var openDocs: []
+    property var docTitles: ({})
+    property int activeDocIndex: -1
 
     signal navigate(string page)
     signal openWorkflow(string id)
+    signal openFragment(string path, string displayName)
     signal newWorkflow()
+    signal activateDoc(int index)
+    signal closeDoc(int index)
+    signal docTitleResolved(int index, string title)
     signal recordRequested()
+    signal showTutorRequested()
+
+    // App-wide dot-grid backdrop. Pages render on top; the ones
+    // built as transparent Items (Library / Explore / Workflow) let
+    // the dots show through their gaps, while RecordPage paints its
+    // own ambient background and covers it.
+    DotGrid {
+        anchors.fill: parent
+        z: -1
+    }
 
     // Full-bleed pages
     StackLayout {
+        id: pageStack
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
-                      root.currentPage === "workflow" ? 2 : 3
+                      root.currentPage === "workflow" ? 2 :
+                      root.currentPage === "record" ? 3 : 4
+
+        // Listening to currentPage (not currentIndex) so the animation
+        // runs on the first nav too, where the index doesn't change.
+        Connections {
+            target: root
+            function onCurrentPageChanged() { pageEnterAnim.restart() }
+        }
+        ParallelAnimation {
+            id: pageEnterAnim
+            NumberAnimation {
+                target: pageStack
+                property: "opacity"
+                from: 0; to: 1
+                duration: Theme.dur(Theme.durBase)
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: pageStack
+                property: "scale"
+                from: 0.985; to: 1.0
+                duration: Theme.dur(Theme.durBase)
+                easing.type: Easing.OutCubic
+            }
+        }
 
         LibraryPage {
+            id: libraryPageInst
             onNewWorkflow: root.newWorkflow()
             onOpenWorkflow: (id) => root.openWorkflow(id)
             onRecordRequested: root.recordRequested()
@@ -30,23 +75,216 @@ Item {
         ExplorePage {
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
-        WorkflowPage {
-            workflowId: root.currentWorkflowId
-            onBackRequested: root.navigate("library")
+        // Repeater keeps inactive WorkflowPages alive so per-doc state
+        // (crumb, selection, save, wfCtrl) survives a tab switch.
+        Item {
+            id: workflowSlot
+
+            Rectangle {
+                id: tabBar
+                visible: root.openDocs.length > 0
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 36
+                color: Theme.bg
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: Theme.line
+                }
+
+                Row {
+                    id: tabRow
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 16
+                    spacing: 2
+
+                    Repeater {
+                        model: root.openDocs
+                        delegate: Rectangle {
+                            id: tabChip
+                            readonly property bool isActive: model.index === root.activeDocIndex
+                            readonly property bool isFragment: modelData.kind === "fragment"
+                            readonly property color tabAccent:
+                                isFragment ? Theme.catUse : Theme.accent
+                            // Top-rounded only: outer Rectangle is taller
+                            // than the chip and tucks past the bottom edge.
+                            width: chipRow.implicitWidth + 28
+                            height: 32
+                            color: "transparent"
+
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.bottomMargin: -6
+                                radius: 6
+                                color: tabChip.isActive
+                                    ? Theme.surface
+                                    : (chipArea.containsMouse
+                                        ? Theme.surface2
+                                        : Qt.rgba(Theme.surface.r, Theme.surface.g,
+                                                  Theme.surface.b, 0.55))
+                                border.color: tabChip.isActive
+                                    ? Theme.line
+                                    : Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                                Rectangle {
+                                    visible: tabChip.isActive
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.leftMargin: 1
+                                    anchors.rightMargin: 1
+                                    anchors.topMargin: 1
+                                    height: 2
+                                    radius: 1
+                                    color: tabChip.tabAccent
+                                }
+                            }
+
+                            // First in source order so the close button
+                            // (later sibling) intercepts its own clicks.
+                            MouseArea {
+                                id: chipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.activateDoc(model.index)
+                            }
+
+                            Row {
+                                id: chipRow
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Text {
+                                    visible: tabChip.isFragment
+                                    text: "↳"
+                                    color: tabChip.isActive ? tabChip.tabAccent : Theme.text3
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: Font.Medium
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: root.docTitles[modelData.source] || modelData.source
+                                    color: tabChip.isActive ? Theme.text : Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: tabChip.isActive ? Font.DemiBold : Font.Medium
+                                    elide: Text.ElideRight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Rectangle {
+                                    width: 16
+                                    height: 16
+                                    radius: 3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: closeArea.containsMouse
+                                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                        : "transparent"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "×"
+                                        color: closeArea.containsMouse
+                                            ? Theme.err
+                                            : (tabChip.isActive ? Theme.text2 : Theme.text3)
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 14
+                                        font.weight: Font.Medium
+                                    }
+                                    MouseArea {
+                                        id: closeArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.closeDoc(model.index)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item {
+                id: pageHost
+                anchors.top: tabBar.visible ? tabBar.bottom : parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+
+                Repeater {
+                    model: root.openDocs
+                    delegate: WorkflowPage {
+                        id: page
+                        anchors.fill: parent
+                        visible: model.index === root.activeDocIndex
+                        workflowId: modelData.kind === "workflow" ? modelData.source : ""
+                        fragmentPath: modelData.kind === "fragment" ? modelData.source : ""
+                        onBackRequested: root.navigate("library")
+                        onOpenFragmentRequested: (path, name) => root.openFragment(path, name)
+                        // Skip "Untitled workflow" so a transient reload
+                        // doesn't overwrite a real title.
+                        onTitleChanged: {
+                            const t = page.title
+                            if (t && t !== "Untitled workflow") {
+                                root.docTitleResolved(model.index, t)
+                            }
+                        }
+                    }
+                }
+
+                // Empty-state placeholder for the case where the user
+                // navigated to "workflow" but no tabs are open.
+                Item {
+                    anchors.fill: parent
+                    visible: root.openDocs.length === 0
+                    Text {
+                        anchors.centerIn: parent
+                        text: "No workflow open. Open one from the Library."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                    }
+                }
+            }
         }
         RecordPage {
+            id: recordPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        SettingsPage {
+            id: settingsPageInst
+            onClose: root.navigate("library")
+            onShowTutorRequested: root.showTutorRequested()
         }
     }
 
-    // Floating nav pill
+    // Exported for the first-run TutorialCoach so it can point at
+    // the floating pill as a single coach-mark target.
+    property alias pillContainer: navPill
+    property alias settingsButton: settingsBtn
+    property alias libraryPage: libraryPageInst
+    property alias workflowSlot: workflowSlot
+    property alias recordPage: recordPageInst
+
+    // Floating nav bar, rounded-rect style matching the editor's
     Rectangle {
+        id: navPill
         anchors.top: parent.top
         anchors.topMargin: 18
         anchors.horizontalCenter: parent.horizontalCenter
         width: pillRow.implicitWidth + 20
-        height: 48
-        radius: 24
+        height: 44
+        radius: Theme.radiusMd
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.95)
         border.color: Theme.line
         border.width: 1
@@ -56,9 +294,8 @@ Item {
             anchors.centerIn: parent
             spacing: 4
 
-            // Logo circle
             Rectangle {
-                width: 32; height: 32; radius: 16
+                width: 28; height: 28; radius: Theme.radiusSm
                 color: Theme.accent
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
@@ -66,39 +303,39 @@ Item {
                     text: "w"
                     color: Theme.accentText
                     font.family: Theme.familyBody
-                    font.pixelSize: 16
+                    font.pixelSize: 15
                     font.weight: Font.Bold
                 }
             }
 
             Item { width: 6; height: 1 }
 
-            // Editor isn't a top-level tab — it's a nested view you
-            // reach by clicking a workflow in Library, with a back
-            // arrow on the page itself. Keeping it as a tab
-            // produced an empty-state page when the user landed
-            // there without a selection, which had no useful
-            // affordances.
             Repeater {
-                model: Theme.showExplore
-                    ? [
-                        { id: "library",  label: "Library" },
-                        { id: "explore",  label: "Explore" },
-                        { id: "record",   label: "Record" }
-                      ]
-                    : [
-                        { id: "library",  label: "Library" },
-                        { id: "record",   label: "Record" }
-                      ]
+                model: {
+                    const out = []
+                    if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
+                    out.push({ id: "library", label: "Library" })
+                    if ((root.openDocs || []).length > 0) {
+                        out.push({
+                            id: "workflow",
+                            label: "Editor (" + root.openDocs.length + ")"
+                        })
+                    }
+                    out.push({ id: "record", label: "Record" })
+                    return out
+                }
                 delegate: Rectangle {
                     id: tab
                     readonly property bool isActive: modelData.id === root.currentPage
                     // Record uses err so it reads like a record button.
                     readonly property bool isRecord: modelData.id === "record"
                     readonly property color tabAccent: isRecord ? Theme.err : Theme.accent
-                    width: lbl.implicitWidth + 24
-                    height: 32
-                    radius: 16
+                    readonly property color tabFg: tab.isRecord
+                        ? (tab.isActive ? Theme.err : Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85))
+                        : (tab.isActive ? Theme.accent : Theme.text2)
+                    width: tabContent.implicitWidth + 20
+                    height: 28
+                    radius: Theme.radiusSm
                     anchors.verticalCenter: parent.verticalCenter
                     color: isActive
                         ? Qt.rgba(tabAccent.r, tabAccent.g, tabAccent.b, 0.18)
@@ -111,17 +348,90 @@ Item {
                     Keys.onSpacePressed:  root.navigate(modelData.id)
                     FocusRing { }
 
-                    Text {
-                        id: lbl
+                    Row {
+                        id: tabContent
                         anchors.centerIn: parent
-                        text: modelData.label
-                        color: tab.isRecord
-                            ? (tab.isActive ? Theme.err : Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.85))
-                            : (tab.isActive ? Theme.accent : Theme.text2)
-                        font.family: Theme.familyBody
-                        font.pixelSize: Theme.fontSm
-                        font.weight: tab.isActive ? Font.DemiBold : Font.Medium
+                        spacing: 7
+
+                        // Drawn from primitives so glyphs render the same
+                        // across systems regardless of font fallback.
+                        Item {
+                            id: tabIcon
+                            width: 12
+                            height: 12
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Item {
+                                visible: modelData.id === "library"
+                                anchors.fill: parent
+                                Rectangle { x: 0; y: 0; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 7; y: 0; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 0; y: 7; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                                Rectangle { x: 7; y: 7; width: 5; height: 5; radius: 1; color: tab.tabFg }
+                            }
+
+                            Item {
+                                visible: modelData.id === "explore"
+                                anchors.fill: parent
+                                Rectangle {
+                                    x: 0; y: 0; width: 9; height: 9
+                                    radius: 4.5
+                                    color: "transparent"
+                                    border.color: tab.tabFg
+                                    border.width: 1.5
+                                }
+                                Rectangle {
+                                    x: 7.5; y: 9.5
+                                    width: 4; height: 1.5
+                                    radius: 0.75
+                                    color: tab.tabFg
+                                    transform: Rotation {
+                                        origin.x: 0
+                                        origin.y: 0.75
+                                        angle: -45
+                                    }
+                                }
+                            }
+
+                            Item {
+                                visible: modelData.id === "workflow"
+                                anchors.fill: parent
+                                Rectangle {
+                                    x: 0; y: 4.5; width: 4; height: 4
+                                    radius: 2
+                                    color: tab.tabFg
+                                }
+                                Rectangle {
+                                    x: 4; y: 5.75; width: 4; height: 1.5
+                                    color: tab.tabFg
+                                }
+                                Rectangle {
+                                    x: 8; y: 4.5; width: 4; height: 4
+                                    radius: 2
+                                    color: tab.tabFg
+                                }
+                            }
+
+                            Rectangle {
+                                visible: modelData.id === "record"
+                                anchors.centerIn: parent
+                                width: 8; height: 8
+                                radius: 4
+                                color: tab.tabFg
+                            }
+                        }
+
+                        Text {
+                            id: lbl
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            color: tab.tabFg
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: tab.isActive ? Font.DemiBold : Font.Medium
+                        }
                     }
+
                     MouseArea {
                         id: tabArea
                         anchors.fill: parent
@@ -137,35 +447,75 @@ Item {
 
             Item { width: 2; height: 1 }
 
-            // Theme mode cycle: auto → light → dark → auto.
-            // Icon reflects the current mode, not the resolved theme, so the
-            // user can tell whether they've pinned it.
-            Rectangle {
-                id: themeBtn
-                width: 32; height: 32; radius: 16
-                anchors.verticalCenter: parent.verticalCenter
-                color: themeArea.containsMouse ? Theme.surface2 : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+            // (Theme cycle button moved to Settings, Ctrl+. still cycles
+            // for keyboard users; the chrome no longer carries it now
+            // that there's a real Settings page.)
 
-                Text {
+            Rectangle {
+                id: settingsBtn
+                width: 24; height: 24; radius: Theme.radiusSm
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property bool isActive: root.currentPage === "settings"
+                readonly property color iconColor: isActive ? Theme.accent : Theme.text2
+                color: isActive
+                    ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                    : (settingsArea.containsMouse ? Theme.surface2 : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // Built from primitives because Unicode ⚙ is too heavy.
+                Item {
                     anchors.centerIn: parent
-                    text: Theme.mode === "light" ? "☀" : Theme.mode === "dark" ? "☾" : "◐"
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 14
+                    width: 13
+                    height: 13
+
+                    Repeater {
+                        model: 8
+                        delegate: Rectangle {
+                            width: 2
+                            height: 3
+                            radius: 1
+                            color: settingsBtn.iconColor
+                            x: 6.5 - width / 2
+                                + Math.cos(index * Math.PI / 4 - Math.PI / 2) * 5.25
+                            y: 6.5 - height / 2
+                                + Math.sin(index * Math.PI / 4 - Math.PI / 2) * 5.25
+                            transform: Rotation {
+                                origin.x: 1
+                                origin.y: 1.5
+                                angle: index * 45
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 9
+                        height: 9
+                        radius: width / 2
+                        color: settingsBtn.iconColor
+                    }
+                    // Cut-out tracks the button bg so the donut hub
+                    // always matches what's behind it.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 3
+                        height: 3
+                        radius: width / 2
+                        color: settingsBtn.isActive
+                            ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                            : (settingsArea.containsMouse ? Theme.surface2 : Theme.surface)
+                    }
                 }
 
                 MouseArea {
-                    id: themeArea
+                    id: settingsArea
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Theme.cycleMode()
+                    onClicked: root.navigate("settings")
                     ToolTip.visible: containsMouse
                     ToolTip.delay: 400
-                    ToolTip.text: Theme.mode === "auto"
-                        ? "Theme: follow system"
-                        : Theme.mode === "light" ? "Theme: light" : "Theme: dark"
+                    ToolTip.text: "Settings"
                 }
             }
         }

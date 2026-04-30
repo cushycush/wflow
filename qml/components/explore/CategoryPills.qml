@@ -19,7 +19,7 @@ Row {
             readonly property bool active: modelData === root.selected
             width: lbl.implicitWidth + 22
             height: 30
-            radius: 15
+            radius: height / 2
             color: active
                 ? Theme.accentWash(0.18)
                 : (pillArea.containsMouse ? Theme.surface3 : Theme.surface2)

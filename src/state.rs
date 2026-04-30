@@ -17,10 +17,30 @@ pub struct State {
     pub first_run_at: Option<String>,
     #[serde(default)]
     pub tutorials: BTreeMap<String, bool>,
+    /// "auto" | "light" | "dark".
+    #[serde(default = "default_theme_mode")]
+    pub theme_mode: String,
+    #[serde(default)]
+    pub reduce_motion: bool,
+    /// "recent" | "name" | "last_run".
+    #[serde(default = "default_library_sort")]
+    pub library_sort: String,
+    /// `None` = XDG default. Stored as String so a cross-platform port
+    /// doesn't have to carry PathBuf-shaped TOML.
+    #[serde(default)]
+    pub workflows_dir: Option<String>,
 }
 
 fn default_schema() -> u32 {
     1
+}
+
+fn default_theme_mode() -> String {
+    "auto".to_string()
+}
+
+fn default_library_sort() -> String {
+    "recent".to_string()
 }
 
 impl Default for State {
@@ -29,6 +49,10 @@ impl Default for State {
             schema: 1,
             first_run_at: None,
             tutorials: BTreeMap::new(),
+            theme_mode: default_theme_mode(),
+            reduce_motion: false,
+            library_sort: default_library_sort(),
+            workflows_dir: None,
         }
     }
 }

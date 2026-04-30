@@ -244,11 +244,9 @@ pub struct Workflow {
     /// `{{name}}` substitution at run time. Overridable via CLI.
     #[serde(default)]
     pub vars: std::collections::BTreeMap<String, String>,
-    /// Named imports, maps short name → fragment-file path. Resolved
-    /// at decode time by `kdl_format::expand_includes` when the step
-    /// tree contains `Action::Use { name }`. Empty by the time the
-    /// engine runs, so not serialized.
-    #[serde(skip, default)]
+    /// `name → fragment-path`. Resolved by `kdl_format::expand_imports`
+    /// when the step tree carries `Action::Use { name }`.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub imports: std::collections::BTreeMap<String, String>,
     /// Empty for hand-launched workflows, populated for daemon-bound ones.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -259,6 +257,31 @@ pub struct Workflow {
     pub modified: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
     pub last_run: Option<chrono::DateTime<chrono::Utc>>,
+    /// Decorative canvas rectangles. Engine ignores them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<Group>,
+    /// Filesystem fact, not workflow content; not serialised.
+    #[serde(skip, default)]
+    pub folder: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Tint key from the category palette plus a few muted neutrals;
+    /// unknown names fall back to accent.
+    #[serde(default = "default_group_color")]
+    pub color: String,
+    #[serde(default)]
+    pub comment: String,
+}
+
+fn default_group_color() -> String {
+    "accent".to_string()
 }
 
 impl Workflow {
@@ -272,9 +295,11 @@ impl Workflow {
             vars: Default::default(),
             imports: Default::default(),
             triggers: Vec::new(),
+            groups: Vec::new(),
             created: Some(now),
             modified: Some(now),
             last_run: None,
+            folder: None,
         }
     }
 }
@@ -369,13 +394,8 @@ pub enum Action {
         negate: bool,
         steps: Vec<Step>,
     },
-    /// Splice-in the top-level step nodes from another KDL fragment
-    /// file. Expanded at decode time by `kdl_format::expand_includes`,
-    /// so the engine never sees this variant at dispatch.
-    Include { path: String },
-    /// Splice-in a named import declared in the workflow's top-level
-    /// `imports { ... }` block. Expanded at decode time against the
-    /// imports map, same splicing rules as `Include`.
+    /// Resolved at decode time against the workflow's imports map.
+    /// The engine never sees this variant.
     Use { name: String },
 }
 
@@ -419,7 +439,6 @@ impl Action {
             Action::Repeat { .. } => "repeat",
             Action::Conditional { negate: false, .. } => "when",
             Action::Conditional { negate: true, .. } => "unless",
-            Action::Include { .. } => "include",
             Action::Use { .. } => "use",
         }
     }
@@ -472,7 +491,6 @@ impl Action {
                     if steps.len() == 1 { "" } else { "s" }
                 )
             }
-            Action::Include { path } => format!("include {}", quote_short(path)),
             Action::Use { name } => format!("use {name}"),
         }
     }
@@ -554,6 +572,10 @@ pub enum RunEvent {
         step_id: String,
         index: usize,
         outcome: StepOutcome,
+    },
+    /// `index` is the upcoming step, not the just-completed one.
+    Paused {
+        index: usize,
     },
     Finished {
         run_id: String,
