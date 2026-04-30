@@ -763,11 +763,43 @@ Item {
     // selectedInnerIndex is < 0, returns the top-level step; otherwise
     // walks into the parent's action.steps[innerIndex]. Returns null
     // if either coordinate is out of range.
+    // Resolve an editor selection (index into the shaped `actions`
+    // list) to the underlying raw Step in `steps`. The shaped list
+    // filters notes out and surfaces conditional inner steps as
+    // siblings, so its indices don't line up with raw steps.length —
+    // we have to read the actions metadata (_topIdx, _displayKind,
+    // _parentTopIdx, _innerIdx) to translate.
+    //
+    // Without this translation, editing any step that came after a
+    // note in the workflow file silently mutated whichever raw step
+    // happened to share its actions-list index. The inspector then
+    // re-rendered the unchanged target value, which made it look
+    // like typing was being eaten.
     function _resolveStep(steps, stepIndex) {
-        if (stepIndex < 0 || stepIndex >= steps.length) return null
+        const list = root.actions || []
+        if (stepIndex < 0 || stepIndex >= list.length) return null
+        const meta = list[stepIndex]
+        if (!meta) return null
+
+        // Conditional inner step (when / unless) — surfaced as its
+        // own card in the shaped list.
+        if (meta._displayKind === "inner") {
+            const parentIdx = meta._parentTopIdx
+            const innerIdx = meta._innerIdx
+            if (parentIdx < 0 || parentIdx >= steps.length) return null
+            const parent = steps[parentIdx]
+            if (!parent.action || !Array.isArray(parent.action.steps)) return null
+            if (innerIdx < 0 || innerIdx >= parent.action.steps.length) return null
+            return parent.action.steps[innerIdx]
+        }
+
+        // Top-level step. If selectedInnerIndex >= 0 we're looking at
+        // a repeat container's inline inner row — drill in.
+        const topIdx = meta._topIdx
+        if (topIdx < 0 || topIdx >= steps.length) return null
         const inner = editorContent.selectedInnerIndex
-        if (inner < 0) return steps[stepIndex]
-        const parent = steps[stepIndex]
+        if (inner < 0) return steps[topIdx]
+        const parent = steps[topIdx]
         if (!parent.action || !Array.isArray(parent.action.steps)) return null
         if (inner >= parent.action.steps.length) return null
         return parent.action.steps[inner]
