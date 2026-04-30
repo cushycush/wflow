@@ -67,6 +67,11 @@ Item {
     readonly property real _marqueeTop:    Math.min(_marqueeStartY, _marqueeCurrentY)
     readonly property real _marqueeRight:  Math.max(_marqueeStartX, _marqueeCurrentX)
     readonly property real _marqueeBottom: Math.max(_marqueeStartY, _marqueeCurrentY)
+    // Live preview of cards inside the marquee while it's being
+    // dragged. Updated every centroid change so cards can light up as
+    // soon as the rect crosses them, instead of waiting for release.
+    // Cleared on commit / cancel.
+    property var _marqueeHoverIndices: ({})
 
     // Map a DragHandler's centroid scene position into WORLD coords.
     // Going via scenePosition + world.mapFromItem dodges any
@@ -85,11 +90,13 @@ Item {
             _marqueeStartY = w.y
             _marqueeCurrentX = w.x
             _marqueeCurrentY = w.y
+            _marqueeHoverIndices = ({})
             _marqueeActive = true
         } else {
             _marqueeActive = false
             _commitMarqueeSelection(
                 _marqueeLeft, _marqueeTop, _marqueeRight, _marqueeBottom)
+            _marqueeHoverIndices = ({})
         }
     }
     function _marqueeOnCentroidChanged(handler) {
@@ -97,6 +104,10 @@ Item {
         const w = _handlerToWorld(handler)
         _marqueeCurrentX = w.x
         _marqueeCurrentY = w.y
+        // Refresh the live preview so cards inside the rect light up
+        // as you drag, not just on release.
+        _marqueeHoverIndices = _indicesInMarqueeRect(
+            _marqueeLeft, _marqueeTop, _marqueeRight, _marqueeBottom)
     }
 
     // Reactive position / size stores. Each card writes into these
@@ -164,21 +175,15 @@ Item {
         root.addGroupRequested(cx - w / 2, cy - h / 2, w, h)
     }
 
-    // Walk every visible card and find which rectangles intersect
-    // the marquee rect. Coordinates come in WORLD space (already
-    // unprojected from the handler's centroid via _handlerToWorld);
-    // card x/y are also world-local, so this is a plain AABB overlap
-    // test with no further conversion. Empty-marquee guard uses
-    // a small minimum span to avoid stray micro-drags.
-    function _commitMarqueeSelection(wL, wT, wR, wB) {
-        const minSpan = 4 / Math.max(0.01, root.zoom)
-        if ((wR - wL) < minSpan || (wB - wT) < minSpan) return
-
-        // Prefer card rects from positions/cardWidths/cardHeights
-        // (the source of truth) and fall back to the live delegate
-        // when the maps haven't caught up. Either way, all values
-        // are world-local.
-        const next = ({})
+    // Walk every visible card and return a {idx: true} map for the
+    // ones whose rectangles intersect the marquee rect. Coordinates
+    // come in WORLD space (already unprojected from the handler's
+    // centroid via _handlerToWorld); card x/y are also world-local,
+    // so this is a plain AABB overlap test with no further
+    // conversion. Used both live (during drag, to highlight what's
+    // inside the rect) and on commit (to emit the final selection).
+    function _indicesInMarqueeRect(wL, wT, wR, wB) {
+        const out = ({})
         const acts = root.actions || []
         for (let i = 0; i < acts.length; i++) {
             const a = acts[i]
@@ -190,14 +195,23 @@ Item {
             if (p) {
                 cx = p.x; cy = p.y
             } else {
+                // Fall back to the live delegate when the position
+                // map hasn't caught up (e.g. fresh card after layout).
                 const card = nodeRep.itemAt(i)
                 if (!card) continue
                 cx = card.x; cy = card.y
             }
             if (cx + cw > wL && cx < wR && cy + ch > wT && cy < wB) {
-                next[i] = true
+                out[i] = true
             }
         }
+        return out
+    }
+
+    function _commitMarqueeSelection(wL, wT, wR, wB) {
+        const minSpan = 4 / Math.max(0.01, root.zoom)
+        if ((wR - wL) < minSpan || (wB - wT) < minSpan) return
+        const next = _indicesInMarqueeRect(wL, wT, wR, wB)
         if (Object.keys(next).length > 0) {
             root.marqueeSelected(next)
         }
@@ -1633,9 +1647,18 @@ Item {
                 // so inner Repeaters (rewire menu) don't shadow it
                 // with their own model.index.
                 readonly property int stepIdx: model.index
+                // Live preview during a marquee drag — the card lights
+                // up as soon as the rect crosses it, before release.
+                // Folded into isSelected so the existing border /
+                // background bindings pick it up without a second path.
+                readonly property bool _marqueeHovered:
+                    root._marqueeActive
+                    && root._marqueeHoverIndices
+                    && root._marqueeHoverIndices[model.index] === true
                 readonly property bool isSelected:
                     (root.selectedIndices && root.selectedIndices[model.index] === true)
                     || model.index === root.selectedIndex
+                    || _marqueeHovered
 
                 // Hover aggregation. The card-level dragArea
                 // MouseArea loses containsMouse when the cursor moves
