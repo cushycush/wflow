@@ -1,23 +1,88 @@
 //! Workflow persistence.
 //!
-//! Workflows are stored as `.kdl` files at `$XDG_CONFIG_HOME/wflow/workflows/`.
-//! For backward compatibility we also read `.json` files written by earlier
-//! versions, and re-save them as KDL on the next write.
+//! Workflows are stored as `.kdl` files at `$XDG_CONFIG_HOME/wflow/workflows/`
+//! by default. The user can override this from the Settings page; the
+//! override lives in state.toml and is set on this module via
+//! `set_workflows_dir_override` at app startup. For backward
+//! compatibility we also read `.json` files written by earlier
+//! versions and re-save them as KDL on the next write.
 
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 
 use crate::actions::Workflow;
 use crate::kdl_format;
 
-fn workflows_dir() -> Result<PathBuf> {
+// User-set workflow directory override. `None` means "use the default
+// at $XDG_CONFIG_HOME/wflow/workflows". The bridge populates this once
+// at startup from state.toml and writes through it on Settings changes;
+// CLI subcommands also call `default_workflows_dir()` directly when
+// they want to reach the default unconditionally.
+static OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// Path that *should* be used for workflows: the user's override if set,
+/// otherwise the XDG default. Creates the directory if it doesn't exist.
+pub fn workflows_dir() -> Result<PathBuf> {
+    if let Some(p) = OVERRIDE.read().ok().and_then(|g| g.clone()) {
+        fs::create_dir_all(&p).with_context(|| format!("create {}", p.display()))?;
+        return Ok(p);
+    }
+    default_workflows_dir()
+}
+
+/// XDG-default workflows directory, ignoring any user override. Used to
+/// display the "fallback" path in Settings + by tests / migrations that
+/// shouldn't follow a runtime override.
+pub fn default_workflows_dir() -> Result<PathBuf> {
     let base = dirs::config_dir().context("no XDG config dir")?;
     let dir = base.join("wflow").join("workflows");
     fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     Ok(dir)
+}
+
+/// Install or clear the user override. Pass `None` to revert to the
+/// XDG default. The path is validated only insofar as we try to
+/// `create_dir_all` it on the next read; the bridge can call
+/// `validate_workflows_dir(&path)` first to surface UI errors before
+/// committing.
+pub fn set_workflows_dir_override(path: Option<PathBuf>) {
+    if let Ok(mut g) = OVERRIDE.write() {
+        *g = path;
+    }
+}
+
+/// Probe a path to see if it's safe to use as a workflows directory:
+/// either it doesn't exist (we'll create it on first use) or it does
+/// exist as a directory we can write to. Returns Ok(()) on success,
+/// Err(reason) suitable for surfacing in the UI on failure.
+pub fn validate_workflows_dir(path: &Path) -> Result<()> {
+    if path.exists() {
+        if !path.is_dir() {
+            anyhow::bail!("path exists but isn't a directory");
+        }
+        // Probe write access by creating + deleting a probe file.
+        let probe = path.join(".wflow-probe");
+        match fs::write(&probe, b"") {
+            Ok(()) => {
+                let _ = fs::remove_file(&probe);
+                Ok(())
+            }
+            Err(e) => anyhow::bail!("not writable: {e}"),
+        }
+    } else {
+        // Verify the parent exists so we don't silently create a deeply
+        // nested path the user fat-fingered.
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                anyhow::bail!("parent directory does not exist: {}", parent.display());
+            }
+        }
+        Ok(())
+    }
 }
 
 fn safe_id(id: &str) -> String {
@@ -25,52 +90,251 @@ fn safe_id(id: &str) -> String {
 }
 
 fn kdl_path_for(id: &str) -> Result<PathBuf> {
-    Ok(workflows_dir()?.join(format!("{}.kdl", safe_id(id))))
+    kdl_path_for_in(id, None)
+}
+
+/// Return the .kdl path for a workflow id inside a specific folder.
+/// folder=None ⇒ top-level (workflows_dir directly). folder=Some("a")
+/// ⇒ workflows_dir/a/<safe_id>.kdl. Nested paths like "a/b" produce
+/// workflows_dir/a/b/<safe_id>.kdl after sanitising each segment.
+fn kdl_path_for_in(id: &str, folder: Option<&str>) -> Result<PathBuf> {
+    let mut p = workflows_dir()?;
+    if let Some(f) = folder {
+        for seg in safe_folder_path_segments(f) {
+            p.push(seg);
+        }
+    }
+    p.push(format!("{}.kdl", safe_id(id)));
+    Ok(p)
 }
 
 fn legacy_json_path_for(id: &str) -> Result<PathBuf> {
     Ok(workflows_dir()?.join(format!("{}.json", safe_id(id))))
 }
 
+/// Sanitise a single user-supplied folder segment. Strips path
+/// separators / colons / dots so it can't escape the workflows root
+/// or accumulate dot-leakage like `..`.
+fn safe_folder(s: &str) -> String {
+    s.chars()
+        .map(|c| if matches!(c, '/' | '\\' | ':' | '.') { '_' } else { c })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string()
+}
+
+/// Sanitise a possibly-nested folder path like "a/b/c" into a list of
+/// safe segments. Empty segments (consecutive slashes, leading slash)
+/// are dropped; each segment passes through `safe_folder` so traversal
+/// (`..`) and Windows-style paths (`\\`, `:`) are neutralised. The
+/// joined path is guaranteed to stay inside the workflows root.
+fn safe_folder_path_segments(s: &str) -> Vec<String> {
+    s.split('/')
+        .map(|seg| safe_folder(seg))
+        .filter(|seg| !seg.is_empty())
+        .collect()
+}
+
+/// Recursively walk the workflows directory and call `visit` for each
+/// .kdl / .json file with its (path, folder-relative-to-root). Folder
+/// names accumulate as forward-slash-joined paths — a workflow at
+/// `<root>/a/b/wf.kdl` reports folder `Some("a/b")`. Top-level files
+/// report `None`.
+fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
+    dir: &Path,
+    folder: Option<&str>,
+    visit: &mut F,
+) -> Result<()> {
+    for entry in fs::read_dir(dir).with_context(|| format!("read_dir {}", dir.display()))? {
+        let entry = entry?;
+        let p = entry.path();
+        let ft = entry.file_type()?;
+        if ft.is_dir() {
+            let sub_name = p
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            // Skip:
+            //   - empty / dotfile names
+            //   - names starting with `_` (convention: private)
+            //   - the conventional `lib` directory which holds
+            //     `use NAME` fragment files (bare step lists, not
+            //     full Workflow blocks). The walker would otherwise
+            //     try to parse them as workflows and warn-skip every
+            //     refresh.
+            if sub_name.is_empty()
+                || sub_name.starts_with('.')
+                || sub_name.starts_with('_')
+                || sub_name == "lib"
+            {
+                continue;
+            }
+            // Accumulate the parent folder path so nested
+            // directories report their full relative location
+            // (`a/b`) instead of just the leaf segment (`b`).
+            let nested = match folder {
+                Some(parent) if !parent.is_empty() => format!("{parent}/{sub_name}"),
+                _ => sub_name.clone(),
+            };
+            walk_workflow_files(&p, Some(&nested), visit)?;
+        } else {
+            match p.extension().and_then(|s| s.to_str()) {
+                Some("kdl") | Some("json") => visit(&p, folder.map(|s| s.to_string())),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn list() -> Result<Vec<Workflow>> {
     let dir = workflows_dir()?;
     let mut wfs: Vec<Workflow> = Vec::new();
     let mut seen_ids: std::collections::HashSet<String> = Default::default();
-    for entry in fs::read_dir(&dir)? {
-        let entry = entry?;
-        let p = entry.path();
-        match p.extension().and_then(|s| s.to_str()) {
-            Some("kdl") | Some("json") => {}
-            _ => continue,
-        }
-        match load_path(&p) {
-            Ok(wf) => {
+    walk_workflow_files(&dir, None, &mut |p, folder| {
+        // Library list only needs metadata (title, subtitle, step
+        // count, etc.) — skip import expansion. Files with broken
+        // `use` references still appear in the listing; the error
+        // surfaces only when the user opens or runs them.
+        match load_path(p, false) {
+            Ok(mut wf) => {
+                wf.folder = folder;
                 if seen_ids.insert(wf.id.clone()) {
                     wfs.push(wf);
                 }
             }
             Err(e) => tracing::warn!(?e, "skipping unreadable workflow {}", p.display()),
         }
-    }
+    })?;
     wfs.sort_by(|a, b| {
         b.modified.unwrap_or_default().cmp(&a.modified.unwrap_or_default())
     });
     Ok(wfs)
 }
 
+/// Find the .kdl (or legacy .json) path for a workflow id by walking
+/// the workflows tree. Returns None if not found.
+fn find_path(id: &str) -> Result<Option<(PathBuf, Option<String>)>> {
+    let dir = workflows_dir()?;
+    let safe = safe_id(id);
+    let target_kdl = format!("{}.kdl", safe);
+    let target_json = format!("{}.json", safe);
+    let mut found: Option<(PathBuf, Option<String>)> = None;
+    walk_workflow_files(&dir, None, &mut |p, folder| {
+        if found.is_some() { return; }
+        if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+            if name == target_kdl || name == target_json {
+                found = Some((p.to_path_buf(), folder));
+            }
+        }
+    })?;
+    Ok(found)
+}
+
 pub fn load(id: &str) -> Result<Workflow> {
-    let kdl = kdl_path_for(id)?;
-    if kdl.exists() {
-        return load_path(&kdl);
-    }
-    let json = legacy_json_path_for(id)?;
-    if json.exists() {
-        return load_path(&json);
+    load_with(id, /* expand_imports */ true)
+}
+
+/// Load a workflow with `use NAME` references and the imports map
+/// preserved as authored. Use this for editing surfaces (the GUI);
+/// the engine still wants the expanded form via `load`.
+pub fn load_authored(id: &str) -> Result<Workflow> {
+    load_with(id, /* expand_imports */ false)
+}
+
+fn load_with(id: &str, expand: bool) -> Result<Workflow> {
+    if let Some((path, folder)) = find_path(id)? {
+        let mut wf = load_path(&path, expand)?;
+        wf.folder = folder;
+        return Ok(wf);
     }
     anyhow::bail!("no workflow with id {id}")
 }
 
-fn load_path(p: &Path) -> Result<Workflow> {
+/// All folder paths currently present under the workflows root.
+/// Includes empty subdirs (so a freshly-created folder shows up
+/// before any workflow lives in it). Nested folders report their
+/// full relative path: a directory at `<root>/a/b/` shows up as
+/// `"a/b"`. Skips the same hidden / private / conventional `lib`
+/// directories the walker skips.
+pub fn list_folders() -> Result<Vec<String>> {
+    let root = workflows_dir()?;
+    let mut out: Vec<String> = Vec::new();
+    if !root.exists() {
+        return Ok(out);
+    }
+    list_folders_walk(&root, "", &mut out)?;
+    out.sort();
+    Ok(out)
+}
+
+fn list_folders_walk(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let ft = entry.file_type()?;
+        if !ft.is_dir() {
+            continue;
+        }
+        let name = match entry.file_name().to_str() {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        if name.is_empty()
+            || name.starts_with('.')
+            || name.starts_with('_')
+            || name == "lib"
+        {
+            continue;
+        }
+        let nested = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}/{name}")
+        };
+        out.push(nested.clone());
+        list_folders_walk(&entry.path(), &nested, out)?;
+    }
+    Ok(())
+}
+
+/// mkdir a folder under the workflows root so it persists in the
+/// library even before any workflow lives in it. Accepts nested
+/// paths like `"a/b"` — each segment is sanitised independently and
+/// the full chain is created with `fs::create_dir_all`.
+pub fn create_folder(name: &str) -> Result<()> {
+    let segments = safe_folder_path_segments(name);
+    if segments.is_empty() {
+        anyhow::bail!("empty folder name");
+    }
+    let mut dir = workflows_dir()?;
+    for seg in &segments {
+        dir.push(seg);
+    }
+    fs::create_dir_all(&dir).with_context(|| format!("mkdir {}", dir.display()))?;
+    Ok(())
+}
+
+/// Move a workflow's .kdl file into a different folder (or back to
+/// top-level when `folder` is None / empty). Re-saves the workflow
+/// at the new path and removes the old file.
+pub fn move_to_folder(id: &str, folder: Option<&str>) -> Result<()> {
+    let (old_path, _old_folder) = match find_path(id)? {
+        Some(p) => p,
+        None => anyhow::bail!("no workflow with id {id}"),
+    };
+    let new_path = kdl_path_for_in(id, folder)?;
+    if old_path == new_path { return Ok(()); }
+    if let Some(parent) = new_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("mkdir {}", parent.display()))?;
+    }
+    fs::rename(&old_path, &new_path)
+        .with_context(|| format!("mv {} -> {}", old_path.display(), new_path.display()))?;
+    Ok(())
+}
+
+fn load_path(p: &Path, expand: bool) -> Result<Workflow> {
     if p.extension().and_then(|s| s.to_str()) == Some("json") {
         let bytes = fs::read(p).with_context(|| format!("read {}", p.display()))?;
         let s = String::from_utf8(bytes).with_context(|| format!("utf-8 {}", p.display()))?;
@@ -78,9 +342,14 @@ fn load_path(p: &Path) -> Result<Workflow> {
             .with_context(|| format!("parse json {}", p.display()))?;
         return Ok(wf);
     }
-    // KDL path: go through the include-expanding loader so
-    // `include "other.kdl"` resolves relative to this file.
-    let mut wf = kdl_format::decode_from_file(p)?;
+    // KDL path. The `expand` flag selects whether to inline `use NAME`
+    // references at load time (engine path) or preserve them so the
+    // editor can show / round-trip the file as authored.
+    let mut wf = if expand {
+        kdl_format::decode_from_file(p)?
+    } else {
+        kdl_format::decode_from_file_authored(p)?
+    };
     // The new format puts the id in the filename, not in the file.
     // The decoder leaves wf.id empty in that case; fill it from the
     // basename here. Legacy files still set id during decode and we
@@ -119,7 +388,19 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
         wf.created = wf.modified;
     }
 
-    let kdl_path = kdl_path_for(&wf.id)?;
+    // Resolve the folder. Priority: wf.folder if explicitly set on
+    // the in-memory struct → otherwise look up the existing file's
+    // location so save-without-move keeps the workflow where it was.
+    let folder = wf.folder.clone().or_else(|| {
+        find_path(&wf.id).ok().flatten().and_then(|(_, f)| f)
+    });
+    wf.folder = folder.clone();
+
+    let kdl_path = kdl_path_for_in(&wf.id, folder.as_deref())?;
+    if let Some(parent) = kdl_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("mkdir {}", parent.display()))?;
+    }
     let tmp = kdl_path.with_extension("kdl.tmp");
 
     // The encoder still writes timestamps inside the workflow block
@@ -142,16 +423,25 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     // Persist the metadata to the sidecar as the canonical record.
     // Failures here are logged but don't block save — the file write
     // above is the durable artifact.
+    // Preserve any existing positions on the entry — those are GUI
+    // state, not workflow content, so they shouldn't be wiped just
+    // because we're saving the workflow body.
+    let existing = crate::workflows_meta::get(&wf.id).unwrap_or_default();
     crate::workflows_meta::set(
         &wf.id,
         crate::workflows_meta::WorkflowMeta {
             created: wf.created,
             modified: wf.modified,
             last_run: wf.last_run,
+            card_positions: existing.card_positions,
+            // Folder is canonicalised by the filesystem now, but
+            // keep the meta entry in sync so any legacy reader sees
+            // a consistent view.
+            folder: wf.folder.clone(),
         },
     );
 
-    // If a legacy JSON copy existed, retire it now.
+    // If a legacy JSON copy existed at the top-level, retire it.
     let json = legacy_json_path_for(&wf.id)?;
     if json.exists() {
         let _ = fs::remove_file(&json);
@@ -166,30 +456,20 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
     Ok(wf)
 }
 
-/// Filesystem path to the KDL file backing `id`, if it exists. Falls back
-/// to the legacy `.json` file if no `.kdl` has been written yet. Returns
-/// an error if neither exists.
+/// Filesystem path to the KDL file backing `id`, if it exists. Walks
+/// folder subdirectories. Returns an error if no file is found.
 pub fn path_of(id: &str) -> Result<PathBuf> {
-    let kdl = kdl_path_for(id)?;
-    if kdl.exists() {
-        return Ok(kdl);
-    }
-    let json = legacy_json_path_for(id)?;
-    if json.exists() {
-        return Ok(json);
+    if let Some((p, _)) = find_path(id)? {
+        return Ok(p);
     }
     anyhow::bail!("no workflow with id {id}")
 }
 
 pub fn delete(id: &str) -> Result<()> {
-    for p in [kdl_path_for(id)?, legacy_json_path_for(id)?] {
-        if p.exists() {
-            fs::remove_file(&p).with_context(|| format!("rm {}", p.display()))?;
-        }
+    if let Some((p, _)) = find_path(id)? {
+        fs::remove_file(&p).with_context(|| format!("rm {}", p.display()))?;
     }
-    // Drop the sidecar entry too. This isn't load-bearing — a stale
-    // entry would just take up a few bytes in workflows.toml and get
-    // ignored on lookup — but cleaning up keeps the file tidy.
+    // Drop the sidecar entry too.
     crate::workflows_meta::remove(id);
     Ok(())
 }
@@ -221,3 +501,36 @@ pub fn import_kdl(text: &str) -> Result<Workflow> {
     wf.modified = None;
     save(wf)
 }
+
+#[cfg(test)]
+mod folder_path_tests {
+    use super::*;
+
+    #[test]
+    fn nested_paths_segment_correctly() {
+        assert_eq!(safe_folder_path_segments("a/b"), vec!["a", "b"]);
+        assert_eq!(safe_folder_path_segments("a/b/c"), vec!["a", "b", "c"]);
+        // Empty input → no segments.
+        assert!(safe_folder_path_segments("").is_empty());
+        // Leading / trailing slash → dropped empties.
+        assert_eq!(safe_folder_path_segments("/a/"), vec!["a"]);
+        assert_eq!(safe_folder_path_segments("a//b"), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn traversal_attempts_neutralised() {
+        // `..` becomes `__` then trim → empty, dropped.
+        assert!(safe_folder_path_segments("..").is_empty());
+        assert_eq!(safe_folder_path_segments("../escape"), vec!["escape"]);
+        assert_eq!(safe_folder_path_segments("a/../b"), vec!["a", "b"]);
+        // Backslashes / colons collapse to `_` per character; the
+        // pair `:\\` therefore becomes `__` mid-segment (we don't
+        // collapse adjacent underscores — only trim them off the
+        // ends).
+        assert_eq!(
+            safe_folder_path_segments("c:\\windows/sneaky"),
+            vec!["c__windows", "sneaky"]
+        );
+    }
+}
+

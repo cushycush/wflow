@@ -1,0 +1,68 @@
+// Daily dev ritual: pull latest, run tests, post a standup message.
+// Designed as the showcase workflow — exercises every action category
+// the engine supports plus the canvas-only group rectangles, so the
+// editor canvas reads as a "tour of the GUI" in a single screenshot.
+//
+// Edit before running:
+//   - set `repo` to your project root
+//   - set `slack-channel` and `retro-link`
+//   - swap `Ghostty` for whatever terminal launches with your
+//     `hyprctl dispatch exec` (Kitty, Wezterm, Terminal, …)
+//
+// Showcases:
+//   - note          (annotation, not an action)
+//   - focus, wait-window, type, key, shell, clipboard, notify
+//   - when env=     (conditional with inner steps)
+//   - repeat N      (loop container with an inner step)
+//   - use           (import a fragment file)
+//   - groups        (coloured rectangles behind the cards)
+
+workflow "Morning sync" {
+    subtitle "pull latest, run tests, post status — one keystroke to start the day"
+
+    vars {
+        repo          "~/projects/wflow"
+        slack-channel "#standup"
+        retro-link    "https://team.example.com/retro"
+    }
+
+    imports {
+        post-status "./lib/post-status.kdl"
+    }
+
+    note "Daily ritual: pulls latest, runs the test suite, posts to standup."
+
+    // ── Update repo ───────────────────────────────────────────────
+    focus "Ghostty"
+    wait-window "Ghostty" timeout="5s"
+    type "cd {{repo}} && git fetch --all"
+    key "Return"
+    shell "git pull --ff-only" timeout-ms=15000
+
+    // ── Verify build ──────────────────────────────────────────────
+    repeat 2 {
+        shell "cargo test --quiet" timeout-ms=120000 on-error=continue
+    }
+
+    // ── Share status ──────────────────────────────────────────────
+    // Friday gets the retro link copied to the clipboard alongside
+    // the standup message, so the wiki link is one paste away.
+    when env="DAY" equals="Friday" {
+        clipboard "{{retro-link}}"
+        notify "retro link copied" body="paste into the standup channel"
+    }
+
+    use post-status
+
+    notify "morning sync done" body="ready to start the day"
+
+    // Visual annotations on the canvas. The engine ignores them.
+    // Coordinates are picked for the default vertical stack — once
+    // the workflow loads you can drag/resize to taste, the new
+    // positions round-trip through KDL on save.
+    groups {
+        group "Update repo"  id="g-update"  x=5740  y=5860  width=400  height=720  color="shell"
+        group "Verify build" id="g-verify"  x=5740  y=6620  width=400  height=180  color="wait"
+        group "Share status" id="g-share"   x=5740  y=6840  width=720  height=720  color="notify"
+    }
+}

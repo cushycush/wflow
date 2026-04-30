@@ -1,15 +1,23 @@
 pragma Singleton
 import QtQuick
+import Wflow
 
 // Design tokens. Dark and light palettes both defined; the active one is
 // picked via `mode` which defaults to "auto" (follow the desktop).
 QtObject {
-    // "auto" | "dark" | "light". User can override from settings later; for
-    // now we follow the system unless pinned.
-    property string mode: "auto"
+    id: theme
+
+    // Persisted via StateController — _state.theme_mode is the
+    // source of truth, this property mirrors it and writes back on
+    // cycleMode so the user's choice survives a restart.
+    property StateController _state: StateController { }
+    property string mode: theme._state.theme_mode || "auto"
 
     function cycleMode() {
-        mode = mode === "auto" ? "light" : mode === "light" ? "dark" : "auto"
+        const next = mode === "auto" ? "light"
+                   : mode === "light" ? "dark" : "auto"
+        mode = next
+        theme._state.apply_theme_mode(next)
     }
 
     // Dark when the system reports Dark OR when it reports Unknown (e.g.
@@ -20,12 +28,17 @@ QtObject {
     readonly property bool isDark: mode === "dark" || (mode === "auto" && _systemDark)
 
     // ============ Surfaces ============
-    readonly property color bg:        isDark ? "#232429" : "#f6f6f8"
-    readonly property color surface:   isDark ? "#2a2b31" : "#ffffff"
-    readonly property color surface2:  isDark ? "#313239" : "#eeeef1"
-    readonly property color surface3:  isDark ? "#3a3b42" : "#e2e3e8"
-    readonly property color line:      isDark ? "#40414a" : "#d4d5dc"
-    readonly property color lineSoft:  isDark ? "#33343c" : "#e2e3e8"
+    // Dark mode runs on a near-black bg (#07090E, oklch ≈ 0.08, slight
+    // blue tint matching the brand hue) so cards on top read as
+    // elevated surfaces with real contrast — pulled directly from the
+    // canvas + explore mockups. Surfaces step up by ~0.04 lightness
+    // each so a hovered card / selected row is unambiguous.
+    readonly property color bg:        isDark ? "#07090e" : "#f6f6f8"
+    readonly property color surface:   isDark ? "#15181f" : "#ffffff"
+    readonly property color surface2:  isDark ? "#1d2028" : "#eeeef1"
+    readonly property color surface3:  isDark ? "#262a33" : "#e2e3e8"
+    readonly property color line:      isDark ? "#2c2f37" : "#d4d5dc"
+    readonly property color lineSoft:  isDark ? "#1a1d25" : "#e2e3e8"
 
     // ============ Text ============
     readonly property color text:      isDark ? "#edeef1" : "#1c1d22"
@@ -62,6 +75,12 @@ QtObject {
     readonly property color catNotify: isDark ? "#da77a8" : "#b0427a"
     readonly property color catClip:   isDark ? "#62b2c7" : "#2a7f94"
     readonly property color catNote:   isDark ? "#707278" : "#5a5d62"
+    // Flow-control tints — visually distinct from action kinds so the
+    // structural blocks read as different beasts.
+    readonly property color catWhen:    isDark ? "#df88d6" : "#a056a0"
+    readonly property color catUnless:  isDark ? "#ee8896" : "#c45670"
+    readonly property color catRepeat:  isDark ? "#cae870" : "#7da030"
+    readonly property color catUse:     isDark ? "#a08ed0" : "#5a4090"
 
     // ============ Spacing (4pt) ============
     readonly property int s1: 4
@@ -95,12 +114,22 @@ QtObject {
     // every Behavior / NumberAnimation / ColorAnimation should read instead of
     // the raw constants. Infinite animations (pulses, shimmers, ambient washes)
     // should gate their `running` flag on `!Theme.reduceMotion`.
-    property bool reduceMotion: false
+    //
+    // Mirrors StateController.reduce_motion so the user's choice survives a
+    // restart. Flip via `Theme.applyReduceMotion(bool)` from the Settings
+    // page; direct assignment also works but won't persist.
+    property bool reduceMotion: theme._state.reduce_motion
+
+    function applyReduceMotion(on) {
+        reduceMotion = on
+        theme._state.apply_reduce_motion(on)
+    }
 
     // ============ Feature flags ============
-    // Explore is 100% mock data until a real catalog backend lands. Flip to
-    // `true` to surface the tab while iterating on the UI. Don't ship `true`
-    // — the nav pill and StackLayout both read this flag.
+    // Explore is hidden in 0.4.0 — the page renders but the catalog is
+    // mock data until wflows.com integration lands. We'll flip this back
+    // on as part of the wflows.com release branch (sign-in, real detail
+    // drawer data, deeplink confirm dialog all land together).
     readonly property bool showExplore: false
     readonly property int durFast: 120
     readonly property int durBase: 160
@@ -124,6 +153,10 @@ QtObject {
         case "notify":    return catNotify
         case "clipboard": return catClip
         case "note":      return catNote
+        case "when":      return catWhen
+        case "unless":    return catUnless
+        case "repeat":    return catRepeat
+        case "use":       return catUse
         }
         return catWait
     }
@@ -136,15 +169,122 @@ QtObject {
         case "scroll":    return "⇅"
         case "focus":     return "⊡"
         case "wait":      return "⏱"
-        case "shell":     return "›"
+        case "shell":     return "❯"
         case "notify":    return "◐"
         case "clipboard": return "⎘"
         case "note":      return "¶"
+        case "when":      return "?"
+        case "unless":    return "!"
+        case "repeat":    return "↻"
+        case "use":       return "@"
         }
         return "•"
+    }
+
+    // Glyph-specific size tuning. Most icons read at the chip's
+    // baseline (13px), but a few glyphs are visually narrower than
+    // letterforms / geometric shapes at the same point size —
+    // bumping them keeps the icon row feeling even.
+    function catGlyphSize(kind) {
+        switch (kind) {
+        case "shell":   return 16
+        case "wait":    return 15
+        case "repeat":  return 16
+        }
+        return 13
     }
     // Translucent wash of the accent (or any color) at a named alpha. Saves
     // call sites from copy-pasting `Qt.rgba(c.r, c.g, c.b, 0.xx)` constants.
     function wash(c, alpha) { return Qt.rgba(c.r, c.g, c.b, alpha) }
     function accentWash(alpha) { return wash(accent, alpha) }
+
+    // ============ Gradient palette ============
+    // Pairs (A = light end, B = deep end) for filling pills, avatars,
+    // and accent surfaces in the new explore + canvas designs. Each
+    // pair stays cohesive across modes (we tune stops, not hues, on
+    // the light variant) so the same `gradFor("shell")` reads as
+    // "shell" on either theme.
+    readonly property color gradCyanA:    isDark ? "#7ed8e8" : "#5cc7e0"
+    readonly property color gradCyanB:    isDark ? "#3a82c0" : "#2a64a8"
+    readonly property color gradBlueA:    isDark ? "#88aaee" : "#6a8edc"
+    readonly property color gradBlueB:    isDark ? "#5a4dcc" : "#3b3aae"
+    readonly property color gradAmberA:   isDark ? "#f5be60" : "#dca243"
+    readonly property color gradAmberB:   isDark ? "#cc6f24" : "#a85a18"
+    readonly property color gradCoralA:   isDark ? "#f29070" : "#dd6b50"
+    readonly property color gradCoralB:   isDark ? "#cc4d3a" : "#a8362a"
+    readonly property color gradMagentaA: isDark ? "#df88d6" : "#c469b8"
+    readonly property color gradMagentaB: isDark ? "#7a45c0" : "#5e2e9c"
+    readonly property color gradVioletA:  isDark ? "#c08be0" : "#a36ec0"
+    readonly property color gradVioletB:  isDark ? "#6745c0" : "#4a2ea0"
+    readonly property color gradEmeraldA: isDark ? "#7ed8a4" : "#5cc188"
+    readonly property color gradEmeraldB: isDark ? "#2f9966" : "#1e7c50"
+    readonly property color gradRoseA:    isDark ? "#ee8896" : "#d96878"
+    readonly property color gradRoseB:    isDark ? "#c04880" : "#a32e60"
+    readonly property color gradLimeA:    isDark ? "#cae870" : "#9fc24a"
+    readonly property color gradLimeB:    isDark ? "#5fa040" : "#4a8030"
+
+    // Map an action kind (or any free-form key) to its gradient pair.
+    // Keys mirror catFor() so call sites can reuse the same string.
+    // Returns [startColor, endColor].
+    function gradFor(kind) {
+        switch (kind) {
+        case "key":       return [gradCyanA, gradCyanB]
+        case "type":      return [gradBlueA, gradBlueB]
+        case "focus":     return [gradAmberA, gradAmberB]
+        case "shell":     return [gradCoralA, gradCoralB]
+        case "notify":    return [gradVioletA, gradVioletB]
+        case "clipboard": return [gradCyanA, gradCyanB]
+        case "wait":      return [gradEmeraldA, gradEmeraldB]
+        case "click":     return [gradEmeraldA, gradEmeraldB]
+        case "move":      return [gradCyanA, gradCyanB]
+        case "scroll":    return [gradCyanA, gradCyanB]
+        case "trigger":   return [gradAmberA, gradAmberB]
+        case "when":      return [gradMagentaA, gradMagentaB]
+        case "unless":    return [gradRoseA, gradRoseB]
+        case "repeat":    return [gradLimeA, gradLimeB]
+        case "use":       return [gradVioletA, gradVioletB]
+        // explore-only categories
+        case "rose":      return [gradRoseA, gradRoseB]
+        case "lime":      return [gradLimeA, gradLimeB]
+        case "violet":    return [gradVioletA, gradVioletB]
+        case "magenta":   return [gradMagentaA, gradMagentaB]
+        }
+        return [gradCyanA, gradCyanB]
+    }
+
+    // Stable monogram → gradient assignment so `@alaina` always reads
+    // as cyan, `@mhmd_dev` as magenta, etc. Hash by first char.
+    function gradForHandle(handle) {
+        if (!handle || handle.length === 0) return [gradCyanA, gradCyanB]
+        const palette = ["key", "rose", "violet", "shell", "wait",
+                         "lime", "type", "magenta", "focus", "notify"]
+        const c = handle.replace(/^@/, "").toLowerCase().charCodeAt(0) || 0
+        return gradFor(palette[c % palette.length])
+    }
+
+    // Text color that sits readably on top of a given gradient pair.
+    // Amber/lime/cyan want a deep warm-near-black; others want white.
+    function gradTextColor(kind) {
+        switch (kind) {
+        case "focus": case "trigger": case "lime": case "repeat": return "#1a1208"
+        case "wait": case "click": case "key": case "move": case "scroll":
+            return isDark ? "#0a1320" : "#ffffff"
+        }
+        return "#ffffff"
+    }
+
+    // ============ Drop shadow recipe ============
+    // Three offsets for the layered shadow we use on cards. Apply via
+    // `layer.effect: MultiEffect` (or two stacked DropShadows) — the
+    // tokens themselves are just numbers + colors so the recipe stays
+    // consistent across components.
+    readonly property color shadowColor: isDark
+        ? Qt.rgba(0.02, 0.03, 0.06, 0.55)
+        : Qt.rgba(0.10, 0.15, 0.25, 0.18)
+    readonly property real shadowBlurNear: 8
+    readonly property real shadowBlurMid:  20
+    readonly property real shadowBlurFar:  48
+    readonly property real shadowYNear: 1
+    readonly property real shadowYMid:  8
+    readonly property real shadowYFar:  24
 }

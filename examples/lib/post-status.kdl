@@ -1,0 +1,26 @@
+// Fragment file for morning-sync.kdl — the standup-message body.
+//
+// A wflow fragment is a bare list of step nodes (no workflow / vars
+// wrapper). The parent workflow declares it in its `imports { ... }`
+// block and splices it in via `use post-status`. Variables like
+// {{slack-channel}} resolve against the parent file's vars, so the
+// same fragment can be reused across multiple workflows with
+// different bindings.
+
+focus "Slack"
+wait-window "Slack" timeout="10s"
+
+// Slack's "jump to channel" picker.
+key "ctrl+k"
+type "{{slack-channel}}"
+key "Return"
+wait "300ms"
+
+// shift+Return inside Slack's compose box adds a newline without
+// sending; the final Return submits the whole message at once.
+type "Yesterday: shipped the canvas redesign + debug runner."
+key "shift+Return"
+type "Today: 0.4.0 release prep — README + screenshots + tag."
+key "shift+Return"
+type "Blockers: none."
+key "Return"

@@ -37,11 +37,24 @@ pub struct WorkflowMeta {
     pub modified: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_run: Option<DateTime<Utc>>,
+    /// Canvas card positions, keyed by step id. Set by the GUI when
+    /// the user drags cards on the workflow canvas; loaded back to
+    /// restore the layout on reopen.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub card_positions: BTreeMap<String, [f64; 2]>,
+    /// Folder / category the workflow belongs to in the library.
+    /// `None` means the workflow lives at the top level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 impl WorkflowMeta {
     pub fn is_empty(&self) -> bool {
-        self.created.is_none() && self.modified.is_none() && self.last_run.is_none()
+        self.created.is_none()
+            && self.modified.is_none()
+            && self.last_run.is_none()
+            && self.card_positions.is_empty()
+            && self.folder.is_none()
     }
 }
 
@@ -214,6 +227,56 @@ pub fn touch_last_run(id: &str) {
     save_file(&file);
 }
 
+/// Replace the card-positions map on a workflow's entry, preserving
+/// other fields. Empty map clears the entry's positions.
+pub fn set_positions(id: &str, positions: BTreeMap<String, [f64; 2]>) {
+    let mut file = load_file();
+    let entry = file.meta.entry(id.to_string()).or_default();
+    entry.card_positions = positions;
+    if entry.is_empty() {
+        file.meta.remove(id);
+    }
+    save_file(&file);
+}
+
+/// Read just the card-positions map for a workflow. Returns an empty
+/// map if the entry doesn't exist or has no positions.
+pub fn get_positions(id: &str) -> BTreeMap<String, [f64; 2]> {
+    load_file()
+        .meta
+        .get(id)
+        .map(|m| m.card_positions.clone())
+        .unwrap_or_default()
+}
+
+/// Set or clear the folder this workflow lives in. Pass an empty
+/// string (or `None`) to move the workflow back to the top level.
+pub fn set_folder(id: &str, folder: Option<String>) {
+    let mut file = load_file();
+    let entry = file.meta.entry(id.to_string()).or_default();
+    entry.folder = folder.filter(|s| !s.is_empty());
+    if entry.is_empty() {
+        file.meta.remove(id);
+    }
+    save_file(&file);
+}
+
+/// All distinct, non-empty folder names referenced by workflows on
+/// disk. Used by the library UI to populate the folder sidebar
+/// without a separate "list of folders" file. Sorted ascending.
+pub fn all_folders() -> Vec<String> {
+    let file = load_file();
+    let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for meta in file.meta.values() {
+        if let Some(f) = &meta.folder {
+            if !f.is_empty() {
+                set.insert(f.clone());
+            }
+        }
+    }
+    set.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +319,8 @@ mod tests {
                 created: Some(now),
                 modified: Some(now),
                 last_run: None,
+                card_positions: BTreeMap::new(),
+                folder: None,
             },
         );
         let loaded = get("wf-1").unwrap();
@@ -274,6 +339,8 @@ mod tests {
                 created: Some(then),
                 modified: Some(then),
                 last_run: None,
+                card_positions: BTreeMap::new(),
+                folder: None,
             },
         );
 

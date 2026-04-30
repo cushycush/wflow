@@ -32,10 +32,39 @@ pub struct State {
     /// `"blank_workflow"`. Missing key == not seen.
     #[serde(default)]
     pub tutorials: BTreeMap<String, bool>,
+    /// Theme mode: "auto" (follow desktop), "light", or "dark".
+    /// Defaults to "auto" so a fresh install doesn't pin the user
+    /// to whichever scheme the binary was built against.
+    #[serde(default = "default_theme_mode")]
+    pub theme_mode: String,
+    /// Honour the desktop "reduce motion" intent. When true, animation
+    /// durations collapse to zero — useful for users with vestibular
+    /// sensitivities or anyone who finds Qt Quick's animations
+    /// distracting.
+    #[serde(default)]
+    pub reduce_motion: bool,
+    /// Default sort for the Library grid. One of "recent", "name",
+    /// "last_run". Anything else falls back to "recent".
+    #[serde(default = "default_library_sort")]
+    pub library_sort: String,
+    /// User override for the workflows directory. None means the XDG
+    /// default at `$XDG_CONFIG_HOME/wflow/workflows`. Stored as a string
+    /// so a future cross-platform port doesn't have to carry a
+    /// PathBuf-shaped TOML schema.
+    #[serde(default)]
+    pub workflows_dir: Option<String>,
 }
 
 fn default_schema() -> u32 {
     1
+}
+
+fn default_theme_mode() -> String {
+    "auto".to_string()
+}
+
+fn default_library_sort() -> String {
+    "recent".to_string()
 }
 
 impl Default for State {
@@ -44,6 +73,10 @@ impl Default for State {
             schema: 1,
             first_run_at: None,
             tutorials: BTreeMap::new(),
+            theme_mode: default_theme_mode(),
+            reduce_motion: false,
+            library_sort: default_library_sort(),
+            workflows_dir: None,
         }
     }
 }

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Concept C — FLOWING SINGLE STROKE
+
+  The w as one continuous brush stroke with quadratic Bézier curves
+  through each valley. Reads as motion rather than typography. A
+  small chevron at the right tail tags the direction so the eye
+  follows the stroke left-to-right (= a workflow advancing).
+
+  Same descending valleys as A and B, but smoothed so the whole
+  letter feels like one fluid gesture instead of four sharp strokes.
+  Quietest of the three concepts; the "step" is implicit in the
+  varying valley depths rather than the form of the strokes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128">
+  <rect width="64" height="64" rx="14" fill="#e29846"/>
+
+  <!-- Smooth w: each valley is a quadratic curve control point. The
+       linear vertices of concept A become curves passing through the
+       same coordinates. -->
+  <path d="M 8 14 Q 16 26 24 14 Q 32 38 40 14 Q 48 50 56 14"
+        stroke="#1a1208" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Direction chevron at the tail. Sits just past the rightmost
+       peak so the eye reads "stroke leaves the canvas going right." -->
+  <path d="M 53 11 L 58 14 L 53 17"
+        stroke="#1a1208" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

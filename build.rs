@@ -16,24 +16,38 @@ fn main() {
             QmlFile::from("qml/components/IconButton.qml"),
             QmlFile::from("qml/components/CategoryChip.qml"),
             QmlFile::from("qml/components/CategoryIcon.qml"),
+            QmlFile::from("qml/components/WorkflowIcon.qml"),
             QmlFile::from("qml/components/ActionRow.qml"),
             QmlFile::from("qml/components/EmptyState.qml"),
             QmlFile::from("qml/components/FocusRing.qml"),
             QmlFile::from("qml/components/TutorialOverlay.qml"),
+            QmlFile::from("qml/components/TutorialCoach.qml"),
+            QmlFile::from("qml/components/IntroTutorial.qml"),
             QmlFile::from("qml/components/PrimaryButton.qml"),
             QmlFile::from("qml/components/SecondaryButton.qml"),
             QmlFile::from("qml/components/SegmentedControl.qml"),
             QmlFile::from("qml/components/WfMenu.qml"),
             QmlFile::from("qml/components/WfMenuItem.qml"),
             QmlFile::from("qml/components/WfConfirmDialog.qml"),
+            QmlFile::from("qml/components/GradientPill.qml"),
+            QmlFile::from("qml/components/Avatar.qml"),
+            QmlFile::from("qml/components/MiniStep.qml"),
+            QmlFile::from("qml/components/DotGrid.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
             QmlFile::from("qml/components/library/LibraryList.qml"),
-            // Workflow editor — Split is the only locked layout.
-            // Stack / Timeline / Grouped / Cards are archived under
-            // qml/components/workflow/_archive (excluded from the build).
-            QmlFile::from("qml/components/workflow/SplitInspector.qml"),
+            // Workflow editor — single canvas-centric layout: a thin
+            // step rail on the left, the node-graph canvas in the
+            // middle, and a slide-in inspector on the right when a
+            // step is selected. SplitInspector lives on under
+            // qml/components/workflow/_archive (excluded from build)
+            // alongside the older Stack / Timeline / Grouped / Cards
+            // layouts that were tried during exploration.
+            QmlFile::from("qml/components/workflow/StepListRail.qml"),
+            QmlFile::from("qml/components/workflow/StepInspectorPanel.qml"),
+            QmlFile::from("qml/components/workflow/StepPalette.qml"),
+            QmlFile::from("qml/components/workflow/WorkflowCanvas.qml"),
             QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
             QmlFile::from("qml/components/workflow/NewWorkflowDialog.qml"),
             // Record
@@ -51,6 +65,7 @@ fn main() {
             QmlFile::from("qml/pages/ExplorePage.qml"),
             QmlFile::from("qml/pages/WorkflowPage.qml"),
             QmlFile::from("qml/pages/RecordPage.qml"),
+            QmlFile::from("qml/pages/SettingsPage.qml"),
         ]),
     )
     .file("src/bridge/library.rs")

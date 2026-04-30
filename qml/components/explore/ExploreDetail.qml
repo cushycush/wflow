@@ -40,7 +40,7 @@ FocusScope {
         "click": ["(pixel 612, 208)"],
         "scroll": ["dy +180"],
         "wait": ["220 ms", "500 ms"],
-        "note": ["—"],
+        "note": ["…"],
         "move": ["(400, 300)"]
     })
 
@@ -51,7 +51,7 @@ FocusScope {
         const out = []
         for (let i = 0; i < total; i++) {
             const k = pool[i % pool.length]
-            const values = kindValues[k] || ["—"]
+            const values = kindValues[k] || ["…"]
             out.push({
                 kind: k,
                 summary: kindSummary[k] || k,
@@ -63,13 +63,16 @@ FocusScope {
 
     Keys.onEscapePressed: if (root.open) root.closed()
 
-    // Scrim
+    // Scrim — backed by a dimmed near-black tint so it reads as a real
+    // overlay rather than an empty layer. Pure #000 is banned per the
+    // design rules; pull the bg tone instead so the scrim picks up
+    // whatever subtle hue the active theme uses.
     Rectangle {
         anchors.fill: parent
-        color: "#000"
+        color: Qt.rgba(Theme.bg.r * 0.5, Theme.bg.g * 0.5, Theme.bg.b * 0.5, 1)
         opacity: root.open ? 0.45 : 0
         visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Easing.OutCubic } }
         MouseArea {
             anchors.fill: parent
             enabled: root.open
@@ -85,7 +88,7 @@ FocusScope {
         x: root.open ? root.width - width : root.width
         color: Theme.bg
         visible: root.width > 0 && x < root.width - 1
-        Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+        Behavior on x { NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Easing.OutCubic } }
 
         // Left hairline
         Rectangle {

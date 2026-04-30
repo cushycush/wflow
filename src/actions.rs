@@ -279,10 +279,12 @@ pub struct Workflow {
     #[serde(default)]
     pub vars: std::collections::BTreeMap<String, String>,
     /// Named imports — maps short name → fragment-file path. Resolved
-    /// at decode time by `kdl_format::expand_includes` when the step
-    /// tree contains `Action::Use { name }`. Empty by the time the
-    /// engine runs, so not serialized.
-    #[serde(skip, default)]
+    /// at decode time by `kdl_format::expand_imports` when the step
+    /// tree contains `Action::Use { name }`. Empty after the file
+    /// loader has expanded uses against it, but the GUI re-populates
+    /// it through the imports dialog and round-trips it back through
+    /// JSON ↔ KDL on save.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub imports: std::collections::BTreeMap<String, String>,
     /// Triggers that fire this workflow. Empty for hand-launched
     /// workflows; populated for ones the daemon should bind. Not yet
@@ -295,6 +297,44 @@ pub struct Workflow {
     pub modified: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(default)]
     pub last_run: Option<chrono::DateTime<chrono::Utc>>,
+    /// Visual annotation rectangles drawn behind the step cards on
+    /// the canvas — purely cosmetic, the engine ignores them.
+    /// Persisted in KDL alongside steps so a workflow's visual
+    /// layout survives reopening.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<Group>,
+    /// Folder this workflow lives in, derived from the .kdl file's
+    /// parent directory relative to the workflows root. None for
+    /// top-level files. Not serialised — it's a filesystem fact,
+    /// not workflow content.
+    #[serde(skip, default)]
+    pub folder: Option<String>,
+}
+
+/// A coloured rounded-rectangle annotation drawn behind step cards
+/// on the canvas. Used to visually group steps ("the build half",
+/// "the deploy half"). Has no semantics — the engine treats them as
+/// decoration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Group {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Named tint key from a fixed palette. Recognised values mirror
+    /// the category palette plus a few muted neutrals; the GUI
+    /// resolves the name to an actual hex color. Unrecognised names
+    /// fall back to the accent palette.
+    #[serde(default = "default_group_color")]
+    pub color: String,
+    /// Free-form annotation rendered in the rectangle's upper-left.
+    #[serde(default)]
+    pub comment: String,
+}
+
+fn default_group_color() -> String {
+    "accent".to_string()
 }
 
 impl Workflow {
@@ -308,9 +348,11 @@ impl Workflow {
             vars: Default::default(),
             imports: Default::default(),
             triggers: Vec::new(),
+            groups: Vec::new(),
             created: Some(now),
             modified: Some(now),
             last_run: None,
+            folder: None,
         }
     }
 }
@@ -424,13 +466,10 @@ pub enum Action {
         negate: bool,
         steps: Vec<Step>,
     },
-    /// Splice-in the top-level step nodes from another KDL fragment
-    /// file. Expanded at decode time by `kdl_format::expand_includes`,
-    /// so the engine never sees this variant at dispatch.
-    Include { path: String },
     /// Splice-in a named import declared in the workflow's top-level
     /// `imports { ... }` block. Expanded at decode time against the
-    /// imports map, same splicing rules as `Include`.
+    /// imports map by `kdl_format::expand_imports`, so the engine
+    /// never sees this variant at dispatch.
     Use { name: String },
 }
 
@@ -478,7 +517,6 @@ impl Action {
             Action::Repeat { .. } => "repeat",
             Action::Conditional { negate: false, .. } => "when",
             Action::Conditional { negate: true, .. } => "unless",
-            Action::Include { .. } => "include",
             Action::Use { .. } => "use",
         }
     }
@@ -533,7 +571,6 @@ impl Action {
                     if steps.len() == 1 { "" } else { "s" }
                 )
             }
-            Action::Include { path } => format!("include {}", quote_short(path)),
             Action::Use { name } => format!("use {name}"),
         }
     }
@@ -618,6 +655,13 @@ pub enum RunEvent {
         step_id: String,
         index: usize,
         outcome: StepOutcome,
+    },
+    /// Emitted while the engine is awaiting a debug command between
+    /// steps. `index` is the step that's about to run, not the one
+    /// just completed; the UI uses this to pulse the upcoming card
+    /// and flip the run/step buttons into their paused state.
+    Paused {
+        index: usize,
     },
     Finished {
         run_id: String,

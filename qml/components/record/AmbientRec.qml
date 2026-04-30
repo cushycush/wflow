@@ -71,7 +71,7 @@ Item {
         // State label
         Text {
             text: root.phase === "recording" ? "RECORDING" :
-                  root.phase === "armed"     ? "ARMED — GO AHEAD" :
+                  root.phase === "armed"     ? "ARMED · GO AHEAD" :
                                                "READY WHEN YOU ARE"
             color: root.hot ? Theme.err : Theme.text2
             font.family: Theme.familyBody

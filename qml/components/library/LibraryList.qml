@@ -6,23 +6,131 @@ import Wflow
 // row and drag vertically; on release the row snaps into its new slot and
 // the page's workflows array is reordered. Moves are animated via ListView's
 // move + displaced transitions so neighbors ease into place.
+//
+// Folder rows render above workflow rows when the parent passes a non-empty
+// `folders` model — same convention as LibraryGrid.
 Item {
     id: root
+    property var folders: []
     property var workflows: []
     property int rowHeight: 52
     property bool selectMode: false
     property var selectedIds: ({})
     signal openWorkflow(string id)
+    signal openFolder(string fullPath)
     signal reorderRequested(int from, int to)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
     signal toggleSelected(string id)
 
-    height: list.contentHeight
+    // Folder rows + workflow rows stacked. Folder rows are non-
+    // draggable (they're navigation, not workflow data).
+    height: folderCol.implicitHeight + list.contentHeight
+
+    Column {
+        id: folderCol
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+
+        Repeater {
+            model: root.folders
+            delegate: Rectangle {
+                id: folderRow
+                readonly property var fld: modelData
+                width: parent.width
+                height: root.rowHeight
+                color: folderRowDrop.containsDrag
+                    ? Theme.accentWash(0.18)
+                    : (folderRowArea.containsMouse ? Theme.surface2 : "transparent")
+                border.color: folderRowDrop.containsDrag ? Theme.accent : "transparent"
+                border.width: folderRowDrop.containsDrag ? 1 : 0
+                radius: folderRowDrop.containsDrag ? Theme.radiusSm : 0
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                Rectangle {
+                    height: 1
+                    color: Theme.lineSoft
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    visible: index < root.folders.length - 1
+                        || (root.workflows && root.workflows.length > 0)
+                }
+
+                MouseArea {
+                    id: folderRowArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.openFolder(folderRow.fld.fullPath)
+                }
+
+                DropArea {
+                    id: folderRowDrop
+                    anchors.fill: parent
+                    keys: ["wflow/workflow-id"]
+                    onDropped: (drop) => {
+                        const src = drop.source
+                        const id = (src && src.wf) ? src.wf.id : ""
+                        if (!id) return
+                        libCtrl.set_folder(id, folderRow.fld.fullPath)
+                        drop.accept()
+                    }
+                }
+
+                Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: 8 + 20 + 14
+                    anchors.rightMargin: 20
+                    spacing: 14
+
+                    // Same neutral palette as the grid view's folder
+                    // tile — see LibraryGrid for the rationale.
+                    Rectangle {
+                        width: 28; height: 28; radius: Theme.radiusSm
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Theme.wash(Theme.text2, 0.18)
+                        border.color: Theme.wash(Theme.text2, 0.45)
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "▢"
+                            color: Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+                    }
+
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 1
+                        Text {
+                            text: folderRow.fld.name
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            text: "folder"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     ListView {
         id: list
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: folderCol.bottom
+        anchors.bottom: parent.bottom
         model: root.workflows
         interactive: false
         spacing: 0
@@ -109,7 +217,7 @@ Item {
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 22; height: 22; radius: 11
+                    width: 22; height: 22; radius: Theme.radiusSm
                     color: card.selected ? Theme.err : Theme.surface3
                     border.color: card.selected ? Theme.err : Theme.line
                     border.width: 1
@@ -181,8 +289,11 @@ Item {
                         }
                     }
 
-                    CategoryIcon {
-                        kind: card.wf.kinds && card.wf.kinds.length > 0 ? card.wf.kinds[0] : "wait"
+                    // Workflow mark — see LibraryGrid for the
+                    // rationale. The category-icon row to the right
+                    // still shows which step kinds appear in the
+                    // workflow.
+                    WorkflowIcon {
                         size: 28
                         hovered: rowArea.containsMouse
                         anchors.verticalCenter: parent.verticalCenter

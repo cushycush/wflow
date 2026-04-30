@@ -172,7 +172,6 @@ any order.
 | [`repeat`](#repeat) | `repeat 3 { key "Tab" }` | flattened into 3× `key "Tab"` at run time |
 | [`when`](#when--unless) | `when window="Firefox" { ... }` | runs the block only if the condition holds |
 | [`unless`](#when--unless) | `unless file="/tmp/lock" { ... }` | runs the block only if the condition fails |
-| [`include`](#include) | `include "lib/frag.kdl"` | splices in the target fragment's steps |
 | [`use`](#imports--use) | `use dev-setup` | splices a fragment named in the top-level `imports { ... }` block |
 
 Every action accepts the common step properties:
@@ -500,9 +499,19 @@ of a workflow will pick up a marker file created by the first half.
 
 ### imports + use
 
-When the same fragment shows up in 3+ places, scattered `include`
-statements get noisy. Declare the fragments once near the top of the
-workflow block and reference them by name:
+To share the same opening-the-IDE / entering-the-password / whatever
+preamble across multiple workflows, factor it into a **fragment file**
+— a separate `.kdl` file whose contents are a bare list of step nodes
+(no `workflow` wrapper, no `schema` line). Declare the fragment in the
+workflow's top-level `imports { ... }` block and reference it by name
+with `use NAME`:
+
+```kdl
+// ~/.config/wflow/lib/open-dev.kdl (fragment file)
+shell "hyprctl dispatch exec 'kitty'"
+wait-window "kitty" timeout="5s"
+key "ctrl+shift+t"
+```
 
 ```kdl
 workflow "Morning routine" {
@@ -522,14 +531,21 @@ workflow "Morning routine" {
 
 **`imports { name "path" ... }`** maps short names to fragment file
 paths. Duplicate names error at decode. The block is evaluated once
-and erased — re-encoding the workflow produces the inlined form (same
-behavior as raw `include`).
+and erased — re-encoding the workflow produces the inlined form.
 
 **`use name`** (unquoted) is a step verb. At decode time it looks up
 `name` in the imports table and splices the target fragment in place.
-Everything that works for `include` also works for `use`: nesting,
-relative paths (resolved against the *including* file), cycle
-detection, `use` inside repeat / when / unless.
+Path resolution:
+
+- **Absolute** paths are used as-is.
+- **Relative** paths resolve against the directory containing the
+  workflow file (not the current working directory).
+- **`~/`** expands against `$HOME`.
+
+Imports can nest (a fragment file can `use` other names from the
+parent's imports map) and `use` works inside `repeat` / `when` /
+`unless` blocks. Cycles (`a → b → a`) are detected and rejected with
+an "import cycle detected" error.
 
 Unknown names get a helpful error:
 
@@ -540,58 +556,13 @@ error: unknown import `dev-setpu`. known: dev-setup, standup. did you mean `dev-
 Either form — `use dev-setup` (bareword) or `use "dev-setup"` (quoted)
 — works; the bareword is the canonical form.
 
-### include
-
-Splice in the steps from a **fragment file** — a separate `.kdl`
-file whose contents are a bare list of step nodes (no `workflow`
-wrapper, no `schema` line). Useful for sharing the same
-opening-the-IDE / entering-the-password / whatever preamble across
-multiple workflows. Inline, one-shot form:
-
-```kdl
-workflow "..." {
-    include "~/.config/wflow/lib/open-dev.kdl"
-}
-```
-
-For repeated references, prefer the [imports + use](#imports--use)
-pattern — it keeps the workflow body readable.
-
-```kdl
-// ~/.config/wflow/lib/open-dev.kdl (fragment file)
-shell "hyprctl dispatch exec 'kitty'"
-wait-window "kitty" timeout="5s"
-key "ctrl+shift+t"
-```
-
-```kdl
-// A workflow using it:
-workflow "Open dev setup" {
-    include "~/.config/wflow/lib/open-dev.kdl"
-    type "cd ~/projects && ls"
-    key "Return"
-}
-```
-
-Path resolution:
-
-- **Absolute** paths are used as-is.
-- **Relative** paths resolve against the directory containing the
-  *including* file (not the current working directory).
-- **`~/`** expands against `$HOME`.
-
-Includes can nest (included fragment can itself `include` another).
-Cycles (`a.kdl → b.kdl → a.kdl`) are detected and rejected with a
-"include cycle detected" error.
-
-`include` is expanded at **decode time**, not dispatch time — by the
-time the engine sees the workflow, the included steps have been
-spliced in place. As a consequence: encoding a workflow that was
-loaded from a file with includes produces the inlined form. If you
-re-save such a workflow (via `wflow edit` + save, or the GUI), the
-`include` lines become concrete steps. Don't hand-round-trip
-library files through the encoder if you want to keep the source
-shape.
+`use` is expanded at **decode time**, not dispatch time — by the time
+the engine sees the workflow, the imported steps have been spliced in
+place. As a consequence: encoding a workflow that was loaded with
+imports produces the inlined form. If you re-save such a workflow
+(via `wflow edit` + save, or the GUI), the `use` lines become concrete
+steps. Don't hand-round-trip files with imports through the encoder if
+you want to keep the source shape.
 
 ### repeat
 

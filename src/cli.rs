@@ -1158,8 +1158,8 @@ fn load_file(p: &Path) -> Result<Workflow> {
             serde_json::from_str(&text)
                 .with_context(|| format!("parse json {}", p.display()))
         }
-        // KDL path: expand any `include "..."` nodes relative to the
-        // including file's directory.
+        // KDL path: resolves the workflow's `imports { ... }` block
+        // and splices `use NAME` references at decode time.
         _ => kdl_format::decode_from_file(p),
     }
 }
@@ -1212,6 +1212,10 @@ fn print_event(
                     );
                 }
             }
+        }
+        RunEvent::Paused { .. } => {
+            // The CLI never runs in debug mode; this branch is just
+            // here to keep the match exhaustive.
         }
         RunEvent::Finished { ok, .. } => {
             let n = ran.load(std::sync::atomic::Ordering::SeqCst);
@@ -1280,10 +1284,10 @@ fn collect_tool_needs(
             Action::Conditional { steps: inner, .. } => {
                 collect_tool_needs(inner, needed);
             }
-            // `include` / `use` should be expanded by load_file; if one
-            // survived here, preflight has nothing to report but should
-            // not crash.
-            Action::Include { .. } | Action::Use { .. } => {}
+            // `use` should be expanded by load_file; if one survived
+            // here, preflight has nothing to report but should not
+            // crash.
+            Action::Use { .. } => {}
             Action::Shell { .. } | Action::Delay { .. } | Action::Note { .. } => {}
         }
     }
@@ -1435,12 +1439,6 @@ fn explain_lines(action: &Action) -> Vec<String> {
             )];
             indent_inner(steps, &mut lines);
             lines
-        }
-        Action::Include { path } => {
-            // Normally expanded away by decode_from_file before explain
-            // runs. If one survives, print a single line so the user
-            // can tell.
-            vec![format!("{head} # include {}", path)]
         }
         Action::Use { name } => {
             vec![format!("{head} # use {}", name)]

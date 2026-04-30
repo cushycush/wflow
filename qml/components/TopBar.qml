@@ -20,6 +20,15 @@ Rectangle {
     property bool backVisible: false
     default property alias actions: actionRow.data
 
+    // Container-nav breadcrumb. `crumbLabels` is a parallel array
+    // where index 0 is the workflow root and the last entry is the
+    // currently-viewed depth. When non-empty, the breadcrumb row
+    // replaces the subtitle line so the topbar height stays at 56.
+    property var crumbLabels: []
+    signal crumbClicked(int depth)
+
+    readonly property bool _crumbVisible: root.crumbLabels.length > 1
+
     signal titleCommitted(string newTitle)
     signal subtitleCommitted(string newSubtitle)
     signal backClicked()
@@ -121,9 +130,92 @@ Rectangle {
                 onEditingFinished: _commit()
             }
 
-            // Subtitle.
+            // Crumb row — only shown when the user has descended into
+            // a container. Replaces the subtitle line so the topbar
+            // doesn't grow. Each segment renders as a pill with a
+            // surface-step background so it reads as nav state, not
+            // supplementary copy. Active (last) crumb gets the accent
+            // tint; parents are clickable to pop back.
+            Row {
+                visible: root._crumbVisible
+                spacing: 4
+                topPadding: 2
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "in"
+                    color: Theme.text3
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontXs
+                    font.weight: Font.Bold
+                    font.letterSpacing: 1.0
+                    rightPadding: 6
+                }
+
+                Repeater {
+                    model: root.crumbLabels
+                    delegate: Row {
+                        spacing: 4
+                        readonly property bool isLast: model.index === root.crumbLabels.length - 1
+
+                        Rectangle {
+                            id: crumbChip
+                            anchors.verticalCenter: parent.verticalCenter
+                            height: 22
+                            width: crumbText.implicitWidth + 14
+                            radius: Theme.radiusSm
+                            color: parent.isLast
+                                ? Theme.accentWash(0.18)
+                                : (chipMA.containsMouse ? Theme.surface3 : Theme.surface2)
+                            border.color: parent.isLast
+                                ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45)
+                                : Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+
+                            Text {
+                                id: crumbText
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: parent.parent.isLast
+                                    ? Theme.accent
+                                    : (chipMA.containsMouse ? Theme.text : Theme.text2)
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                font.weight: parent.parent.isLast ? Font.Bold : Font.Medium
+                            }
+
+                            MouseArea {
+                                id: chipMA
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: !parent.parent.isLast
+                                cursorShape: enabled
+                                    ? Qt.PointingHandCursor
+                                    : Qt.ArrowCursor
+                                onClicked: root.crumbClicked(model.index)
+                            }
+                        }
+
+                        Text {
+                            visible: !parent.isLast
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "›"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: Font.Medium
+                        }
+                    }
+                }
+            }
+
+            // Subtitle. Hidden while the crumb row is showing so the
+            // topbar doesn't try to render two metadata lines below
+            // the title.
             Text {
-                visible: !root.subtitleEditable && root.subtitle.length > 0
+                visible: !root._crumbVisible && !root.subtitleEditable && root.subtitle.length > 0
                 text: root.subtitle
                 color: Theme.text3
                 font.family: Theme.familyBody
@@ -133,7 +225,7 @@ Rectangle {
             }
             TextField {
                 id: subtitleField
-                visible: root.subtitleEditable
+                visible: !root._crumbVisible && root.subtitleEditable
                 width: parent.width
                 text: root.subtitle
                 placeholderText: "add a subtitle…"
