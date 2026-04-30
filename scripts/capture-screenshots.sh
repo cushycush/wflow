@@ -202,6 +202,9 @@ pair "library-empty" \
 pair "editor-canvas" \
     "Open Morning sync. Hover the right-side tool dock and click ✦ Smart tidy. The whole flow should fit at a readable zoom."
 
+pair "editor-step-palette" \
+    "Same workflow open. Hover over the LEFT dock during the countdown so the palette expands and the labels slide in next to each coloured chip — that's the shot."
+
 pair "editor-inspector" \
     "Same workflow open. Click any step card so the inspector slides in from the right."
 
