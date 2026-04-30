@@ -2,7 +2,7 @@
 
 **Shortcuts for Linux. GUI editor backed by plain-text workflow files.**
 
-![wflow library — seven example workflows in a grid, each tagged with its action types](assets/screenshots/wflow-library.png)
+![wflow library — eight example workflows in a grid, each tagged with its action types](assets/screenshots/wflow-library.png)
 
 A Qt Quick app for building, editing, recording, and replaying desktop
 workflows on Wayland. Pick a template or start blank, edit the steps,
@@ -12,6 +12,30 @@ hand-write the file in `$EDITOR`. Both paths produce the same output.
 Built on [wdotool-core](https://github.com/cushycush/wdotool) for
 input injection — linked in process, no `wdotool` binary required at
 runtime.
+
+## The editor
+
+Free-positioning canvas. Drag chips from the palette dock on the left to
+drop a step anywhere; wires auto-route between consecutive steps; conditionals
+render as branch shapes with explicit yes/no outputs; repeat is a container
+with an inline strip of inner rows. Smart Tidy on the right-side tool dock
+picks the layout that keeps cards readable at the closest-to-1.0 zoom.
+
+![Morning sync workflow open in the editor — eleven steps, a yes/no conditional, a repeat container with an inner step, and three coloured group rectangles annotating the update / verify / share sections](assets/screenshots/wflow-editor.png)
+
+Multi-select with shift- or ctrl-click; lasso a region with shift- or
+ctrl-drag; alt-drag to draw a coloured group rectangle behind cards as a
+visual annotation. Selection highlights live as the marquee crosses cards.
+
+![The same workflow with a marquee dragged around four cards on the right side, all highlighted as the rect moves](assets/screenshots/wflow-multiselect.png)
+
+Step-by-step debugger. ⏯ Debug pauses the engine between every action;
+Step / Continue / Stop are the controls. The active card pulses; each
+step's status dot settles to green / red / grey on outcome. Repeat
+inner steps each get their own dot and pulse on every iteration so loops
+are easy to read.
+
+![The editor in debug mode — the run controls have flipped to Step / Continue / Stop, the conditional card is highlighted as the active step, and the status dots show the steps that have already finished](assets/screenshots/wflow-debug.png)
 
 ## Install
 
@@ -65,10 +89,10 @@ Launch wflow. The first time, you get a welcome card with two paths:
 - **`+ New workflow`** opens a dialog with three tabs:
   - **Blank** drops you into the editor with no steps and a tooltip
     on `+ Add step` showing what to do first.
-  - **From template** lists seven hand-authored examples covering
-    shell, key chords, window focus, conditionals, retries, and the
-    full Record-mode output shape. Pick one, it copies into your
-    library, and the editor opens on the copy.
+  - **From template** lists eight hand-authored examples covering
+    shell, key chords, window focus, conditionals, retries, fragment
+    imports, and the full Record-mode output shape. Pick one, it
+    copies into your library, and the editor opens on the copy.
   - **Record** opens the recorder. Walk through the actions you want
     to replay, stop, the captured stream becomes a new workflow.
 - **`● Record`** shortcuts straight to the recorder if you already
