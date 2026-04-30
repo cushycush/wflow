@@ -12,9 +12,10 @@ import Wflow
 // cursor. The button's MouseArea forwards press / move / release with
 // scene-coordinate points, and the canvas renders the ghost itself.
 //
-// Hover any icon to see its kind label as a tooltip; the icon-only
-// dock trades label legibility for canvas real estate, and the
-// labels reappear on demand without the bottom strip eating screen.
+// Hovering any icon expands the dock so the label slides in next to
+// the icon — the icon-only collapsed state trades label legibility
+// for canvas real estate, and the labels reappear on demand without
+// a bottom strip eating screen.
 Item {
     id: root
     // The WorkflowCanvas instance to forward drag events to.
@@ -180,9 +181,10 @@ Item {
                                 cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                                 property bool dragging: false
 
-                                ToolTip.visible: containsMouse && !dragging
-                                ToolTip.delay: 400
-                                ToolTip.text: modelData.label
+                                // No tooltip — the dock expands on hover
+                                // and shows the same label inline next to
+                                // the icon, so a floating tooltip would
+                                // just duplicate it.
 
                                 // Aggregate chip hover into a count on the
                                 // dock so the dock stays expanded whenever
