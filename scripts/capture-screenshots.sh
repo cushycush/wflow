@@ -79,15 +79,56 @@ focus_wflow() {
     sleep 0.3
 }
 
-# Send Ctrl+. to wflow to flip the theme. Re-focuses wflow and waits
-# long enough for the theme transition (ColorAnimation, ~160-220ms)
-# to commit before returning. The previous 0.4s settle was too tight
-# when wflow lost focus mid-countdown — wtype's keystroke would land
-# on the terminal instead and the dark→light flip would silently no-op.
-flip_theme() {
+# State.toml is the source of truth for the theme. apply_theme_mode
+# saves to disk synchronously (see src/bridge/state.rs), so reading
+# it after a keystroke tells us whether the flip actually committed.
+STATE_TOML="${XDG_CONFIG_HOME:-$HOME/.config}/wflow/state.toml"
+read_theme() {
+    grep -m1 '^theme_mode' "$STATE_TOML" 2>/dev/null \
+        | sed 's/.*= *//; s/"//g' \
+        | tr -d '\n'
+}
+
+# Press Ctrl+. once and poll state.toml until theme_mode changes.
+# Returns 0 if the keystroke landed, 1 if it didn't reach wflow
+# (terminal probably stole focus).
+press_cycle() {
+    local before; before=$(read_theme)
     focus_wflow
     wtype -M ctrl -k period -m ctrl
-    sleep 1.0
+    local i
+    for i in $(seq 1 30); do
+        sleep 0.1
+        local now; now=$(read_theme)
+        if [[ -n "$now" && "$now" != "$before" ]]; then
+            sleep 0.3   # let the QML ColorAnimation settle
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Cycle Ctrl+. until theme_mode == $1. The theme cycles
+# dark → auto → light → dark — so going dark→light needs TWO
+# presses, light→dark needs one. ensure_theme handles either.
+# Falls back to asking the user to flip manually if four cycles
+# don't get there.
+ensure_theme() {
+    local target="$1"
+    local cur; cur=$(read_theme)
+    local tries=0
+    while [[ "$cur" != "$target" ]] && (( tries < 4 )); do
+        if ! press_cycle; then
+            echo "  ⚠ Ctrl+. didn't register (terminal probably had focus). Retrying..."
+            sleep 0.5
+        fi
+        cur=$(read_theme)
+        ((tries++))
+    done
+    if [[ "$cur" != "$target" ]]; then
+        echo "  ✗ couldn't reach theme=$target (currently $cur)."
+        read -r -p "    set the theme manually then press Enter to continue " _
+    fi
 }
 
 capture() {
@@ -129,12 +170,13 @@ pair() {
         echo "  skipped"
         return
     fi
+    ensure_theme dark
     countdown
     capture "${base}.dark"
-    flip_theme
+    ensure_theme light
     countdown
     capture "${base}.light"
-    flip_theme  # back to dark for the next surface
+    ensure_theme dark   # leave on dark for the next surface
 }
 
 # Send a Ctrl+N shortcut to navigate. This lets the script bounce
