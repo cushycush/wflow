@@ -123,7 +123,10 @@ ensure_theme() {
             sleep 0.5
         fi
         cur=$(read_theme)
-        ((tries++))
+        # `tries=$((tries+1))` instead of `((tries++))` — the latter
+        # returns the pre-increment value, which is 0 on the first
+        # iteration; under `set -e` that kills the script.
+        tries=$((tries + 1))
     done
     if [[ "$cur" != "$target" ]]; then
         echo "  ✗ couldn't reach theme=$target (currently $cur)."
