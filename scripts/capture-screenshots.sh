@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Capture the full design-docs screenshot baseline in one pass.
+# Capture the full design-docs / Claude Design screenshot baseline
+# in one pass.
 #
 # For each surface this script:
 #   1. Prompts you to set up the UI state
@@ -8,9 +9,11 @@
 #   4. Captures <surface>.light.png
 #   5. Flips theme back to dark
 #
-# Output lands in docs/design/screenshots/ matching the manifest at
-# docs/design/screenshots/README.md. Skip a surface by pressing 'n'
-# at the prompt; capture all of it by pressing Enter.
+# Output lands in docs/design/screenshots/claude-design/, isolated
+# from the README v0.4 captures (which live in the screenshots root
+# named <surface>.04.dark / .light). Upload the contents of the
+# claude-design subdir verbatim. Skip a surface by pressing 'n' at
+# the prompt; capture all of it by pressing Enter.
 #
 # Requires: cargo, grim, jq, wtype, and a Hyprland or Sway session.
 # Explore captures are skipped when Theme.showExplore is false (the
@@ -24,7 +27,12 @@ cd "$ROOT"
 
 BIN="$ROOT/target/debug/wflow"
 LOG="/tmp/wflow-shoot.log"
-DEST="$ROOT/docs/design/screenshots"
+# Claude Design / design-docs baseline shots land in their own subdir
+# so they don't get mixed up with the README v0.4 captures (named
+# <surface>.04.dark / .light) sitting in the screenshots root. Upload
+# the contents of this subdir verbatim to Claude Design.
+DEST="$ROOT/docs/design/screenshots/claude-design"
+GRAB_DEST="$ROOT/docs/design/screenshots"
 mkdir -p "$DEST"
 
 # ---- Tool checks ----
@@ -68,20 +76,32 @@ focus_wflow() {
     addr=$(hyprctl -j clients 2>/dev/null \
         | jq -r '.[] | select(.class == "wflow") | .address' | head -n1)
     [[ -n "$addr" ]] && hyprctl dispatch focuswindow "address:$addr" >/dev/null 2>&1 || true
-    sleep 0.15
+    sleep 0.3
 }
 
+# Send Ctrl+. to wflow to flip the theme. Re-focuses wflow and waits
+# long enough for the theme transition (ColorAnimation, ~160-220ms)
+# to commit before returning. The previous 0.4s settle was too tight
+# when wflow lost focus mid-countdown — wtype's keystroke would land
+# on the terminal instead and the dark→light flip would silently no-op.
 flip_theme() {
     focus_wflow
     wtype -M ctrl -k period -m ctrl
-    sleep 0.4
+    sleep 1.0
 }
 
 capture() {
     local name="$1"
+    # Re-focus + a generous settle before grim fires, so any pending
+    # theme transition or repaint has finished by the time we sample
+    # pixels. Then move from grab.sh's default path into the
+    # claude-design subdir.
     focus_wflow
-    sleep 0.2
+    sleep 0.5
     "$ROOT/scripts/grab.sh" "$name" >/dev/null
+    if [[ -f "$GRAB_DEST/$name.png" ]]; then
+        mv "$GRAB_DEST/$name.png" "$DEST/$name.png"
+    fi
     echo "  ✓ $DEST/$name.png"
 }
 
