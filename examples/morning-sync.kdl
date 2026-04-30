@@ -6,7 +6,7 @@
 // Edit before running:
 //   - set `repo` to your project root
 //   - set `slack-channel` and `retro-link`
-//   - swap `Alacritty` for whatever terminal launches with your
+//   - swap `Ghostty` for whatever terminal launches with your
 //     `hyprctl dispatch exec` (Kitty, Wezterm, Terminal, …)
 //
 // Showcases:
@@ -33,8 +33,8 @@ workflow "Morning sync" {
     note "Daily ritual: pulls latest, runs the test suite, posts to standup."
 
     // ── Update repo ───────────────────────────────────────────────
-    focus "Alacritty"
-    wait-window "Alacritty" timeout="5s"
+    focus "Ghostty"
+    wait-window "Ghostty" timeout="5s"
     type "cd {{repo}} && git fetch --all"
     key "Return"
     shell "git pull --ff-only" timeout-ms=15000
