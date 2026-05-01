@@ -1606,7 +1606,8 @@ Item {
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 selectedIndex: editorContent.selectedIndex
-                selectedIndices: editorContent.selectedIndices
+                // Live union so rail rows highlight DURING marquee drag.
+                selectedIndices: canvasView.liveSelectedIndices
                 stepStatuses: root.stepStatuses
 
                 showTutorial: _shouldShowBlankTutorial

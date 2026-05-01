@@ -41,6 +41,16 @@ Item {
     // Live preview so cards light up as the rect crosses them, not on release.
     property var _marqueeHoverIndices: ({})
 
+    // Committed selection ∪ live marquee preview. Siblings (left-rail
+    // StepListRail) read this so their rows light up in lockstep with cards.
+    readonly property var liveSelectedIndices: {
+        if (!_marqueeActive) return selectedIndices
+        const merged = {}
+        for (const k in selectedIndices) merged[k] = true
+        for (const k in _marqueeHoverIndices) merged[k] = true
+        return merged
+    }
+
     // scenePosition + world.mapFromItem in one shot dodges the ambiguity
     // about which Item handler.centroid.position is local to.
     function _handlerToWorld(handler) {
