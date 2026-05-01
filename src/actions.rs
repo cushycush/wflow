@@ -459,12 +459,17 @@ pub enum Action {
     /// Conditionally run a nested sequence. Condition is evaluated at
     /// dispatch time (not pre-run) so it can reference state created
     /// by earlier steps in the same workflow. `negate=true` implements
-    /// `unless`.
+    /// `unless`. `else_steps` runs when the predicate's truthiness
+    /// flips the other way (i.e., when the `steps` branch is skipped);
+    /// empty by default so workflows authored before the else branch
+    /// existed round-trip unchanged.
     Conditional {
         cond: Condition,
         #[serde(default)]
         negate: bool,
         steps: Vec<Step>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        else_steps: Vec<Step>,
     },
     /// Splice-in a named import declared in the workflow's top-level
     /// `imports { ... }` block. Expanded at decode time against the
@@ -562,14 +567,23 @@ impl Action {
                 steps.len(),
                 if steps.len() == 1 { "" } else { "s" }
             ),
-            Action::Conditional { cond, negate, steps } => {
+            Action::Conditional { cond, negate, steps, else_steps } => {
                 let verb = if *negate { "unless" } else { "when" };
-                format!(
+                let then_part = format!(
                     "{verb} {} ({} step{})",
                     cond.describe(),
                     steps.len(),
                     if steps.len() == 1 { "" } else { "s" }
-                )
+                );
+                if else_steps.is_empty() {
+                    then_part
+                } else {
+                    format!(
+                        "{then_part} else ({} step{})",
+                        else_steps.len(),
+                        if else_steps.len() == 1 { "" } else { "s" }
+                    )
+                }
             }
             Action::Use { name } => format!("use {name}"),
         }

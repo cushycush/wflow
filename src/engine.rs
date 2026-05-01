@@ -152,14 +152,21 @@ fn run_steps<'a>(
                     }
                     continue;
                 }
-                Action::Conditional { cond, negate, steps: inner } if step.enabled => {
+                Action::Conditional { cond, negate, steps: inner, else_steps } if step.enabled => {
                     let cond_holds = evaluate_condition(cond, vars, backend)
                         .await
                         .unwrap_or(false);
-                    if cond_holds ^ *negate {
-                        if run_steps(inner, sink, vars, index, any_failed, backend, pause).await? == Flow::Halt {
-                            return Ok(Flow::Halt);
-                        }
+                    let take_then = cond_holds ^ *negate;
+                    let branch = if take_then { inner } else { else_steps };
+                    // Empty else_steps preserves the historical
+                    // behavior: a `when` whose predicate is false
+                    // simply skips, no events emitted for the branch.
+                    if !branch.is_empty()
+                        && run_steps(branch, sink, vars, index, any_failed, backend, pause)
+                            .await?
+                            == Flow::Halt
+                    {
+                        return Ok(Flow::Halt);
                     }
                     continue;
                 }
@@ -338,10 +345,11 @@ fn expand(action: &Action, vars: &VarMap) -> Result<Action> {
             count: *count,
             steps: steps.clone(),
         },
-        Action::Conditional { cond, negate, steps } => Action::Conditional {
+        Action::Conditional { cond, negate, steps, else_steps } => Action::Conditional {
             cond: cond.clone(),
             negate: *negate,
             steps: steps.clone(),
+            else_steps: else_steps.clone(),
         },
         Action::Use { name } => Action::Use { name: name.clone() },
     })
