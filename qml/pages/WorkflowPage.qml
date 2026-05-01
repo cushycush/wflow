@@ -1917,7 +1917,11 @@ Item {
                 actions: root.actions
                 activeStepIndex: root.activeStepIndex
                 selectedIndex: editorContent.selectedIndex
-                selectedIndices: editorContent.selectedIndices
+                // Bind to the canvas' live union (committed selection +
+                // marquee preview) so shift/ctrl-drag on the canvas
+                // highlights the rail rows while the rect is still
+                // moving, not just on release.
+                selectedIndices: canvasView.liveSelectedIndices
                 stepStatuses: root.stepStatuses
 
                 showTutorial: _shouldShowBlankTutorial
