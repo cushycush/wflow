@@ -73,6 +73,19 @@ Item {
     // Cleared on commit / cancel.
     property var _marqueeHoverIndices: ({})
 
+    // Union of committed selection + live marquee preview. Surfaced so
+    // siblings (e.g. the left-rail StepListRail) can highlight the same
+    // rows the canvas cards do during a marquee drag, instead of only
+    // catching up on release. When no marquee is active this collapses
+    // to the regular selectedIndices map.
+    readonly property var liveSelectedIndices: {
+        if (!_marqueeActive) return selectedIndices
+        const merged = {}
+        for (const k in selectedIndices) merged[k] = true
+        for (const k in _marqueeHoverIndices) merged[k] = true
+        return merged
+    }
+
     // Map a DragHandler's centroid scene position into WORLD coords.
     // Going via scenePosition + world.mapFromItem dodges any
     // ambiguity about which Item the handler's centroid.position is
