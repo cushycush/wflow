@@ -64,23 +64,30 @@ QtObject {
     readonly property color err:       isDark ? "#dd6b55" : "#b0392b"
 
     // ============ Category chip tints ============
-    readonly property color catKey:    isDark ? "#a184ea" : "#6a4ed0"
-    readonly property color catType:   isDark ? "#7393e6" : "#3b5fc2"
-    readonly property color catClick:  isDark ? "#64c28a" : "#1e8a52"
-    readonly property color catMove:   isDark ? "#5fb3b9" : "#297d83"
-    readonly property color catScroll: isDark ? "#5fb0cb" : "#246d8a"
-    readonly property color catFocus:  isDark ? "#d8a74e" : "#8a6512"
-    readonly property color catWait:   isDark ? "#878a94" : "#6c7079"
-    readonly property color catShell:  isDark ? "#e09066" : "#a0532e"
-    readonly property color catNotify: isDark ? "#da77a8" : "#b0427a"
-    readonly property color catClip:   isDark ? "#62b2c7" : "#2a7f94"
-    readonly property color catNote:   isDark ? "#707278" : "#5a5d62"
+    // EXPERIMENT: chroma pulled back ~30% from the prior saturated set
+    // so the small CategoryIcon washes (Theme.wash at 0.16-0.24) sit
+    // calmly alongside the warm-coral brand without competing for
+    // attention. Each kind keeps its hue identity (violet/blue/green/
+    // amber/etc.) but reads as a member of the same muted family
+    // instead of a rainbow against cream paper. Mirrors the wflows.com
+    // --ink-* register (L≈0.50 light / 0.68 dark, chroma 0.10-0.14).
+    readonly property color catKey:    isDark ? "#a890d2" : "#6e54a8"
+    readonly property color catType:   isDark ? "#889bcb" : "#4862ad"
+    readonly property color catClick:  isDark ? "#88b08e" : "#3d7c58"
+    readonly property color catMove:   isDark ? "#7da4a8" : "#437576"
+    readonly property color catScroll: isDark ? "#80a0b8" : "#436c83"
+    readonly property color catFocus:  isDark ? "#c89e60" : "#856425"
+    readonly property color catWait:   isDark ? "#8e8780" : "#6e6862"
+    readonly property color catShell:  isDark ? "#c89070" : "#985538"
+    readonly property color catNotify: isDark ? "#c0859e" : "#9e527a"
+    readonly property color catClip:   isDark ? "#80a0b0" : "#436b7c"
+    readonly property color catNote:   isDark ? "#807870" : "#5e5650"
     // Flow-control tints — visually distinct from action kinds so the
     // structural blocks read as different beasts.
-    readonly property color catWhen:    isDark ? "#df88d6" : "#a056a0"
-    readonly property color catUnless:  isDark ? "#ee8896" : "#c45670"
-    readonly property color catRepeat:  isDark ? "#cae870" : "#7da030"
-    readonly property color catUse:     isDark ? "#a08ed0" : "#5a4090"
+    readonly property color catWhen:    isDark ? "#b896b0" : "#8a5a82"
+    readonly property color catUnless:  isDark ? "#c08878" : "#985d4a"
+    readonly property color catRepeat:  isDark ? "#b0b878" : "#748640"
+    readonly property color catUse:     isDark ? "#9d90ba" : "#5e4880"
 
     // ============ Spacing (4pt) ============
     readonly property int s1: 4
