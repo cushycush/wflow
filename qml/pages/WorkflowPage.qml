@@ -356,7 +356,15 @@ Item {
         // equals) which needs a richer editor; primary stays read-only
         // and the inspector falls back to the cond summary for now.
         case "repeat":      shaped = { kind: "repeat",  summary: "Repeat", value: act.count + "×, " + (act.steps || []).length + " inner step(s)", rawPrimary: String(act.count), editable: true, intOnly: true, unit: "×" }; break
-        case "conditional": shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }; break
+        case "conditional": {
+            const yesN = (act.steps || []).length
+            const noN = (act.else_steps || []).length
+            const branchSummary = noN > 0
+                ? yesN + " yes / " + noN + " else"
+                : yesN + " inner step(s)"
+            shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + branchSummary, rawPrimary: "", editable: false }
+            break
+        }
         case "use":         shaped = { kind: "use",     summary: "Use import", value: act.name, rawPrimary: act.name, editable: true }; break
         default:                    shaped = { kind: "note", summary: kind, value: "", rawPrimary: "", editable: false }
         }
@@ -975,6 +983,40 @@ Item {
         if (!action || !Array.isArray(action.steps)) return
         if (innerIndex < 0 || innerIndex >= action.steps.length) return
         action.steps.splice(innerIndex, 1)
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    // The else_steps siblings of _addInnerStep / _deleteInnerStep.
+    // Operate on the conditional's `else_steps` array (the false
+    // branch). Conditional-only — repeat doesn't have a false side.
+    function _addElseStep(stepIndex, kind) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || action.kind !== "conditional") return
+        if (!Array.isArray(action.else_steps)) action.else_steps = []
+        action.else_steps.push({
+            id: _uuid(),
+            enabled: true,
+            on_error: "stop",
+            action: _defaultActionForKind(kind)
+        })
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _deleteElseStep(stepIndex, innerIndex) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || !Array.isArray(action.else_steps)) return
+        if (innerIndex < 0 || innerIndex >= action.else_steps.length) return
+        action.else_steps.splice(innerIndex, 1)
         root.workflow = wf
         _scheduleSave()
     }
@@ -1999,6 +2041,8 @@ Item {
                     onNegateToggled: (stepIndex, negate) => root._commitNegate(stepIndex, negate)
                     onInnerStepAdded: (stepIndex, kind) => root._addInnerStep(stepIndex, kind)
                     onInnerStepDeleted: (stepIndex, innerIndex) => root._deleteInnerStep(stepIndex, innerIndex)
+                    onElseStepAdded: (stepIndex, kind) => root._addElseStep(stepIndex, kind)
+                    onElseStepDeleted: (stepIndex, innerIndex) => root._deleteElseStep(stepIndex, innerIndex)
                 }
             }
 
