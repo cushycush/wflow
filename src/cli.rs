@@ -636,12 +636,7 @@ fn cmd_daemon() -> Result<ExitCode> {
         }
     }
 
-    let backend = crate::triggers::detect();
-    let header = match &backend {
-        Some(b) => format!("wflow daemon ({} backend)", b.name()),
-        None => "wflow daemon (dry run, no backend for this compositor)".into(),
-    };
-    println!("{}", bold(&header));
+    println!("{}", bold("wflow daemon"));
     println!();
 
     if rows.is_empty() {
@@ -679,12 +674,83 @@ fn cmd_daemon() -> Result<ExitCode> {
     }
     println!();
 
-    let mut backend = match backend {
-        Some(b) => b,
+    // Try the GlobalShortcuts portal first. Covers KDE Plasma 6 +
+    // GNOME 46+, the bulk of the audience the AHK launch reaches.
+    // The portal is async-only and batch-binds, so it bypasses the
+    // sync `Backend` trait the IPC backends share. If the portal
+    // isn't reachable (older Plasma 5, wlroots compositors that
+    // don't ship xdg-desktop-portal yet), we fall through to the
+    // trait-based IPC backends below.
+    let dispatchable: Vec<Binding> = rows
+        .iter()
+        .filter(|r| r.binding.is_dispatchable_today())
+        .map(|r| r.binding.clone())
+        .collect();
+
+    if !dispatchable.is_empty() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .context("build tokio runtime for portal probe")?;
+        let portal_available = rt.block_on(crate::triggers::portal::is_available());
+        if portal_available {
+            println!(
+                "  {} using GlobalShortcuts portal. The first activation pops a\n  \
+                 consent dialog from your desktop; accept it to enable the chords.",
+                dim("·")
+            );
+            println!();
+            match rt.block_on(crate::triggers::portal::run(dispatchable.clone())) {
+                Ok(summary) => {
+                    println!();
+                    if summary.skipped_non_chord > 0 {
+                        println!(
+                            "  {} skipped {} non-chord trigger{} (hotstrings ship in v0.5)",
+                            dim("·"),
+                            summary.skipped_non_chord,
+                            plural_s(summary.skipped_non_chord),
+                        );
+                    }
+                    println!(
+                        "  {} clean shutdown ({} binding{} were registered)",
+                        check(),
+                        summary.registered,
+                        plural_s(summary.registered),
+                    );
+                    return Ok(ExitCode::SUCCESS);
+                }
+                Err(e) => {
+                    // Portal looked available but bind / run failed
+                    // (consent declined, transient D-Bus error, etc.).
+                    // Surface and try the IPC fallback in case the
+                    // user is on a hybrid setup with a working
+                    // compositor IPC.
+                    println!(
+                        "  {} portal failed: {e:#}\n  {} falling back to compositor IPC…",
+                        cross(),
+                        dim("·")
+                    );
+                    println!();
+                }
+            }
+        }
+    }
+
+    // Fallback: trait-based IPC backend (Hyprland, Sway).
+    let mut backend = match crate::triggers::detect() {
+        Some(b) => {
+            println!(
+                "  {} using {} compositor IPC backend",
+                dim("·"),
+                b.name()
+            );
+            println!();
+            b
+        }
         None => {
             println!(
-                "  {} No trigger backend available for this compositor. wflow ships\n  \
-                 a Hyprland backend today; Sway / KDE / GNOME land in a follow-up.",
+                "  {} No trigger backend available. The GlobalShortcuts portal isn't\n  \
+                 reachable, and no Hyprland or Sway IPC socket was detected.",
                 dim("·")
             );
             return Ok(ExitCode::SUCCESS);

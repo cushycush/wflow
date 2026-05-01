@@ -6,6 +6,7 @@
 //! since it covers the majority of the audience.
 
 pub mod hyprland;
+pub mod portal;
 pub mod sway;
 
 use crate::actions::{Trigger, TriggerKind};
