@@ -1,10 +1,56 @@
 # wflow backlog
 
-As of 0.4.0 (2026-04-29), the editor redesign has shipped: free-position
+As of 0.4.1 (2026-05-01), the editor redesign has shipped: free-position
 canvas, branch shapes, repeat containers, multi-select + marquee, undo /
 redo, group rectangles, the step-by-step debugger, run-feedback dots, and
-imports / fragments. What's left is mostly wflows.com integration (the
-target for v1.0) and the v0.5 daemon work.
+imports / fragments. What's left is the v0.4 trigger daemon (the AHK
+launch is gated on this) and the wflows.com integration (the target for
+v1.0).
+
+# Active: v0.4 trigger daemon + AHK-positioned launch
+
+The AHK-shaped piece. Spec lives at `docs/designs/v0.4-leg1-trigger-daemon.md`.
+This is the work that gates the AHK + Shortcuts launch posts in
+`docs/launch-drafts.md`. Posting before the daemon ships would force a
+"there's no global hotkey daemon" caveat in every draft, which kneecaps
+the AHK angle.
+
+## v0.4 daemon (per the spec)
+
+Ship `wflow daemon` as a subcommand. Single instance per user (abstract
+Unix socket lock at `@wflow-daemon-$UID`). Reads `~/.config/wflow/triggers.kdl`,
+registers chords via `org.freedesktop.portal.GlobalShortcuts` (KDE 6 +
+GNOME 46+), falls back to compositor IPC (hyprctl / swaymsg) where the
+portal isn't shipped. D-Bus surface at `org.cushycush.wflow.Daemon` with
+`Reload`, `ListBindings`, `RunWorkflow`. Hot-reloads `triggers.kdl` via
+`notify`. Out of scope: hotstrings, per-window triggers, schedule
+triggers, file-watch triggers (those are the v0.5 expansion release).
+
+## Triggers tab in the GUI
+
+Once the daemon's D-Bus surface is up, add a Triggers tab that lists
+active bindings, lets the user add / edit / remove, and pokes `Reload()`.
+Editing should write `triggers.kdl` and trust the file watcher to do
+the rest, not bypass the file. The point of the file format is that it
+stays the source of truth.
+
+## AHK-style launch
+
+Once the daemon lands, edit `docs/launch-drafts.md` (collapse the
+pre/post-daemon branches in Draft 1, swap the generic "v0.4" version
+strings for the actual ship version, screenshot the new Triggers tab
+for fosstodon and r/linux), then post per the staggered plan in that
+doc.
+
+## v0.5 trigger expansion (deferred until v0.4 lands and metrics back it)
+
+Hotstrings (text expansion: `btw -> by the way`) needs a global
+keyboard monitor on top of the daemon. Per-window triggers need a cheap
+window-state watcher. Schedule and file-watch triggers fall out of the
+daemon for free but are different products from "AHK on Linux." Don't
+ship any of these in v0.4. Re-evaluate the leg-1 commitment after v0.4
+ships based on the audience metric (distinct GitHub issue authors who
+name AHK in their use case).
 
 # v1.0 = wflows.com integration
 
@@ -61,11 +107,10 @@ browser, paste token back" handoff rather than embedding a webview.
 
 Workflows on wflows.com carry trigger metadata. When a user installs
 one, we know they want it bound to "Super+Shift+P" or whatever; right
-now they have to wire that up by hand. Once the v0.4 daemon ships
-(see docs/designs/v0.4-leg1-trigger-daemon.md), the install path
-should write the trigger into `~/.config/wflow/triggers.kdl` and ask
-the daemon to pick it up. This depends on the daemon, so it lives
-behind that work.
+now they have to wire that up by hand. Once the v0.4 daemon lands (in
+flight, see top of file), the install path should append the trigger
+into `~/.config/wflow/triggers.kdl` and let the daemon's file watcher
+pick it up. This depends on the daemon, so it lives behind that work.
 
 ## Run-history telemetry (paid)
 
