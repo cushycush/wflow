@@ -28,35 +28,35 @@ QtObject {
     readonly property bool isDark: mode === "dark" || (mode === "auto" && _systemDark)
 
     // ============ Surfaces ============
-    // EXPERIMENT: warm-paper / warm-ink palette mirrored from wflows.com
-    // (hue 35-60, not the parent's cool steel-blue 260). Surfaces still
-    // step up by ~0.04 lightness so hovered/selected rows read clearly,
-    // they just sit in a warmer tonal world.
-    readonly property color bg:        isDark ? "#1a1611" : "#faf7f1"
-    readonly property color surface:   isDark ? "#221d17" : "#f5f0e7"
-    readonly property color surface2:  isDark ? "#2b241d" : "#e8e1d5"
-    readonly property color surface3:  isDark ? "#342c23" : "#dad2c4"
-    readonly property color line:      isDark ? "#3e362c" : "#c9beac"
-    readonly property color lineSoft:  isDark ? "#2f281f" : "#dad2c5"
+    // Dark mode runs on a near-black bg (#07090E, oklch ≈ 0.08, slight
+    // blue tint matching the brand hue) so cards on top read as
+    // elevated surfaces with real contrast — pulled directly from the
+    // canvas + explore mockups. Surfaces step up by ~0.04 lightness
+    // each so a hovered card / selected row is unambiguous.
+    readonly property color bg:        isDark ? "#07090e" : "#f6f6f8"
+    readonly property color surface:   isDark ? "#15181f" : "#ffffff"
+    readonly property color surface2:  isDark ? "#1d2028" : "#eeeef1"
+    readonly property color surface3:  isDark ? "#262a33" : "#e2e3e8"
+    readonly property color line:      isDark ? "#2c2f37" : "#d4d5dc"
+    readonly property color lineSoft:  isDark ? "#1a1d25" : "#e2e3e8"
 
     // ============ Text ============
-    readonly property color text:      isDark ? "#f4ede0" : "#2c2722"
-    readonly property color text2:     isDark ? "#c2b6a2" : "#5d544a"
-    readonly property color text3:     isDark ? "#8e8472" : "#87796c"
+    readonly property color text:      isDark ? "#edeef1" : "#1c1d22"
+    readonly property color text2:     isDark ? "#a9acb4" : "#55585f"
+    readonly property color text3:     isDark ? "#6f727a" : "#82858c"
 
-    // ============ Accent (warm coral) ============
-    // EXPERIMENT: brand-aligned coral from wflows.com. Light mode runs a
-    // darker coral so the fill carries enough contrast on cream surfaces.
-    readonly property color accent:    isDark ? "#ff7565" : "#c43625"
-    readonly property color accentHi:  isDark ? "#ff917f" : "#d34536"
-    readonly property color accentLo:  isDark ? "#f15244" : "#ad2818"
-    readonly property color accentDim: isDark ? "#4a2620" : "#f3d3cc"
+    // ============ Accent (warm amber) ============
+    // Darker in light mode for AA on white surfaces. Still recognizably the
+    // same warm amber — just tuned for the new backdrop.
+    readonly property color accent:    isDark ? "#e29846" : "#b8742a"
+    readonly property color accentHi:  isDark ? "#f1a95a" : "#c78232"
+    readonly property color accentLo:  isDark ? "#c7833a" : "#9a5f1f"
+    readonly property color accentDim: isDark ? "#5a4025" : "#f1dcbe"
 
     // Text color sitting on top of a filled accent surface (button fills etc).
-    // Bright dark-mode coral carries deep warm near-black; darker light-mode
-    // coral can't, so it flips to off-white. (Name avoids the `on<X>`
-    // signal-handler pattern.)
-    readonly property color accentText: isDark ? "#1a0a08" : "#fff7f5"
+    // The amber is always light-enough in chroma that a deep warm near-black
+    // reads well in both modes. (Name avoids the `on<X>` signal-handler pattern.)
+    readonly property color accentText: "#1a1208"
 
     // ============ Semantic ============
     readonly property color ok:        isDark ? "#64c28a" : "#1e8a52"
@@ -93,11 +93,9 @@ QtObject {
     readonly property int s8: 64
 
     // ============ Radii ============
-    // EXPERIMENT: bumped to wflows.com's 8/12/16 (it ships md=10, lg=16,
-    // xl=22; we keep three steps and use the editorial register).
-    readonly property int radiusSm: 8
-    readonly property int radiusMd: 12
-    readonly property int radiusLg: 16
+    readonly property int radiusSm: 6
+    readonly property int radiusMd: 8
+    readonly property int radiusLg: 12
 
     // ============ Type scale ============
     readonly property int fontXs:   11

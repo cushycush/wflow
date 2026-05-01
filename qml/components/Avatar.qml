@@ -28,20 +28,17 @@ Rectangle {
     width: size
     height: size
     radius: size / 2
+    antialiasing: true
 
     gradient: Gradient {
         GradientStop { position: 0; color: root.grad[0] }
         GradientStop { position: 1; color: root.grad[1] }
     }
 
-    Rectangle {
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: parent.width - 4
-        height: 1
-        radius: 1
-        color: Qt.rgba(1, 1, 1, 0.18)
-    }
+    // The earlier inner-highlight strip got clipped to the bounding
+    // rect, not the circle, so its left/right tips poked past the
+    // round edge and read as a faint horizontal box-line on top of
+    // light card backgrounds. Removed in favor of a clean fill.
 
     Text {
         anchors.centerIn: parent

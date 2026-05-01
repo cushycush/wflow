@@ -8,6 +8,10 @@ Item {
     id: root
     property var folders: []
     property var workflows: []
+    // The page passes the FILTERED workflows in `workflows` (only items
+    // in the current folder). Folder tiles need the full list so they
+    // can show how many workflows live inside each subfolder.
+    property var allWorkflows: []
     // Selection mode: in v1 this is a "manage" toggle on the page.
     // When selectMode is true, clicking a card toggles its membership
     // in selectedIds via toggleSelected(id) instead of opening the
@@ -55,16 +59,33 @@ Item {
             y: gridY
             width: root.cardW
             height: root.cardH
+            // Folder tiles run on a slightly darker surface step so they
+            // recede from workflow cards while still living in the same
+            // grid. The tab decoration on top (folderTab below) does the
+            // actual "this is a folder" lifting.
             radius: Theme.radiusMd
             color: folderArea.containsMouse || folderDrop.containsDrag
-                ? Theme.surface2
-                : Theme.surface
+                ? Theme.surface3
+                : Theme.surface2
             border.color: folderDrop.containsDrag
                 ? Theme.accent
                 : (folderArea.containsMouse ? Theme.line : Theme.lineSoft)
             border.width: folderDrop.containsDrag ? 2 : 1
             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+            // How many workflows live in this folder. Computed from the
+            // sibling workflows array so it stays accurate without a
+            // round-trip to libCtrl. Matches the LibraryPage tree's
+            // count semantics.
+            readonly property int wfCount: {
+                if (!root.allWorkflows) return 0
+                let n = 0
+                for (let i = 0; i < root.allWorkflows.length; ++i) {
+                    if (root.allWorkflows[i].folder === folderTile.fld.fullPath) n++
+                }
+                return n
+            }
 
             // Drop target — accepts workflow drags. Drops set the
             // workflow's folder to this tile's full path so the
@@ -106,38 +127,86 @@ Item {
                 }
             }
 
+            // ── Folder tab decoration ──
+            // A small rounded rectangle pinned to the top edge,
+            // overhanging the body's top border by a few pixels so it
+            // reads as a tab sticking up from a folder. The body's
+            // border still runs unbroken behind the tab; the tab paints
+            // its own fill and border on top, with a 1px sliver at the
+            // bottom that overlaps the body to mask the seam.
+            Rectangle {
+                id: folderTab
+                z: 1
+                anchors.top: parent.top
+                anchors.topMargin: -7
+                anchors.left: parent.left
+                anchors.leftMargin: 18
+                width: 72
+                height: 14
+                radius: 4
+                color: parent.color
+                border.color: parent.border.color
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // 1px tall mask at the very bottom of the tab, painted
+                // in the body's fill color, so the seam between tab
+                // and body disappears and they read as one folder
+                // shape.
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 1
+                    anchors.rightMargin: 1
+                    height: 1
+                    color: folderTile.color
+                }
+            }
+
             Column {
                 anchors.fill: parent
-                anchors.margins: 14
+                anchors.topMargin: 18
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.bottomMargin: 16
                 spacing: 10
 
+                // Folder glyph + name on a single row, scaled so the
+                // tile reads as a real folder icon at a glance.
                 Row {
-                    spacing: 10
+                    spacing: 12
                     width: parent.width
 
-                    // Folders use a quieter neutral palette so the
-                    // workflow icons (amber) hold the brand color.
-                    // Folders are organizational containers — they
-                    // recede; the workflows inside them are the
-                    // content the user came for.
                     Rectangle {
-                        width: 32; height: 32; radius: Theme.radiusSm
+                        width: 40
+                        height: 32
+                        radius: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.wash(Theme.text2, 0.18)
-                        border.color: Theme.wash(Theme.text2, 0.45)
+                        color: Theme.wash(Theme.text2, 0.16)
+                        border.color: Theme.wash(Theme.text2, 0.36)
                         border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: "▢"
-                            color: Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
+
+                        // Tiny tab on the icon glyph itself, mirroring
+                        // the card-level tab so the icon reads as a
+                        // folder even when scanned in peripheral view.
+                        Rectangle {
+                            anchors.bottom: parent.top
+                            anchors.bottomMargin: -2
+                            anchors.left: parent.left
+                            anchors.leftMargin: 4
+                            width: 14
+                            height: 5
+                            radius: 2
+                            color: parent.color
+                            border.color: parent.border.color
+                            border.width: 1
                         }
                     }
 
                     Column {
-                        width: parent.width - 32 - 10
+                        width: parent.width - 40 - 12
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
 
@@ -151,15 +220,34 @@ Item {
                             width: parent.width
                         }
                         Text {
-                            text: "folder"
+                            text: folderTile.wfCount === 1
+                                ? "1 workflow"
+                                : folderTile.wfCount + " workflows"
                             color: Theme.text3
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.4
                             elide: Text.ElideRight
                             width: parent.width
                         }
                     }
                 }
+            }
+
+            // Mono "FOLDER" label kicker in the bottom-left, matching
+            // the editorial small-caps register that surrounds the
+            // workflow card's "N STEPS" footer.
+            Text {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.bottomMargin: 14
+                anchors.leftMargin: 16
+                text: "FOLDER"
+                color: Theme.text3
+                font.family: Theme.familyMono
+                font.pixelSize: 9
+                font.letterSpacing: 0.6
+                font.weight: Font.DemiBold
             }
         }
     }
@@ -338,10 +426,11 @@ Item {
 
                     Avatar {
                         id: monoAvatar
-                        // Hash off the workflow id so the same workflow
-                        // always renders the same gradient. Title would
-                        // also work but ids are stable across renames.
-                        handle: card.wf.id
+                        // Title drives both the monogram letter and the
+                        // gradient hash. The letter being the workflow's
+                        // first character is the meaningful signal — the
+                        // gradient drifting on rename is a fair trade.
+                        handle: card.wf.title
                         size: 32
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
