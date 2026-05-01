@@ -15,16 +15,31 @@ This is the work that gates the AHK + Shortcuts launch posts in
 "there's no global hotkey daemon" caveat in every draft, which kneecaps
 the AHK angle.
 
-## v0.4 daemon (per the spec)
+## v0.4 daemon — shipped
 
-Ship `wflow daemon` as a subcommand. Single instance per user (abstract
-Unix socket lock at `@wflow-daemon-$UID`). Reads `~/.config/wflow/triggers.kdl`,
-registers chords via `org.freedesktop.portal.GlobalShortcuts` (KDE 6 +
-GNOME 46+), falls back to compositor IPC (hyprctl / swaymsg) where the
-portal isn't shipped. D-Bus surface at `org.cushycush.wflow.Daemon` with
-`Reload`, `ListBindings`, `RunWorkflow`. Hot-reloads `triggers.kdl` via
-`notify`. Out of scope: hotstrings, per-window triggers, schedule
-triggers, file-watch triggers (those are the v0.5 expansion release).
+`wflow daemon` is a subcommand. Triggers are declared inside each
+workflow's KDL (one less file than the original spec; same effect).
+Single instance per user via a pidfile at `$XDG_RUNTIME_DIR/wflow/daemon.pid`
+with `/proc/$pid` liveness check. Backends:
+
+- **GlobalShortcuts portal** for KDE Plasma 6 and GNOME 46+. Probed
+  first; bind-shortcuts in one batch; per-fire dispatch via
+  `wflow run <id> --yes` subprocess.
+- **Hyprland IPC** via `$XDG_RUNTIME_DIR/hypr/$HIS/.socket.sock` —
+  `keyword bind = MODS, KEY, exec, wflow run <id> --yes`.
+- **Sway IPC** via `$SWAYSOCK` (i3 protocol RUN_COMMAND) —
+  `bindsym MODS+KEY exec wflow run <id> --yes`.
+
+Hot-reload watches `~/.config/wflow/workflows/` via `notify`; on
+disk change the daemon re-reads, diffs by chord, and unbinds /
+re-binds the deltas. Scoped to compositor-IPC mode: the portal's
+`BindShortcuts` is once-per-session by spec, so portal users have
+to restart the daemon to pick up trigger changes. Documented as a
+known limitation and a v0.5 follow-up if it becomes a real friction.
+
+Out of scope (still v0.5+): D-Bus surface at
+`org.cushycush.wflow.Daemon`, hotstrings, per-window triggers,
+schedule triggers, file-watch triggers.
 
 ## Triggers tab in the GUI
 

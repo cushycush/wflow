@@ -32,6 +32,12 @@ clap_mangen = "0.2"
 # Cross-platform Ctrl+C / SIGTERM handler — used by `wflow daemon`
 # to clean up Hyprland bindings before exit.
 ctrlc = "3"
+# File-system watcher for `wflow daemon` hot-reload. When workflow
+# files change on disk, the daemon re-reads them and diffs the
+# trigger set against what's currently bound (compositor IPC path
+# only — the GlobalShortcuts portal's BindShortcuts is once-per-
+# session by design, so portal mode requires a daemon restart).
+notify = "8"
 sha2 = "0.10"
 toml = "0.9"
 
