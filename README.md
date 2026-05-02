@@ -82,6 +82,33 @@ Manifest is in [`packaging/flatpak/`](packaging/flatpak/). Flathub
 submission lands once the last host-machine verification item closes.
 For now: build locally with `./packaging/flatpak/build-local.sh`.
 
+### Auto-start on login
+
+If you're using global-hotkey triggers, you'll want the daemon running
+every time you sign in. Use the bundled systemd user unit:
+
+```sh
+# AUR / Flatpak / distro package: the unit is already at
+# /usr/lib/systemd/user/wflow-daemon.service, just enable it.
+systemctl --user enable --now wflow-daemon
+
+# Source checkout / cargo install: copy the unit first.
+install -Dm644 packaging/systemd/wflow-daemon.service \
+    ~/.config/systemd/user/wflow-daemon.service
+systemctl --user daemon-reload
+systemctl --user enable --now wflow-daemon
+```
+
+`journalctl --user -u wflow-daemon` is the place to look if a chord
+isn't firing. The unit is tied to `graphical-session.target` so the
+daemon starts with KDE / GNOME / Hyprland / Sway and stops on logout.
+
+If you installed via `cargo install --path .` and your user systemd
+hasn't been told about `~/.cargo/bin`, edit `ExecStart=wflow daemon`
+in the unit file to an absolute path like
+`ExecStart=%h/.cargo/bin/wflow daemon`. Systemd's user environment
+doesn't always inherit your shell's PATH.
+
 ## Building a workflow
 
 Launch wflow. The first time, you get a welcome card with two paths:

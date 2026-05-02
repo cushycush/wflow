@@ -1,0 +1,25 @@
+[Unit]
+Description=wflow trigger daemon (global hotkey dispatch)
+Documentation=https://github.com/cushycush/wflow#auto-start-on-login
+# Tie to the graphical session: start when KDE / GNOME / wlroots come
+# up, stop on logout. Chord triggers are session-scoped — there's no
+# point keeping the daemon alive on a TTY.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# `wflow` resolved via PATH. AUR / Flatpak / distro packages all land
+# at /usr/bin/wflow which is always on PATH for systemd --user. If you
+# installed via `cargo install --path .` and your user systemd hasn't
+# been told about ~/.cargo/bin, edit this line to the absolute path.
+ExecStart=wflow daemon
+Restart=on-failure
+RestartSec=2
+# Daemon prints a small status line to stdout / stderr; let journald
+# capture it so `journalctl --user -u wflow-daemon` is the place to look.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
