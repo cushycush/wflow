@@ -2,9 +2,9 @@
 
 Drafted 2026-05-01. Hold for the v0.6.0 trigger-daemon ship + AHK-
 positioned launch (gated on `docs/designs/v0.4-leg1-trigger-daemon.md`
-landing — it kept its filename even though the daemon ended up as
-v0.6.0 after the v0.5.0 theme work slid in front). Once v0.6.0 cuts,
-edit these to reflect what actually shipped, then post.
+landing). The design doc kept its v0.4 filename even though the daemon
+ended up as v0.6.0 after the v0.5.0 theme work slid in front. Once
+v0.6.0 cuts, edit these to reflect what actually shipped, then post.
 
 The "AHK + macOS Shortcuts for Linux" framing is the headline hook. AHK
 brings the power-user / scripting / Windows-expat audience; Shortcuts
@@ -72,7 +72,7 @@ The choice I'd make again: workflows are plain KDL files on disk, one per file, 
 
 Hotkey triggers are the headline this release. Add a `trigger { chord "ctrl+alt+t" }` block to a workflow's KDL, run `wflow daemon`, and the chord fires the workflow. The daemon picks the right backend automatically: GlobalShortcuts portal on Plasma 6 / GNOME 46+, Hyprland IPC, or Sway IPC. Hot-reload watches the workflow library so saving a new chord in `$EDITOR` (or the GUI) takes effect without restarting the daemon. There's a systemd user unit at `/usr/lib/systemd/user/wflow-daemon.service`, `systemctl --user enable --now wflow-daemon` and you're set up for every login.
 
-Honest about scope: hotstrings (text expansion) and per-window conditional hotkeys aren't there yet, so it's not a 1:1 AHK replacement. But `chord -> workflow` is the headline experience and it works on every major desktop.
+Honest about scope: hotstrings (text expansion) and per-window conditional hotkeys aren't there yet, so it's not a 1:1 AHK replacement. But chord-to-workflow is the part that actually matters, and it works on KDE Plasma 6, GNOME 46+, Hyprland, and Sway.
 
 Record mode uses `org.freedesktop.portal.RemoteDesktop` on Plasma 6 and GNOME 46+. On Hyprland and wlroots compositors that don't ship the portal yet, it falls back to reading `/dev/input/event*` via evdev (you'll need to be in the `input` group; wflow tells you so). Input replay goes through wdotool-core linked in-process, no separate binary, no root.
 
@@ -98,9 +98,9 @@ A few decisions I'd flag:
 - Record mode prefers `org.freedesktop.portal.RemoteDesktop` (Plasma 6, GNOME 46+) and falls back to evdev on compositors that don't ship the portal yet.
 - The engine is Rust, the GUI is Qt Quick / QML, glued with cxx-qt 0.8. Engine is async (tokio) because conditionals + repeat got cleaner once I stopped pretending it was a flat loop.
 
-Scope vs AHK: the headline experience (chord fires a script) works. Hotstrings (text expansion) and per-window conditional hotkeys aren't there yet; AHK fans should know that going in. The thing wflow does that AHK doesn't is the Shortcuts-style visual canvas with a step debugger.
+Scope vs AHK: chord-fires-a-script works. Hotstrings (text expansion) and per-window conditional hotkeys aren't there yet; AHK fans should know that going in. The thing wflow does that AHK doesn't is the Shortcuts-style visual canvas with a step debugger.
 
-v0.6.0 just shipped with the daemon. v0.4 turned the editor into a node-graph workspace (multi-select, marquee, undo/redo, group annotation rectangles, fragment imports, smart auto-layout); v0.5 added a brand palette switcher; v0.6 plugs in the AHK-shaped piece — the trigger daemon that binds chords to workflows on every major Wayland desktop.
+v0.6.0 just shipped with the daemon. v0.4 turned the editor into a node-graph workspace (multi-select, marquee, undo/redo, group annotation rectangles, fragment imports, smart auto-layout); v0.5 added a brand palette switcher; v0.6 plugs in the AHK-shaped piece, a trigger daemon that binds chords to workflows on KDE Plasma 6, GNOME 46+, Hyprland, and Sway.
 
 Repo: https://github.com/cushycush/wflow
 Examples directory shows the full KDL vocabulary.
@@ -145,7 +145,7 @@ Hyprland-specific notes since I run it on this setup:
 
 Input replay goes through wdotool-core (linked in-process, no binary). Works through the virtual-keyboard / virtual-pointer protocols Hyprland already supports, no root, no `uinput`.
 
-Hotkey triggers: Hyprland doesn't ship `org.freedesktop.portal.GlobalShortcuts` yet, so the daemon falls back to writing `bind` directives via Hyprland's IPC socket that point back at `wflow run <id> --yes`. Slightly slower than a portal-bound shortcut (subprocess fork per fire) but transparent and reloadable. Add a `trigger { chord "..." }` block to a workflow's KDL; the daemon's file watcher picks the change up automatically — no daemon restart, no `hyprctl reload`.
+Hotkey triggers: Hyprland doesn't ship `org.freedesktop.portal.GlobalShortcuts` yet, so the daemon falls back to writing `bind` directives via Hyprland's IPC socket that point back at `wflow run <id> --yes`. Slightly slower than a portal-bound shortcut (subprocess fork per fire) but transparent and reloadable. Add a `trigger { chord "..." }` block to a workflow's KDL; the daemon's file watcher picks the change up automatically. No daemon restart, no `hyprctl reload`.
 
 Record mode: Hyprland doesn't ship `org.freedesktop.portal.RemoteDesktop` yet either, so wflow falls back to reading `/dev/input/event*` via evdev. You'll need to be in the `input` group (`sudo usermod -aG input $USER`, then log out and back in). If you're not, wflow tells you exactly that, doesn't silently capture nothing. When xdph lands the portal it'll switch automatically.
 
@@ -204,7 +204,7 @@ Roast it. Especially curious if the JSON-string bridge thing horrifies anyone, b
 
 GUI editor + CLI runner + hotkey daemon for desktop workflows, written in Rust + Qt Quick via cxx-qt. AHK + Shortcuts mental model: visual canvas with a step debugger for the Shortcuts side, plain KDL files in `~/.config/wflow/workflows/` + CLI + chord-to-workflow daemon for the AHK side. All views onto the same files. Input replay is in-process through wdotool-core (libei, virtual-input fallbacks). Hotkey triggers go through the GlobalShortcuts portal on Plasma 6 / GNOME 46+ with a wlroots-IPC fallback; Record uses RemoteDesktop portal with an evdev fallback.
 
-Hotstrings and per-window conditional hotkeys aren't there yet; that's the v0.5 trigger-expansion release.
+Hotstrings and per-window conditional hotkeys aren't there yet; that's the post-v0.6 trigger-expansion release.
 
 v0.6.0: https://github.com/cushycush/wflow
 
@@ -212,7 +212,7 @@ v0.6.0: https://github.com/cushycush/wflow
 
 ## Draft 7 - Blog tip email (covers It's FOSS, 9to5Linux, OMG Linux, LinuxIac, etc.)
 
-**Subject:** wflow 0.4: AutoHotkey + Shortcuts-style automation for Linux Wayland
+**Subject:** wflow 0.6.0: AutoHotkey + Shortcuts-style automation for Linux Wayland
 
 Hi,
 
@@ -240,7 +240,7 @@ Matt
 
 ## Draft 8 - Mastodon / fosstodon (under 500 chars)
 
-shipped wflow 0.4: AutoHotkey + macOS Shortcuts for Linux on Wayland. visual editor + step debugger for the Shortcuts side, plain KDL files + a hotkey daemon for the AHK side. portal triggers on Plasma 6 / GNOME 46+, compositor IPC fallback elsewhere. Rust + Qt Quick via cxx-qt, dual MIT/Apache.
+shipped wflow 0.6.0: AutoHotkey + macOS Shortcuts for Linux on Wayland. visual editor + step debugger for the Shortcuts side, plain KDL files + a hotkey daemon for the AHK side. portal triggers on Plasma 6 / GNOME 46+, compositor IPC fallback for Hyprland and Sway. Rust + Qt Quick via cxx-qt, dual MIT/Apache.
 
 `paru -S wflow-bin` on Arch.
 
@@ -266,7 +266,7 @@ What carries over from AHK:
 - Hotkey-fires-script: each workflow declares its own `trigger { chord "ctrl+alt+t" }` inside its KDL; the daemon registers them all and runs the workflow when the chord fires.
 
 What's not there yet:
-- **No hotstrings (text expansion).** This is the gap I miss most personally. Needs a global keyboard *monitor*, not just a binder. On the v0.5 list.
+- **No hotstrings (text expansion).** This is the gap I miss most personally. Needs a global keyboard *monitor*, not just a binder. On the post-v0.6 list.
 - **No per-window conditional hotkey rules.** Same release.
 
 Honest about scope: AHK is mature, this is v0.6.0. I'm not coming in hot. But if you've ever wanted "AHK on Linux" and bounced off `xdotool` + bash because Wayland makes input automation a pain, this is what I had to build to be productive on Linux.
@@ -282,4 +282,4 @@ Curious which AHK patterns you'd want to see ported over first. The migration pa
 - Verify the version string. Drafts currently say `v0.6.0`; bump to whatever actually ships. Date references too.
 - The HN body is short on purpose. The first comment after submission should be a longer "story" of why I built this; that's where the AHK-on-Linux gap lands. Don't put the story in the post body.
 - The fosstodon post has a screenshot quota of 4. Pick four of: library grid, editor canvas (with a workflow open), debugger mid-run, the new palette switcher in Settings, a Hyprland `bind` line firing a workflow.
-- Confirm portal flow on a real KDE Plasma 6 + GNOME 46+ session before posting. The portal backend's been built to spec but never tested in the wild — the AHK-launch posts are the worst time to discover a consent-dialog bug.
+- Confirm portal flow on a KDE Plasma 6 + GNOME 46+ session before posting. The portal backend's been built to spec but never tested in the wild, and the AHK-launch posts are the worst time to discover a consent-dialog bug.
