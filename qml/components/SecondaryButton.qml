@@ -2,22 +2,24 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Quiet surface-2 button with a hairline border. Used for every non-dominant
-// action — Share, Record, Cancel, Close — so amber accent stays reserved.
+// Quiet surface button with a hairline border. Used for every non-dominant
+// action — Share, Record, Cancel, Close — so coral accent stays reserved.
+// Pill shape + line-strong border on hover mirrors wflows.com .btn-ghost.
 Button {
     id: root
     topPadding: 8
     bottomPadding: 8
-    leftPadding: 14
-    rightPadding: 14
+    leftPadding: 16
+    rightPadding: 16
     activeFocusOnTab: true
 
     background: Rectangle {
-        radius: Theme.radiusSm
-        color: root.hovered ? Theme.surface3 : Theme.surface2
-        border.color: Theme.line
+        radius: Theme.radiusPill
+        color: root.hovered ? Theme.surface2 : Theme.surface
+        border.color: root.hovered ? Theme.lineStrong : Theme.line
         border.width: 1
         Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
         FocusRing { target: root }
     }
 

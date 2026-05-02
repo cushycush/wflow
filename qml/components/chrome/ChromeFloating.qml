@@ -36,14 +36,11 @@ Item {
     // Main.qml can reach into the TutorialCoach.
     signal showTutorRequested()
 
-    // App-wide dot-grid backdrop. Pages render on top; the ones
-    // built as transparent Items (Library / Explore / Workflow) let
-    // the dots show through their gaps, while RecordPage paints its
-    // own ambient background and covers it.
-    DotGrid {
-        anchors.fill: parent
-        z: -1
-    }
+    // The dot-grid backdrop used to live here as an app-wide z:-1
+    // layer. It now ships only inside the editor canvas (see
+    // WorkflowCanvas.qml) so Library / Explore / Record / Settings
+    // sit on a clean surface. The window's color is Theme.bg, which
+    // those pages either inherit transparently or paint themselves.
 
     // Full-bleed pages
     StackLayout {
@@ -365,7 +362,7 @@ Item {
                     anchors.centerIn: parent
                     text: "w"
                     color: Theme.accentText
-                    font.family: Theme.familyBody
+                    font.family: Theme.familyDisplay
                     font.pixelSize: 15
                     font.weight: Font.Bold
                 }
@@ -522,10 +519,12 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            tab.forceActiveFocus()
-                            root.navigate(modelData.id)
-                        }
+                        // Don't forceActiveFocus on click — that triggers
+                        // FocusRing's coral outline on the active tab,
+                        // which competes with the accent-wash fill for
+                        // selection signal. Keyboard Tab still focuses
+                        // the tab; Enter/Space still activates it.
+                        onClicked: root.navigate(modelData.id)
                     }
                 }
             }

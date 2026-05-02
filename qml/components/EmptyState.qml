@@ -39,7 +39,7 @@ Item {
                 anchors.centerIn: parent
                 text: "w"
                 color: Theme.accent
-                font.family: Theme.familyBody
+                font.family: Theme.familyDisplay
                 font.pixelSize: 28
                 font.weight: Font.DemiBold
             }
@@ -48,7 +48,7 @@ Item {
         Text {
             text: root.title
             color: Theme.text
-            font.family: Theme.familyBody
+            font.family: Theme.familyDisplay
             font.pixelSize: Theme.fontLg
             font.weight: Font.DemiBold
             anchors.horizontalCenter: parent.horizontalCenter

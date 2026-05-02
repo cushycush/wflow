@@ -10,19 +10,21 @@ Rectangle {
 
     readonly property color _c: Theme.catFor(kind)
 
-    implicitWidth: label.implicitWidth + 16
-    implicitHeight: 20
-    radius: 4
+    implicitWidth: label.implicitWidth + 18
+    implicitHeight: 22
+    radius: Theme.radiusPill
     color: Theme.wash(_c, 0.16)
+    border.color: Theme.wash(_c, 0.36)
+    border.width: 1
 
     Text {
         id: label
         anchors.centerIn: parent
         text: kind.toUpperCase()
         color: _c
-        font.family: Theme.familyBody
+        font.family: Theme.familyMono
         font.pixelSize: 10
-        font.weight: Font.Bold
+        font.weight: Font.Medium
         font.letterSpacing: 0.6
     }
 }

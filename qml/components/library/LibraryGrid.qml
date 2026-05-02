@@ -63,13 +63,13 @@ Item {
             // recede from workflow cards while still living in the same
             // grid. The tab decoration on top (folderTab below) does the
             // actual "this is a folder" lifting.
-            radius: Theme.radiusMd
+            radius: Theme.radiusLg
             color: folderArea.containsMouse || folderDrop.containsDrag
                 ? Theme.surface3
                 : Theme.surface2
             border.color: folderDrop.containsDrag
                 ? Theme.accent
-                : (folderArea.containsMouse ? Theme.line : Theme.lineSoft)
+                : (folderArea.containsMouse ? Theme.lineStrong : Theme.line)
             border.width: folderDrop.containsDrag ? 2 : 1
             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
@@ -213,7 +213,7 @@ Item {
                         Text {
                             text: folderTile.fld.name
                             color: Theme.text
-                            font.family: Theme.familyBody
+                            font.family: Theme.familyDisplay
                             font.pixelSize: Theme.fontBase
                             font.weight: Font.DemiBold
                             elide: Text.ElideRight
@@ -271,11 +271,9 @@ Item {
             y: gridY
             width: root.cardW
             height: root.cardH
-            radius: Theme.radiusMd
+            radius: Theme.radiusLg
             color: cardArea.containsMouse ? Theme.surface2 : Theme.surface
-            border.color: cardArea.containsMouse
-                ? Theme.wash(catColor, 0.42)
-                : Theme.lineSoft
+            border.color: cardArea.containsMouse ? Theme.lineStrong : Theme.line
             border.width: 1
             opacity: cardArea.drag.active ? 0.55 : 1
             z: cardArea.drag.active ? 10 : 0
@@ -447,7 +445,7 @@ Item {
                         Text {
                             text: card.wf.title
                             color: Theme.text
-                            font.family: Theme.familyBody
+                            font.family: Theme.familyDisplay
                             font.pixelSize: Theme.fontBase
                             font.weight: Font.DemiBold
                             font.letterSpacing: -0.2
