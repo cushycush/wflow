@@ -9,10 +9,10 @@ target for v1.0).
 # Active: v0.4 trigger daemon + AHK-positioned launch
 
 The AHK-shaped piece. Spec lives at `docs/designs/v0.4-leg1-trigger-daemon.md`.
-This is the work that gates the AHK + Shortcuts launch posts in
-`docs/launch-drafts.md`. Posting before the daemon ships would force a
-"there's no global hotkey daemon" caveat in every draft, which kneecaps
-the AHK angle.
+This is the work that gates the AHK + Shortcuts launch posts (held
+privately, not in this repo). Posting before the daemon ships would
+force a "there's no global hotkey daemon" caveat in every draft, which
+kneecaps the AHK angle.
 
 ## v0.4 daemon — shipped
 
@@ -51,10 +51,10 @@ stays the source of truth.
 
 ## AHK-style launch
 
-Once v0.6.0 ships with the daemon, edit `docs/launch-drafts.md` (swap
-the generic version strings for the actual ship version, take fresh
-screenshots of the Hyprland-bind keybind workflow), then post per the
-staggered plan in that doc.
+Once v0.6.0 ships with the daemon, edit the held-private launch drafts
+(swap the generic version strings for the actual ship version, take
+fresh screenshots of the Hyprland-bind keybind workflow), then post
+per the staggered plan.
 
 ## Trigger expansion (post-launch, gated on the audience metric)
 
