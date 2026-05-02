@@ -2,16 +2,26 @@ pragma Singleton
 import QtQuick
 import Wflow
 
-// Design tokens. Dark and light palettes both defined; the active one is
-// picked via `mode` which defaults to "auto" (follow the desktop).
+// Design tokens. The runtime carries TWO brand palettes side-by-side —
+// "warm" (warm-paper + coral, mirroring wflows.com) and "cool" (slate
+// surfaces + amber, the original wflow brand brief). The active palette
+// is set on first run via the tutorial and can be flipped any time
+// from Settings; persisted via StateController.
+//
+// Each color token below picks via `_pl(coolDark, coolLight, warmDark,
+// warmLight)`, which reads both `palette` and `isDark` and returns the
+// matching string. Bindings stay reactive because QML tracks every
+// property the function dereferences.
 QtObject {
     id: theme
 
-    // Persisted via StateController — _state.theme_mode is the
-    // source of truth, this property mirrors it and writes back on
-    // cycleMode so the user's choice survives a restart.
+    // Persisted via StateController — _state.theme_mode + _state.palette
+    // are the source of truth, the local properties mirror them and
+    // write back on cycleMode / applyPalette so the user's choice
+    // survives a restart.
     property StateController _state: StateController { }
     property string mode: theme._state.theme_mode || "auto"
+    property string palette: theme._state.palette || "warm"
 
     function cycleMode() {
         const next = mode === "auto" ? "light"
@@ -20,74 +30,105 @@ QtObject {
         theme._state.apply_theme_mode(next)
     }
 
+    // Set the palette explicitly — used by the first-run tutorial card
+    // and by the Settings page segmented control. Accepts "warm" or
+    // "cool"; anything else snaps back to "warm" on the Rust side.
+    function applyPalette(p) {
+        palette = p
+        theme._state.apply_palette(p)
+    }
+
+    function cyclePalette() {
+        applyPalette(palette === "warm" ? "cool" : "warm")
+    }
+
     // Dark when the system reports Dark OR when it reports Unknown (e.g.
-    // Hyprland without the xdg-desktop-portal appearance shim). The brand is
-    // dark-first, so "no idea" → dark rather than surprising people with a
-    // light flash.
+    // Hyprland without the xdg-desktop-portal appearance shim). The brand
+    // is dark-first, so "no idea" → dark rather than surprising people
+    // with a light flash.
     readonly property bool _systemDark: Qt.styleHints.colorScheme !== Qt.ColorScheme.Light
     readonly property bool isDark: mode === "dark" || (mode === "auto" && _systemDark)
 
+    // Per-palette + per-mode color picker. Order of args is
+    // (coolDark, coolLight, warmDark, warmLight) to match how the eye
+    // scans the literals below. Returns a string the QML color
+    // converter accepts.
+    function _pl(coolDark, coolLight, warmDark, warmLight) {
+        if (palette === "warm") {
+            return isDark ? warmDark : warmLight
+        }
+        return isDark ? coolDark : coolLight
+    }
+
     // ============ Surfaces ============
-    // EXPERIMENT: warm-paper / warm-ink palette mirrored from wflows.com
-    // (hue 35-60, not the parent's cool steel-blue 260). Surfaces still
-    // step up by ~0.04 lightness so hovered/selected rows read clearly,
-    // they just sit in a warmer tonal world.
-    readonly property color bg:        isDark ? "#1a1611" : "#faf7f1"
-    readonly property color surface:   isDark ? "#221d17" : "#f5f0e7"
-    readonly property color surface2:  isDark ? "#2b241d" : "#e8e1d5"
-    readonly property color surface3:  isDark ? "#342c23" : "#dad2c4"
-    readonly property color line:      isDark ? "#3e362c" : "#c9beac"
-    readonly property color lineSoft:  isDark ? "#2f281f" : "#dad2c5"
+    // Warm = wflows.com warm-paper / warm-near-black (hue 35-60).
+    // Cool = original wflow brand brief: slate surfaces (hue 260, low
+    // chroma) for dark, near-white cool gray for light.
+    readonly property color bg:         _pl("#232629", "#f5f6f8", "#1b1411", "#faf8f2")
+    readonly property color bgDeep:     _pl("#1d2024", "#ecedf0", "#16100d", "#f4f1e9")
+    readonly property color surface:    _pl("#2c2f33", "#fafbfd", "#251d18", "#f6f2eb")
+    readonly property color surface2:   _pl("#383b40", "#eef0f3", "#2d241e", "#ece6da")
+    readonly property color surface3:   _pl("#44484e", "#e0e3e8", "#382d26", "#ded7c7")
+    readonly property color line:       _pl("#4c4f55", "#cbd0d8", "#41362f", "#cbc2b0")
+    readonly property color lineSoft:   _pl("#3d4046", "#dde0e6", "#332b25", "#dfd8c7")
+    readonly property color lineStrong: _pl("#6b6f78", "#95989f", "#5a4d44", "#a19682")
 
     // ============ Text ============
-    readonly property color text:      isDark ? "#f4ede0" : "#2c2722"
-    readonly property color text2:     isDark ? "#c2b6a2" : "#5d544a"
-    readonly property color text3:     isDark ? "#8e8472" : "#87796c"
+    readonly property color text:    _pl("#f0f0f4", "#1c1f25", "#f2ebdf", "#2a221c")
+    readonly property color text2:   _pl("#b0b1ba", "#4f535d", "#b7aa98", "#5b4f44")
+    readonly property color text3:   _pl("#828590", "#7c8089", "#807365", "#897e70")
+    readonly property color textInv: _pl("#232629", "#fafbfd", "#1b1411", "#f6f2eb")
 
-    // ============ Accent (warm coral) ============
-    // EXPERIMENT: brand-aligned coral from wflows.com. Light mode runs a
-    // darker coral so the fill carries enough contrast on cream surfaces.
-    readonly property color accent:    isDark ? "#ff7565" : "#c43625"
-    readonly property color accentHi:  isDark ? "#ff917f" : "#d34536"
-    readonly property color accentLo:  isDark ? "#f15244" : "#ad2818"
-    readonly property color accentDim: isDark ? "#4a2620" : "#f3d3cc"
+    // ============ Accent ============
+    // Warm = wflows.com coral (hue 25-32). Cool = original amber (hue
+    // 55-65). On light surfaces the cool palette deepens the amber so
+    // it carries enough contrast on cool gray paper.
+    readonly property color accent:    _pl("#e1a04a", "#9c5a18", "#ed8068", "#c73e2c")
+    readonly property color accentHi:  _pl("#f0b964", "#b87024", "#f49b82", "#d54f3d")
+    readonly property color accentLo:  _pl("#b27418", "#844614", "#e36850", "#b72a1c")
+    // Pre-baked soft accent surface (wflows.com --accent-wash analog).
+    // Use this when you need the brand's named "wash" tone as a fixed
+    // color; reach for the accentWash(alpha) helper below when you want
+    // the blend to track an arbitrary alpha against the live accent.
+    readonly property color accentDim: _pl("#4a3a1d", "#f3e6cc", "#463129", "#fbe7dd")
+    readonly property color accentInk: _pl("#1d1408", "#5b3408", "#1f140f", "#6f1808")
 
-    // Text color sitting on top of a filled accent surface (button fills etc).
-    // Bright dark-mode coral carries deep warm near-black; darker light-mode
-    // coral can't, so it flips to off-white. (Name avoids the `on<X>`
-    // signal-handler pattern.)
-    readonly property color accentText: isDark ? "#1a0a08" : "#fff7f5"
+    // Text color sitting on top of a filled accent surface (button fills
+    // etc). Bright dark-mode accent carries deep near-black text;
+    // darker light-mode accent flips to off-white.
+    readonly property color accentText: _pl("#1d1408", "#fffaf0", "#1f140f", "#f6f2eb")
+
+    // ============ Plum (secondary hue) ============
+    readonly property color plum:     _pl("#c778a4", "#8a4a6f", "#c778a4", "#8a4a6f")
+    readonly property color plumWash: _pl("#4a323f", "#f2dae3", "#4a323f", "#f2dae3")
 
     // ============ Semantic ============
-    readonly property color ok:        isDark ? "#64c28a" : "#1e8a52"
-    readonly property color warn:      isDark ? "#d8b24e" : "#8a6512"
-    readonly property color err:       isDark ? "#dd6b55" : "#b0392b"
+    readonly property color ok:   _pl("#6acc83", "#1f7c52", "#67bc91", "#1f8c5f")
+    readonly property color warn: _pl("#d8c043", "#8a6512", "#dcb348", "#b68421")
+    readonly property color err:  _pl("#de6750", "#b0392b", "#eb7a66", "#bb2c1a")
 
     // ============ Category chip tints ============
-    // EXPERIMENT: chroma pulled back ~30% from the prior saturated set
-    // so the small CategoryIcon washes (Theme.wash at 0.16-0.24) sit
-    // calmly alongside the warm-coral brand without competing for
-    // attention. Each kind keeps its hue identity (violet/blue/green/
-    // amber/etc.) but reads as a member of the same muted family
-    // instead of a rainbow against cream paper. Mirrors the wflows.com
-    // --ink-* register (L≈0.50 light / 0.68 dark, chroma 0.10-0.14).
-    readonly property color catKey:    isDark ? "#a890d2" : "#6e54a8"
-    readonly property color catType:   isDark ? "#889bcb" : "#4862ad"
-    readonly property color catClick:  isDark ? "#88b08e" : "#3d7c58"
-    readonly property color catMove:   isDark ? "#7da4a8" : "#437576"
-    readonly property color catScroll: isDark ? "#80a0b8" : "#436c83"
-    readonly property color catFocus:  isDark ? "#c89e60" : "#856425"
-    readonly property color catWait:   isDark ? "#8e8780" : "#6e6862"
-    readonly property color catShell:  isDark ? "#c89070" : "#985538"
-    readonly property color catNotify: isDark ? "#c0859e" : "#9e527a"
-    readonly property color catClip:   isDark ? "#80a0b0" : "#436b7c"
-    readonly property color catNote:   isDark ? "#807870" : "#5e5650"
+    // Cool palette keeps the original saturated kind colors (they read
+    // well on slate surfaces); warm palette uses the muted ink-* register
+    // mirrored from wflows.com tokens.css so the chips don't compete
+    // with the coral brand.
+    readonly property color catKey:    _pl("#a890d2", "#6e54a8", "#a483c8", "#6c52a4")  // purple
+    readonly property color catType:   _pl("#889bcb", "#4862ad", "#7b95c4", "#445e9e")  // blue
+    readonly property color catClick:  _pl("#88b08e", "#3d7c58", "#4fb082", "#1f7c52")  // green
+    readonly property color catMove:   _pl("#7da4a8", "#437576", "#6fa1b8", "#3e6f86")
+    readonly property color catScroll: _pl("#80a0b8", "#436c83", "#6fa1b8", "#3d7095")  // cyan-blue
+    readonly property color catFocus:  _pl("#c89e60", "#856425", "#bd9c50", "#856420")  // amber
+    readonly property color catWait:   _pl("#8e8780", "#6e6862", "#93857b", "#6e6862")  // warm gray
+    readonly property color catShell:  _pl("#c89070", "#985538", "#c77f4d", "#94511f")  // orange
+    readonly property color catNotify: _pl("#c0859e", "#9e527a", "#c77e96", "#985070")  // pink
+    readonly property color catClip:   _pl("#80a0b0", "#436b7c", "#6fa1b8", "#3d7095")
+    readonly property color catNote:   _pl("#807870", "#5e5650", "#807870", "#5e5650")  // neutral
     // Flow-control tints — visually distinct from action kinds so the
     // structural blocks read as different beasts.
-    readonly property color catWhen:    isDark ? "#b896b0" : "#8a5a82"
-    readonly property color catUnless:  isDark ? "#c08878" : "#985d4a"
-    readonly property color catRepeat:  isDark ? "#b0b878" : "#748640"
-    readonly property color catUse:     isDark ? "#9d90ba" : "#5e4880"
+    readonly property color catWhen:   _pl("#b896b0", "#8a5a82", "#b896b0", "#8a5a82")  // mauve
+    readonly property color catUnless: _pl("#c08878", "#985d4a", "#c08878", "#985d4a")  // rust
+    readonly property color catRepeat: _pl("#b0b878", "#748640", "#b0b878", "#748640")  // olive
+    readonly property color catUse:    _pl("#9d90ba", "#5e4880", "#9d90ba", "#5e4880")  // dusty violet
 
     // ============ Spacing (4pt) ============
     readonly property int s1: 4
@@ -100,11 +141,16 @@ QtObject {
     readonly property int s8: 64
 
     // ============ Radii ============
-    // EXPERIMENT: bumped to wflows.com's 8/12/16 (it ships md=10, lg=16,
-    // xl=22; we keep three steps and use the editorial register).
-    readonly property int radiusSm: 8
-    readonly property int radiusMd: 12
-    readonly property int radiusLg: 16
+    // Mirrors wflows.com's full ladder: xs=4 (tiny chips/tags), sm=6
+    // (compact buttons/inputs), md=10 (cards, dialogs, kdl blocks),
+    // lg=16 (hero/big cards), xl=22 (the get-wflow callout, large
+    // panels), pill=999 (triggers, install button, hero toggle).
+    readonly property int radiusXs:  4
+    readonly property int radiusSm:  6
+    readonly property int radiusMd:  10
+    readonly property int radiusLg:  16
+    readonly property int radiusXl:  22
+    readonly property int radiusPill: 999
 
     // ============ Type scale ============
     readonly property int fontXs:   11
@@ -115,8 +161,13 @@ QtObject {
     readonly property int fontXl:   28
 
     // ============ Fonts ============
-    readonly property string familyBody: "Hanken Grotesk"
-    readonly property string familyMono: "Geist Mono"
+    // Tried Boska + Supreme (the wflows.com brand pair) — they read poorly
+    // at the dense UI sizes we use here. Back on Hanken Grotesk + Geist
+    // Mono. familyDisplay stays as a separate token so titles can grow
+    // a heavier weight without affecting body copy.
+    readonly property string familyDisplay: "Hanken Grotesk"
+    readonly property string familyBody:    "Hanken Grotesk"
+    readonly property string familyMono:    "Geist Mono"
 
     // ============ Motion ============
     // `reduceMotion` zeroes every duration returned by `dur()`, which is what
@@ -265,10 +316,10 @@ QtObject {
     // as cyan, `@mhmd_dev` as magenta, etc. Hash by first char.
     function gradForHandle(handle) {
         if (!handle || handle.length === 0) return [gradCyanA, gradCyanB]
-        const palette = ["key", "rose", "violet", "shell", "wait",
-                         "lime", "type", "magenta", "focus", "notify"]
+        const _kinds = ["key", "rose", "violet", "shell", "wait",
+                        "lime", "type", "magenta", "focus", "notify"]
         const c = handle.replace(/^@/, "").toLowerCase().charCodeAt(0) || 0
-        return gradFor(palette[c % palette.length])
+        return gradFor(_kinds[c % _kinds.length])
     }
 
     // Text color that sits readably on top of a given gradient pair.
