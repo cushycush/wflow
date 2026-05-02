@@ -880,6 +880,13 @@ Item {
         return my
     }
 
+    // Behind the Flickable so dots stay anchored to the viewport.
+    // DotGrid paints its own Theme.bg fill.
+    DotGrid {
+        anchors.fill: parent
+        z: -1
+    }
+
     Flickable {
         id: flick
         anchors.fill: parent
@@ -1282,7 +1289,7 @@ Item {
                     // over 1200ms gives one cycle/sec. Negative offset
                     // so the flow agrees with the path direction.
                     ShapePath {
-                        strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.75)
+                        strokeColor: Theme.lineStrong
                         strokeWidth: 1.6
                         fillColor: "transparent"
                         strokeStyle: Theme.reduceMotion ? ShapePath.SolidLine : ShapePath.DashLine
@@ -1479,7 +1486,7 @@ Item {
                     radius: cardItem.isNote ? 8 : 14
                     color: cardItem.cardBg
                     border.color: cardItem.isSelected
-                        ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
+                        ? Theme.accent
                         : ((cardItem.isContainer || cardItem.isConditional)
                             ? Theme.catFor(cardItem.kind)
                             : (cardItem.isNote
@@ -2056,15 +2063,16 @@ Item {
                                         CategoryIcon {
                                             anchors.verticalCenter: parent.verticalCenter
                                             kind: _innerKindFor(modelData)
-                                            size: 14
+                                            // <=14 hits the min(10) floor and
+                                            // every kind glyph collapses to identical 10px.
+                                            size: 18
                                             hovered: false
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            // Subtract: num(14) + spacing(6) + icon(14)
-                                            // + spacing(6) + dot(7) + spacing(6) + del(22)
-                                            // + spacing(6).
-                                            width: parent.width - 14 - 6 - 14 - 6 - 7 - 6 - 22 - 6
+                                            // num(14) + space(6) + icon(18) + space(6)
+                                            // + dot(7) + space(6) + del(22) + space(6)
+                                            width: parent.width - 14 - 6 - 18 - 6 - 7 - 6 - 22 - 6
                                             text: _innerSummary(modelData)
                                             color: Theme.text2
                                             font.family: Theme.familyBody
@@ -2305,71 +2313,26 @@ Item {
                         _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
                     visible: fromPos !== undefined && toPos !== undefined
 
-                    // Port = a soft cyan halo behind a solid cyan
-                    // dot with a small white-ish inner highlight,
-                    // so the dot reads as a polished pill the wire
-                    // plugs into rather than a flat sticker.
-                    Item {
+                    Rectangle {
                         x: route.sx - root._portR
                         y: route.sy - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-
-                        Rectangle {  // halo
-                            anchors.centerIn: parent
-                            width: parent.width + 6
-                            height: parent.height + 6
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
-                        }
-                        Rectangle {  // body
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
-                            border.width: 1
-                            // Inner highlight — small offset white
-                            // disc giving the impression of a top-
-                            // left light source.
-                            Rectangle {
-                                x: parent.width * 0.18
-                                y: parent.height * 0.18
-                                width: parent.width * 0.42
-                                height: parent.height * 0.42
-                                radius: width / 2
-                                color: Qt.rgba(1, 1, 1, 0.45)
-                            }
-                        }
+                        radius: width / 2
+                        color: Theme.accent
+                        border.color: Theme.accentLo
+                        border.width: 1
                     }
 
-                    Item {
+                    Rectangle {
                         x: route.tx - root._portR
                         y: route.ty - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: parent.width + 6
-                            height: parent.height + 6
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
-                            border.width: 1
-                            Rectangle {
-                                x: parent.width * 0.18
-                                y: parent.height * 0.18
-                                width: parent.width * 0.42
-                                height: parent.height * 0.42
-                                radius: width / 2
-                                color: Qt.rgba(1, 1, 1, 0.45)
-                            }
-                        }
+                        radius: width / 2
+                        color: Theme.accent
+                        border.color: Theme.accentLo
+                        border.width: 1
                     }
                 }
             }

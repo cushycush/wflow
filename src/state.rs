@@ -20,6 +20,13 @@ pub struct State {
     /// "auto" | "light" | "dark".
     #[serde(default = "default_theme_mode")]
     pub theme_mode: String,
+    /// Brand palette: "warm" (warm-paper + coral, mirrors wflows.com)
+    /// or "cool" (slate-blue surfaces + amber, the original wflow
+    /// brand). Defaults to "warm" because that's the published
+    /// marketing-site identity; the first-run tutorial offers the
+    /// user a chance to flip it before they ever see Library.
+    #[serde(default = "default_palette")]
+    pub palette: String,
     #[serde(default)]
     pub reduce_motion: bool,
     /// "recent" | "name" | "last_run".
@@ -39,6 +46,10 @@ fn default_theme_mode() -> String {
     "auto".to_string()
 }
 
+fn default_palette() -> String {
+    "warm".to_string()
+}
+
 fn default_library_sort() -> String {
     "recent".to_string()
 }
@@ -50,6 +61,7 @@ impl Default for State {
             first_run_at: None,
             tutorials: BTreeMap::new(),
             theme_mode: default_theme_mode(),
+            palette: default_palette(),
             reduce_motion: false,
             library_sort: default_library_sort(),
             workflows_dir: None,
@@ -282,6 +294,23 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(10));
         s.mark_first_run_seen();
         assert_eq!(s.first_run_at, first, "second call should not overwrite");
+    }
+
+    #[test]
+    fn palette_defaults_to_warm_and_round_trips() {
+        let _g = setup();
+        // A v0.4.x state file (no palette key) must load.
+        let path = PathBuf::from(std::env::var("WFLOW_STATE_PATH").unwrap());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "schema = 1\n").unwrap();
+        let loaded = load();
+        assert_eq!(loaded.palette, "warm");
+
+        let mut s = State::default();
+        s.palette = "cool".to_string();
+        save(&s);
+        let again = load();
+        assert_eq!(again.palette, "cool");
     }
 
     #[test]

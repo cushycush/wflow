@@ -165,6 +165,11 @@ ApplicationWindow {
                 body: "Shortcuts for Linux. wflow runs sequences of keystrokes, clicks, shell commands, and waits. Visually authored, plain-text on disk. Quick tour: about 30 seconds."
             },
             {
+                title: "Pick your look",
+                body: "Two brand palettes ship with wflow. Tap one to try it on, the rest of this tour will reskin live. You can swap any time from Settings.",
+                paletteChooser: true
+            },
+            {
                 title: "The nav pill",
                 body: "The main areas live here, Library, the editor, Record, Settings. Click a tab to switch.",
                 getTarget: () => chrome.pillContainer,
@@ -243,14 +248,9 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        // Auto-fire the tour on any launch where the current tour
-        // version hasn't been marked seen. Bumping the key (intro_tour
-        // → intro_tour_v2) replays the tour once for returning users
-        // when major editor features land. The is_first_run flag is no
-        // longer gating this, it's only ever true on the very first
-        // launch, which would otherwise pin returning users to the
-        // first version they happened to see.
-        if (!introState.tutorial_seen("intro_tour_v2")) {
+        // Bumping the tour key (intro_tour_v2 → v3) replays once when
+        // major editor features land.
+        if (!introState.tutorial_seen("intro_tour_v3")) {
             // Two ticks so first page transition settles before the
             // coach overlay reads target rects.
             Qt.callLater(() => Qt.callLater(tutorial.start))

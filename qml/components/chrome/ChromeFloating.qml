@@ -24,16 +24,6 @@ Item {
     signal recordRequested()
     signal showTutorRequested()
 
-    // App-wide dot-grid backdrop. Pages render on top; the ones
-    // built as transparent Items (Library / Explore / Workflow) let
-    // the dots show through their gaps, while RecordPage paints its
-    // own ambient background and covers it.
-    DotGrid {
-        anchors.fill: parent
-        z: -1
-    }
-
-    // Full-bleed pages
     StackLayout {
         id: pageStack
         anchors.fill: parent
@@ -302,7 +292,7 @@ Item {
                     anchors.centerIn: parent
                     text: "w"
                     color: Theme.accentText
-                    font.family: Theme.familyBody
+                    font.family: Theme.familyDisplay
                     font.pixelSize: 15
                     font.weight: Font.Bold
                 }
@@ -437,10 +427,9 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            tab.forceActiveFocus()
-                            root.navigate(modelData.id)
-                        }
+                        // No forceActiveFocus: it triggers the FocusRing
+                        // which competes with the accent-wash fill.
+                        onClicked: root.navigate(modelData.id)
                     }
                 }
             }

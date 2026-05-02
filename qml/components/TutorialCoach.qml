@@ -1,31 +1,9 @@
 import QtQuick
 import Wflow
 
-// First-run guided tour. Replaces the static IntroTutorial dialog
-// with a coach-mark overlay that tracks specific UI elements,
-// animates between them as the user advances, and breaks the same
-// content into smaller, anchored steps.
-//
-// Each step in `steps` is:
-//   { title, body, getTarget?, placement?, page?, scrim? }
-//
-//   title       — short headline
-//   body        — one focused sentence or two
-//   getTarget   — () => Item; returns the QML item to point at, or
-//                 null for a centered modal step (no target)
-//   placement   — "above" | "below" | "left" | "right" | "auto"
-//                 (default: auto, prefers below)
-//   page        — "library" | "explore" | "workflow" | "record" |
-//                 "settings" — switch to this page before showing
-//                 the step. Optional; omitted = stay where you are.
-//   scrim       — true/false. Default true. Dims the page so the
-//                 target reads as the focal point.
-//
-// Lifecycle: stateCtrl marks the tour key as seen on Skip / Finish.
-// The key is bumped (intro_tour → intro_tour_v2 → ...) whenever the
-// step list grows materially so existing users get one more pass at
-// the new content instead of silently inheriting the old "seen"
-// flag. Bump it again the next time you add a step.
+// Coach-mark tour. Each step is { title, body, getTarget?, placement?,
+// page?, scrim?, paletteChooser? }. Bump intro_tour_vN whenever the
+// step list grows materially so existing users see the new content.
 Item {
     id: root
     anchors.fill: parent
@@ -72,7 +50,7 @@ Item {
 
     function _finish() {
         open = false
-        if (stateCtrl) stateCtrl.mark_tutorial_seen("intro_tour_v2")
+        if (stateCtrl) stateCtrl.mark_tutorial_seen("intro_tour_v3")
     }
 
     function _next() {
@@ -270,6 +248,100 @@ Item {
                 font.pixelSize: Theme.fontSm
                 wrapMode: Text.WordWrap
                 lineHeight: 1.4
+            }
+
+            // Tiles draw from hardcoded hex pairs (not Theme tokens) so
+            // each tile previews its OWN palette regardless of active.
+            Row {
+                width: parent.width
+                spacing: 10
+                visible: root.current && root.current.paletteChooser === true
+
+                Repeater {
+                    model: [
+                        {
+                            id: "warm",
+                            label: "Warm Paper",
+                            sub: "wflows.com brand",
+                            bg:      "#faf8f2",
+                            bgDark:  "#1b1411",
+                            surface: "#ece6da",
+                            accent:  "#c73e2c",
+                            line:    "#cbc2b0"
+                        },
+                        {
+                            id: "cool",
+                            label: "Cool Slate",
+                            sub: "Original brand",
+                            bg:      "#f5f6f8",
+                            bgDark:  "#232629",
+                            surface: "#383b40",
+                            accent:  "#e1a04a",
+                            line:    "#4c4f55"
+                        }
+                    ]
+                    delegate: Rectangle {
+                        readonly property bool isSelected: Theme.palette === modelData.id
+                        readonly property bool useDark: Theme.isDark
+                        width: (parent.width - parent.spacing) / 2
+                        height: 92
+                        radius: Theme.radiusMd
+                        color: useDark ? modelData.bgDark : modelData.bg
+                        border.color: isSelected ? Theme.accent : Theme.line
+                        border.width: isSelected ? 2 : 1
+                        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        Behavior on border.width { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Column {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 6
+
+                            Row {
+                                spacing: 6
+                                width: parent.width
+                                Rectangle {
+                                    width: 14; height: 14
+                                    radius: 7
+                                    color: modelData.accent
+                                }
+                                Rectangle {
+                                    width: parent.width - 14 - 6 - 6 - 18
+                                    height: 6
+                                    radius: 3
+                                    color: modelData.surface
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Rectangle {
+                                    width: 18; height: 6
+                                    radius: 3
+                                    color: modelData.line
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Text {
+                                text: modelData.label
+                                color: useDark ? "#f0ece5" : "#2a221c"
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontBase
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                text: modelData.sub
+                                color: useDark ? "#9b8f80" : "#7c7066"
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Theme.applyPalette(modelData.id)
+                        }
+                    }
+                }
             }
 
             Row {

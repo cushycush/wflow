@@ -1,20 +1,12 @@
 import QtQuick
 import Wflow
 
-// Subtle dot-grid background. Used app-wide as the bottom layer of
-// every page so the surface reads as a workspace canvas, not a flat
-// document. Themed: 28px spacing, 1.5px dots, faint white in dark
-// mode and faint black in light mode.
-//
-// Repaints on resize; cheap enough that it can sit under the whole
-// app without measurable cost.
+// Theme.text2 at low alpha auto-tracks palette without branching.
 Item {
     id: root
     property real spacing: 28
     property real dotSize: 2.5
-    property color dotColor: Theme.isDark
-        ? "#1f2328"
-        : Qt.rgba(0, 0, 0, 0.08)
+    property color dotColor: Qt.rgba(Theme.text2.r, Theme.text2.g, Theme.text2.b, 0.10)
     property color baseColor: Theme.bg
 
     Rectangle {
@@ -41,9 +33,11 @@ Item {
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
 
+        // dotColor's RGB changes on both flips; repaint on either.
         Connections {
             target: Theme
             function onModeChanged() { dots.requestPaint() }
+            function onPaletteChanged() { dots.requestPaint() }
         }
     }
 }
