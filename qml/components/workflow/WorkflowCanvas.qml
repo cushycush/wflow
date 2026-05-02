@@ -1048,6 +1048,16 @@ Item {
         return my
     }
 
+    // Graph-paper backdrop — only the editor wears this. Sits behind
+    // the Flickable so it doesn't pan with the cards (the dots stay
+    // anchored to the viewport, like a notebook page underneath the
+    // composition). DotGrid paints its own Theme.bg fill, which is
+    // why the Flickable above doesn't need a background of its own.
+    DotGrid {
+        anchors.fill: parent
+        z: -1
+    }
+
     Flickable {
         id: flick
         anchors.fill: parent
@@ -1543,7 +1553,13 @@ Item {
                     // the path origin — negative makes the visual
                     // flow agree with the path's direction.
                     ShapePath {
-                        strokeColor: Qt.rgba(0.55, 0.78, 0.88, 0.75)
+                        // Wire stroke: theme-aware "strong line" tone
+                        // (warm tan in light, muted brown in dark) so
+                        // wires read as quiet structure across the
+                        // dot-grid. The marching dash pattern keeps
+                        // them lively without raising the visual
+                        // weight above the cards.
+                        strokeColor: Theme.lineStrong
                         strokeWidth: 1.6
                         fillColor: "transparent"
                         strokeStyle: Theme.reduceMotion ? ShapePath.SolidLine : ShapePath.DashLine
@@ -1808,7 +1824,7 @@ Item {
                     // its normal selection / kind colour so a flashing
                     // accent halo doesn't compete with selection.
                     border.color: cardItem.isSelected
-                        ? Qt.rgba(0.55, 0.78, 0.88, 0.9)
+                        ? Theme.accent
                         : ((cardItem.isContainer || cardItem.isConditional)
                             ? Theme.catFor(cardItem.kind)
                             : (cardItem.isNote
@@ -2479,15 +2495,21 @@ Item {
                                         CategoryIcon {
                                             anchors.verticalCenter: parent.verticalCenter
                                             kind: _innerKindFor(modelData)
-                                            size: 14
+                                            // 18px so CategoryIcon's per-kind glyph
+                                            // ratios actually kick in. At size 14 every
+                                            // ratio hit CategoryIcon's min(10) floor and
+                                            // every kind rendered at the same dense 10px,
+                                            // making the chevron / timer / pilcrow look
+                                            // identical and tiny.
+                                            size: 18
                                             hovered: false
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            // Subtract: num(14) + spacing(6) + icon(14)
+                                            // Subtract: num(14) + spacing(6) + icon(18)
                                             // + spacing(6) + dot(7) + spacing(6) + del(22)
                                             // + spacing(6).
-                                            width: parent.width - 14 - 6 - 14 - 6 - 7 - 6 - 22 - 6
+                                            width: parent.width - 14 - 6 - 18 - 6 - 7 - 6 - 22 - 6
                                             text: _innerSummary(modelData)
                                             color: Theme.text2
                                             font.family: Theme.familyBody
@@ -2747,71 +2769,31 @@ Item {
                         _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
                     visible: fromPos !== undefined && toPos !== undefined
 
-                    // Port = a soft cyan halo behind a solid cyan
-                    // dot with a small white-ish inner highlight,
-                    // so the dot reads as a polished pill the wire
-                    // plugs into rather than a flat sticker.
-                    Item {
+                    // Port = solid coral disk with a hairline ring.
+                    // Flat, no halo, no white highlight — sits in the
+                    // same visual register as CategoryIcon and the
+                    // step-card hairlines so the canvas reads as one
+                    // surface family.
+                    Rectangle {
                         x: route.sx - root._portR
                         y: route.sy - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-
-                        Rectangle {  // halo
-                            anchors.centerIn: parent
-                            width: parent.width + 6
-                            height: parent.height + 6
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
-                        }
-                        Rectangle {  // body
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
-                            border.width: 1
-                            // Inner highlight — small offset white
-                            // disc giving the impression of a top-
-                            // left light source.
-                            Rectangle {
-                                x: parent.width * 0.18
-                                y: parent.height * 0.18
-                                width: parent.width * 0.42
-                                height: parent.height * 0.42
-                                radius: width / 2
-                                color: Qt.rgba(1, 1, 1, 0.45)
-                            }
-                        }
+                        radius: width / 2
+                        color: Theme.accent
+                        border.color: Theme.accentLo
+                        border.width: 1
                     }
 
-                    Item {
+                    Rectangle {
                         x: route.tx - root._portR
                         y: route.ty - root._portR
                         width: root._portR * 2
                         height: root._portR * 2
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: parent.width + 6
-                            height: parent.height + 6
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 0.22)
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: Qt.rgba(0.55, 0.78, 0.88, 1.0)
-                            border.color: Qt.rgba(0.32, 0.55, 0.70, 0.85)
-                            border.width: 1
-                            Rectangle {
-                                x: parent.width * 0.18
-                                y: parent.height * 0.18
-                                width: parent.width * 0.42
-                                height: parent.height * 0.42
-                                radius: width / 2
-                                color: Qt.rgba(1, 1, 1, 0.45)
-                            }
-                        }
+                        radius: width / 2
+                        color: Theme.accent
+                        border.color: Theme.accentLo
+                        border.width: 1
                     }
                 }
             }

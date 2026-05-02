@@ -32,6 +32,7 @@ pub mod qobject {
         #[qproperty(bool, is_first_run)]
         #[qproperty(QString, templates_json)]
         #[qproperty(QString, theme_mode)]
+        #[qproperty(QString, palette)]
         #[qproperty(bool, reduce_motion)]
         #[qproperty(QString, library_sort)]
         #[qproperty(QString, store_path)]
@@ -58,6 +59,12 @@ pub mod qobject {
         /// with the qproperty-generated `set_theme_mode` setter.
         #[qinvokable]
         fn apply_theme_mode(self: Pin<&mut StateController>, mode: QString);
+
+        /// Persist the brand palette. Accepts "warm" or "cool";
+        /// anything else falls back to "warm". Same `apply_` prefix
+        /// convention as theme_mode.
+        #[qinvokable]
+        fn apply_palette(self: Pin<&mut StateController>, palette: QString);
 
         /// Persist the reduce-motion preference. Accepts true or false.
         #[qinvokable]
@@ -121,6 +128,7 @@ pub struct StateControllerRust {
     pub is_first_run: bool,
     pub templates_json: QString,
     pub theme_mode: QString,
+    pub palette: QString,
     pub reduce_motion: bool,
     pub library_sort: QString,
     pub store_path: QString,
@@ -144,6 +152,7 @@ impl Default for StateControllerRust {
 
         let templates_json = templates_to_json();
         let theme_mode = QString::from(&inner.theme_mode);
+        let palette = QString::from(&inner.palette);
         let library_sort = QString::from(&inner.library_sort);
         let store_path = QString::from(&store_path_display());
         let default_store_path = QString::from(&default_store_path_display());
@@ -152,6 +161,7 @@ impl Default for StateControllerRust {
             is_first_run: inner.is_first_run(),
             templates_json,
             theme_mode,
+            palette,
             reduce_motion: inner.reduce_motion,
             library_sort,
             store_path,
@@ -218,6 +228,28 @@ impl qobject::StateController {
         state::save(&snapshot);
         if !already {
             self.as_mut().set_theme_mode(QString::from(&m));
+        }
+    }
+
+    fn apply_palette(mut self: Pin<&mut Self>, palette: QString) {
+        use cxx_qt::CxxQtType;
+        let raw: String = palette.to_string();
+        let coerced = if raw != "warm" && raw != "cool" {
+            "warm".to_string()
+        } else {
+            raw.clone()
+        };
+        let already = self.as_ref().rust().inner.palette == coerced;
+        self.as_mut().rust_mut().inner.palette = coerced.clone();
+        let snapshot = self.as_ref().rust().inner.clone();
+        state::save(&snapshot);
+        // Always push the coerced value back to QML when the caller
+        // sent something different from what we ended up storing —
+        // even if the on-disk value didn't change. Otherwise QML's
+        // local mirror keeps the bogus input it eagerly assigned in
+        // applyPalette() and the UI desyncs from the persisted state.
+        if !already || coerced != raw {
+            self.as_mut().set_palette(QString::from(&coerced));
         }
     }
 

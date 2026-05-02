@@ -921,6 +921,7 @@ Item {
                             width: variantLoader.width
                             folders: root.visibleFolders
                             workflows: root.filtered
+                            allWorkflows: root.workflows
                             selectMode: root.selectMode
                             selectedIds: root.selectedIds
                             onOpenWorkflow: (id) => root.openWorkflow(id)

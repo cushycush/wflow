@@ -139,6 +139,20 @@ Item {
                     }
 
                     SettingRow {
+                        title: "Palette"
+                        subtitle: "Warm Paper is the wflows.com brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
+
+                        SegmentedControl {
+                            items: [
+                                { label: "Warm Paper", value: "warm" },
+                                { label: "Cool Slate", value: "cool" }
+                            ]
+                            selected: Theme.palette
+                            onActivated: (v) => Theme.applyPalette(v)
+                        }
+                    }
+
+                    SettingRow {
                         title: "Reduce motion"
                         subtitle: "Skip transitions and pulses. Helpful for vestibular sensitivity or low-power machines."
 

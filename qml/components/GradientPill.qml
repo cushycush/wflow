@@ -1,122 +1,100 @@
 import QtQuick
 import Wflow
 
-// The signature gradient-filled affordance used inside cards across
-// Explore + Canvas. Looks like a button but is presentation-only by
-// default (set `clickable` to enable).
+// Action chip used inside step cards on the workflow canvas. Reads as a
+// row with three slots: a category-tinted icon square on the left, a
+// monospaced value in the middle, and an optional trailing icon (e.g.
+// the "open import" arrow) on the right.
 //
 //   GradientPill {
-//       kind: "shell"          // any Theme.gradFor() key
+//       kind: "shell"          // any Theme.catFor() key
 //       text: "kitty -e nvim"
 //       icon: "▷_"             // optional, leading
-//       trailingIcon: "↗"      // optional, in a small darker box on the right
+//       trailingIcon: "↗"      // optional, in a small chip on the right
 //   }
+//
+// The legacy gradient skin shipped before the warm-coral palette landed.
+// On the new tokens the gradients clashed with the flat surface ladder,
+// so this is now a flat ink-tinted chip — same structural footprint as
+// CategoryIcon scaled out to a row, sitting on Theme.surface with the
+// kind's tint reserved for the icon square. The component name stays so
+// existing callers continue to work without churn.
 Rectangle {
     id: root
 
     property string kind: "key"
     property string text: ""
+    // `icon` is now a presence sentinel — pass any non-empty string
+    // to render the leading CategoryIcon, or "" to drop the slot.
+    // The actual glyph comes from CategoryIcon's catGlyph(kind) so
+    // overriding the character no longer has effect; existing
+    // callers passing Theme.catGlyph(kind) still read correctly.
     property string icon: ""
     property string trailingIcon: ""
     property bool clickable: false
 
     signal clicked()
 
-    readonly property var grad: Theme.gradFor(kind)
-    readonly property color textColor: Theme.gradTextColor(kind)
-
     implicitHeight: 36
     // Implicit width is icon-chip + value-text + paddings; used when
-    // the pill is sized to its content (e.g., explore page chips).
-    // When parented with an explicit width: parent.width (canvas
-    // cards), this is ignored.
+    // the pill is sized to its content. When parented with an explicit
+    // width: parent.width (canvas cards), this is ignored.
     implicitWidth: (iconChip.visible ? iconChip.width + 8 : 0) + valueText.implicitWidth + 24
     radius: Theme.radiusMd
+    color: Theme.surface
+    border.color: Theme.lineSoft
+    border.width: 1
 
-    // Left-to-right gradient. Qt Quick's Gradient defaults to vertical;
-    // setting `orientation` to Horizontal aligns with the mockup, where
-    // pills shade from light to deep across their length.
-    gradient: Gradient {
-        orientation: Gradient.Horizontal
-        GradientStop { position: 0.0; color: root.grad[0] }
-        GradientStop { position: 1.0; color: root.grad[1] }
-    }
-
-    // Inner highlight only — no drop shadow (banned per design
-    // principles: "Flat, not skeuomorphic. No drop shadows except for
-    // a true overlay"). The 1px top highlight gives the pill enough
-    // dimension that the gradient still reads as a raised affordance.
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 1
-        color: Qt.rgba(1, 1, 1, 0.18)
-        radius: parent.radius
-    }
-
-    // Leading icon sits on a small dark chip so it stays legible
-    // against the gradient — without it, the glyph blends into the
-    // colour at certain points along the stops. Glyph is always
-    // white because the chip itself is opaque dark; gradTextColor
-    // would render dark-on-dark for some kinds.
-    Rectangle {
+    // Leading icon — delegates to the same CategoryIcon the step
+    // palette uses, so glyph metrics (the chevron's tight optical
+    // size, the timer's bigger one, etc.) stay identical between
+    // toolbar and canvas. visible=false collapses the slot when the
+    // caller passes no icon.
+    CategoryIcon {
         id: iconChip
         visible: root.icon.length > 0
         anchors.left: parent.left
         anchors.leftMargin: 8
         anchors.verticalCenter: parent.verticalCenter
-        width: visible ? 22 : 0
-        height: 22
-        radius: Theme.radiusSm
-        color: Qt.rgba(0, 0, 0, 0.22)
-        Text {
-            anchors.centerIn: parent
-            text: root.icon
-            // The gradient under this chip can be any of the catFor()
-            // colors — using Theme.text here would render too-dark
-            // glyphs on the brighter pill kinds. The chip itself is
-            // an opaque dark fill, so a near-white tint reads on every
-            // kind. Tinted just off pure white per the no-pure-white
-            // design rule.
-            color: Theme.isDark ? "#f4f5f7" : "#fbfbfc"
-            font.family: Theme.familyBody
-            font.pixelSize: Theme.catGlyphSize(root.kind)
-            font.weight: Font.Bold
-        }
+        kind: root.kind
+        size: 22
+        width: visible ? size : 0
     }
 
     // Value text fills the remaining width and elides on overflow.
-    // Anchored layout (rather than a Row) so the right edge respects
-    // the pill's width regardless of text length.
+    // Mono font because the content is almost always a command, key
+    // chord, or path — same register as wflows.com's .kdl-block
+    // values, just inline.
     Text {
         id: valueText
         anchors.left: iconChip.right
         anchors.leftMargin: iconChip.visible ? 8 : 8
-        anchors.right: parent.right
-        anchors.rightMargin: 12
+        anchors.right: trailingChip.visible ? trailingChip.left : parent.right
+        anchors.rightMargin: trailingChip.visible ? 6 : 12
         anchors.verticalCenter: parent.verticalCenter
         text: root.text
-        color: root.textColor
-        font.family: Theme.familyBody
+        color: Theme.text
+        font.family: Theme.familyMono
         font.pixelSize: Theme.fontSm
-        font.weight: Font.DemiBold
-        font.letterSpacing: -0.1
+        font.weight: Font.Medium
         elide: Text.ElideRight
     }
 
     Rectangle {
+        id: trailingChip
         visible: root.trailingIcon.length > 0
         anchors.right: parent.right
         anchors.rightMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         width: 22; height: 22
         radius: Theme.radiusSm
-        color: Qt.rgba(1, 1, 1, 0.15)
+        color: Theme.surface2
+        border.color: Theme.lineSoft
+        border.width: 1
         Text {
             anchors.centerIn: parent
             text: root.trailingIcon
-            color: root.textColor
+            color: Theme.text2
             font.family: Theme.familyBody
             font.pixelSize: Theme.fontXs
         }

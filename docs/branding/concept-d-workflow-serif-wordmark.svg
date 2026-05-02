@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Concept D — wordmark. Workflow nodes paired with a serif "flow."
+
+  The 'w' is rendered as a five-step workflow: a step node sits at every
+  vertex of the W (top-left, valley-1, top-mid, valley-2, top-right),
+  connected by thin wires. The start node is amber, which is the single
+  brand accent on the mark. "flow" follows in a refined serif for tonal
+  contrast against the geometric icon.
+
+  Reads as: a workflow runs left-to-right, then flows.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" fill="none"
+     role="img" aria-label="wflow">
+  <title>wflow</title>
+
+  <!-- Wires: thin connecting strokes between each adjacent step node.
+       Drawn first so the nodes sit cleanly on top. -->
+  <path d="M 12 16 L 28 48 L 44 16 L 60 48 L 76 16"
+        stroke="#1a1208" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"
+        opacity="0.5"/>
+
+  <!-- Step nodes: rounded squares at every W vertex. The first node is
+       amber to signal the workflow's entry point and is the only accent
+       on the mark. -->
+  <rect x="8"  y="12" width="8" height="8" rx="2" fill="#e29846"/>
+  <rect x="24" y="44" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="40" y="12" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="56" y="44" width="8" height="8" rx="2" fill="#1a1208"/>
+  <rect x="72" y="12" width="8" height="8" rx="2" fill="#1a1208"/>
+
+  <!-- "flow" wordmark in serif. Font stack prefers Source Serif then
+       falls through Spectral and the major OS serifs; every choice in
+       the chain is contemporary and intentional, none are on the brand
+       ban list. Weight 500 reads as confident without feeling heavy
+       beside the geometric icon. The baseline sits two thirds down the
+       W so the x-height visually centers on the icon's midline. -->
+  <text x="96" y="48"
+        font-family="'Source Serif 4', 'Source Serif Pro', 'Spectral', 'Iowan Old Style', 'Charter', 'PT Serif', Cambria, Georgia, serif"
+        font-size="40" font-weight="500"
+        fill="#1a1208"
+        letter-spacing="-0.5">flow</text>
+</svg>

@@ -91,7 +91,7 @@ Rectangle {
                 visible: !root.titleEditable
                 text: root.title
                 color: Theme.text
-                font.family: Theme.familyBody
+                font.family: Theme.familyDisplay
                 font.pixelSize: Theme.fontLg
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
@@ -103,7 +103,7 @@ Rectangle {
                 width: parent.width
                 text: root.title
                 color: Theme.text
-                font.family: Theme.familyBody
+                font.family: Theme.familyDisplay
                 font.pixelSize: Theme.fontLg
                 font.weight: Font.DemiBold
                 selectByMouse: true

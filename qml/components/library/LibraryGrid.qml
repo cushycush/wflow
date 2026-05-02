@@ -8,6 +8,10 @@ Item {
     id: root
     property var folders: []
     property var workflows: []
+    // The page passes the FILTERED workflows in `workflows` (only items
+    // in the current folder). Folder tiles need the full list so they
+    // can show how many workflows live inside each subfolder.
+    property var allWorkflows: []
     // Selection mode: in v1 this is a "manage" toggle on the page.
     // When selectMode is true, clicking a card toggles its membership
     // in selectedIds via toggleSelected(id) instead of opening the
@@ -24,7 +28,10 @@ Item {
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
     readonly property real gap: 12
     readonly property real cardW: (root.width - gap * (cols - 1)) / cols
-    readonly property real cardH: 136
+    // EXPERIMENT: bumped from 136 to fit the wflows.com hero-card
+    // rhythm (avatar + title-block + run pill + description + step
+    // trail + ruled footer).
+    readonly property real cardH: 200
 
     readonly property int totalItems: (folders ? folders.length : 0) + (workflows ? workflows.length : 0)
     readonly property int rows: Math.ceil(totalItems / cols)
@@ -52,16 +59,33 @@ Item {
             y: gridY
             width: root.cardW
             height: root.cardH
-            radius: Theme.radiusMd
+            // Folder tiles run on a slightly darker surface step so they
+            // recede from workflow cards while still living in the same
+            // grid. The tab decoration on top (folderTab below) does the
+            // actual "this is a folder" lifting.
+            radius: Theme.radiusLg
             color: folderArea.containsMouse || folderDrop.containsDrag
-                ? Theme.surface2
-                : Theme.surface
+                ? Theme.surface3
+                : Theme.surface2
             border.color: folderDrop.containsDrag
                 ? Theme.accent
-                : (folderArea.containsMouse ? Theme.line : Theme.lineSoft)
+                : (folderArea.containsMouse ? Theme.lineStrong : Theme.line)
             border.width: folderDrop.containsDrag ? 2 : 1
             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+            // How many workflows live in this folder. Computed from the
+            // sibling workflows array so it stays accurate without a
+            // round-trip to libCtrl. Matches the LibraryPage tree's
+            // count semantics.
+            readonly property int wfCount: {
+                if (!root.allWorkflows) return 0
+                let n = 0
+                for (let i = 0; i < root.allWorkflows.length; ++i) {
+                    if (root.allWorkflows[i].folder === folderTile.fld.fullPath) n++
+                }
+                return n
+            }
 
             // Drop target — accepts workflow drags. Drops set the
             // workflow's folder to this tile's full path so the
@@ -103,60 +127,127 @@ Item {
                 }
             }
 
+            // ── Folder tab decoration ──
+            // A small rounded rectangle pinned to the top edge,
+            // overhanging the body's top border by a few pixels so it
+            // reads as a tab sticking up from a folder. The body's
+            // border still runs unbroken behind the tab; the tab paints
+            // its own fill and border on top, with a 1px sliver at the
+            // bottom that overlaps the body to mask the seam.
+            Rectangle {
+                id: folderTab
+                z: 1
+                anchors.top: parent.top
+                anchors.topMargin: -7
+                anchors.left: parent.left
+                anchors.leftMargin: 18
+                width: 72
+                height: 14
+                radius: 4
+                color: parent.color
+                border.color: parent.border.color
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // 1px tall mask at the very bottom of the tab, painted
+                // in the body's fill color, so the seam between tab
+                // and body disappears and they read as one folder
+                // shape.
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 1
+                    anchors.rightMargin: 1
+                    height: 1
+                    color: folderTile.color
+                }
+            }
+
             Column {
                 anchors.fill: parent
-                anchors.margins: 14
+                anchors.topMargin: 18
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.bottomMargin: 16
                 spacing: 10
 
+                // Folder glyph + name on a single row, scaled so the
+                // tile reads as a real folder icon at a glance.
                 Row {
-                    spacing: 10
+                    spacing: 12
                     width: parent.width
 
-                    // Folders use a quieter neutral palette so the
-                    // workflow icons (amber) hold the brand color.
-                    // Folders are organizational containers — they
-                    // recede; the workflows inside them are the
-                    // content the user came for.
                     Rectangle {
-                        width: 32; height: 32; radius: Theme.radiusSm
+                        width: 40
+                        height: 32
+                        radius: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.wash(Theme.text2, 0.18)
-                        border.color: Theme.wash(Theme.text2, 0.45)
+                        color: Theme.wash(Theme.text2, 0.16)
+                        border.color: Theme.wash(Theme.text2, 0.36)
                         border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: "▢"
-                            color: Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
+
+                        // Tiny tab on the icon glyph itself, mirroring
+                        // the card-level tab so the icon reads as a
+                        // folder even when scanned in peripheral view.
+                        Rectangle {
+                            anchors.bottom: parent.top
+                            anchors.bottomMargin: -2
+                            anchors.left: parent.left
+                            anchors.leftMargin: 4
+                            width: 14
+                            height: 5
+                            radius: 2
+                            color: parent.color
+                            border.color: parent.border.color
+                            border.width: 1
                         }
                     }
 
                     Column {
-                        width: parent.width - 32 - 10
+                        width: parent.width - 40 - 12
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
 
                         Text {
                             text: folderTile.fld.name
                             color: Theme.text
-                            font.family: Theme.familyBody
+                            font.family: Theme.familyDisplay
                             font.pixelSize: Theme.fontBase
                             font.weight: Font.DemiBold
                             elide: Text.ElideRight
                             width: parent.width
                         }
                         Text {
-                            text: "folder"
+                            text: folderTile.wfCount === 1
+                                ? "1 workflow"
+                                : folderTile.wfCount + " workflows"
                             color: Theme.text3
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.4
                             elide: Text.ElideRight
                             width: parent.width
                         }
                     }
                 }
+            }
+
+            // Mono "FOLDER" label kicker in the bottom-left, matching
+            // the editorial small-caps register that surrounds the
+            // workflow card's "N STEPS" footer.
+            Text {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.bottomMargin: 14
+                anchors.leftMargin: 16
+                text: "FOLDER"
+                color: Theme.text3
+                font.family: Theme.familyMono
+                font.pixelSize: 9
+                font.letterSpacing: 0.6
+                font.weight: Font.DemiBold
             }
         }
     }
@@ -180,11 +271,9 @@ Item {
             y: gridY
             width: root.cardW
             height: root.cardH
-            radius: Theme.radiusMd
+            radius: Theme.radiusLg
             color: cardArea.containsMouse ? Theme.surface2 : Theme.surface
-            border.color: cardArea.containsMouse
-                ? Theme.wash(catColor, 0.42)
-                : Theme.lineSoft
+            border.color: cardArea.containsMouse ? Theme.lineStrong : Theme.line
             border.width: 1
             opacity: cardArea.drag.active ? 0.55 : 1
             z: cardArea.drag.active ? 10 : 0
@@ -300,33 +389,6 @@ Item {
                 }
             }
 
-            // ⋯ affordance, visible on hover so right-click isn't the only
-            // discoverable path to the context menu.
-            Rectangle {
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: 6
-                anchors.rightMargin: 6
-                width: 24; height: 24; radius: 4
-                color: moreArea.containsMouse ? Theme.surface3 : "transparent"
-                opacity: cardArea.containsMouse || moreArea.containsMouse ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-                Text {
-                    anchors.centerIn: parent
-                    text: "⋯"
-                    color: Theme.text2
-                    font.family: Theme.familyBody
-                    font.pixelSize: 16
-                }
-                MouseArea {
-                    id: moreArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: cardMenu.popup()
-                }
-            }
-
             WfMenu {
                 id: cardMenu
                 WfMenuItem {
@@ -339,58 +401,138 @@ Item {
                 }
             }
 
-            Column {
+            // EXPERIMENT: layout mirrors the wflows.com hero-card
+            // rhythm — avatar + title-block + open-pill on top, a
+            // description block, then the step-trail, then a ruled
+            // footer with meta on the left and an imported badge on
+            // the right. Replaces the prior icon + title / kinds row
+            // / footer layout. Right-click still surfaces the
+            // duplicate / delete menu (kebab affordance dropped).
+            Item {
                 anchors.fill: parent
-                anchors.margins: 14
-                spacing: 10
 
-                Row {
-                    spacing: 10
-                    width: parent.width
+                // ── Top row: avatar + title-block + open-pill ──
+                Item {
+                    id: topRow
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.topMargin: 16
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    height: 36
 
-                    // Library cards lead with the workflow mark (a
-                    // brand-amber stair-step) so workflows are
-                    // recognizable as workflows, not as their first
-                    // step. The category-icon row below still shows
-                    // which kinds the workflow uses.
-                    WorkflowIcon {
+                    Avatar {
+                        id: monoAvatar
+                        // Title drives both the monogram letter and the
+                        // gradient hash. The letter being the workflow's
+                        // first character is the meaningful signal — the
+                        // gradient drifting on rename is a fair trade.
+                        handle: card.wf.title
                         size: 32
-                        hovered: cardArea.containsMouse
+                        anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
                     Column {
-                        width: parent.width - 32 - 10
+                        anchors.left: monoAvatar.right
+                        anchors.leftMargin: 10
+                        anchors.right: openPill.left
+                        anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
+                        spacing: 1
 
                         Text {
                             text: card.wf.title
                             color: Theme.text
-                            font.family: Theme.familyBody
+                            font.family: Theme.familyDisplay
                             font.pixelSize: Theme.fontBase
                             font.weight: Font.DemiBold
+                            font.letterSpacing: -0.2
                             elide: Text.ElideRight
                             width: parent.width
                         }
                         Text {
-                            text: card.wf.subtitle
+                            text: card.wf.importedFrom
+                                ? "from @" + card.wf.importedFrom
+                                : "by you"
                             color: Theme.text3
                             font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
+                            font.pixelSize: 10
                             elide: Text.ElideRight
                             width: parent.width
                         }
                     }
+
+                    // Pill mirror of wflows.com's "Open in wflow" CTA.
+                    // Click does the same thing the whole card does,
+                    // just with a deliberate accent on hover.
+                    Rectangle {
+                        id: openPill
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: openText.implicitWidth + 22
+                        height: 26
+                        radius: height / 2
+                        color: openArea.containsMouse ? Theme.accent : Theme.surface2
+                        border.color: openArea.containsMouse ? Theme.accent : Theme.line
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Text {
+                            id: openText
+                            anchors.centerIn: parent
+                            text: "↗  Open"
+                            color: openArea.containsMouse ? Theme.accentText : Theme.text2
+                            font.family: Theme.familyBody
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.4
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        }
+
+                        MouseArea {
+                            id: openArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.openWorkflow(card.wf.id)
+                        }
+                    }
                 }
 
+                // ── Description (subtitle as its own block) ──
+                Text {
+                    id: descText
+                    anchors.top: topRow.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.topMargin: 12
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    text: card.wf.subtitle
+                    color: Theme.text2
+                    font.family: Theme.familyBody
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    lineHeight: 1.35
+                    visible: text.length > 0
+                }
+
+                // ── Step trail (existing CategoryIcon row) ──
                 Row {
+                    id: trailRow
+                    anchors.top: descText.visible ? descText.bottom : topRow.bottom
+                    anchors.topMargin: 12
+                    anchors.left: parent.left
+                    anchors.leftMargin: 16
                     spacing: 6
-                    width: parent.width
 
                     readonly property int kindsCount: card.wf.kinds ? card.wf.kinds.length : 0
-                    readonly property int kindsCap: 6
-                    readonly property int kindsShown: Math.min(kindsCount, kindsCap)
+                    readonly property int kindsCap: 7
                     readonly property int kindsHidden: Math.max(0, kindsCount - kindsCap)
 
                     Repeater {
@@ -402,9 +544,6 @@ Item {
                         }
                     }
 
-                    // "+N" pill shows that more steps exist beyond the
-                    // visible fingerprint, so a 14-step workflow doesn't
-                    // overflow the card or pretend it has 6 steps.
                     Rectangle {
                         visible: parent.kindsHidden > 0
                         width: moreText.implicitWidth + 10
@@ -424,62 +563,78 @@ Item {
                             font.pixelSize: 10
                         }
                     }
+                }
 
-                    Item { width: Math.max(0, parent.width
-                            - parent.kindsShown * 20
-                            - Math.max(0, parent.kindsShown - 1) * 6
-                            - (parent.kindsHidden > 0 ? 30 : 0)
-                            - (card.wf.importedFrom ? importedPill.width + 6 : 0))
-                          height: 1 }
+                // ── Footer with rule: meta left, imported badge right ──
+                Rectangle {
+                    id: footerRule
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: footerRow.top
+                    anchors.bottomMargin: 10
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    height: 1
+                    color: Theme.lineSoft
+                }
 
-                    // Imported-from pill, subtle accent outline so the user
-                    // can tell a workflow came from Explore at a glance.
-                    Rectangle {
-                        id: importedPill
-                        visible: !!card.wf.importedFrom
-                        width: importedText.implicitWidth + 12
-                        height: 20
-                        radius: 10
+                Item {
+                    id: footerRow
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottomMargin: 14
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    height: 14
+
+                    Row {
+                        anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+
+                        Text {
+                            text: card.wf.steps + " STEPS"
+                            color: Theme.text2
+                            font.family: Theme.familyMono
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.6
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            text: "·"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 9
+                        }
+                        Text {
+                            text: card.wf.lastRun
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.4
+                        }
+                    }
+
+                    Rectangle {
+                        visible: !!card.wf.importedFrom
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: importedText.implicitWidth + 12
+                        height: 16
+                        radius: 8
                         color: "transparent"
                         border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
                         border.width: 1
-
                         Text {
                             id: importedText
                             anchors.centerIn: parent
-                            text: card.wf.importedFrom ? "@" + card.wf.importedFrom : ""
+                            text: card.wf.importedFrom ? "↑ @" + card.wf.importedFrom : ""
                             color: Theme.accent
                             font.family: Theme.familyMono
-                            font.pixelSize: 10
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.3
                         }
-                    }
-                }
-
-                Item { width: 1; height: parent.height - 32 - 10 - 20 - 10 - 14 }
-
-                Row {
-                    spacing: 8
-                    width: parent.width
-
-                    Text {
-                        text: card.wf.steps + " steps"
-                        color: Theme.text3
-                        font.family: Theme.familyMono
-                        font.pixelSize: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Rectangle {
-                        width: 2; height: 2; radius: 1
-                        color: Theme.text3
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Text {
-                        text: card.wf.lastRun
-                        color: Theme.text3
-                        font.family: Theme.familyMono
-                        font.pixelSize: 10
-                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
             }
