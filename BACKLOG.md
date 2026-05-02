@@ -91,6 +91,30 @@ schema. When a workflow you installed publishes a new version, the
 desktop should ping the user with a "this got an update" toast and
 let them apply or dismiss. Free feature, low cost, high stickiness.
 
+## Theme switcher with first-run picker
+
+The `experiment/wflows-com-skin` branch has the desktop running on the
+wflows.com warm-coral palette: cream paper / warm ink surfaces, coral
+accent, muted category tints, and the new hero-card library layout.
+The original amber-on-steel-blue feels distinct and confident for a
+tool; the coral version unifies the brand with the website. Rather
+than picking one, ship both and let the user choose.
+
+Two parts. The settings page gets a palette picker that's orthogonal
+to the existing light / dark / auto mode, persisted via
+StateController the same way `theme_mode` is today. Theme.qml's color
+tokens switch on the new state in addition to the existing isDark
+check, so both palettes carry full light + dark coverage.
+
+A one-time "pick a look" splash sits in front of the existing
+blank-workflow TutorialOverlay on first run, previewing both palettes
+side by side. Default to amber on skip so 0.4.x users don't get
+surprised on upgrade.
+
+Pre-req: land the full coral sweep first (canvas, inspector, settings,
+chrome) so "amber / coral" is a real brand-wide swap and not just half
+the surfaces.
+
 ## Smaller polish
 
 - Settings page: an "Advanced" disclosure for motion durations
