@@ -19,7 +19,6 @@ Rectangle {
     property string kind: "shell"
     property string label: ""
     property string value: ""
-    property string icon: Theme.catGlyph(kind)
 
     implicitHeight: 32
     radius: Theme.radiusMd
@@ -27,42 +26,20 @@ Rectangle {
     border.color: Theme.lineSoft
     border.width: 1
 
-    readonly property var grad: Theme.gradFor(kind)
-    readonly property color iconText: Theme.gradTextColor(kind)
-
     Row {
         anchors.fill: parent
         anchors.leftMargin: 8
         anchors.rightMargin: 10
         spacing: 10
 
-        // Mini gradient icon — a smaller cousin of GradientPill, here
-        // sitting flush left on the row.
-        Rectangle {
+        // Mini step icon — delegates to CategoryIcon so the per-kind
+        // glyph metrics (chevron tighter, timer larger, etc.) stay
+        // identical to the toolbar palette and the canvas chips.
+        CategoryIcon {
             id: iconBox
             anchors.verticalCenter: parent.verticalCenter
-            width: 18
-            height: 18
-            radius: Theme.radiusSm
-            gradient: Gradient {
-                GradientStop { position: 0; color: root.grad[0] }
-                GradientStop { position: 1; color: root.grad[1] }
-            }
-            Rectangle {
-                anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - 4
-                height: 1
-                color: Qt.rgba(1, 1, 1, 0.18)
-            }
-            Text {
-                anchors.centerIn: parent
-                text: root.icon
-                color: root.iconText
-                font.family: Theme.familyBody
-                font.pixelSize: 10
-                font.weight: Font.Bold
-            }
+            kind: root.kind
+            size: 18
         }
 
         Text {

@@ -1,20 +1,21 @@
 import QtQuick
 import Wflow
 
-// Subtle dot-grid background. Used app-wide as the bottom layer of
-// every page so the surface reads as a workspace canvas, not a flat
-// document. Themed: 28px spacing, 1.5px dots, faint white in dark
-// mode and faint black in light mode.
+// Subtle dot-grid background. Lives behind the workflow editor canvas
+// so the surface reads as graph paper, not a flat document. Other
+// pages render against the plain Theme.bg.
 //
-// Repaints on resize; cheap enough that it can sit under the whole
-// app without measurable cost.
+// Dots use Theme.text2 at low alpha so they pick up whichever palette
+// is active — light dots on dark surfaces, dark dots on cream paper —
+// without any per-palette branching. 28px spacing, 2.5px dot.
+//
+// Repaints on resize, theme flip, and palette flip; cheap enough that
+// it can sit under the whole canvas without measurable cost.
 Item {
     id: root
     property real spacing: 28
     property real dotSize: 2.5
-    property color dotColor: Theme.isDark
-        ? "#1f2328"
-        : Qt.rgba(0, 0, 0, 0.08)
+    property color dotColor: Qt.rgba(Theme.text2.r, Theme.text2.g, Theme.text2.b, 0.10)
     property color baseColor: Theme.bg
 
     Rectangle {
@@ -41,9 +42,12 @@ Item {
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
 
+        // Theme flip (light/dark) and palette flip (warm/cool) both
+        // change dotColor's underlying RGB — repaint on either.
         Connections {
             target: Theme
             function onModeChanged() { dots.requestPaint() }
+            function onPaletteChanged() { dots.requestPaint() }
         }
     }
 }
