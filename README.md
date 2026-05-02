@@ -223,7 +223,8 @@ full man page is `wflow man` (one page per subcommand if you pass
   control editing in the GUI (currently `$EDITOR` only); cross-platform
   CI matrix; Flathub submission.
 
-See `CLAUDE.md` for architecture notes and design decisions.
+See `CLAUDE.md` for architecture notes and design decisions, and
+[`CHANGELOG.md`](CHANGELOG.md) for what shipped in each release.
 
 ## License
 
