@@ -85,61 +85,44 @@ let me record it once, name it, and replay it."_
 
 ### Brand Personality
 
-**Modern dark product UI.** Three words: **calm, confident, contemporary.**
+**Modern product UI with two skins.** Three words: **calm, confident, contemporary.**
 
-Lives alongside Linear / Arc / Raycast / macOS Shortcuts (dark mode) / modern
-API clients. Thoughtful spacing, flat surfaces, subtle elevation by darkness
-step, functional color on category chips, clean sans typography.
+Lives alongside Linear / Arc / Raycast / macOS Shortcuts / modern API
+clients. Thoughtful spacing, flat surfaces, subtle elevation by step,
+functional color on category chips, clean sans typography.
 
 Emotional goal: **this recedes behind the task.**
 
 ### Aesthetic Direction
 
-References: macOS Shortcuts dark, Linear, Raycast, Requestly, Arc settings.
-Anti-references: editorial layouts, modular synth / rack, glassmorphism,
-neon-on-dark, purple-blue gradients, skeuomorphic hardware, dense SaaS
-dashboard templates, bouncy animation.
+References: macOS Shortcuts dark, Linear, Raycast, Requestly, Arc settings,
+wflows.com (the marketing site). Anti-references: editorial layouts, modular
+synth / rack, glassmorphism, neon-on-dark, purple-blue gradients,
+skeuomorphic hardware, dense SaaS dashboard templates, bouncy animation.
 
-### Palette — cool dark with a single warm accent
+### Palettes — two brand skins, one source of truth
 
-```
-bg          oklch(0.17 0.010 260)
-surface     oklch(0.20 0.010 260)
-surface-2   oklch(0.24 0.012 260)
-surface-3   oklch(0.28 0.012 260)
-line        oklch(0.30 0.010 260)
-line-soft   oklch(0.25 0.010 260)
+As of v0.5.0, wflow ships two brand palettes. The active one is set on
+first run via the tutorial and persists in `state.toml`; users can flip
+any time from Settings. Both support light + dark.
 
-text        oklch(0.95 0.004 260)
-text-2      oklch(0.72 0.008 260)
-text-3      oklch(0.54 0.010 260)
+**Warm Paper** (default, mirrors wflows.com): warm-cream surfaces (hue
+55-60, near-white at L≈0.97 light / warm near-black at L≈0.16 dark)
+with a coral accent (hue 25-32). This is the published marketing-site
+identity.
 
-accent      oklch(0.74 0.15 60)    /* warm amber */
-accent-hi   oklch(0.82 0.14 65)
-accent-lo   oklch(0.62 0.17 55)
-accent-dim  oklch(0.34 0.08 58)
+**Cool Slate** (the original brief): slate-blue surfaces (hue 260, low
+chroma) with a warm amber accent (hue 60).
 
-ok          oklch(0.72 0.16 150)
-warn        oklch(0.80 0.15 85)
-err         oklch(0.68 0.19 28)
+`qml/Theme.qml` is the canonical token registry. Every color resolves
+through `_pl(coolDark, coolLight, warmDark, warmLight)`, which reads
+both `palette` and `isDark` and returns the matching string. When you
+need a token's value, read Theme.qml — don't copy hex into a component.
 
-/* Category chip tints (HTTP-method-style) */
-cat-key       oklch(0.72 0.16 285)
-cat-type      oklch(0.72 0.16 240)
-cat-click     oklch(0.72 0.16 150)
-cat-move      oklch(0.72 0.14 200)
-cat-scroll    oklch(0.72 0.14 215)
-cat-focus     oklch(0.75 0.14 75)
-cat-wait      oklch(0.58 0.02 260)
-cat-shell     oklch(0.72 0.16 40)
-cat-notify    oklch(0.72 0.16 340)
-cat-clip      oklch(0.72 0.14 210)
-cat-note      oklch(0.54 0.01 260)
-```
-
-Accent discipline: amber is used for ONE thing at a time on a page —
-the primary affordance (Run, Record arm, Save) or the selected sidebar row.
-Category tints only on action-card chips.
+Cat-tint chips also branch by palette so the saturated original set
+rides with cool slate and the muted ink-* register (mirrored from
+wflows.com tokens.css) rides with warm paper. Either way, the rule
+holds: tint only on the chip, accent only on the primary affordance.
 
 ### Typography
 
@@ -156,17 +139,24 @@ Scale: 11 / 13 / 14 / 16 / 20 / 28 px.
 1. **Surfaces step by lightness.** `bg → surface → surface-2` is brightness
    only. 1px `line` hairlines are the strongest divider we draw; beyond
    that, change the fill.
-2. **Rounded, consistent.** 8px containers, 6px buttons. Don't vary.
+2. **Rounded, consistent.** Pick from the radii ladder — `radiusXs` (4,
+   tags), `radiusSm` (6, compact buttons / inputs), `radiusMd` (10, cards
+   and dialogs), `radiusLg` (16, hero / big cards), `radiusXl` (22, large
+   panels), `radiusPill` (999, primary / secondary buttons, triggers).
+   Mirrors wflows.com's full ladder. Don't free-hand corner radii.
 3. **Flat, not skeuomorphic.** No gradients on surfaces, no embossed edges,
    no drop shadows except for a true overlay (dialog backdrop).
 4. **Category color is functional.** Tint only on the chip; accent amber is
    orthogonal and signals active/selected.
 5. **Type hierarchy > visual weight.** Titles 20px/600, body 14px/400,
    values Geist Mono 13px. These three do most of the work.
-6. **Hover subtle, selection clear.** Hover raises one surface step, no
-   animation. Selected uses a 2px accent bar on the left — this is the
-   right tool for a persistent indicator on a source list (macOS / VS Code
-   pattern), and 2px satisfies the skill's anti-stripe rule.
+6. **Hover subtle, selection clear.** Hover raises one surface step
+   (cards may swap from `line` to `lineStrong` on the border) and is
+   instant. Selection uses a coral-washed background plus an `accent`
+   border — sourced through `Theme.accentWash(alpha)` so it tracks the
+   active palette. Never hardcode a selection color; an old static
+   `accentWash` *property* once collided with the helper of the same
+   name and silently desaturated every selected row in dark mode.
 
 ### Motion
 
