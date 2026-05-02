@@ -1,11 +1,10 @@
 # wflow backlog
 
-As of 0.4.1 (2026-05-01), the editor redesign has shipped: free-position
-canvas, branch shapes, repeat containers, multi-select + marquee, undo /
-redo, group rectangles, the step-by-step debugger, run-feedback dots, and
-imports / fragments. What's left is the v0.4 trigger daemon (the AHK
-launch is gated on this) and the wflows.com integration (the target for
-v1.0).
+As of 0.5.0 (2026-05-01), the editor redesign and the brand-palette
+switcher (warm-paper / cool-slate, light + dark, first-run picker)
+have shipped. What's left is the trigger daemon (the AHK launch is
+gated on this, lands as v0.6.0) and the wflows.com integration (the
+target for v1.0).
 
 # Active: v0.4 trigger daemon + AHK-positioned launch
 
@@ -35,9 +34,10 @@ disk change the daemon re-reads, diffs by chord, and unbinds /
 re-binds the deltas. Scoped to compositor-IPC mode: the portal's
 `BindShortcuts` is once-per-session by spec, so portal users have
 to restart the daemon to pick up trigger changes. Documented as a
-known limitation and a v0.5 follow-up if it becomes a real friction.
+known limitation and a post-v0.6 follow-up if it becomes a real
+friction.
 
-Out of scope (still v0.5+): D-Bus surface at
+Out of scope (deferred to a later release): D-Bus surface at
 `org.cushycush.wflow.Daemon`, hotstrings, per-window triggers,
 schedule triggers, file-watch triggers.
 
@@ -51,20 +51,19 @@ stays the source of truth.
 
 ## AHK-style launch
 
-Once the daemon lands, edit `docs/launch-drafts.md` (collapse the
-pre/post-daemon branches in Draft 1, swap the generic "v0.4" version
-strings for the actual ship version, screenshot the new Triggers tab
-for fosstodon and r/linux), then post per the staggered plan in that
-doc.
+Once v0.6.0 ships with the daemon, edit `docs/launch-drafts.md` (swap
+the generic version strings for the actual ship version, take fresh
+screenshots of the Hyprland-bind keybind workflow), then post per the
+staggered plan in that doc.
 
-## v0.5 trigger expansion (deferred until v0.4 lands and metrics back it)
+## Trigger expansion (post-launch, gated on the audience metric)
 
 Hotstrings (text expansion: `btw -> by the way`) needs a global
-keyboard monitor on top of the daemon. Per-window triggers need a cheap
-window-state watcher. Schedule and file-watch triggers fall out of the
-daemon for free but are different products from "AHK on Linux." Don't
-ship any of these in v0.4. Re-evaluate the leg-1 commitment after v0.4
-ships based on the audience metric (distinct GitHub issue authors who
+keyboard monitor on top of the daemon. Per-window triggers need a
+cheap window-state watcher. Schedule and file-watch triggers fall out
+of the daemon for free but are different products from "AHK on Linux."
+None of these ship in v0.6. Re-evaluate the leg-1 commitment after the
+launch based on the audience metric (distinct GitHub issue authors who
 name AHK in their use case).
 
 # v1.0 = wflows.com integration
@@ -122,10 +121,11 @@ browser, paste token back" handoff rather than embedding a webview.
 
 Workflows on wflows.com carry trigger metadata. When a user installs
 one, we know they want it bound to "Super+Shift+P" or whatever; right
-now they have to wire that up by hand. Once the v0.4 daemon lands (in
-flight, see top of file), the install path should append the trigger
-into `~/.config/wflow/triggers.kdl` and let the daemon's file watcher
-pick it up. This depends on the daemon, so it lives behind that work.
+now they have to wire that up by hand. Once v0.6.0 ships with the
+daemon (in flight, see top of file), the install path should append
+the trigger into the workflow's KDL `trigger { chord ... }` block and
+let the daemon's file watcher pick it up. This depends on the daemon,
+so it lives behind that work.
 
 ## Run-history telemetry (paid)
 
