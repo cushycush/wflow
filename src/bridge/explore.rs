@@ -93,6 +93,21 @@ pub mod qobject {
         #[qinvokable]
         fn fetch_deeplink_preview(self: Pin<&mut ExploreController>, url: QString);
 
+        /// Fetch the v0 detail for a catalog row by handle + slug.
+        /// Resolves on /api/v0/workflow/:handle/:slug and parses the
+        /// inline `kdlSource` through the same decoder the runner
+        /// uses, so the step list emitted to QML is exactly what the
+        /// engine would execute. Emits `workflow_detail_ready` with a
+        /// rich JSON payload (live install / comment counts, parsed
+        /// steps, timestamps); failures route through `import_failed`
+        /// so the existing "couldn't reach wflows.com" surface holds.
+        #[qinvokable]
+        fn fetch_workflow_detail(
+            self: Pin<&mut ExploreController>,
+            handle: QString,
+            slug: QString,
+        );
+
         #[qsignal]
         fn import_succeeded(self: Pin<&mut ExploreController>, workflow_id: QString);
 
@@ -103,6 +118,12 @@ pub mod qobject {
         fn deeplink_preview_ready(
             self: Pin<&mut ExploreController>,
             preview_json: QString,
+        );
+
+        #[qsignal]
+        fn workflow_detail_ready(
+            self: Pin<&mut ExploreController>,
+            detail_json: QString,
         );
     }
 
@@ -334,6 +355,26 @@ impl qobject::ExploreController {
         spawn_import(qt_thread, url_s, Some(origin));
     }
 
+    fn fetch_workflow_detail(
+        self: Pin<&mut Self>,
+        handle: QString,
+        slug: QString,
+    ) {
+        let origin = {
+            use cxx_qt::CxxQtType;
+            self.as_ref().rust().site_origin.to_string()
+        };
+        let qt_thread = self.qt_thread();
+        let handle_s = handle.to_string();
+        let slug_s = slug.to_string();
+        let url = format!(
+            "{origin}/api/v0/workflow/{}/{}",
+            urlencoded(&handle_s),
+            urlencoded(&slug_s),
+        );
+        spawn_detail(qt_thread, url);
+    }
+
     fn fetch_deeplink_preview(self: Pin<&mut Self>, url: QString) {
         let origin = {
             use cxx_qt::CxxQtType;
@@ -424,6 +465,19 @@ struct DetailData {
     /// when missing.
     #[serde(default)]
     description: Option<String>,
+    /// Live catalog metrics. All optional so a sparse / staging
+    /// response still parses; missing values render as zero / blank
+    /// in the drawer rather than killing the whole fetch.
+    #[serde(default, rename = "installCount")]
+    install_count: Option<u64>,
+    #[serde(default, rename = "commentCount")]
+    comment_count: Option<u64>,
+    #[serde(default, rename = "remixCount")]
+    remix_count: Option<u64>,
+    #[serde(default, rename = "publishedAt")]
+    published_at: Option<String>,
+    #[serde(default, rename = "updatedAt")]
+    updated_at: Option<String>,
 }
 
 /// Preview payload sent to QML for the confirm dialog. `step_count`
@@ -564,4 +618,239 @@ async fn fetch_and_import(url: &str) -> anyhow::Result<String> {
 
     let saved = crate::store::save(wf).context("save imported workflow")?;
     Ok(saved.id)
+}
+
+/// Rich detail payload sent to QML for the Explore drawer. The step
+/// list is parsed from `kdlSource` through the same decoder the
+/// runner uses, so what the drawer renders is what would actually
+/// execute on import. Counts and timestamps come straight from the
+/// v0 detail JSON; missing fields default to zero / empty rather
+/// than failing the whole render.
+#[derive(serde::Serialize)]
+struct WorkflowDetail {
+    handle: String,
+    slug: String,
+    title: String,
+    description: String,
+    #[serde(rename = "installCount")]
+    install_count: u64,
+    #[serde(rename = "commentCount")]
+    comment_count: u64,
+    #[serde(rename = "remixCount")]
+    remix_count: u64,
+    #[serde(rename = "stepCount")]
+    step_count: usize,
+    #[serde(rename = "hasShell")]
+    has_shell: bool,
+    #[serde(rename = "publishedAt")]
+    published_at: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    steps: Vec<StepPreview>,
+}
+
+#[derive(serde::Serialize)]
+struct StepPreview {
+    /// Action category — drives the icon and the QML kindSummary
+    /// lookup. Same vocabulary as `Action::category()`.
+    kind: &'static str,
+    /// One-line value for the step (chord, command, window name,
+    /// duration, ...). Matches what the local editor surfaces in its
+    /// list view; the drawer renders it in Geist Mono so commands
+    /// stay scannable.
+    value: String,
+    /// Optional handwritten note. Renders dimmer below the value.
+    note: Option<String>,
+}
+
+fn spawn_detail(
+    qt_thread: cxx_qt::CxxQtThread<qobject::ExploreController>,
+    url: String,
+) {
+    let qt_thread = Arc::new(qt_thread);
+    let qt_for_outcome = qt_thread.clone();
+    tokio::spawn(async move {
+        let outcome = fetch_detail(&url).await.map_err(|e| format!("{e}"));
+        let _ = qt_for_outcome.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+            match outcome {
+                Ok(detail) => match serde_json::to_string(&detail) {
+                    Ok(json) => ctrl.as_mut().workflow_detail_ready(QString::from(&json)),
+                    Err(e) => {
+                        tracing::warn!(error=%e, "detail json serialise failed");
+                        ctrl.as_mut().import_failed(QString::from(
+                            &format!("detail encode failed: {e}"),
+                        ));
+                    }
+                },
+                Err(reason) => {
+                    tracing::warn!(error=%reason, "fetch_workflow_detail failed");
+                    ctrl.as_mut().import_failed(QString::from(&reason));
+                }
+            }
+        });
+    });
+}
+
+async fn fetch_detail(url: &str) -> anyhow::Result<WorkflowDetail> {
+    use anyhow::Context;
+    let body = http_client()
+        .get(url)
+        .send()
+        .await
+        .with_context(|| format!("GET {url}"))?
+        .error_for_status()
+        .with_context(|| format!("GET {url}"))?
+        .text()
+        .await
+        .context("read body")?;
+
+    let env: DetailEnvelope = serde_json::from_str(&body)
+        .context("parse detail json")?;
+    let wf = crate::kdl_format::decode(&env.data.kdl_source)
+        .context("decode kdl from wflows.com")?;
+
+    let steps: Vec<StepPreview> = wf.steps.iter().map(step_preview).collect();
+    let has_shell = wf.steps.iter().any(|s| {
+        matches!(s.action, crate::actions::Action::Shell { .. })
+    });
+
+    Ok(WorkflowDetail {
+        handle: env.data.handle,
+        slug: env.data.slug,
+        title: env.data.title,
+        description: env.data.description.unwrap_or_default(),
+        install_count: env.data.install_count.unwrap_or(0),
+        comment_count: env.data.comment_count.unwrap_or(0),
+        remix_count: env.data.remix_count.unwrap_or(0),
+        step_count: wf.steps.len(),
+        has_shell,
+        published_at: env.data.published_at.unwrap_or_default(),
+        updated_at: env.data.updated_at.unwrap_or_default(),
+        steps,
+    })
+}
+
+/// One-liner the drawer renders next to each step's icon. Mirrors the
+/// editor list view's value column: the chord, the command, the
+/// window name, the duration. Long shell commands and typed text
+/// stay readable because the drawer truncates with elide=Right.
+fn step_preview(step: &crate::actions::Step) -> StepPreview {
+    use crate::actions::{Action, Condition, fmt_duration_ms};
+
+    let value = match &step.action {
+        Action::WdoType { text, .. } => text.clone(),
+        Action::WdoKey { chord, .. } => chord.clone(),
+        Action::WdoKeyDown { chord } => chord.clone(),
+        Action::WdoKeyUp { chord } => chord.clone(),
+        Action::WdoClick { button } => format!("button {button}"),
+        Action::WdoMouseDown { button } => format!("button {button}"),
+        Action::WdoMouseUp { button } => format!("button {button}"),
+        Action::WdoMouseMove { x, y, relative } => {
+            if *relative { format!("+{x}, +{y}") } else { format!("{x}, {y}") }
+        }
+        Action::WdoScroll { dx, dy } => format!("dx {dx}, dy {dy}"),
+        Action::WdoActivateWindow { name } => name.clone(),
+        Action::WdoAwaitWindow { name, timeout_ms } => {
+            format!("{name} (≤{})", fmt_duration_ms(*timeout_ms))
+        }
+        Action::Delay { ms } => fmt_duration_ms(*ms),
+        Action::Shell { command, .. } => command.clone(),
+        Action::Notify { title, body } => match body {
+            Some(b) if !b.is_empty() => format!("{title} — {b}"),
+            _ => title.clone(),
+        },
+        Action::Clipboard { text } => text.clone(),
+        Action::Note { text } => text.clone(),
+        Action::Repeat { count, steps } => format!(
+            "{count}× ({} step{})",
+            steps.len(),
+            if steps.len() == 1 { "" } else { "s" }
+        ),
+        Action::Conditional { cond, negate, steps, else_steps } => {
+            let verb = if *negate { "unless" } else { "when" };
+            let cond_s = match cond {
+                Condition::Window { name } => format!("window={name}"),
+                Condition::File { path } => format!("file={path}"),
+                Condition::Env { name, equals: None } => format!("env.{name}"),
+                Condition::Env { name, equals: Some(v) } => format!("env.{name}={v}"),
+            };
+            let total = steps.len() + else_steps.len();
+            format!(
+                "{verb} {cond_s} ({total} step{})",
+                if total == 1 { "" } else { "s" }
+            )
+        }
+        Action::Use { name } => name.clone(),
+    };
+
+    StepPreview {
+        kind: step.action.category(),
+        value,
+        note: step.note.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::{Action, Condition, OnError, Step};
+
+    fn step_with(action: Action) -> Step {
+        Step {
+            id: "t".into(),
+            enabled: true,
+            note: None,
+            on_error: OnError::Stop,
+            action,
+        }
+    }
+
+    #[test]
+    fn preview_surfaces_real_command_text() {
+        let s = step_with(Action::Shell {
+            command: "git log --oneline -20".into(),
+            shell: None,
+            capture_as: None,
+            timeout_ms: None,
+            retries: 0,
+            backoff_ms: None,
+        });
+        let p = step_preview(&s);
+        assert_eq!(p.kind, "shell");
+        assert_eq!(p.value, "git log --oneline -20");
+    }
+
+    #[test]
+    fn preview_chord_uses_canonical_form() {
+        let s = step_with(Action::WdoKey {
+            chord: "ctrl+shift+t".into(),
+            clear_modifiers: false,
+        });
+        let p = step_preview(&s);
+        assert_eq!(p.kind, "key");
+        assert_eq!(p.value, "ctrl+shift+t");
+    }
+
+    #[test]
+    fn preview_conditional_describes_branch() {
+        let s = step_with(Action::Conditional {
+            cond: Condition::Window { name: "Slack".into() },
+            negate: false,
+            steps: vec![],
+            else_steps: vec![],
+        });
+        let p = step_preview(&s);
+        assert_eq!(p.kind, "when");
+        assert!(p.value.starts_with("when window=Slack"));
+    }
+
+    #[test]
+    fn preview_carries_note_when_present() {
+        let mut s = step_with(Action::Delay { ms: 500 });
+        s.note = Some("wait for slack to settle".into());
+        let p = step_preview(&s);
+        assert_eq!(p.kind, "wait");
+        assert_eq!(p.value, "500ms");
+        assert_eq!(p.note.as_deref(), Some("wait for slack to settle"));
+    }
 }

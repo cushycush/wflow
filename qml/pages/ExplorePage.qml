@@ -16,6 +16,14 @@ Item {
 
     property string selectedCategory: "All"
     property var selectedWorkflow: null
+    // Detail JSON for the currently-selected live workflow, populated
+    // by ExploreController.fetch_workflow_detail. Carries the parsed
+    // step list, install / comment / remix counts, and timestamps.
+    // Cleared when the drawer closes or a different card opens so the
+    // drawer never paints the previous workflow's data over a fresh
+    // selection.
+    property var selectedDetail: null
+    property bool detailLoading: false
 
     // The bridge controller. Single instance per page — the chrome's
     // pending-deeplink handoff (see Main.qml) uses its own instance,
@@ -27,6 +35,7 @@ Item {
         // the user lands in the editor as soon as the .kdl is on disk.
         onImport_succeeded: (id) => {
             root.selectedWorkflow = null
+            root.selectedDetail = null
             root.openWorkflow(id)
         }
         onImport_failed: (reason) => {
@@ -34,6 +43,23 @@ Item {
             // Surface in the detail drawer too — the user already
             // clicked Install and is waiting for feedback.
             root._lastImportError = reason
+            root.detailLoading = false
+        }
+        onWorkflow_detail_ready: (detailJson) => {
+            try {
+                const detail = JSON.parse(detailJson)
+                // Confirm the response still matches what the user
+                // currently has open. If they jumped between two
+                // cards quickly, the in-flight fetch lands after the
+                // newer fetch and would paint the wrong workflow.
+                const wf = root.selectedWorkflow
+                if (wf && wf.handle === detail.handle && wf.slug === detail.slug) {
+                    root.selectedDetail = detail
+                }
+            } catch (e) {
+                console.warn("detail parse failed:", e)
+            }
+            root.detailLoading = false
         }
     }
     property string _lastImportError: ""
@@ -47,7 +73,19 @@ Item {
         const wf = (root._liveWorkflows.length > 0
             ? root._liveWorkflows
             : root.communityWorkflows).find(w => w.id === id)
-        if (wf) root.selectedWorkflow = wf
+        if (!wf) return
+        root.selectedWorkflow = wf
+        // Drop any cached detail from the previous card so the drawer
+        // shows a loading state instead of stale data while the new
+        // fetch resolves.
+        root.selectedDetail = null
+        root._lastImportError = ""
+        if (wf.handle && wf.slug) {
+            root.detailLoading = true
+            catalog.fetch_workflow_detail(wf.handle, wf.slug)
+        } else {
+            root.detailLoading = false
+        }
     }
 
     function _openInBrowser(detailUrl) {
@@ -367,8 +405,13 @@ Item {
     ExploreDetail {
         anchors.fill: parent
         wf: root.selectedWorkflow
+        detail: root.selectedDetail
+        loading: root.detailLoading
         open: root.selectedWorkflow !== null
-        onClosed: root.selectedWorkflow = null
+        onClosed: {
+            root.selectedWorkflow = null
+            root.selectedDetail = null
+        }
         onImported: (id) => {
             const wf = root.selectedWorkflow
             // Live entries carry handle + slug; fall back to id-based
