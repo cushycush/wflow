@@ -247,66 +247,135 @@ Item {
                     width: page.width - 48
                 }
 
-                // Featured today — wflows.com curates six picks a
-                // week and the desktop mirrors that. Auto-column grid
-                // sized the same way Library is so featured cards
-                // read at the same cadence as the rest of Explore;
-                // no gradient, no special chrome — the chip trail's
-                // cascade is the visual that does the work.
-                Column {
+                // Featured today — wflows.com curates six picks a week
+                // and the desktop mirrors that. Two-column layout:
+                // the explainer body on the left frames what the
+                // section is, the six cards sit on the right in a
+                // 3×2 grid (or 2×3 when narrow). The section itself
+                // sits inside an accent-tinted rectangle with a
+                // hairline coral border so it reads as deliberate
+                // curation rather than just another row.
+                Item {
                     x: 24
                     width: page.width - 48
-                    spacing: 12
+                    height: featuredSection.implicitHeight
 
-                    Row {
-                        spacing: 10
-                        Rectangle {
-                            width: 6; height: 6; radius: 3
-                            color: Theme.accent
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text: "FEATURED TODAY"
-                            color: Theme.accent
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
-                            font.weight: Font.Bold
-                            font.letterSpacing: 1.6
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text: "six picks curated by @wflow this week"
-                            color: Theme.text3
-                            font.family: Theme.familyBody
-                            font.pixelSize: Theme.fontXs
-                            font.letterSpacing: 0.4
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
+                    Rectangle {
+                        id: featuredSection
+                        anchors.fill: parent
+                        radius: Theme.radiusLg
+                        color: Theme.accentDim
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35)
+                        border.width: 1
 
-                    // Auto-column grid, same proportions as the
-                    // browse grid below it — three across at typical
-                    // window widths, two when narrow, one on a phone-
-                    // sized window. Six cards land in a tidy 3×2.
-                    Item {
-                        id: featuredGrid
-                        width: parent.width
-                        readonly property int cols: Math.max(2, Math.floor(width / 300))
-                        readonly property real gap: 12
-                        readonly property real cardW: (width - gap * (cols - 1)) / cols
-                        readonly property real cardH: 220
-                        readonly property int rows: Math.ceil(root.featuredToday.length / cols)
-                        height: rows * cardH + Math.max(0, rows - 1) * gap
+                        readonly property real innerPad: 28
+                        readonly property real colGap: 28
+                        readonly property real leftColW: 260
+                        readonly property real rightW: width - innerPad * 2 - leftColW - colGap
+                        readonly property int rightCols: rightW > 600 ? 3 : 2
+                        readonly property real rightGap: 12
+                        readonly property real rightCardW:
+                            (rightW - rightGap * (rightCols - 1)) / rightCols
+                        readonly property real rightCardH: 220
+                        readonly property int rightRows:
+                            Math.ceil(root.featuredToday.length / rightCols)
+                        readonly property real rightGridH:
+                            rightRows * rightCardH + Math.max(0, rightRows - 1) * rightGap
 
-                        Repeater {
-                            model: root.featuredToday
-                            delegate: CommunityCard {
-                                wf: modelData
-                                x: (index % featuredGrid.cols) * (featuredGrid.cardW + featuredGrid.gap)
-                                y: Math.floor(index / featuredGrid.cols) * (featuredGrid.cardH + featuredGrid.gap)
-                                cardW: featuredGrid.cardW
-                                cardH: featuredGrid.cardH
-                                onActivated: (id) => root.selectWorkflow(id)
+                        implicitHeight: innerPad * 2 + Math.max(leftCol.implicitHeight, rightGridH)
+
+                        Column {
+                            id: leftCol
+                            x: featuredSection.innerPad
+                            y: featuredSection.innerPad
+                            width: featuredSection.leftColW
+                            spacing: 14
+
+                            Row {
+                                spacing: 8
+                                Rectangle {
+                                    width: 6; height: 6; radius: 3
+                                    color: Theme.accent
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "FEATURED TODAY"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Text {
+                                text: "Six workflows, hand-picked"
+                                color: Theme.text
+                                font.family: Theme.familyDisplay
+                                font.pixelSize: Theme.fontXl
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: -0.3
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                            }
+
+                            Text {
+                                text: "Every week the wflow team picks six community workflows we think you should try. Real recipes from real people — keyboard chords, shell pipelines, window dances — the kinds of things you stumble on in someone's dotfiles and immediately want for yourself."
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                                lineHeight: 1.5
+                            }
+
+                            Row {
+                                spacing: 6
+                                topPadding: 4
+                                Text {
+                                    text: "See all featured"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: Font.DemiBold
+                                }
+                                Text {
+                                    text: "→"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    // Hook into a future filter ("featured")
+                                    // once the v0 endpoint exposes the tag;
+                                    // for now this is a visual affordance.
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: rightGrid
+                            x: featuredSection.innerPad + featuredSection.leftColW + featuredSection.colGap
+                            y: featuredSection.innerPad
+                            width: featuredSection.rightW
+                            height: featuredSection.rightGridH
+
+                            Repeater {
+                                model: root.featuredToday
+                                delegate: CommunityCard {
+                                    wf: modelData
+                                    x: (index % featuredSection.rightCols)
+                                        * (featuredSection.rightCardW + featuredSection.rightGap)
+                                    y: Math.floor(index / featuredSection.rightCols)
+                                        * (featuredSection.rightCardH + featuredSection.rightGap)
+                                    cardW: featuredSection.rightCardW
+                                    cardH: featuredSection.rightCardH
+                                    onActivated: (id) => root.selectWorkflow(id)
+                                }
                             }
                         }
                     }
