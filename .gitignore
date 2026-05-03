@@ -15,3 +15,8 @@
 # is fetched from upstream flatpak-builder-tools.
 /packaging/flatpak/cargo-sources.json
 /packaging/flatpak/flatpak-cargo-generator.py
+
+# Launch drafts (held privately at ~/.gstack/projects/cushycush-wflow/).
+# Keep them out of the public repo so we can iterate without
+# committing pre-launch positioning.
+/docs/launch-drafts.md

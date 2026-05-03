@@ -1,20 +1,19 @@
-//! Trigger backends — register a `Trigger` from a workflow with the
-//! compositor / portal so the user's chord activates it.
-//!
-//! Today: Hyprland IPC only. Sway IPC, KWin scripting, GNOME Shell
-//! extension, and the GlobalShortcuts portal land in v0.5+ as the
-//! audience hits them.
+//! Compositor-bind backends for chord triggers. Hyprland and Sway IPC
+//! today; GlobalShortcuts portal in `portal.rs`.
 
 pub mod hyprland;
+pub mod portal;
+pub mod sway;
 
 use crate::actions::{Trigger, TriggerKind};
 
-/// Pick a backend for the current session. Returns None when no
-/// backend recognizes the environment — caller falls back to the
-/// dry-run path so users at least see what WOULD bind.
+/// `None` falls back to the dry-run path.
 pub fn detect() -> Option<Box<dyn Backend>> {
     if hyprland::is_available() {
         return Some(Box::new(hyprland::HyprlandBackend::new()));
+    }
+    if sway::is_available() {
+        return Some(Box::new(sway::SwayBackend::new()));
     }
     None
 }

@@ -4,6 +4,7 @@
 mod actions;
 mod bridge;
 mod cli;
+mod daemon_lock;
 mod engine;
 mod host;
 mod kdl_format;
