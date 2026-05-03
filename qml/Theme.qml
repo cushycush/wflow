@@ -186,11 +186,10 @@ QtObject {
     }
 
     // ============ Feature flags ============
-    // Explore is hidden in 0.4.0 — the page renders but the catalog is
-    // mock data until wflows.com integration lands. We'll flip this back
-    // on as part of the wflows.com release branch (sign-in, real detail
-    // drawer data, deeplink confirm dialog all land together).
-    readonly property bool showExplore: false
+    // Explore is wired to the wflows.com v0 catalog API for browse / detail /
+    // import. The page falls back to the bundled mock catalog before the
+    // network resolves so the tab never paints empty.
+    readonly property bool showExplore: true
     readonly property int durFast: 120
     readonly property int durBase: 160
     readonly property int durSlow: 220
