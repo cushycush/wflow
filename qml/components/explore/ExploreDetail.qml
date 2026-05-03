@@ -427,37 +427,56 @@ FocusScope {
                             id: toggleArea
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            width: toggleLbl.width + 4 + arrowLbl.implicitWidth + 4
-                            height: Math.max(toggleLbl.implicitHeight, arrowLbl.implicitHeight)
+                            // Width is the longer label + gap + chevron,
+                            // pre-reserved via TextMetrics so the layout
+                            // never moves when the state flips. Label is
+                            // right-aligned inside its slot so the gap
+                            // between text and chevron is constant for
+                            // both "Show details" and "Hide details" —
+                            // the shorter text just gets extra empty
+                            // space to its left, not a collision on the
+                            // right.
+                            width: hideMetrics.width + 8 + arrowMetrics.width
+                            height: toggleLbl.implicitHeight + 8
                             visible: !root.loading
 
                             TextMetrics {
                                 id: hideMetrics
-                                font: toggleLbl.font
-                                text: "Hide details"
-                            }
-
-                            Text {
-                                id: toggleLbl
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: hideMetrics.width
-                                text: root.showDetails ? "Hide details" : "Show details"
-                                color: Theme.accent
                                 font.family: Theme.familyBody
                                 font.pixelSize: Theme.fontXs
                                 font.weight: Font.DemiBold
+                                text: "Hide details"
                             }
+                            TextMetrics {
+                                id: arrowMetrics
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                text: "▾"
+                            }
+
                             Text {
                                 id: arrowLbl
-                                anchors.left: toggleLbl.right
-                                anchors.leftMargin: 4
+                                anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: root.showDetails ? "▾" : "▸"
                                 color: Theme.accent
                                 font.family: Theme.familyBody
                                 font.pixelSize: Theme.fontXs
                             }
+                            Text {
+                                id: toggleLbl
+                                anchors.right: arrowLbl.left
+                                anchors.rightMargin: 6
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                horizontalAlignment: Text.AlignRight
+                                text: root.showDetails ? "Hide details" : "Show details"
+                                color: Theme.accent
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                font.weight: Font.DemiBold
+                            }
+
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
@@ -554,11 +573,23 @@ FocusScope {
                                         }
 
                                         Text {
+                                            // Compact mode: single line,
+                                            // truncated. Detailed mode:
+                                            // wraps so the user sees the
+                                            // whole command / typed text
+                                            // without having to scroll
+                                            // horizontally or open the
+                                            // file. This is the always-
+                                            // on visible change when
+                                            // Show details fires, even
+                                            // for steps with no extra
+                                            // options to reveal.
                                             text: modelData.value
                                             color: Theme.text2
                                             font.family: Theme.familyMono
                                             font.pixelSize: Theme.fontSm
-                                            elide: Text.ElideRight
+                                            elide: root.showDetails ? Text.ElideNone : Text.ElideRight
+                                            wrapMode: root.showDetails ? Text.Wrap : Text.NoWrap
                                             width: parent.width
                                             visible: text.length > 0
                                         }
