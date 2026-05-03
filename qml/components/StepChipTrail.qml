@@ -8,15 +8,16 @@ import Wflow
 // Each chip is a pill with:
 //   - a colored dot in the kind's category color
 //   - a short mono label (chord, command verb, duration, ...)
-//   - a hairline border that lifts on hover
+//   - a hairline border that lights up in the kind's color while the
+//     workflow is "playing" through itself (see hovered animation)
 //
 // The trail wraps to a second line when the values run long, capped
 // at `cap` chips with a `+N` sentinel for the overflow.
 //
 // `hovered` is the host card's hover state. When it flips true each
-// chip animates from a faded resting state up to full opacity with a
-// staggered delay (32ms × index), matching the wflows.com "the trail
-// lights up as you scan it" feel.
+// chip's border briefly flashes to its kind's category color in
+// sequence — a wave from the first chip to the last, like the engine
+// invoking each step in order. Same trick wflows.com hero card runs.
 Flow {
     id: root
 
@@ -28,16 +29,14 @@ Flow {
     // Max chips before the +N sentinel. The full step list is in the
     // detail drawer; the trail is a card-density preview only.
     property int cap: 6
-    // Card-level hover state. Drives the stagger entrance.
+    // Card-level hover state. Triggers the cascade animation.
     property bool hovered: false
-    // Per-chip stagger in ms. 32ms × N chips reads as "rolling in"
-    // without dragging the eye through a slow reveal.
-    property int staggerStep: 32
-    // How far each chip lifts during the staggered entrance.
-    property int liftPx: 4
-    // Resting opacity when the card isn't hovered. Lower than 1.0 so
-    // the entrance feels like a reveal rather than a polish.
-    property real restOpacity: 0.65
+    // Per-chip cascade delay in ms. 110ms × N chips reads as a
+    // sequential "step ran, now the next step" without dragging.
+    property int cascadeStep: 110
+    // How long each chip's border holds its kind color before fading
+    // back to the resting hairline.
+    property int holdMs: 220
 
     spacing: 4
 
@@ -54,45 +53,50 @@ Flow {
             height: 22
             width: chipDot.width + chipText.implicitWidth + 18
             radius: height / 2
-            color: chipArea.containsMouse
-                ? Theme.surface3
-                : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.7)
-            border.color: chipArea.containsMouse ? Theme.line : Theme.lineSoft
+            color: Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.7)
+            // border.color is animated by `cascade` while the card is
+            // hovered. The base `Theme.lineSoft` is the resting state;
+            // the animation drives it through dotColor and back.
+            border.color: Theme.lineSoft
             border.width: 1
-            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-            Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-            // Stagger entrance on hover. Resting opacity 0.65;
-            // hovered each chip animates up to 1.0 with a per-index
-            // delay (32ms × index) so the trail "lights up" left to
-            // right. Un-hover collapses everything back at once with
-            // no stagger, so the card releases cleanly. Reduce-motion
-            // zeroes durations via Theme.dur the same as everywhere
-            // else.
-            opacity: root.hovered ? 1.0 : root.restOpacity
-            Behavior on opacity {
-                SequentialAnimation {
-                    PauseAnimation { duration: root.hovered ? chip.chipIndex * root.staggerStep : 0 }
-                    NumberAnimation {
-                        duration: Theme.dur(Theme.durBase)
-                        easing.type: Easing.OutCubic
-                    }
+            // Sequential cascade across the trail. The animation runs
+            // every time `root.hovered` flips true, with a per-chip
+            // delay (chipIndex × cascadeStep) so chip 0 fires
+            // immediately, chip 1 fires ~110ms later, etc — like the
+            // engine stepping through the workflow. Each chip's
+            // border tweens to the kind's category color, holds, then
+            // fades back to the resting hairline. Stops cleanly on
+            // un-hover; the resting binding takes the border back to
+            // lineSoft on the way out.
+            SequentialAnimation {
+                id: cascade
+                PauseAnimation { duration: chip.chipIndex * root.cascadeStep }
+                ColorAnimation {
+                    target: chip
+                    property: "border.color"
+                    to: chip.dotColor
+                    duration: Theme.dur(Theme.durFast)
+                    easing.type: Easing.OutCubic
+                }
+                PauseAnimation { duration: root.holdMs }
+                ColorAnimation {
+                    target: chip
+                    property: "border.color"
+                    to: Theme.lineSoft
+                    duration: Theme.dur(Theme.durBase)
+                    easing.type: Easing.OutCubic
                 }
             }
 
-            // Subtle scale-in matching the opacity reveal. Resting
-            // chips sit a hair smaller (0.96), hovered scale to 1.0
-            // following the same staggered timeline. Together with
-            // the opacity stagger this reads as the chip "popping
-            // in" rather than just brightening.
-            scale: root.hovered ? 1.0 : 0.96
-            transformOrigin: Item.Center
-            Behavior on scale {
-                SequentialAnimation {
-                    PauseAnimation { duration: root.hovered ? chip.chipIndex * root.staggerStep : 0 }
-                    NumberAnimation {
-                        duration: Theme.dur(Theme.durBase)
-                        easing.type: Easing.OutCubic
+            Connections {
+                target: root
+                function onHoveredChanged() {
+                    if (root.hovered) {
+                        cascade.restart()
+                    } else {
+                        cascade.stop()
+                        chip.border.color = Theme.lineSoft
                     }
                 }
             }
@@ -119,13 +123,6 @@ Flow {
                 font.pixelSize: 10
                 font.letterSpacing: 0.1
                 elide: Text.ElideRight
-            }
-
-            MouseArea {
-                id: chipArea
-                anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.NoButton
             }
         }
     }
