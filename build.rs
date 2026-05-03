@@ -29,6 +29,7 @@ fn main() {
             QmlFile::from("qml/components/WfMenu.qml"),
             QmlFile::from("qml/components/WfMenuItem.qml"),
             QmlFile::from("qml/components/WfConfirmDialog.qml"),
+            QmlFile::from("qml/components/DeeplinkConfirmDialog.qml"),
             QmlFile::from("qml/components/GradientPill.qml"),
             QmlFile::from("qml/components/Avatar.qml"),
             QmlFile::from("qml/components/MiniStep.qml"),
