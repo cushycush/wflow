@@ -1137,6 +1137,29 @@ Item {
     // viewport to "all cards in view".
     property bool _firstLoadDone: false
 
+    // First-load auto-fit defers via this timer so card heights
+    // and widths have time to reach root.cardHeights / cardWidths
+    // (cards publish their measurements via onHeightChanged AFTER
+    // they're rendered, which is later than Qt.callLater can wait
+    // for). We also kick the timer on cardHeights changes during a
+    // ~500ms window after first load so the fit re-runs once
+    // measurements actually arrive.
+    Timer {
+        id: firstLoadFitTimer
+        interval: 120
+        repeat: false
+        onTriggered: root._zoomToFit()
+    }
+    property real _firstLoadTs: 0
+    Connections {
+        target: root
+        function onCardHeightsChanged() {
+            if (!root._firstLoadDone) return
+            if (Date.now() - root._firstLoadTs > 500) return
+            firstLoadFitTimer.restart()
+        }
+    }
+
     // Place any newly-added steps below the existing layout. Existing
     // positions are left alone — this is the lazy "I added a step,
     // don't rearrange the others" path. The first time this fires
@@ -1197,7 +1220,8 @@ Item {
         // dropped card during editing) don't re-zoom.
         if (!_firstLoadDone && Object.keys(next).length > 0) {
             _firstLoadDone = true
-            Qt.callLater(_zoomToFit)
+            _firstLoadTs = Date.now()
+            firstLoadFitTimer.restart()
         }
     }
     onActionsChanged: _placeNewSteps()
