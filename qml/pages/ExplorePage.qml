@@ -97,7 +97,16 @@ Item {
     // detail components already expect. Done in one place so the UI
     // doesn't sprout `wf.kinds || wf.actionTypes` ladders everywhere.
     function _toCardShape(row) {
-        const kinds = (row.actionTypes || []).map(a => a.kind || a)
+        // actionTypes can land as either `[{kind, value}]` (the v0
+        // response carries per-step values for the chip trail) or
+        // plain `["kind", ...]` strings on older / sparse responses.
+        // Normalise both shapes into `[{kind, value}]` so the card
+        // can render either tier without a fallback ladder.
+        const trail = (row.actionTypes || []).map(a => {
+            if (typeof a === "string") return { kind: a, value: "" }
+            return { kind: a.kind || "", value: a.value || a.label || a.summary || "" }
+        })
+        const kinds = trail.map(t => t.kind)
         return {
             // The local UI uses a synthetic id of the form
             // "@author/slug" so subsequent lookups land back on the
@@ -110,6 +119,7 @@ Item {
             author: row.handle,
             category: "Community",
             kinds: kinds,
+            trail: trail,
             imports: row.installCount || 0,
             forks: row.remixCount || 0,
             steps: row.stepCount || kinds.length,
