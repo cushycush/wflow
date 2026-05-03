@@ -115,6 +115,104 @@ Item {
                     }
                 }
 
+                // ---- Account ----
+                // Sign-in flow lives here. Browser-handoff via the
+                // wflow:// scheme handler — clicking Sign in opens a
+                // tab at wflows.com/auth/desktop, the user signs in
+                // there, the page redirects to wflow://auth/callback
+                // with a nonce-bound token that AuthController
+                // verifies before storing. State is read off
+                // Theme._auth.state directly so the section reflects the
+                // controller without a property-mirror dance.
+                SettingSection {
+                    title: "Account"
+                    Layout.fillWidth: true
+
+                    // Signed out — Sign in CTA + a one-line pitch.
+                    SettingRow {
+                        visible: Theme._auth.state === "signed_out"
+                        title: "Sign in to wflows.com"
+                        subtitle: "Save favorites, comment on workflows, publish your own."
+
+                        Button {
+                            text: "Sign in"
+                            topPadding: 8
+                            bottomPadding: 8
+                            leftPadding: 16
+                            rightPadding: 16
+                            background: Rectangle {
+                                radius: Theme.radiusSm
+                                color: parent.hovered ? Theme.accentHi : Theme.accent
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: Theme.accentText
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                font.weight: Font.DemiBold
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: Theme._auth.start_sign_in()
+                        }
+                    }
+
+                    // Pending — browser is open, waiting for callback.
+                    SettingRow {
+                        visible: Theme._auth.state === "pending"
+                        title: "Waiting for browser sign-in…"
+                        subtitle: "Complete the flow in your browser. The desktop will switch automatically once the token comes back."
+
+                        SecondaryButton {
+                            text: "Cancel"
+                            onClicked: Theme._auth.cancel_sign_in()
+                        }
+                    }
+
+                    // Signed in — handle + sign out.
+                    SettingRow {
+                        visible: Theme._auth.state === "signed_in"
+                        title: Theme._auth.handle.length > 0 ? "Signed in as @" + Theme._auth.handle : "Signed in"
+                        subtitle: Theme._auth.display_name.length > 0 ? Theme._auth.display_name : "Your wflows.com account is connected."
+
+                        SecondaryButton {
+                            text: "Sign out"
+                            onClicked: Theme._auth.sign_out()
+                        }
+                    }
+
+                    // Failed — last-error + retry.
+                    SettingRow {
+                        visible: Theme._auth.state === "failed"
+                        title: "Sign-in failed"
+                        subtitle: Theme._auth.last_error.length > 0 ? Theme._auth.last_error : "Couldn't complete the sign-in flow."
+
+                        Button {
+                            text: "Try again"
+                            topPadding: 8
+                            bottomPadding: 8
+                            leftPadding: 16
+                            rightPadding: 16
+                            background: Rectangle {
+                                radius: Theme.radiusSm
+                                color: parent.hovered ? Theme.accentHi : Theme.accent
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: Theme.accentText
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                font.weight: Font.DemiBold
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: Theme._auth.start_sign_in()
+                        }
+                    }
+                }
+
                 // ---- Appearance ----
                 SettingSection {
                     title: "Appearance"

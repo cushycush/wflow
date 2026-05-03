@@ -137,6 +137,24 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // AuthController lives on Theme as Theme._auth so both Main.qml
+    // and SettingsPage share one instance (the pending nonce minted
+    // by start_sign_in has to be visible to the deeplink-driven
+    // complete_sign_in). Connections wires the lifecycle signals
+    // here; SettingsPage drives the UI off Theme._auth.state.
+    Connections {
+        target: Theme._auth
+        function onSign_in_succeeded(handle) {
+            console.info("signed in as @" + handle)
+        }
+        function onSign_in_failed(reason) {
+            console.warn("sign-in failed:", reason)
+        }
+        function onSigned_out_event() {
+            console.info("signed out")
+        }
+    }
+
     // Singleton ExploreController for deep-link handoff. ExplorePage
     // owns its own instance for catalog fetches; this one is just a
     // thin pipe for the wflow:// import URL captured at startup.
@@ -174,20 +192,51 @@ ApplicationWindow {
         onCancelled: console.info("deeplink import cancelled by user")
     }
 
-    // wflow://import?source=<URL> arrives as a CLI arg. Decode the
-    // source, fetch a preview without writing to disk, and let the
-    // user confirm before the install actually happens. A malicious
-    // page that opens such a URL in the user's browser shouldn't be
-    // able to silently install a workflow on the desktop — the
-    // dialog is the one place that consent lives.
+    // wflow:// scheme handler. Two shapes today:
+    //
+    //   wflow://import?source=<URL>
+    //     Workflow import. Fetch a preview without writing to disk,
+    //     pop the confirm dialog, install on accept. The dialog is
+    //     the consent gate — without it a malicious page could
+    //     silently land a workflow.
+    //
+    //   wflow://auth/callback?nonce=<nonce>&token=<token>
+    //     Sign-in completion. AuthController verifies the nonce
+    //     against the one it minted at start_sign_in and refuses any
+    //     mismatch — same defense against a hostile page firing this
+    //     URL at us with an attacker-controlled token.
     function _resolveDeeplink(deeplinkUrl) {
-        const m = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
-        if (!m) {
-            console.warn("unknown deeplink shape:", deeplinkUrl)
+        const importMatch = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
+        if (importMatch) {
+            const source = decodeURIComponent(importMatch[1])
+            deeplinkPipe.fetch_deeplink_preview(source)
             return
         }
-        const source = decodeURIComponent(m[1])
-        deeplinkPipe.fetch_deeplink_preview(source)
+        const authMatch = /^wflow:\/\/auth\/callback\?(.+)$/.exec(deeplinkUrl)
+        if (authMatch) {
+            const params = _parseQuery(authMatch[1])
+            const nonce = params.nonce || ""
+            const token = params.token || ""
+            if (!nonce || !token) {
+                console.warn("auth callback missing nonce or token")
+                return
+            }
+            Theme._auth.complete_sign_in(nonce, token)
+            return
+        }
+        console.warn("unknown deeplink shape:", deeplinkUrl)
+    }
+
+    function _parseQuery(qs) {
+        const out = ({})
+        for (const part of qs.split("&")) {
+            const eq = part.indexOf("=")
+            if (eq < 0) continue
+            const k = decodeURIComponent(part.substring(0, eq))
+            const v = decodeURIComponent(part.substring(eq + 1))
+            out[k] = v
+        }
+        return out
     }
 
     ChromeFloating {
@@ -326,6 +375,12 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
+        // Hydrate AuthController from the persisted snapshot in
+        // state.toml. Paints the cached profile immediately and kicks
+        // off a /api/v0/me round-trip in the background to verify the
+        // token's still live; expired tokens flip back to signed_out
+        // automatically.
+        Theme._auth.restore()
         // Auto-fire the tour on any launch where the current tour
         // version hasn't been marked seen. Bumping the key (intro_tour
         // → intro_tour_v2 → intro_tour_v3) replays the tour once for returning users

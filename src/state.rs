@@ -60,6 +60,24 @@ pub struct State {
     /// PathBuf-shaped TOML schema.
     #[serde(default)]
     pub workflows_dir: Option<String>,
+    /// Wflows.com sign-in state. None when signed out. The token is the
+    /// PAT issued by `/auth/desktop`'s deeplink return; the cached
+    /// profile lets the UI render "Signed in as @handle" on launch
+    /// before the network round-trip to `/api/v0/me` resolves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AuthSnapshot {
+    pub token: String,
+    pub handle: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub avatar_url: String,
+    #[serde(default)]
+    pub signed_in_at: Option<String>,
 }
 
 fn default_schema() -> u32 {
@@ -89,6 +107,7 @@ impl Default for State {
             reduce_motion: false,
             library_sort: default_library_sort(),
             workflows_dir: None,
+            auth: None,
         }
     }
 }

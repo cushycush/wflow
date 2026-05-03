@@ -20,6 +20,12 @@ QtObject {
     // write back on cycleMode / applyPalette so the user's choice
     // survives a restart.
     property StateController _state: StateController { }
+    // Shared AuthController exposed through Theme so both Main.qml
+    // (deeplink handler) and SettingsPage (sign-in UI) hit the same
+    // instance — the pending nonce minted at start_sign_in has to be
+    // visible to the complete_sign_in call coming back through the
+    // wflow:// scheme handler.
+    property AuthController _auth: AuthController { }
     property string mode: theme._state.theme_mode || "auto"
     property string palette: theme._state.palette || "warm"
 
