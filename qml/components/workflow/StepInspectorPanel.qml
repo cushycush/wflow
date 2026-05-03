@@ -713,7 +713,14 @@ Item {
                     readonly property var inner: act && act.steps ? act.steps : []
 
                     Text {
-                        text: "INNER STEPS  (" + innerStepsSection.inner.length + ")"
+                        // Conditionals get "TRUE BRANCH" so the
+                        // section reads symmetrically with the
+                        // FALSE BRANCH section below. Repeat keeps
+                        // "INNER STEPS" — there's no true/false
+                        // split there, just a loop body.
+                        text: (root.sel && root.sel.rawKind === "conditional"
+                            ? "TRUE BRANCH  ("
+                            : "INNER STEPS  (") + innerStepsSection.inner.length + ")"
                         color: Theme.text3
                         font.family: Theme.familyBody
                         font.pixelSize: 10
