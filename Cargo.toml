@@ -1,6 +1,6 @@
 [package]
 name = "wflow"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"

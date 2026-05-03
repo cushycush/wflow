@@ -221,10 +221,14 @@ Item {
         const arr = root.actions || []
         const out = []
 
-        // Helper: index in `arr` of a conditional's FIRST NON-NOTE
-        // inner step (notes are annotations and shouldn't anchor a
-        // wire). -1 if no operational inner exists.
-        function firstInnerOf(parentTopIdx) {
+        // "" / "yes" / undefined all count as the yes branch.
+        function _matchesSide(it, wantSide) {
+            const s = it._branchSide || ""
+            if (wantSide === "no") return s === "no"
+            return s !== "no"
+        }
+
+        function firstInnerOf(parentTopIdx, wantSide) {
             let best = -1
             let bestJ = Number.MAX_SAFE_INTEGER
             for (let i = 0; i < arr.length; i++) {
@@ -233,6 +237,7 @@ Item {
                 if (it._displayKind === "inner"
                     && it._parentTopIdx === parentTopIdx
                     && it.rawKind !== "note"
+                    && _matchesSide(it, wantSide)
                     && it._innerIdx < bestJ) {
                     best = i
                     bestJ = it._innerIdx
@@ -241,9 +246,7 @@ Item {
             return best
         }
 
-        // Helper: index in `arr` of a conditional's LAST NON-NOTE
-        // inner step.
-        function lastInnerOf(parentTopIdx) {
+        function lastInnerOf(parentTopIdx, wantSide) {
             let best = -1
             let bestJ = -1
             for (let i = 0; i < arr.length; i++) {
@@ -252,6 +255,7 @@ Item {
                 if (it._displayKind === "inner"
                     && it._parentTopIdx === parentTopIdx
                     && it.rawKind !== "note"
+                    && _matchesSide(it, wantSide)
                     && it._innerIdx > bestJ) {
                     best = i
                     bestJ = it._innerIdx
@@ -278,40 +282,42 @@ Item {
 
             if (it._displayKind === "top") {
                 if (it.rawKind === "conditional") {
-                    // Branch: yes → first inner, no/skip → next top.
-                    const first = firstInnerOf(it._topIdx)
-                    const last = lastInnerOf(it._topIdx)
-                    const nextTop = nextTopAfter(it._topIdx)
-                    if (first >= 0) {
-                        out.push({ from: i, to: first, label: "yes" })
+                    const firstYes = firstInnerOf(it._topIdx, "yes")
+                    const lastYes  = lastInnerOf(it._topIdx, "yes")
+                    const firstNo  = firstInnerOf(it._topIdx, "no")
+                    const lastNo   = lastInnerOf(it._topIdx, "no")
+                    const nextTop  = nextTopAfter(it._topIdx)
+
+                    if (firstYes >= 0) {
+                        out.push({ from: i, to: firstYes, label: "yes" })
+                    }
+                    if (firstNo >= 0) {
+                        out.push({ from: i, to: firstNo, label: "no" })
                     }
                     if (nextTop >= 0) {
-                        // The "no/skip" wire only renders when the
-                        // conditional has at least one inner step;
-                        // otherwise the conditional itself acts as a
-                        // single-edge passthrough and the next-top
-                        // wire below handles it.
-                        if (first >= 0) {
-                            out.push({ from: i, to: nextTop, label: "no" })
-                        } else {
+                        // Direct cond → next-top only when an empty
+                        // branch would otherwise leave the main flow
+                        // disconnected.
+                        if (firstYes < 0 && firstNo < 0) {
                             out.push({ from: i, to: nextTop })
+                        } else if (firstYes < 0) {
+                            out.push({ from: i, to: nextTop, label: "yes" })
+                        } else if (firstNo < 0) {
+                            out.push({ from: i, to: nextTop, label: "no" })
                         }
                     }
-                    // Last inner reconnects to the next-top so the
-                    // yes-branch path rejoins the main flow.
-                    if (last >= 0 && nextTop >= 0) {
-                        out.push({ from: last, to: nextTop })
+                    if (lastYes >= 0 && nextTop >= 0) {
+                        out.push({ from: lastYes, to: nextTop })
+                    }
+                    if (lastNo >= 0 && nextTop >= 0) {
+                        out.push({ from: lastNo, to: nextTop })
                     }
                 } else {
                     const nextTop = nextTopAfter(it._topIdx)
                     if (nextTop >= 0) out.push({ from: i, to: nextTop })
                 }
             } else if (it._displayKind === "inner") {
-                // Inner step: chain to the next NON-NOTE inner of
-                // the same parent, if any. Notes are annotations —
-                // wires bridge over them just like at the top level.
-                // If this is the last inner, the conditional's
-                // `top` branch above already added the rejoin wire.
+                const mySide = it._branchSide || ""
                 let bestJ = Number.MAX_SAFE_INTEGER
                 let bestK = -1
                 for (let j = 0; j < arr.length; j++) {
@@ -320,6 +326,10 @@ Item {
                     if (next._displayKind !== "inner") continue
                     if (next._parentTopIdx !== it._parentTopIdx) continue
                     if (next.rawKind === "note") continue
+                    const nextSide = next._branchSide || ""
+                    // Unsided ("") chains as yes so repeat-container inners work.
+                    const sameSide = (mySide === "no") === (nextSide === "no")
+                    if (!sameSide) continue
                     if (next._innerIdx > it._innerIdx
                         && next._innerIdx < bestJ) {
                         bestJ = next._innerIdx
@@ -338,39 +348,67 @@ Item {
     readonly property int paddingTop: canvasOrigin - 120
     readonly property int paddingBottom: 60
 
-    // ============ Layout actions (one-shot) ============
-
-    // Helper: items whose displayKind/parent matches.
+    // Yes-side first, no-side second, sorted by inner index within each.
     function _innerOf(list, parentTopIdx) {
         return list.filter(it => it && it._displayKind === "inner"
             && it._parentTopIdx === parentTopIdx)
-            .sort((a, b) => a._innerIdx - b._innerIdx)
+            .sort((a, b) => {
+                const aNo = (a._branchSide || "") === "no"
+                const bNo = (b._branchSide || "") === "no"
+                if (aNo !== bNo) return aNo ? 1 : -1
+                return a._innerIdx - b._innerIdx
+            })
+    }
+
+    // side is "yes" (default / repeat) or "no" (conditional else).
+    // Untagged inners count as yes.
+    function _innerOfBranch(list, parentTopIdx, side) {
+        return list.filter(it => {
+            if (!it || it._displayKind !== "inner") return false
+            if (it._parentTopIdx !== parentTopIdx) return false
+            const s = it._branchSide || ""
+            return side === "no" ? s === "no" : s !== "no"
+        }).sort((a, b) => a._innerIdx - b._innerIdx)
     }
 
     function organizeVertical() {
-        // Main flow runs down a centre column. Conditional branches
-        // fan to the RIGHT in a parallel column. Per the design:
-        // the first inner card's TOP edge aligns with the parent
-        // conditional's vertical midpoint, and the last inner card's
-        // BOTTOM edge aligns with the next-top's vertical midpoint —
-        // so the wires fork from / rejoin to the cards' midpoints.
+        // Main flow down centre column. Conditionals fan out: yes-side
+        // RIGHT, no-side LEFT. Both branch columns start at the
+        // conditional's vertical midpoint.
         const list = root.actions || []
         const tops = list.filter(it => it && it._displayKind === "top")
         if (tops.length === 0) return
 
-        // Pick the centreline X so every top card centres on it, and
-        // the branch column lives well clear of the widest top card.
         let maxTopW = nodeW
         for (const t of tops) {
             const w = cardWidths[t.id] || _widthForKind(t.rawKind)
             if (w > maxTopW) maxTopW = w
         }
         const centerX = paddingLeft + maxTopW / 2 + nodeW
-        // Branch column is LEFT-anchored at the right edge of the main
-        // column + a generous gap, so wide inner cards never extend back
-        // into the main column regardless of their width.
         const topRightEdge = centerX + maxTopW / 2
-        const branchLeft = topRightEdge + gap * 2
+        const topLeftEdge  = centerX - maxTopW / 2
+        const yesColLeft   = topRightEdge + gap * 2
+        const noColRight   = topLeftEdge  - gap * 2
+
+        // colX is a function so the no-column can flip its anchor
+        // based on each card's width (right-edge fixed, extend left).
+        function placeColumn(inner, branchTopY, colX) {
+            let yCur = branchTopY
+            let span = 0
+            for (let k = 0; k < inner.length; k++) {
+                const ic = inner[k]
+                const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                const ih = cardHeights[ic.id] || nodeMinH
+                next[ic.id] = { x: colX(iw), y: yCur }
+                yCur += ih
+                span += ih
+                if (k < inner.length - 1) {
+                    yCur += gap
+                    span += gap
+                }
+            }
+            return span
+        }
 
         const next = {}
         let y = paddingTop
@@ -383,31 +421,23 @@ Item {
             let nextY = y + h + gap
 
             if (it.rawKind === "conditional") {
-                const inner = _innerOf(list, it._topIdx)
+                const yesInner = _innerOfBranch(list, it._topIdx, "yes")
                     .filter(ic => ic.rawKind !== "note")
-                if (inner.length > 0) {
-                    // First inner: top edge at when's midpoint.
+                const noInner  = _innerOfBranch(list, it._topIdx, "no")
+                    .filter(ic => ic.rawKind !== "note")
+                if (yesInner.length > 0 || noInner.length > 0) {
                     const branchTopY = y + h / 2
-                    let innerY = branchTopY
-                    let innerSpan = 0
-                    for (let k = 0; k < inner.length; k++) {
-                        const ic = inner[k]
-                        const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
-                        const ih = cardHeights[ic.id] || nodeMinH
-                        next[ic.id] = { x: branchLeft, y: innerY }
-                        innerY += ih
-                        innerSpan += ih
-                        if (k < inner.length - 1) {
-                            innerY += gap
-                            innerSpan += gap
-                        }
-                    }
-                    // Place next top so its midpoint lines up with
-                    // the last inner's bottom — the rejoin lands on
-                    // the next-top's centre. Use an estimated
-                    // height for the next top (same as ours) since
-                    // it isn't laid out yet.
-                    const branchEndY = branchTopY + innerSpan
+                    const yesSpan = yesInner.length
+                        ? placeColumn(yesInner, branchTopY, () => yesColLeft)
+                        : 0
+                    const noSpan = noInner.length
+                        ? placeColumn(noInner, branchTopY,
+                              (iw) => noColRight - iw)
+                        : 0
+                    // nextH is an estimate; the next top isn't laid
+                    // out yet, so we approximate from the current top.
+                    const longestSpan = Math.max(yesSpan, noSpan)
+                    const branchEndY = branchTopY + longestSpan
                     const nextTop = i + 1 < tops.length ? tops[i + 1] : null
                     const nextH = nextTop
                         ? (cardHeights[nextTop.id] || nodeMinH)
@@ -423,10 +453,8 @@ Item {
     }
 
     function organizeHorizontal() {
-        // Main flow runs left-to-right along a centre row. Conditional
-        // branches drop BELOW the parent in a parallel row that
-        // starts at when's horizontal midpoint and ends at the next-
-        // top's horizontal midpoint.
+        // Main flow L→R along a centre row. Yes branches drop BELOW
+        // the parent, no branches go ABOVE.
         const list = root.actions || []
         const tops = list.filter(it => it && it._displayKind === "top")
         if (tops.length === 0) return
@@ -436,8 +464,44 @@ Item {
             const h = cardHeights[t.id] || nodeMinH
             if (h > maxTopH) maxTopH = h
         }
-        const centerY = paddingTop + maxTopH / 2 + nodeMinH / 2
-        const branchY = centerY + maxTopH / 2 + gap * 2
+        let maxBranchH = nodeMinH
+        for (const t of tops) {
+            if (t.rawKind !== "conditional") continue
+            const inner = _innerOf(list, t._topIdx)
+                .filter(ic => ic.rawKind !== "note")
+            for (const ic of inner) {
+                const ih = cardHeights[ic.id] || nodeMinH
+                if (ih > maxBranchH) maxBranchH = ih
+            }
+        }
+        // Position the main row so that:
+        //   - the no-row above has gap*2 clearance from the canvas top
+        //     AND gap*2 clearance from the conditional's top edge, and
+        //   - the yes-row below has gap*2 clearance from the
+        //     conditional's bottom edge.
+        // Adding maxBranchH/2 to each row centre lifts/drops the row
+        // by half a branch-card so the EDGE clearance lands at gap*2.
+        const centerY = paddingTop + maxBranchH + gap * 2 + maxTopH / 2
+        const yesRowY = centerY + maxTopH / 2 + gap * 2 + maxBranchH / 2
+        const noRowY  = centerY - maxTopH / 2 - gap * 2 - maxBranchH / 2
+
+        function placeRow(inner, branchStartX, rowCentreY) {
+            let xCur = branchStartX
+            let span = 0
+            for (let k = 0; k < inner.length; k++) {
+                const ic = inner[k]
+                const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                const ih = cardHeights[ic.id] || nodeMinH
+                next[ic.id] = { x: xCur, y: rowCentreY - ih / 2 }
+                xCur += iw
+                span += iw
+                if (k < inner.length - 1) {
+                    xCur += gap
+                    span += gap
+                }
+            }
+            return span
+        }
 
         const next = {}
         let x = paddingLeft
@@ -450,25 +514,20 @@ Item {
             let nextX = x + w + gap
 
             if (it.rawKind === "conditional") {
-                const inner = _innerOf(list, it._topIdx)
+                const yesInner = _innerOfBranch(list, it._topIdx, "yes")
                     .filter(ic => ic.rawKind !== "note")
-                if (inner.length > 0) {
-                    const branchStartX = x + w / 2
-                    let innerX = branchStartX
-                    let innerSpan = 0
-                    for (let k = 0; k < inner.length; k++) {
-                        const ic = inner[k]
-                        const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
-                        const ih = cardHeights[ic.id] || nodeMinH
-                        next[ic.id] = { x: innerX, y: branchY - ih / 2 }
-                        innerX += iw
-                        innerSpan += iw
-                        if (k < inner.length - 1) {
-                            innerX += gap
-                            innerSpan += gap
-                        }
-                    }
-                    const branchEndX = branchStartX + innerSpan
+                const noInner  = _innerOfBranch(list, it._topIdx, "no")
+                    .filter(ic => ic.rawKind !== "note")
+                if (yesInner.length > 0 || noInner.length > 0) {
+                    const branchStartX = x + w + gap * 2
+                    const yesSpan = yesInner.length
+                        ? placeRow(yesInner, branchStartX, yesRowY)
+                        : 0
+                    const noSpan = noInner.length
+                        ? placeRow(noInner, branchStartX, noRowY)
+                        : 0
+                    const longestSpan = Math.max(yesSpan, noSpan)
+                    const branchEndX = branchStartX + longestSpan
                     const nextTop = i + 1 < tops.length ? tops[i + 1] : null
                     const nextW = nextTop
                         ? (cardWidths[nextTop.id] || _widthForKind(nextTop.rawKind))
@@ -483,11 +542,11 @@ Item {
         Qt.callLater(_zoomToFit)
     }
     function organizeGrid() {
-        // Grid lays out top-level cards in a square-ish footprint.
-        // Conditional branch cards stack DIRECTLY BELOW their parent
-        // in the same grid cell (rather than to the right) so the
-        // no-wire from the parent to the next-top can travel along
-        // the row unobstructed by branch cards.
+        // Square-ish grid. Conditional branches split inside each cell:
+        // no-side stacks ABOVE the parent, yes-side BELOW.
+        // INVARIANT: every parent in a row shares one baseline Y so
+        // inter-cell main-flow wires run cleanly along it, not threading
+        // through any branch stack.
         const list = root.actions || []
         if (list.length === 0) return
         const tops = list.filter(it => it && it._displayKind === "top")
@@ -495,38 +554,65 @@ Item {
 
         const cols = Math.max(1, Math.ceil(Math.sqrt(tops.length)))
 
-        // Cell footprint = top card + branch column underneath.
-        // Column width = max top width across cells in that column.
-        // Row height = max (top.h + branch column total height) across cells.
+        function stackHeight(inner) {
+            if (inner.length === 0) return 0
+            let span = 0
+            for (let k = 0; k < inner.length; k++) {
+                span += cardHeights[inner[k].id] || nodeMinH
+                if (k < inner.length - 1) span += gap
+            }
+            return span
+        }
+
+        // Per-row metrics: above (max no-stack), parent (tallest top),
+        // below (max yes-stack). Baseline = top + above + parent / 2.
         const colWidths = []
-        const rowHeights = []
+        const rowAbove  = []
+        const rowParent = []
+        const rowBelow  = []
         for (let i = 0; i < tops.length; i++) {
             const a = tops[i]
             const col = i % cols
             const row = Math.floor(i / cols)
-            const w = cardWidths[a.id] || _widthForKind(a.rawKind)
-            let cellH = cardHeights[a.id] || nodeMinH
+            let cellW = cardWidths[a.id] || _widthForKind(a.rawKind)
+            const ph = cardHeights[a.id] || nodeMinH
+            let above = 0, below = 0
             if (a.rawKind === "conditional") {
-                const inner = _innerOf(list, a._topIdx)
+                const yesInner = _innerOfBranch(list, a._topIdx, "yes")
                     .filter(ic => ic.rawKind !== "note")
-                let innerSpan = 0
-                for (let k = 0; k < inner.length; k++) {
-                    innerSpan += cardHeights[inner[k].id] || nodeMinH
-                    if (k < inner.length - 1) innerSpan += gap
+                const noInner = _innerOfBranch(list, a._topIdx, "no")
+                    .filter(ic => ic.rawKind !== "note")
+                const yesH = stackHeight(yesInner)
+                const noH  = stackHeight(noInner)
+                if (noH  > 0) above = noH + gap
+                if (yesH > 0) below = yesH + gap
+                for (const ic of yesInner) {
+                    const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                    if (iw > cellW) cellW = iw
                 }
-                if (innerSpan > 0) cellH += gap + innerSpan
+                for (const ic of noInner) {
+                    const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                    if (iw > cellW) cellW = iw
+                }
             }
-            colWidths[col] = Math.max(colWidths[col] || 0, w)
-            rowHeights[row] = Math.max(rowHeights[row] || 0, cellH)
+            colWidths[col] = Math.max(colWidths[col] || 0, cellW)
+            rowAbove[row]  = Math.max(rowAbove[row]  || 0, above)
+            rowParent[row] = Math.max(rowParent[row] || 0, ph)
+            rowBelow[row]  = Math.max(rowBelow[row]  || 0, below)
         }
 
         const colX = [paddingLeft]
         for (let c = 1; c < cols; c++) {
             colX.push(colX[c - 1] + colWidths[c - 1] + gap * 2)
         }
-        const rowY = [paddingTop]
-        for (let r = 1; r < rowHeights.length; r++) {
-            rowY.push(rowY[r - 1] + rowHeights[r - 1] + gap * 2)
+        const rowBaseline = []
+        let yCursor = paddingTop
+        for (let r = 0; r < rowAbove.length; r++) {
+            const top    = rowAbove[r]
+            const parent = rowParent[r]
+            const below  = rowBelow[r]
+            rowBaseline[r] = yCursor + top + parent / 2
+            yCursor += top + parent + below + gap * 2
         }
 
         const next = {}
@@ -536,19 +622,35 @@ Item {
             const row = Math.floor(i / cols)
             const w = cardWidths[a.id] || _widthForKind(a.rawKind)
             const h = cardHeights[a.id] || nodeMinH
-            // Centre top card on the column's centreline.
             const centreX = colX[col] + colWidths[col] / 2
-            next[a.id] = { x: centreX - w / 2, y: rowY[row] }
+            const baseline = rowBaseline[row]
+
+            const parentY = baseline - h / 2
+            next[a.id] = { x: centreX - w / 2, y: parentY }
 
             if (a.rawKind === "conditional") {
-                const inner = _innerOf(list, a._topIdx)
+                const yesInner = _innerOfBranch(list, a._topIdx, "yes")
                     .filter(ic => ic.rawKind !== "note")
-                let innerY = rowY[row] + h + gap
-                for (const ic of inner) {
+                const noInner = _innerOfBranch(list, a._topIdx, "no")
+                    .filter(ic => ic.rawKind !== "note")
+
+                // No-stack grows upward from above the parent.
+                let yBot = parentY - gap
+                for (let k = noInner.length - 1; k >= 0; k--) {
+                    const ic = noInner[k]
                     const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
                     const ih = cardHeights[ic.id] || nodeMinH
-                    next[ic.id] = { x: centreX - iw / 2, y: innerY }
-                    innerY += ih + gap
+                    next[ic.id] = { x: centreX - iw / 2, y: yBot - ih }
+                    yBot = yBot - ih - gap
+                }
+
+                // Yes-stack grows downward from below the parent.
+                let yTop = parentY + h + gap
+                for (const ic of yesInner) {
+                    const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                    const ih = cardHeights[ic.id] || nodeMinH
+                    next[ic.id] = { x: centreX - iw / 2, y: yTop }
+                    yTop += ih + gap
                 }
             }
         }
@@ -565,58 +667,84 @@ Item {
         if (tops.length === 0) return
         if (flick.width <= 0 || flick.height <= 0) return
 
-        // Per-top "cell" footprint. Conditionals carry a branchW /
-        // branchH because their inner steps surface as siblings; the
-        // smart layout reserves space for them inside the column.
+        // Per-top cell footprint. Conditionals split branches around
+        // the parent: yes column RIGHT, no column LEFT, both stacking
+        // down from the parent's vertical mid.
         const cells = tops.map(t => {
             const w = cardWidths[t.id] || _widthForKind(t.rawKind)
             const h = cardHeights[t.id] || nodeMinH
             if (t.rawKind !== "conditional") {
-                return { top: t, w, h, branchW: 0, branchH: 0, inner: [] }
+                return {
+                    top: t, w, h,
+                    yesInner: [], noInner: [],
+                    yesColW: 0, yesColH: 0,
+                    noColW: 0, noColH: 0
+                }
             }
-            const inner = _innerOf(list, t._topIdx)
+            const yesInner = _innerOfBranch(list, t._topIdx, "yes")
                 .filter(ic => ic.rawKind !== "note")
-            let branchW = 0
-            let branchH = 0
-            for (let k = 0; k < inner.length; k++) {
-                const iw = cardWidths[inner[k].id] || _widthForKind(inner[k].rawKind)
-                const ih = cardHeights[inner[k].id] || nodeMinH
-                if (iw > branchW) branchW = iw
-                branchH += ih
-                if (k < inner.length - 1) branchH += gap
+            const noInner = _innerOfBranch(list, t._topIdx, "no")
+                .filter(ic => ic.rawKind !== "note")
+            let yesColW = 0, yesColH = 0
+            for (let k = 0; k < yesInner.length; k++) {
+                const iw = cardWidths[yesInner[k].id] || _widthForKind(yesInner[k].rawKind)
+                const ih = cardHeights[yesInner[k].id] || nodeMinH
+                if (iw > yesColW) yesColW = iw
+                yesColH += ih
+                if (k < yesInner.length - 1) yesColH += gap
             }
-            return { top: t, w, h, branchW, branchH, inner }
+            let noColW = 0, noColH = 0
+            for (let k = 0; k < noInner.length; k++) {
+                const iw = cardWidths[noInner[k].id] || _widthForKind(noInner[k].rawKind)
+                const ih = cardHeights[noInner[k].id] || nodeMinH
+                if (iw > noColW) noColW = iw
+                noColH += ih
+                if (k < noInner.length - 1) noColH += gap
+            }
+            return {
+                top: t, w, h,
+                yesInner, noInner,
+                yesColW, yesColH,
+                noColW, noColH
+            }
         })
 
         const padding = 60
 
-        // Distribute cells across `cols` columns column-major
-        // (consecutive cells stay in the same column; columns wrap
-        // left-to-right) so the eye reads top-down then jumps to the
-        // top of the next column. Returns per-column dimensions so
-        // we can size the bounding box without doing a full layout.
+        function cellHeight(cell) {
+            const branchExtent = cell.h / 2 + Math.max(cell.yesColH, cell.noColH)
+            return Math.max(cell.h, branchExtent)
+        }
+
+        // Pre-compute leftPad per column so every cell's parent lands
+        // at the same X, keeping inter-cell wires on one vertical line.
         function simulate(cols) {
             const perCol = Math.ceil(cells.length / cols)
             const colW = new Array(cols).fill(0)
             const colH = new Array(cols).fill(0)
+            const colLeftPad = new Array(cols).fill(0)
             for (let c = 0; c < cols; c++) {
                 const start = c * perCol
                 const end = Math.min(start + perCol, cells.length)
+                let maxNoColW = 0
+                for (let i = start; i < end; i++) {
+                    if (cells[i].noColW > maxNoColW) maxNoColW = cells[i].noColW
+                }
+                const lp = maxNoColW > 0 ? maxNoColW + gap * 2 : 0
+                colLeftPad[c] = lp
                 for (let i = start; i < end; i++) {
                     const cell = cells[i]
-                    const totalW = cell.branchW > 0
-                        ? cell.w + gap * 2 + cell.branchW
-                        : cell.w
+                    const totalW = lp + cell.w +
+                        (cell.yesColW > 0 ? gap * 2 + cell.yesColW : 0)
                     if (totalW > colW[c]) colW[c] = totalW
-                    const cellH = Math.max(cell.h, cell.branchH)
-                    colH[c] += cellH
+                    colH[c] += cellHeight(cell)
                     if (i < end - 1) colH[c] += gap
                 }
             }
             const totalW = colW.reduce((a, b) => a + b, 0)
                 + Math.max(0, cols - 1) * gap * 2
             const maxH = Math.max(...colH, 0)
-            return { perCol, colW, colH, totalW, maxH }
+            return { perCol, colW, colH, colLeftPad, totalW, maxH }
         }
 
         // Below this, 13/14px body text starts hurting at 1280×800.
@@ -648,32 +776,40 @@ Item {
         if (!pick) pick = fallback
         if (!pick) return
 
-        // Apply the layout. xCursor / yCursor walk top-down then
-        // wrap to the next column. Conditional branches sit at
-        // (top.x + top.w + gap*2, top.y + top.h/2) — same anchor
-        // organizeVertical uses, so the wires hit the parent's
-        // midpoint and rejoin to the next-top's midpoint.
         const sim = pick.sim
         const next = {}
         let xCursor = paddingLeft
         for (let c = 0; c < pick.cols; c++) {
             let yCursor = paddingTop
+            const lp = sim.colLeftPad[c]
             const start = c * sim.perCol
             const end = Math.min(start + sim.perCol, cells.length)
             for (let i = start; i < end; i++) {
                 const cell = cells[i]
-                next[cell.top.id] = { x: xCursor, y: yCursor }
-                if (cell.inner.length > 0) {
-                    const branchX = xCursor + cell.w + gap * 2
+                const ppX = xCursor + lp
+                next[cell.top.id] = { x: ppX, y: yCursor }
+                if (cell.yesInner.length > 0) {
+                    const branchX = ppX + cell.w + gap * 2
                     let branchY = yCursor + cell.h / 2
-                    for (let k = 0; k < cell.inner.length; k++) {
-                        const ic = cell.inner[k]
+                    for (let k = 0; k < cell.yesInner.length; k++) {
+                        const ic = cell.yesInner[k]
                         const ih = cardHeights[ic.id] || nodeMinH
                         next[ic.id] = { x: branchX, y: branchY }
                         branchY += ih + gap
                     }
                 }
-                yCursor += Math.max(cell.h, cell.branchH) + gap
+                if (cell.noInner.length > 0) {
+                    let branchY = yCursor + cell.h / 2
+                    for (let k = 0; k < cell.noInner.length; k++) {
+                        const ic = cell.noInner[k]
+                        const iw = cardWidths[ic.id] || _widthForKind(ic.rawKind)
+                        const ih = cardHeights[ic.id] || nodeMinH
+                        // Right-align so wider cards extend leftward.
+                        next[ic.id] = { x: ppX - gap * 2 - iw, y: branchY }
+                        branchY += ih + gap
+                    }
+                }
+                yCursor += cellHeight(cell) + gap
             }
             xCursor += sim.colW[c] + gap * 2
         }
@@ -745,13 +881,28 @@ Item {
         NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Theme.easingStd }
     }
 
-    // Place any newly-added steps below the existing layout. Existing
-    // positions are left alone, this is the lazy "I added a step,
-    // don't rearrange the others" path. When this is the first time
-    // any positions are being assigned (initial workflow load), we
-    // auto-fit the viewport so the user lands on the cards rather
-    // than at scene origin (which is far from where cards spawn now
-    // that paddingLeft is offset to the canvas centre).
+    property bool _firstLoadDone: false
+
+    // Defers via timer because cards publish height/width via
+    // onHeightChanged AFTER render, later than Qt.callLater can wait for.
+    Timer {
+        id: firstLoadFitTimer
+        interval: 120
+        repeat: false
+        onTriggered: root._zoomToFit()
+    }
+    property real _firstLoadTs: 0
+    Connections {
+        target: root
+        function onCardHeightsChanged() {
+            if (!root._firstLoadDone) return
+            if (Date.now() - root._firstLoadTs > 500) return
+            firstLoadFitTimer.restart()
+        }
+    }
+
+    // Stack newly-added cards under the existing layout; existing
+    // positions stay put. Auto-fits viewport once on first load.
     function _placeNewSteps() {
         const list = root.actions || []
         if (list.length === 0) return
@@ -789,7 +940,11 @@ Item {
         }
         if (dirty) {
             positions = next
-            if (wasEmpty) Qt.callLater(_zoomToFit)
+        }
+        if (!_firstLoadDone && Object.keys(next).length > 0) {
+            _firstLoadDone = true
+            _firstLoadTs = Date.now()
+            firstLoadFitTimer.restart()
         }
     }
     onActionsChanged: _placeNewSteps()
@@ -2765,7 +2920,18 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root._animateZoomTo(1.0, flick.contentX, flick.contentY)
+                    // Reset to 1:1 while keeping the centre world point
+                    // at the centre. contentWidth = world * zoom, so
+                    // passing raw contentX/Y across the change strands
+                    // the cards off-screen.
+                    onClicked: {
+                        const z = Math.max(0.01, root.zoom)
+                        const worldCx = (flick.contentX + flick.width / 2) / z
+                        const worldCy = (flick.contentY + flick.height / 2) / z
+                        root._animateZoomTo(1.0,
+                            worldCx - flick.width / 2,
+                            worldCy - flick.height / 2)
+                    }
                     onContainsMouseChanged: {
                         toolDock.chipHoverCount = Math.max(
                             0,
@@ -2912,35 +3078,11 @@ Item {
         const xOverlap = !(fromPos.x + fromW <= toPos.x || toPos.x + toW <= fromPos.x)
         const yOverlap = !(fromPos.y + fromH <= toPos.y || toPos.y + toH <= fromPos.y)
 
-        // Pick the routing axis. The rules:
-        //
-        //   1. Same row (Y ranges overlap, X don't), forward (target
-        //      right of source) → HORIZONTAL forward. Conditional
-        //      yes-branch entry sits here.
-        //   2. Same row, back-flow, target meaningfully BELOW source
-        //      → VERTICAL. Going down-and-left reads as flow
-        //      continuing into the next step. The canonical example
-        //      is the rejoin wire from a yes-branch's last inner
-        //      into the next-top sitting half a card-height below.
-        //   3. Same row, back-flow, target at the same y or ABOVE
-        //      source → HORIZONTAL back-flow. Vertical here would
-        //      force a U-turn (dive below source, come back up to
-        //      target above), which reads as the wire ducking
-        //      under and pointlessly re-emerging. The horizontal
-        //      lobe (exit right, sweep around, enter left) is the
-        //      natural shape for true back-flow.
-        //   4. Different rows (Y ranges don't overlap) → VERTICAL.
-        //      Serpentine flow into the next row.
-        //   5. Both ranges overlap (stacked / nested) → magnitude.
+        // Same row → horizontal (forward or back). Different rows →
+        // vertical. Both overlap → larger centre-delta wins.
         let useVertical
         if (yOverlap && !xOverlap) {
-            if (toCx > fromCx) {
-                useVertical = false                 // forward
-            } else if (toCy > fromCy) {
-                useVertical = true                  // back-flow, target below
-            } else {
-                useVertical = false                 // back-flow, target same/above
-            }
+            useVertical = false
         } else if (!yOverlap) {
             useVertical = true
         } else {
@@ -2950,47 +3092,25 @@ Item {
         }
 
         if (useVertical) {
-            // Default: exit BOTTOM of source, enter TOP of target.
-            // sd / td both point DOWN, at the source the wire heads
-            // downstream out of the bottom; at the target the wire
-            // arrives from above heading down INTO the top edge.
-            //
-            // Back-flow gets two exceptions:
-            //
-            //   - X ranges OVERLAP (cards stacked or close-diagonal):
-            //     use natural top→bottom edges. Wire exits the
-            //     source's top going UP and enters the target's
-            //     bottom going UP — short direct diagonal. The
-            //     strict lobe would dive below the source and rise
-            //     above the target for no reason; with the cards
-            //     close on the X axis there's no column gap to
-            //     route through, so the dive reads as a pointless
-            //     U-turn under the source.
-            //
-            //   - Target has cards directly above (no clearance):
-            //     enter from the bottom instead. Wire dives below
-            //     source, sweeps under, and comes up into target's
-            //     bottom. This is the rejoin-into-the-middle case.
-            //
-            // Otherwise (true column-wrap with clearance everywhere)
-            // the strict bottom→top rule produces the clean lobe
-            // through the column gap.
+            // Forward: bottom→top. Back-flow with cards above target
+            // (no clearance for top-entry): dive under, enter bottom.
+            // Other back-flow: top→bottom going up, no pointless U.
             const isBackFlow = toCy < fromCy
-            if (isBackFlow && xOverlap) {
-                return {
-                    sx: fromCx, sy: fromPos.y,
-                    tx: toCx,   ty: toPos.y + toH,
-                    axis: "v",
-                    sd: { x: 0, y: -1 },
-                    td: { x: 0, y: -1 }
-                }
-            }
             if (isBackFlow && _hasCardAbove(toPos.x, toPos.y, toW, toId)) {
                 return {
                     sx: fromCx, sy: fromPos.y + fromH,
                     tx: toCx,   ty: toPos.y + toH,
                     axis: "v",
                     sd: { x: 0, y: 1 },
+                    td: { x: 0, y: -1 }
+                }
+            }
+            if (isBackFlow) {
+                return {
+                    sx: fromCx, sy: fromPos.y,
+                    tx: toCx,   ty: toPos.y + toH,
+                    axis: "v",
+                    sd: { x: 0, y: -1 },
                     td: { x: 0, y: -1 }
                 }
             }
@@ -3002,14 +3122,18 @@ Item {
                 td: { x: 0, y: 1 }
             }
         } else {
-            // Always exit RIGHT of source, enter LEFT of target.
-            // Mirrors the vertical convention: horizontal flow is
-            // strictly left-to-right at the edges, so the wire reads
-            // as "next step" out of source's right side and into
-            // target's left side. Back-flow pairs (target physically
-            // to the left of source) get a sweeping lobe that exits
-            // right, loops around, and arrives from the left —
-            // analogous to the vertical column-wrap U.
+            // Forward: source-right → target-left.
+            // Back-flow: source-left → target-right (mirror).
+            const isHBackFlow = toCx < fromCx
+            if (isHBackFlow) {
+                return {
+                    sx: fromPos.x, sy: fromCy,
+                    tx: toPos.x + toW, ty: toCy,
+                    axis: "h",
+                    sd: { x: -1, y: 0 },
+                    td: { x: -1, y: 0 }
+                }
+            }
             return {
                 sx: fromPos.x + fromW, sy: fromCy,
                 tx: toPos.x,            ty: toCy,

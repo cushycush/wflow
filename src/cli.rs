@@ -1429,7 +1429,7 @@ fn explain_lines(action: &Action) -> Vec<String> {
             indent_inner(steps, &mut lines);
             lines
         }
-        Action::Conditional { cond, negate, steps } => {
+        Action::Conditional { cond, negate, steps, else_steps } => {
             let verb = if *negate { "unless" } else { "when" };
             let mut lines = vec![format!(
                 "{head} # {verb} {} ({} step{})",
@@ -1438,6 +1438,14 @@ fn explain_lines(action: &Action) -> Vec<String> {
                 if steps.len() == 1 { "" } else { "s" }
             )];
             indent_inner(steps, &mut lines);
+            if !else_steps.is_empty() {
+                lines.push(format!(
+                    "{head} # else ({} step{})",
+                    else_steps.len(),
+                    if else_steps.len() == 1 { "" } else { "s" }
+                ));
+                indent_inner(else_steps, &mut lines);
+            }
             lines
         }
         Action::Use { name } => {

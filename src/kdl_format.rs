@@ -307,7 +307,7 @@ fn encode_step(step: &Step) -> KdlNode {
             n.push(arg_str(name));
             n
         }
-        Action::Conditional { cond, negate, steps } => {
+        Action::Conditional { cond, negate, steps, else_steps } => {
             let mut n = KdlNode::new(if *negate { "unless" } else { "when" });
             match cond {
                 Condition::Window { name } => n.push(prop_str("window", name)),
@@ -322,6 +322,20 @@ fn encode_step(step: &Step) -> KdlNode {
             let mut inner = KdlDocument::new();
             for step in steps {
                 inner.nodes_mut().push(encode_step(step));
+            }
+            // Else branch nests inside the when/unless block as a
+            // child `else { ... }` node. Keeping it nested (rather
+            // than as a sibling) makes the relationship obvious in
+            // the file and means the existing decoder can skip the
+            // node when an older wflow build encounters it.
+            if !else_steps.is_empty() {
+                let mut else_node = KdlNode::new("else");
+                let mut else_inner = KdlDocument::new();
+                for step in else_steps {
+                    else_inner.nodes_mut().push(encode_step(step));
+                }
+                else_node.set_children(else_inner);
+                inner.nodes_mut().push(else_node);
             }
             n.set_children(inner);
             n
@@ -489,9 +503,15 @@ pub fn expand_imports(
                 step.action = Action::Repeat { count, steps: inner };
                 expanded.push(step);
             }
-            Action::Conditional { cond, negate, steps: mut inner } => {
+            Action::Conditional { cond, negate, steps: mut inner, else_steps: mut inner_else } => {
                 expand_imports(&mut inner, base_dir, imports, visited)?;
-                step.action = Action::Conditional { cond, negate, steps: inner };
+                expand_imports(&mut inner_else, base_dir, imports, visited)?;
+                step.action = Action::Conditional {
+                    cond,
+                    negate,
+                    steps: inner,
+                    else_steps: inner_else,
+                };
                 expanded.push(step);
             }
             _ => expanded.push(step),
@@ -1195,13 +1215,38 @@ fn decode_step(node: &KdlNode) -> Result<Step> {
                 anyhow!("`{verb}` must have a block `{{ ... }}` of steps")
             })?;
             let mut steps = Vec::new();
+            let mut else_steps: Vec<Step> = Vec::new();
+            let mut saw_else = false;
             for step_node in children.nodes() {
+                let child_name = step_node.name().value();
+                if child_name == "else" {
+                    if saw_else {
+                        return Err(anyhow!(
+                            "`{verb}` block can only have one `else` branch"
+                        ));
+                    }
+                    saw_else = true;
+                    let else_children = step_node.children().ok_or_else(|| {
+                        anyhow!("`else` must have a block `{{ ... }}` of steps")
+                    })?;
+                    for inner in else_children.nodes() {
+                        else_steps.push(decode_step(inner)?);
+                    }
+                    continue;
+                }
+                if saw_else {
+                    return Err(anyhow!(
+                        "steps after `else {{ ... }}` aren't allowed inside a `{verb}` block; \
+                         move them outside or into the else branch"
+                    ));
+                }
                 steps.push(decode_step(step_node)?);
             }
             Action::Conditional {
                 cond,
                 negate: verb == "unless",
                 steps,
+                else_steps,
             }
         }
         "note" => {
@@ -1855,7 +1900,7 @@ recipe {
         assert_eq!(wf.steps.len(), 3);
 
         match &wf.steps[0].action {
-            Action::Conditional { cond: Condition::Window { name }, negate: false, steps } => {
+            Action::Conditional { cond: Condition::Window { name }, negate: false, steps, .. } => {
                 assert_eq!(name, "Firefox");
                 assert_eq!(steps.len(), 1);
             }
@@ -1881,6 +1926,63 @@ recipe {
         assert!(text.contains("unless "), "got:\n{text}");
         let back = decode(&text).unwrap();
         assert_eq!(back.steps.len(), 3);
+    }
+
+    #[test]
+    fn when_else_round_trips() {
+        let src = wrap(
+            "when window=\"Slack\" {\n\
+             \t\tkey \"ctrl+k\"\n\
+             \t\telse {\n\
+             \t\t\tnotify \"slack closed\"\n\
+             \t\t}\n\
+             \t}",
+        );
+        let wf = decode(&src).unwrap();
+        match &wf.steps[0].action {
+            Action::Conditional { steps, else_steps, negate: false, .. } => {
+                assert_eq!(steps.len(), 1);
+                assert_eq!(else_steps.len(), 1);
+            }
+            _ => panic!("expected Conditional with else branch"),
+        }
+        let text = encode(&wf);
+        assert!(text.contains("else "), "encoder should emit `else {{ ... }}`:\n{text}");
+        // Round-trip stays stable.
+        let back = decode(&text).unwrap();
+        match &back.steps[0].action {
+            Action::Conditional { steps, else_steps, .. } => {
+                assert_eq!(steps.len(), 1);
+                assert_eq!(else_steps.len(), 1);
+            }
+            _ => panic!("round-trip lost the else branch"),
+        }
+    }
+
+    #[test]
+    fn when_else_only_allowed_once() {
+        let src = wrap(
+            "when window=\"Slack\" {\n\
+             \t\tkey \"a\"\n\
+             \t\telse { notify \"first\" }\n\
+             \t\telse { notify \"second\" }\n\
+             \t}",
+        );
+        let err = format!("{:#}", decode(&src).unwrap_err());
+        assert!(err.contains("only have one `else`"), "got: {err}");
+    }
+
+    #[test]
+    fn when_steps_after_else_rejected() {
+        let src = wrap(
+            "when window=\"Slack\" {\n\
+             \t\tkey \"a\"\n\
+             \t\telse { notify \"x\" }\n\
+             \t\tkey \"b\"\n\
+             \t}",
+        );
+        let err = format!("{:#}", decode(&src).unwrap_err());
+        assert!(err.contains("after `else"), "got: {err}");
     }
 
     #[test]
