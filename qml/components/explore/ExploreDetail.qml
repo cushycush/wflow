@@ -415,26 +415,48 @@ FocusScope {
                         // Show / hide per-step option detail. Sits
                         // next to the STEPS heading so the affordance
                         // is the first thing the user sees when they
-                        // start scanning the workflow.
-                        Row {
+                        // start scanning the workflow. Wrapped in an
+                        // Item that the MouseArea can actually fill —
+                        // a MouseArea parented to a Row gets a 0-width
+                        // slot from Row's layout and never gets the
+                        // clicks. TextMetrics width pre-reserves space
+                        // for the longer "Hide details" label so the
+                        // right edge doesn't clip when the user
+                        // toggles the state.
+                        Item {
+                            id: toggleArea
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
+                            width: toggleLbl.width + 4 + arrowLbl.implicitWidth + 4
+                            height: Math.max(toggleLbl.implicitHeight, arrowLbl.implicitHeight)
                             visible: !root.loading
+
+                            TextMetrics {
+                                id: hideMetrics
+                                font: toggleLbl.font
+                                text: "Hide details"
+                            }
+
                             Text {
+                                id: toggleLbl
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: hideMetrics.width
                                 text: root.showDetails ? "Hide details" : "Show details"
                                 color: Theme.accent
                                 font.family: Theme.familyBody
                                 font.pixelSize: Theme.fontXs
                                 font.weight: Font.DemiBold
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
+                                id: arrowLbl
+                                anchors.left: toggleLbl.right
+                                anchors.leftMargin: 4
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: root.showDetails ? "▾" : "▸"
                                 color: Theme.accent
                                 font.family: Theme.familyBody
                                 font.pixelSize: Theme.fontXs
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                             MouseArea {
                                 anchors.fill: parent
