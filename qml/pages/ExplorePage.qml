@@ -419,15 +419,28 @@ Item {
                         }
                     }
 
-                    ScrollView {
+                    // Plain Flickable — not ScrollView — because the
+                    // controls' nested Flickable steals vertical wheel
+                    // events even when the row only scrolls
+                    // horizontally. interactive:false disables the
+                    // built-in wheel handling, then a horizontal-only
+                    // WheelHandler does the actual scrolling so a
+                    // vertical wheel keeps bubbling to the page-level
+                    // scroll. ScrollBar is wired manually since we no
+                    // longer have ScrollView providing one.
+                    Flickable {
+                        id: trendingFlick
                         width: parent.width
                         height: 232
+                        contentWidth: trendingRow.width
                         contentHeight: height
+                        flickableDirection: Flickable.HorizontalFlick
+                        boundsBehavior: Flickable.StopAtBounds
+                        interactive: false
                         clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
 
                         Row {
+                            id: trendingRow
                             spacing: 12
                             Repeater {
                                 model: root.trending
@@ -438,6 +451,20 @@ Item {
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
+                        }
+
+                        WheelHandler {
+                            orientation: Qt.Horizontal
+                            onWheel: (wheel) => {
+                                trendingFlick.contentX = Math.max(0,
+                                    Math.min(
+                                        Math.max(0, trendingFlick.contentWidth - trendingFlick.width),
+                                        trendingFlick.contentX - wheel.angleDelta.x))
+                            }
+                        }
+
+                        ScrollBar.horizontal: ScrollBar {
+                            policy: ScrollBar.AsNeeded
                         }
                     }
                 }
@@ -468,15 +495,19 @@ Item {
                         }
                     }
 
-                    ScrollView {
+                    Flickable {
+                        id: newFlick
                         width: parent.width
                         height: 232
+                        contentWidth: newRow.width
                         contentHeight: height
+                        flickableDirection: Flickable.HorizontalFlick
+                        boundsBehavior: Flickable.StopAtBounds
+                        interactive: false
                         clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
 
                         Row {
+                            id: newRow
                             spacing: 12
                             Repeater {
                                 model: root.newSubmissions
@@ -487,6 +518,20 @@ Item {
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
+                        }
+
+                        WheelHandler {
+                            orientation: Qt.Horizontal
+                            onWheel: (wheel) => {
+                                newFlick.contentX = Math.max(0,
+                                    Math.min(
+                                        Math.max(0, newFlick.contentWidth - newFlick.width),
+                                        newFlick.contentX - wheel.angleDelta.x))
+                            }
+                        }
+
+                        ScrollBar.horizontal: ScrollBar {
+                            policy: ScrollBar.AsNeeded
                         }
                     }
                 }
