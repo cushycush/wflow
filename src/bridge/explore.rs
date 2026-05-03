@@ -661,6 +661,29 @@ struct StepPreview {
     value: String,
     /// Optional handwritten note. Renders dimmer below the value.
     note: Option<String>,
+    /// Per-step option key-values that aren't the headline value —
+    /// shell timeout / retries / capture-as, key clear-modifiers,
+    /// wait-window timeout, on-error policy, etc. The drawer hides
+    /// these by default and reveals them under a "Show details"
+    /// toggle so the trail stays compact for the casual scan and
+    /// the full picture is one click away.
+    details: Vec<DetailKv>,
+    /// Nested steps for flow control: Repeat's body, Conditional's
+    /// truthy branch. Empty for leaf actions. Rendered inline under
+    /// the parent step in the detailed view, indented one level.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    nested: Vec<StepPreview>,
+    /// Conditional's else branch. Same shape as `nested` but
+    /// rendered under a "ELSE" divider so the user can see the
+    /// no-branch separately from the yes-branch.
+    #[serde(rename = "nestedElse", skip_serializing_if = "Vec::is_empty")]
+    nested_else: Vec<StepPreview>,
+}
+
+#[derive(serde::Serialize)]
+struct DetailKv {
+    label: &'static str,
+    value: String,
 }
 
 fn spawn_detail(
@@ -732,12 +755,94 @@ async fn fetch_detail(url: &str) -> anyhow::Result<WorkflowDetail> {
 
 /// One-liner the drawer renders next to each step's icon. Mirrors the
 /// editor list view's value column. The label content is shared with
-/// the library trail via `actions::step_value_label`.
+/// the library trail via `actions::step_value_label`. `details` and
+/// `nested` carry the rest of the action so the drawer can surface
+/// the full picture under "Show details" without a second fetch.
 fn step_preview(step: &crate::actions::Step) -> StepPreview {
+    use crate::actions::{Action, OnError, fmt_duration_ms};
+
+    let mut details: Vec<DetailKv> = Vec::new();
+    let mut nested: Vec<StepPreview> = Vec::new();
+    let mut nested_else: Vec<StepPreview> = Vec::new();
+
+    match &step.action {
+        Action::WdoType { delay_ms: Some(d), .. } => {
+            details.push(DetailKv { label: "Per-char delay", value: format!("{d}ms") });
+        }
+        Action::WdoKey { clear_modifiers: true, .. } => {
+            details.push(DetailKv { label: "Clear modifiers", value: "yes".into() });
+        }
+        Action::WdoMouseMove { relative: true, .. } => {
+            details.push(DetailKv { label: "Relative", value: "yes".into() });
+        }
+        Action::WdoAwaitWindow { timeout_ms, .. } => {
+            details.push(DetailKv {
+                label: "Timeout",
+                value: fmt_duration_ms(*timeout_ms),
+            });
+        }
+        Action::Shell { shell, capture_as, timeout_ms, retries, backoff_ms, .. } => {
+            if let Some(s) = shell {
+                details.push(DetailKv { label: "Shell", value: s.clone() });
+            }
+            if let Some(name) = capture_as {
+                details.push(DetailKv {
+                    label: "Capture as",
+                    value: format!("{{{{{name}}}}}"),
+                });
+            }
+            if let Some(t) = timeout_ms {
+                details.push(DetailKv {
+                    label: "Timeout",
+                    value: fmt_duration_ms(*t),
+                });
+            }
+            if *retries > 0 {
+                details.push(DetailKv {
+                    label: "Retries",
+                    value: format!("{retries}"),
+                });
+                if let Some(b) = backoff_ms {
+                    details.push(DetailKv {
+                        label: "Backoff",
+                        value: fmt_duration_ms(*b),
+                    });
+                }
+            }
+        }
+        Action::Notify { body: Some(b), .. } if !b.is_empty() => {
+            details.push(DetailKv { label: "Body", value: b.clone() });
+        }
+        Action::Repeat { steps, .. } => {
+            nested = steps.iter().map(step_preview).collect();
+        }
+        Action::Conditional { steps, else_steps, .. } => {
+            nested = steps.iter().map(step_preview).collect();
+            nested_else = else_steps.iter().map(step_preview).collect();
+        }
+        _ => {}
+    }
+
+    if matches!(step.on_error, OnError::Continue) {
+        details.push(DetailKv {
+            label: "On error",
+            value: "continue".into(),
+        });
+    }
+    if !step.enabled {
+        details.push(DetailKv {
+            label: "Skip",
+            value: "yes".into(),
+        });
+    }
+
     StepPreview {
         kind: step.action.category(),
         value: crate::actions::step_value_label(&step.action),
         note: step.note.clone(),
+        details,
+        nested,
+        nested_else,
     }
 }
 

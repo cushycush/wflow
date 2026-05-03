@@ -53,13 +53,22 @@ FocusScope {
     // in, fall back to the kind-list placeholder for offline / mock
     // rows so the drawer still renders something meaningful before
     // the network resolves.
+    // Detail-mode toggle. Off: shows just summary + value per step
+    // (compact scan). On: also reveals each step's per-action options
+    // (timeout, retries, capture-as, on-error policy, ...) and
+    // expands Repeat / Conditional inner steps inline.
+    property bool showDetails: false
+
     function _resolvedSteps() {
         if (root.detail && root.detail.steps && root.detail.steps.length > 0) {
             return root.detail.steps.map((s, i) => ({
                 kind: s.kind,
                 summary: root.kindSummary[s.kind] || s.kind,
                 value: s.value || "",
-                note: s.note || ""
+                note: s.note || "",
+                details: s.details || [],
+                nested: s.nested || [],
+                nestedElse: s.nestedElse || []
             }))
         }
         if (!root.wf || !root.wf.kinds) return []
@@ -71,7 +80,10 @@ FocusScope {
                 kind: k,
                 summary: root.kindSummary[k] || k,
                 value: "",
-                note: ""
+                note: "",
+                details: [],
+                nested: [],
+                nestedElse: []
             })
         }
         return out
@@ -373,24 +385,62 @@ FocusScope {
                     width: body.width - body.leftPadding - body.rightPadding
                     spacing: 6
 
-                    Row {
-                        spacing: 8
-                        Text {
-                            text: "STEPS"
-                            color: Theme.text3
-                            font.family: Theme.familyMono
-                            font.pixelSize: 10
-                            font.weight: Font.Bold
-                            font.letterSpacing: 0.9
-                            bottomPadding: 4
+                    Item {
+                        width: parent.width
+                        height: stepsHeading.implicitHeight + 4
+                        Row {
+                            id: stepsHeading
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 8
+                            Text {
+                                text: "STEPS"
+                                color: Theme.text3
+                                font.family: Theme.familyMono
+                                font.pixelSize: 10
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.9
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                visible: root.loading
+                                text: "loading…"
+                                color: Theme.text3
+                                font.family: Theme.familyMono
+                                font.pixelSize: 10
+                                font.letterSpacing: 0.9
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
-                        Text {
-                            visible: root.loading
-                            text: "loading…"
-                            color: Theme.text3
-                            font.family: Theme.familyMono
-                            font.pixelSize: 10
-                            font.letterSpacing: 0.9
+                        // Show / hide per-step option detail. Sits
+                        // next to the STEPS heading so the affordance
+                        // is the first thing the user sees when they
+                        // start scanning the workflow.
+                        Row {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 4
+                            visible: !root.loading
+                            Text {
+                                text: root.showDetails ? "Hide details" : "Show details"
+                                color: Theme.accent
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                font.weight: Font.DemiBold
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: root.showDetails ? "▾" : "▸"
+                                color: Theme.accent
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontXs
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.showDetails = !root.showDetails
+                            }
                         }
                     }
 
@@ -501,6 +551,130 @@ FocusScope {
                                             width: parent.width
                                             visible: text.length > 0
                                             topPadding: 2
+                                        }
+
+                                        // Per-action option key-values
+                                        // (timeout, retries, capture-as,
+                                        // on-error, ...). Hidden until
+                                        // the user flips Show details
+                                        // on. Each option renders as
+                                        // "label · value" with the
+                                        // value in mono so a number /
+                                        // duration / variable name
+                                        // stays scannable.
+                                        Column {
+                                            visible: root.showDetails && (modelData.details && modelData.details.length > 0)
+                                            width: parent.width
+                                            spacing: 1
+                                            topPadding: 4
+
+                                            Repeater {
+                                                model: modelData.details || []
+                                                delegate: Row {
+                                                    spacing: 6
+                                                    Text {
+                                                        text: modelData.label
+                                                        color: Theme.text3
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                        font.letterSpacing: 0.6
+                                                        font.weight: Font.DemiBold
+                                                    }
+                                                    Text {
+                                                        text: "·"
+                                                        color: Theme.text3
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                    }
+                                                    Text {
+                                                        text: modelData.value
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Nested-step body for Repeat
+                                        // and Conditional. Indented
+                                        // one level so the visual
+                                        // hierarchy reads as "this is
+                                        // inside that step." Renders
+                                        // as a slim Column of mini-
+                                        // rows — kind dot + value —
+                                        // not a full sub-timeline.
+                                        Column {
+                                            visible: root.showDetails && (modelData.nested && modelData.nested.length > 0)
+                                            width: parent.width
+                                            spacing: 4
+                                            topPadding: 6
+
+                                            Repeater {
+                                                model: modelData.nested || []
+                                                delegate: Row {
+                                                    spacing: 8
+                                                    Rectangle {
+                                                        width: 6
+                                                        height: 6
+                                                        radius: 3
+                                                        color: Theme.catFor(modelData.kind || "wait")
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    Text {
+                                                        text: modelData.value || modelData.kind
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 11
+                                                        elide: Text.ElideRight
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Conditional's else branch
+                                        // gets its own divider so the
+                                        // user can read the no-side
+                                        // separately from the yes-
+                                        // side. Same mini-row format.
+                                        Column {
+                                            visible: root.showDetails && (modelData.nestedElse && modelData.nestedElse.length > 0)
+                                            width: parent.width
+                                            spacing: 4
+                                            topPadding: 6
+
+                                            Text {
+                                                text: "ELSE"
+                                                color: Theme.text3
+                                                font.family: Theme.familyMono
+                                                font.pixelSize: 9
+                                                font.letterSpacing: 0.8
+                                                font.weight: Font.Bold
+                                                bottomPadding: 2
+                                            }
+
+                                            Repeater {
+                                                model: modelData.nestedElse || []
+                                                delegate: Row {
+                                                    spacing: 8
+                                                    Rectangle {
+                                                        width: 6
+                                                        height: 6
+                                                        radius: 3
+                                                        color: Theme.catFor(modelData.kind || "wait")
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    Text {
+                                                        text: modelData.value || modelData.kind
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 11
+                                                        elide: Text.ElideRight
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
