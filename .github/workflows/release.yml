@@ -51,6 +51,9 @@ jobs:
           install -m644 LICENSE-APACHE  "${STAGE}/${NAME}/LICENSE-APACHE"
           install -m644 REVIEW.md       "${STAGE}/${NAME}/REVIEW.md"
           install -m644 docs/KDL.md     "${STAGE}/${NAME}/KDL.md"
+          mkdir -p "${STAGE}/${NAME}/systemd"
+          install -m644 packaging/systemd/wflow-daemon.service \
+              "${STAGE}/${NAME}/systemd/wflow-daemon.service"
 
           # Generate completions + man pages from the binary itself, so
           # they're always in sync with what shipped.
@@ -89,6 +92,13 @@ jobs:
           sudo install -d /usr/local/share/man/man1
           sudo install -m644 man/*.1 /usr/local/share/man/man1/
           sudo mandb 2>/dev/null || true
+
+          Auto-start (optional, only if you use trigger chords)
+          ---------------------------------------------------
+          sudo install -Dm644 systemd/wflow-daemon.service \
+              /usr/lib/systemd/user/wflow-daemon.service
+          systemctl --user daemon-reload
+          systemctl --user enable --now wflow-daemon
 
           Verify
           ------

@@ -12,6 +12,48 @@ data). See [BACKLOG.md](BACKLOG.md) for the road there.
 
 ---
 
+## [0.7.0] — 2026-05-03
+
+[Full release notes](docs/release-notes/v0.7.0.md)
+
+The daemon wakes up. Bind a keyboard chord to a workflow and the
+chord fires the workflow on KDE Plasma 6, GNOME 46+, Hyprland, and
+Sway.
+
+### Added
+
+- **Trigger daemon (`wflow daemon`).** New subcommand. Walks the
+  library, registers every `trigger { chord "..." }` block against
+  the right backend (GlobalShortcuts portal on Plasma 6 / GNOME 46+,
+  Hyprland IPC, Sway IPC), dispatches the bound workflow on chord
+  fire. AHK on Linux, more or less.
+- **Hot reload.** Edit a workflow's KDL and the daemon re-binds the
+  delta automatically (compositor-IPC mode; portal mode requires a
+  daemon restart by xdg-desktop-portal spec).
+- **Single-instance lock.** Pidfile at `$XDG_RUNTIME_DIR/wflow/daemon.pid`
+  with `/proc/$pid` liveness check. A second `wflow daemon` exits
+  with "already running (pid N)".
+- **systemd user unit** (`packaging/systemd/wflow-daemon.service`).
+  AUR, Flatpak, and tarball ship it under `/usr/lib/systemd/user/`.
+  `systemctl --user enable --now wflow-daemon` and the daemon starts
+  with every graphical session.
+
+### Changed
+
+- **wdotool-core 0.4 → 0.5.** Picks up the wlroots backend roundtrip
+  fix: every input op (key, type, mouse-move, mouse-button, scroll)
+  now does a `queue.roundtrip()` after sending its protocol messages,
+  so a fast wflow process can't exit and destroy its virtual devices
+  before the compositor finishes processing in-flight events. Caught
+  silent input drops on wlroots that nobody knew were happening.
+- Daemon command help text now describes what the daemon actually
+  does. The v0.4.x "today is dry-run only" placeholder is gone.
+- BACKLOG.md reorganised: trigger daemon ships as the AHK-launch
+  keystone, trigger expansion (hotstrings, per-window predicates)
+  deferred to post-launch.
+
+---
+
 ## [0.6.0] — 2026-05-02
 
 [Full release notes](docs/release-notes/v0.6.0.md)

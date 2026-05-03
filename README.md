@@ -82,6 +82,33 @@ Manifest is in [`packaging/flatpak/`](packaging/flatpak/). Flathub
 submission lands once the last host-machine verification item closes.
 For now: build locally with `./packaging/flatpak/build-local.sh`.
 
+### Auto-start on login
+
+If you're using global-hotkey triggers, you'll want the daemon running
+every time you sign in. Use the bundled systemd user unit:
+
+```sh
+# AUR / Flatpak / distro package: the unit is already at
+# /usr/lib/systemd/user/wflow-daemon.service, just enable it.
+systemctl --user enable --now wflow-daemon
+
+# Source checkout / cargo install: copy the unit first.
+install -Dm644 packaging/systemd/wflow-daemon.service \
+    ~/.config/systemd/user/wflow-daemon.service
+systemctl --user daemon-reload
+systemctl --user enable --now wflow-daemon
+```
+
+`journalctl --user -u wflow-daemon` is the place to look if a chord
+isn't firing. The unit is tied to `graphical-session.target` so the
+daemon starts with KDE / GNOME / Hyprland / Sway and stops on logout.
+
+If you installed via `cargo install --path .` and your user systemd
+hasn't been told about `~/.cargo/bin`, edit `ExecStart=wflow daemon`
+in the unit file to an absolute path like
+`ExecStart=%h/.cargo/bin/wflow daemon`. Systemd's user environment
+doesn't always inherit your shell's PATH.
+
 ## Building a workflow
 
 Launch wflow. The first time, you get a welcome card with two paths:
@@ -218,10 +245,30 @@ full man page is `wflow man` (one page per subcommand if you pass
   with templates; first-run trust prompt for unfamiliar workflow files
   (CLI + GUI, see [`REVIEW.md`](REVIEW.md)); Flatpak manifest with
   host-spawn redirect; GitHub Actions CI + draft-release-on-tag.
-- **next** — Record-mode event coalescing (collapse Move floods, merge
-  text events into Type, assemble chords from modifier+key); flow-
-  control editing in the GUI (currently `$EDITOR` only); cross-platform
-  CI matrix; Flathub submission.
+- **v0.4.0** — Editor grows up. Free-positioning canvas, branch shapes
+  for conditionals, repeat container, multi-select + marquee, undo /
+  redo, group rectangles, step-by-step debugger, run-feedback dots,
+  fragment imports.
+- **v0.4.1** — Left-rail selection follows the canvas marquee in real
+  time as the rect moves.
+- **v0.5.0** — Brand-palette release. Two skins (Warm Paper / Cool
+  Slate) with full light + dark coverage, first-run picker, switch
+  any time from Settings.
+- **v0.6.0** — Conditionals get a real false branch. `when` and
+  `unless` accept an `else { ... }` block, the canvas draws the
+  no-side as a parallel column or row across every layout, the
+  inspector grew a FALSE BRANCH section. Plus wire-routing cleanup
+  and a first-load auto-fit fix.
+- **v0.7.0** — Trigger daemon. `wflow daemon` binds keyboard chords
+  to workflows on KDE Plasma 6, GNOME 46+, Hyprland, and Sway.
+  GlobalShortcuts portal first, compositor IPC fallback. Hot-reload
+  on workflow library changes, single-instance pidfile lock,
+  bundled systemd user unit for autostart on login. Picks up
+  wdotool-core 0.5's wlroots roundtrip fix.
+- **next** — Hotstrings (text expansion), per-window conditional
+  hotkeys, Triggers tab in the GUI, Flathub submission. Plus the
+  wflows.com integration push toward v1.0 (Explore re-enabled,
+  deeplink import confirm dialog, detail drawer with live data).
 
 See `CLAUDE.md` for architecture notes and design decisions, and
 [`CHANGELOG.md`](CHANGELOG.md) for what shipped in each release.

@@ -64,6 +64,58 @@
   </provides>
 
   <releases>
+    <release version="0.7.0" date="2026-05-03">
+      <description>
+        <p>
+          The daemon wakes up. wflow now binds keyboard chords to workflows on KDE Plasma 6, GNOME 46+, Hyprland, and Sway. Add a `trigger { chord "ctrl+alt+t" }` block to a workflow's KDL, run `wflow daemon`, and the chord fires the workflow.
+        </p>
+        <p>
+          The daemon picks the right backend automatically. GlobalShortcuts portal on Plasma 6 and GNOME 46+ (with the explicit consent dialog the first time you bind), Hyprland IPC where Hyprland doesn't ship the portal yet, Sway IPC over `$SWAYSOCK`. Whichever is reachable wins. You don't pick.
+        </p>
+        <p>
+          Hot reload watches the workflow library via inotify. Edit a workflow's KDL, save, the daemon diffs the chord set against what's bound and unbinds-then-rebinds the delta. No daemon restart, no `hyprctl reload`. Compositor-IPC only; the portal binds shortcuts once per session by spec, so portal users do still need to restart the daemon to pick up trigger changes.
+        </p>
+        <p>
+          Auto-start on login via the bundled systemd user unit at `/usr/lib/systemd/user/wflow-daemon.service`. `systemctl --user enable --now wflow-daemon` and the daemon comes up with every graphical session, restarts on failure, logs to journald.
+        </p>
+        <p>
+          Single-instance lock prevents two daemons from binding the same chords. Pidfile at `$XDG_RUNTIME_DIR/wflow/daemon.pid` with a `/proc/$pid` liveness check; a second `wflow daemon` invocation exits with "already running (pid N)".
+        </p>
+        <p>
+          Picks up wdotool-core 0.5's wlroots backend roundtrip fix: every input op now does a queue.roundtrip() after sending its protocol messages, so a fast wflow process can't exit and destroy its virtual devices before the compositor finishes processing. Caught silent input drops on wlroots that nobody knew were happening.
+        </p>
+        <p>
+          Hotstrings (text expansion), per-window conditional hotkeys, and a Triggers tab in the GUI are deferred to a later release.
+        </p>
+      </description>
+    </release>
+    <release version="0.6.0" date="2026-05-02">
+      <description>
+        <p>
+          Conditionals get a real false branch. `when` and `unless` now accept an `else { ... }` block that runs when the predicate flips the other way. Round-trips through KDL, dispatches through the engine, renders across vertical, horizontal, grid, and smart tidy layouts, authors through the inspector's TRUE BRANCH / FALSE BRANCH sections.
+        </p>
+        <p>
+          Wire routing fixes that fell out of dogfooding. Same-row back-flow goes left-out / right-in as a clean adjacent-edge diagonal instead of the old right-out / left-in lobe. Two viewport quality-of-life fixes too: reset zoom preserves the world point at the viewport centre, and first-load auto-fit snaps to all cards on every fresh open.
+        </p>
+      </description>
+    </release>
+    <release version="0.5.0" date="2026-05-01">
+      <description>
+        <p>
+          The brand-palette release. wflow now ships two skins side by side and the first-run tour lets you pick one. Warm Paper (the wflows.com identity, cream surfaces around hue 55 with a coral accent at hue 25, ink-tinted category chips) is the new default. Cool Slate (the original 0.4.x slate-blue at hue 260 with a warm amber accent at hue 60, saturated category chips) stays available for users who liked the v0.4 look.
+        </p>
+        <p>
+          Both palettes carry full light + dark variants. Theme + palette switch independently from Settings, so any of the four combinations is a real surface you can live in. The palette persists in `state.toml` next to your theme preference.
+        </p>
+      </description>
+    </release>
+    <release version="0.4.1" date="2026-05-01">
+      <description>
+        <p>
+          Left-rail selection follows canvas marquee live. As you drag a marquee around cards on the canvas, the corresponding rows in the step rail highlight in real time so you can see at a glance which steps you're about to act on.
+        </p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-04-29">
       <description>
         <p>
