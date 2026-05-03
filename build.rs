@@ -33,6 +33,7 @@ fn main() {
             QmlFile::from("qml/components/GradientPill.qml"),
             QmlFile::from("qml/components/Avatar.qml"),
             QmlFile::from("qml/components/MiniStep.qml"),
+            QmlFile::from("qml/components/StepChipTrail.qml"),
             QmlFile::from("qml/components/DotGrid.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),

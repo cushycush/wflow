@@ -522,47 +522,25 @@ Item {
                     visible: text.length > 0
                 }
 
-                // ── Step trail (existing CategoryIcon row) ──
-                Row {
+                // ── Step trail (wflows.com chip preview) ──
+                // Shared with the explore catalog cards. Hover state
+                // forwards from the card so chips stagger in left to
+                // right when the user mouses over a workflow.
+                StepChipTrail {
                     id: trailRow
                     anchors.top: descText.visible ? descText.bottom : topRow.bottom
                     anchors.topMargin: 12
                     anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.leftMargin: 16
-                    spacing: 6
-
-                    readonly property int kindsCount: card.wf.kinds ? card.wf.kinds.length : 0
-                    readonly property int kindsCap: 7
-                    readonly property int kindsHidden: Math.max(0, kindsCount - kindsCap)
-
-                    Repeater {
-                        model: (card.wf.kinds || []).slice(0, parent.kindsCap)
-                        delegate: CategoryIcon {
-                            kind: modelData
-                            size: 20
-                            hovered: false
-                        }
+                    anchors.rightMargin: 16
+                    trail: {
+                        if (!card.wf) return []
+                        if (card.wf.trail && card.wf.trail.length > 0) return card.wf.trail
+                        const k = card.wf.kinds || []
+                        return k.map(kind => ({ kind: kind, value: "" }))
                     }
-
-                    Rectangle {
-                        visible: parent.kindsHidden > 0
-                        width: moreText.implicitWidth + 10
-                        height: 20
-                        radius: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: "transparent"
-                        border.color: Theme.lineSoft
-                        border.width: 1
-
-                        Text {
-                            id: moreText
-                            anchors.centerIn: parent
-                            text: "+" + parent.parent.kindsHidden
-                            color: Theme.text3
-                            font.family: Theme.familyMono
-                            font.pixelSize: 10
-                        }
-                    }
+                    hovered: cardArea.containsMouse
                 }
 
                 // ── Footer with rule: meta left, imported badge right ──

@@ -143,13 +143,10 @@ Rectangle {
         }
 
         // ── Step trail (wflows.com chip preview) ──
-        // Pill per step: a dot in the kind's category color, a short
-        // mono label, hairline border. Wraps on its own when the row
-        // overflows the card so the trail keeps reading even when
-        // values are long. Capped at six to leave room for the +N
-        // sentinel; long workflows surface the full list inside the
-        // detail drawer.
-        Flow {
+        // Shared with the library card via StepChipTrail. Hover state
+        // forwards from the card so the chips stagger in left-to-right
+        // when the user mouses over the workflow.
+        StepChipTrail {
             id: trailFlow
             anchors.top: descText.visible ? descText.bottom : topRow.bottom
             anchors.topMargin: 12
@@ -157,83 +154,8 @@ Rectangle {
             anchors.right: parent.right
             anchors.leftMargin: 16
             anchors.rightMargin: 16
-            spacing: 4
-
-            readonly property var trail: card._trail
-            readonly property int trailCount: trail.length
-            readonly property int trailCap: 6
-            readonly property int trailHidden: Math.max(0, trailCount - trailCap)
-
-            Repeater {
-                model: trailFlow.trail.slice(0, trailFlow.trailCap)
-                delegate: Rectangle {
-                    readonly property color dotColor: Theme.catFor(modelData.kind || "wait")
-                    readonly property string chipLabel: card._chipLabel(modelData.kind, modelData.value)
-                    height: 22
-                    width: chipDot.width + chipText.implicitWidth + 18
-                    radius: height / 2
-                    color: chipArea.containsMouse
-                        ? Theme.surface3
-                        : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.7)
-                    border.color: chipArea.containsMouse ? Theme.line : Theme.lineSoft
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-                    Rectangle {
-                        id: chipDot
-                        width: 6
-                        height: 6
-                        radius: 3
-                        color: parent.dotColor
-                        anchors.left: parent.left
-                        anchors.leftMargin: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Text {
-                        id: chipText
-                        anchors.left: chipDot.right
-                        anchors.leftMargin: 6
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: parent.chipLabel
-                        color: Theme.text2
-                        font.family: Theme.familyMono
-                        font.pixelSize: 10
-                        font.letterSpacing: 0.1
-                        elide: Text.ElideRight
-                    }
-
-                    MouseArea {
-                        id: chipArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        // Click bubbles up to the card click — the chip
-                        // is read-only, hover is the only feedback it
-                        // owns.
-                        acceptedButtons: Qt.NoButton
-                    }
-                }
-            }
-
-            Rectangle {
-                visible: trailFlow.trailHidden > 0
-                width: moreText.implicitWidth + 12
-                height: 22
-                radius: height / 2
-                color: "transparent"
-                border.color: Theme.lineSoft
-                border.width: 1
-
-                Text {
-                    id: moreText
-                    anchors.centerIn: parent
-                    text: "+" + trailFlow.trailHidden
-                    color: Theme.text3
-                    font.family: Theme.familyMono
-                    font.pixelSize: 10
-                }
-            }
+            trail: card._trail
+            hovered: cardArea.containsMouse
         }
 
         // ── Footer with rule: meta left, category tag right ──
@@ -327,83 +249,12 @@ Rectangle {
     // Trail with a guaranteed `[{kind, value}]` shape. Live rows from
     // the v0 API land here directly through ExplorePage._toCardShape;
     // mock rows only carry `kinds` so we lift them into the same
-    // shape with empty values (the chip falls back to a per-kind
-    // placeholder via _chipLabel).
+    // shape with empty values (the trail's _chipLabel falls back to a
+    // per-kind placeholder).
     readonly property var _trail: {
         if (!card.wf) return []
         if (card.wf.trail && card.wf.trail.length > 0) return card.wf.trail
         const k = card.wf.kinds || []
         return k.map(kind => ({ kind: kind, value: "" }))
-    }
-
-    // Chip label resolution. Real values from the API render as-is
-    // (truncated by elide on overflow). Mock rows fall back to a
-    // per-kind placeholder so a "shell" chip still reads as a shell
-    // chip even before a real workflow's command lands.
-    function _chipLabel(kind, value) {
-        if (value && value.length > 0) {
-            return _abbrev(kind, value)
-        }
-        return _placeholderFor(kind)
-    }
-
-    // The chord / type / shell chips read better with the same
-    // shorthand wflows.com uses: ⌘ for super, ⌥ for alt, ⌃ for ctrl,
-    // ⇧ for shift, ↵ for return. Long shell commands trim to the
-    // first token so the chip reads as a verb instead of a wall.
-    function _abbrev(kind, value) {
-        if (kind === "key" && value.indexOf("+") >= 0) {
-            return value
-                .replace(/\bsuper\b/gi, "⌘")
-                .replace(/\balt\b/gi, "⌥")
-                .replace(/\bctrl\b/gi, "⌃")
-                .replace(/\bshift\b/gi, "⇧")
-                .replace(/\+/g, "")
-        }
-        if (kind === "key") {
-            const m = ({
-                "Return": "↵", "Escape": "⎋", "Tab": "⇥",
-                "BackSpace": "⌫", "Delete": "⌦",
-                "Up": "↑", "Down": "↓", "Left": "←", "Right": "→"
-            })
-            if (m[value]) return m[value]
-            return value
-        }
-        if (kind === "shell") {
-            // First token is usually the command verb (`git`, `kitty`,
-            // `wl-copy`); show that plus the next word so the chip
-            // carries enough context without overflowing.
-            const words = value.trim().split(/\s+/)
-            if (words.length >= 2) return words[0] + " " + words[1]
-            return words[0] || value
-        }
-        if (kind === "wait") return "wait " + value
-        if (kind === "type") {
-            // Strip surrounding quotes when present so "/standup" reads
-            // cleaner than "\"/standup\"".
-            return value.replace(/^["']|["']$/g, "")
-        }
-        return value
-    }
-
-    function _placeholderFor(kind) {
-        const placeholders = ({
-            "key":       "key",
-            "type":      "type",
-            "click":     "click",
-            "move":      "move",
-            "scroll":    "scroll",
-            "focus":     "focus",
-            "wait":      "wait",
-            "shell":     "shell",
-            "notify":    "notify",
-            "clipboard": "paste",
-            "note":      "note",
-            "repeat":    "repeat",
-            "when":      "when",
-            "unless":    "unless",
-            "use":       "use"
-        })
-        return placeholders[kind] || kind
     }
 }

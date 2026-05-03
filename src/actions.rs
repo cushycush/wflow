@@ -590,6 +590,66 @@ impl Action {
     }
 }
 
+/// One-line value label for a step, mirroring the editor list view's
+/// value column. Used by:
+///   - the Explore detail drawer to show the actual chord / command
+///     each step will run
+///   - the catalog chip trail on every workflow card
+///   - the library card chip trail
+/// Kept here (rather than in the bridge layer) so all those surfaces
+/// agree on what a "shell" step or a "wait" step says.
+pub fn step_value_label(action: &Action) -> String {
+    match action {
+        Action::WdoType { text, .. } => text.clone(),
+        Action::WdoKey { chord, .. } => chord.clone(),
+        Action::WdoKeyDown { chord } => chord.clone(),
+        Action::WdoKeyUp { chord } => chord.clone(),
+        Action::WdoClick { button } => format!("button {button}"),
+        Action::WdoMouseDown { button } => format!("button {button}"),
+        Action::WdoMouseUp { button } => format!("button {button}"),
+        Action::WdoMouseMove { x, y, relative } => {
+            if *relative {
+                format!("+{x}, +{y}")
+            } else {
+                format!("{x}, {y}")
+            }
+        }
+        Action::WdoScroll { dx, dy } => format!("dx {dx}, dy {dy}"),
+        Action::WdoActivateWindow { name } => name.clone(),
+        Action::WdoAwaitWindow { name, timeout_ms } => {
+            format!("{name} (≤{})", fmt_duration_ms(*timeout_ms))
+        }
+        Action::Delay { ms } => fmt_duration_ms(*ms),
+        Action::Shell { command, .. } => command.clone(),
+        Action::Notify { title, body } => match body {
+            Some(b) if !b.is_empty() => format!("{title} — {b}"),
+            _ => title.clone(),
+        },
+        Action::Clipboard { text } => text.clone(),
+        Action::Note { text } => text.clone(),
+        Action::Repeat { count, steps } => format!(
+            "{count}× ({} step{})",
+            steps.len(),
+            if steps.len() == 1 { "" } else { "s" }
+        ),
+        Action::Conditional { cond, negate, steps, else_steps } => {
+            let verb = if *negate { "unless" } else { "when" };
+            let cond_s = match cond {
+                Condition::Window { name } => format!("window={name}"),
+                Condition::File { path } => format!("file={path}"),
+                Condition::Env { name, equals: None } => format!("env.{name}"),
+                Condition::Env { name, equals: Some(v) } => format!("env.{name}={v}"),
+            };
+            let total = steps.len() + else_steps.len();
+            format!(
+                "{verb} {cond_s} ({total} step{})",
+                if total == 1 { "" } else { "s" }
+            )
+        }
+        Action::Use { name } => name.clone(),
+    }
+}
+
 impl Condition {
     pub fn describe(&self) -> String {
         match self {
