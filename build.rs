@@ -56,7 +56,6 @@ fn main() {
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Explore
             QmlFile::from("qml/components/explore/ExploreSearch.qml"),
-            QmlFile::from("qml/components/explore/ExploreHero.qml"),
             QmlFile::from("qml/components/explore/CategoryPills.qml"),
             QmlFile::from("qml/components/explore/CommunityCard.qml"),
             QmlFile::from("qml/components/explore/ExploreDetail.qml"),
