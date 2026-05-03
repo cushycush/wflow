@@ -140,8 +140,15 @@ pub struct ExploreControllerRust {
 
 impl Default for ExploreControllerRust {
     fn default() -> Self {
+        // wflows.com itself is currently parked on a GoDaddy lander —
+        // the actual deployment lives at wflows.vercel.app. Defaulting
+        // to the Vercel origin is what makes the live Explore catalog
+        // actually return JSON instead of the lander's HTML, which the
+        // bridge silently fails to parse and falls back to the mock
+        // fixture for. Override via `WFLOW_SITE_ORIGIN` once the
+        // wflows.com DNS points at Vercel.
         let origin = std::env::var("WFLOW_SITE_ORIGIN")
-            .unwrap_or_else(|_| "https://wflows.com".to_string());
+            .unwrap_or_else(|_| "https://wflows.vercel.app".to_string());
         Self {
             featured_json: QString::from("{\"data\":[]}"),
             browse_json: QString::from("{\"data\":[],\"hasMore\":false}"),
