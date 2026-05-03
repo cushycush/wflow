@@ -688,20 +688,26 @@ fn cmd_daemon() -> Result<ExitCode> {
     }
     println!();
 
-    // Try the GlobalShortcuts portal first. Covers KDE Plasma 6 +
-    // GNOME 46+, the bulk of the audience the AHK launch reaches.
-    // The portal is async-only and batch-binds, so it bypasses the
-    // sync `Backend` trait the IPC backends share. If the portal
-    // isn't reachable (older Plasma 5, wlroots compositors that
-    // don't ship xdg-desktop-portal yet), we fall through to the
-    // trait-based IPC backends below.
+    // Backend selection — IPC first, portal second.
+    //
+    // Try the trait-based IPC backends (Hyprland, Sway) before the
+    // GlobalShortcuts portal. xdg-desktop-portal-hyprland advertises
+    // a `GlobalShortcuts` interface that answers `is_available()`
+    // with true but doesn't actually wire chord activation, so a
+    // portal-first probe ends up "binding" chords that never fire
+    // and the user has no idea why. Detecting the IPC sockets
+    // first (cheap env-var + file-existence check) avoids that
+    // class of false-positive entirely. The portal stays the
+    // path for KDE Plasma 6 and GNOME 46+, where IPC isn't
+    // available and the portal is the only option.
     let dispatchable: Vec<Binding> = rows
         .iter()
         .filter(|r| r.binding.is_dispatchable_today())
         .map(|r| r.binding.clone())
         .collect();
+    let ipc_detected = crate::triggers::detect().is_some();
 
-    if !dispatchable.is_empty() {
+    if !ipc_detected && !dispatchable.is_empty() {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -734,23 +740,18 @@ fn cmd_daemon() -> Result<ExitCode> {
                     return Ok(ExitCode::SUCCESS);
                 }
                 Err(e) => {
-                    // Portal looked available but bind / run failed
-                    // (consent declined, transient D-Bus error, etc.).
-                    // Surface and try the IPC fallback in case the
-                    // user is on a hybrid setup with a working
-                    // compositor IPC.
                     println!(
-                        "  {} portal failed: {e:#}\n  {} falling back to compositor IPC…",
+                        "  {} portal failed: {e:#}",
                         cross(),
-                        dim("·")
                     );
                     println!();
+                    return Ok(ExitCode::FAILURE);
                 }
             }
         }
     }
 
-    // Fallback: trait-based IPC backend (Hyprland, Sway).
+    // Compositor IPC backend (Hyprland, Sway).
     let mut backend = match crate::triggers::detect() {
         Some(b) => {
             println!(
