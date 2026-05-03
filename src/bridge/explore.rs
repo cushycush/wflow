@@ -82,11 +82,28 @@ pub mod qobject {
         #[qinvokable]
         fn take_pending_deeplink(self: Pin<&mut ExploreController>) -> QString;
 
+        /// Fetch the v0 detail JSON for a deeplink target without
+        /// writing anything to disk. Used to populate the confirm
+        /// dialog the QML shell shows before installing. Same origin
+        /// fence as `import_from_url`; emits `deeplink_preview_ready`
+        /// with a JSON payload `{title, handle, slug, description,
+        /// stepCount, sourceUrl}` on success, or `import_failed` with
+        /// a human-readable reason on failure (the dialog flow reuses
+        /// the existing failure surface).
+        #[qinvokable]
+        fn fetch_deeplink_preview(self: Pin<&mut ExploreController>, url: QString);
+
         #[qsignal]
         fn import_succeeded(self: Pin<&mut ExploreController>, workflow_id: QString);
 
         #[qsignal]
         fn import_failed(self: Pin<&mut ExploreController>, reason: QString);
+
+        #[qsignal]
+        fn deeplink_preview_ready(
+            self: Pin<&mut ExploreController>,
+            preview_json: QString,
+        );
     }
 
     impl cxx_qt::Threading for ExploreController {}
@@ -316,6 +333,40 @@ impl qobject::ExploreController {
 
         spawn_import(qt_thread, url_s, Some(origin));
     }
+
+    fn fetch_deeplink_preview(self: Pin<&mut Self>, url: QString) {
+        let origin = {
+            use cxx_qt::CxxQtType;
+            self.as_ref().rust().site_origin.to_string()
+        };
+        let qt_thread = self.qt_thread();
+        let url_s = url.to_string();
+
+        // Same origin fence as the install path. A preview that
+        // accepted cross-origin URLs would still leak which page the
+        // user clicked from, plus tempt a future change to "just go
+        // ahead and install since the user already saw the dialog."
+        match url::Url::parse(&url_s) {
+            Ok(u) => {
+                if !same_origin(&u, &origin) {
+                    let _ = qt_thread.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+                        ctrl.as_mut().import_failed(QString::from(
+                            &format!("refused: import URL must be on {origin}"),
+                        ));
+                    });
+                    return;
+                }
+            }
+            Err(e) => {
+                let _ = qt_thread.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+                    ctrl.as_mut().import_failed(QString::from(&format!("invalid url: {e}")));
+                });
+                return;
+            }
+        }
+
+        spawn_preview(qt_thread, url_s);
+    }
 }
 
 fn urlencoded(s: &str) -> String {
@@ -368,6 +419,105 @@ struct DetailData {
     title: String,
     handle: String,
     slug: String,
+    /// Catalog "what does this do" blurb. Optional on the wire
+    /// (older workflows don't have it) so we deserialise as None
+    /// when missing.
+    #[serde(default)]
+    description: Option<String>,
+}
+
+/// Preview payload sent to QML for the confirm dialog. `step_count`
+/// is derived from parsing `kdl_source` through the same decoder
+/// the run path uses, so it matches what the engine would actually
+/// execute — not a byte heuristic.
+#[derive(serde::Serialize)]
+struct DeeplinkPreview {
+    title: String,
+    handle: String,
+    slug: String,
+    description: String,
+    #[serde(rename = "stepCount")]
+    step_count: usize,
+    #[serde(rename = "sourceUrl")]
+    source_url: String,
+}
+
+fn spawn_preview(
+    qt_thread: cxx_qt::CxxQtThread<qobject::ExploreController>,
+    url: String,
+) {
+    let qt_thread = Arc::new(qt_thread);
+    let qt_for_outcome = qt_thread.clone();
+    tokio::spawn(async move {
+        let outcome = match fetch_preview(&url).await {
+            Ok(preview) => Ok(preview),
+            Err(e) => Err(format!("{e}")),
+        };
+        let _ = qt_for_outcome.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+            match outcome {
+                Ok(preview) => match serde_json::to_string(&preview) {
+                    Ok(json) => ctrl.as_mut().deeplink_preview_ready(QString::from(&json)),
+                    Err(e) => {
+                        tracing::warn!(error=%e, "preview json serialise failed");
+                        ctrl.as_mut().import_failed(QString::from(
+                            &format!("preview encode failed: {e}"),
+                        ));
+                    }
+                },
+                Err(reason) => {
+                    tracing::warn!(error=%reason, "deeplink preview failed");
+                    ctrl.as_mut().import_failed(QString::from(&reason));
+                }
+            }
+        });
+    });
+}
+
+async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
+    use anyhow::Context;
+    let body = http_client()
+        .get(url)
+        .send()
+        .await
+        .with_context(|| format!("GET {url}"))?
+        .error_for_status()
+        .with_context(|| format!("GET {url}"))?
+        .text()
+        .await
+        .context("read body")?;
+
+    // Preview only meaningful for the v0 detail JSON shape — the
+    // /raw KDL endpoint has no metadata to preview. If we got plain
+    // KDL, fall back to a minimal preview using the workflow's own
+    // title and a step count from the parsed tree, leaving handle /
+    // slug / description blank.
+    let preview = match serde_json::from_str::<DetailEnvelope>(&body) {
+        Ok(env) => {
+            let wf = crate::kdl_format::decode(&env.data.kdl_source)
+                .context("decode kdl from wflows.com")?;
+            DeeplinkPreview {
+                title: env.data.title,
+                handle: env.data.handle,
+                slug: env.data.slug,
+                description: env.data.description.unwrap_or_default(),
+                step_count: wf.steps.len(),
+                source_url: url.to_string(),
+            }
+        }
+        Err(_) => {
+            let wf = crate::kdl_format::decode(&body)
+                .context("decode raw kdl")?;
+            DeeplinkPreview {
+                title: wf.title.clone(),
+                handle: String::new(),
+                slug: String::new(),
+                description: wf.subtitle.clone().unwrap_or_default(),
+                step_count: wf.steps.len(),
+                source_url: url.to_string(),
+            }
+        }
+    };
+    Ok(preview)
 }
 
 async fn fetch_and_import(url: &str) -> anyhow::Result<String> {
