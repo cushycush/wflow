@@ -30,6 +30,14 @@ fn main() -> ExitCode {
     if parsed.command.is_some() {
         return cli::run(parsed);
     }
+    // Deep-link entry point: a `wflow://import?source=<url>` URL handed
+    // off by xdg-open lands here as the only positional arg. Stash it
+    // for the QML layer to pick up via ExploreController once the GUI
+    // has finished booting (no point opening the import dialog before
+    // the user even sees the window).
+    if let Some(deeplink) = parsed.deeplink.as_deref() {
+        std::env::set_var("WFLOW_PENDING_DEEPLINK", deeplink);
+    }
     run_gui()
 }
 

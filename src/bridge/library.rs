@@ -95,9 +95,22 @@ struct WorkflowSummary {
     last_run: Option<String>,
     modified: Option<String>,
     kinds: Vec<String>,
+    /// Per-step `{kind, value}` for the chip trail on the library
+    /// card — same shape as the Explore catalog row's `actionTypes`.
+    /// Capped to 12 entries so the JSON payload stays small for
+    /// large libraries; the card only renders the first six anyway,
+    /// the cap leaves headroom for the +N sentinel without
+    /// over-serialising.
+    trail: Vec<TrailEntry>,
     /// Folder / category from `workflows.toml`. Empty string when
     /// the workflow lives at the top level (no folder assigned).
     folder: String,
+}
+
+#[derive(Serialize)]
+struct TrailEntry {
+    kind: &'static str,
+    value: String,
 }
 
 pub struct LibraryControllerRust {
@@ -277,6 +290,15 @@ fn load_as_json() -> QString {
                     .iter()
                     .map(|s| s.action.category().to_string())
                     .collect();
+                let trail: Vec<TrailEntry> = wf
+                    .steps
+                    .iter()
+                    .take(12)
+                    .map(|s| TrailEntry {
+                        kind: s.action.category(),
+                        value: crate::actions::step_value_label(&s.action),
+                    })
+                    .collect();
                 let folder = wf.folder.clone().unwrap_or_default();
                 WorkflowSummary {
                     id: wf.id,
@@ -286,6 +308,7 @@ fn load_as_json() -> QString {
                     last_run: wf.last_run.map(|t| t.to_rfc3339()),
                     modified: wf.modified.map(|t| t.to_rfc3339()),
                     kinds,
+                    trail,
                     folder,
                 }
             })

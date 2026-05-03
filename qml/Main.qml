@@ -137,6 +137,59 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // Singleton ExploreController for deep-link handoff. ExplorePage
+    // owns its own instance for catalog fetches; this one is just a
+    // thin pipe for the wflow:// import URL captured at startup.
+    ExploreController {
+        id: deeplinkPipe
+        onImport_succeeded: (id) => root.openWorkflowDoc(id)
+        onImport_failed: (reason) => {
+            console.warn("deeplink import failed:", reason)
+        }
+        // Preview comes back as a JSON string from the bridge —
+        // {title, handle, slug, description, stepCount, sourceUrl}.
+        // Parse, hand off to the dialog, let the user confirm or
+        // cancel before any disk write happens.
+        onDeeplink_preview_ready: (previewJson) => {
+            try {
+                const preview = JSON.parse(previewJson)
+                deeplinkConfirmDialog.preview = preview
+                deeplinkConfirmDialog.open()
+            } catch (e) {
+                console.warn("deeplink preview parse failed:", e)
+            }
+        }
+    }
+
+    // Confirm dialog gating the wflow:// import flow. The bridge
+    // fetches metadata first (no disk write), this dialog renders
+    // it, the user accepts or cancels. On accept we call
+    // import_from_url with the original source URL; the bridge
+    // re-fetches and writes through the same path that was running
+    // unchallenged before.
+    DeeplinkConfirmDialog {
+        id: deeplinkConfirmDialog
+        anchors.centerIn: parent
+        onConfirmed: (sourceUrl) => deeplinkPipe.import_from_url(sourceUrl)
+        onCancelled: console.info("deeplink import cancelled by user")
+    }
+
+    // wflow://import?source=<URL> arrives as a CLI arg. Decode the
+    // source, fetch a preview without writing to disk, and let the
+    // user confirm before the install actually happens. A malicious
+    // page that opens such a URL in the user's browser shouldn't be
+    // able to silently install a workflow on the desktop — the
+    // dialog is the one place that consent lives.
+    function _resolveDeeplink(deeplinkUrl) {
+        const m = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
+        if (!m) {
+            console.warn("unknown deeplink shape:", deeplinkUrl)
+            return
+        }
+        const source = decodeURIComponent(m[1])
+        deeplinkPipe.fetch_deeplink_preview(source)
+    }
+
     ChromeFloating {
         id: chrome
         anchors.fill: parent
@@ -287,5 +340,14 @@ ApplicationWindow {
             // boot.
             Qt.callLater(() => Qt.callLater(tutorial.start))
         }
+        // Pending wflow://import?source=... URL from a browser handoff?
+        // Fire the import once the GUI is up. take_pending_deeplink
+        // clears the env var so a second poll wouldn't re-import.
+        Qt.callLater(() => {
+            const url = deeplinkPipe.take_pending_deeplink()
+            if (url && url.length > 0) {
+                _resolveDeeplink(url)
+            }
+        })
     }
 }

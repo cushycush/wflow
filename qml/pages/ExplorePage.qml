@@ -3,19 +3,155 @@ import QtQuick.Controls
 import Wflow
 
 // Community catalog. Browse and import workflows submitted by other users.
-// Read-pane by design — submission, discussion, profiles, ratings all live on
-// the web. The app only consumes the catalog.
+// Read-pane by design. Submission, discussion, profiles, ratings all live on
+// the web; the app only consumes the catalog.
+//
+// Talks to wflows.com over the v0 JSON API (see ExploreController). The
+// mock workflow list at the bottom of this file is the offline / pre-
+// network fallback; once /api/v0/featured + /api/v0/browse return data
+// the live results take over via _liveWorkflows.
 Item {
     id: root
     signal openWorkflow(string id)      // emitted after import to route to the editor
 
     property string selectedCategory: "All"
     property var selectedWorkflow: null
+    // Detail JSON for the currently-selected live workflow, populated
+    // by ExploreController.fetch_workflow_detail. Carries the parsed
+    // step list, install / comment / remix counts, and timestamps.
+    // Cleared when the drawer closes or a different card opens so the
+    // drawer never paints the previous workflow's data over a fresh
+    // selection.
+    property var selectedDetail: null
+    property bool detailLoading: false
+
+    // The bridge controller. Single instance per page — the chrome's
+    // pending-deeplink handoff (see Main.qml) uses its own instance,
+    // which is fine because both call into the same store.
+    ExploreController {
+        id: catalog
+
+        // Wire imports straight into the page's openWorkflow signal so
+        // the user lands in the editor as soon as the .kdl is on disk.
+        onImport_succeeded: (id) => {
+            root.selectedWorkflow = null
+            root.selectedDetail = null
+            root.openWorkflow(id)
+        }
+        onImport_failed: (reason) => {
+            console.warn("import failed:", reason)
+            // Surface in the detail drawer too — the user already
+            // clicked Install and is waiting for feedback.
+            root._lastImportError = reason
+            root.detailLoading = false
+        }
+        onWorkflow_detail_ready: (detailJson) => {
+            try {
+                const detail = JSON.parse(detailJson)
+                // Confirm the response still matches what the user
+                // currently has open. If they jumped between two
+                // cards quickly, the in-flight fetch lands after the
+                // newer fetch and would paint the wrong workflow.
+                const wf = root.selectedWorkflow
+                if (wf && wf.handle === detail.handle && wf.slug === detail.slug) {
+                    root.selectedDetail = detail
+                }
+            } catch (e) {
+                console.warn("detail parse failed:", e)
+            }
+            root.detailLoading = false
+        }
+    }
+    property string _lastImportError: ""
+
+    Component.onCompleted: {
+        catalog.fetch_featured()
+        catalog.fetch_browse("", "", "", "", 0, 24)
+    }
 
     function selectWorkflow(id) {
-        const wf = root.communityWorkflows.find(w => w.id === id)
-        if (wf) root.selectedWorkflow = wf
+        const wf = (root._liveWorkflows.length > 0
+            ? root._liveWorkflows
+            : root.communityWorkflows).find(w => w.id === id)
+        if (!wf) return
+        root.selectedWorkflow = wf
+        // Drop any cached detail from the previous card so the drawer
+        // shows a loading state instead of stale data while the new
+        // fetch resolves.
+        root.selectedDetail = null
+        root._lastImportError = ""
+        if (wf.handle && wf.slug) {
+            root.detailLoading = true
+            catalog.fetch_workflow_detail(wf.handle, wf.slug)
+        } else {
+            root.detailLoading = false
+        }
     }
+
+    function _openInBrowser(detailUrl) {
+        if (!detailUrl) return
+        Qt.openUrlExternally(detailUrl)
+    }
+
+    // Map a remote /api/v0 row into the shape the existing card / hero /
+    // detail components already expect. Done in one place so the UI
+    // doesn't sprout `wf.kinds || wf.actionTypes` ladders everywhere.
+    function _toCardShape(row) {
+        // actionTypes can land as either `[{kind, value}]` (the v0
+        // response carries per-step values for the chip trail) or
+        // plain `["kind", ...]` strings on older / sparse responses.
+        // Normalise both shapes into `[{kind, value}]` so the card
+        // can render either tier without a fallback ladder.
+        const trail = (row.actionTypes || []).map(a => {
+            if (typeof a === "string") return { kind: a, value: "" }
+            return { kind: a.kind || "", value: a.value || a.label || a.summary || "" }
+        })
+        const kinds = trail.map(t => t.kind)
+        return {
+            // The local UI uses a synthetic id of the form
+            // "@author/slug" so subsequent lookups land back on the
+            // same row without any lookup table.
+            id: "@" + row.handle + "/" + row.slug,
+            handle: row.handle,
+            slug: row.slug,
+            title: row.title,
+            subtitle: row.description || "",
+            author: row.handle,
+            category: "Community",
+            kinds: kinds,
+            trail: trail,
+            imports: row.installCount || 0,
+            forks: row.remixCount || 0,
+            steps: row.stepCount || kinds.length,
+            hasShell: kinds.indexOf("shell") >= 0,
+            trending: false,
+            newSubmission: false,
+            heroPalette: "amber",
+            // Pass-throughs the detail drawer / install button need.
+            rawUrl: row.rawUrl || "",
+            detailUrl: row.detailUrl || "",
+            deeplink: row.deeplink || ""
+        }
+    }
+
+    readonly property var _featuredRows: {
+        try {
+            const j = JSON.parse(catalog.featured_json)
+            return (j.data || []).map(_toCardShape)
+        } catch (e) { return [] }
+    }
+    readonly property var _browseRows: {
+        try {
+            const j = JSON.parse(catalog.browse_json)
+            return (j.data || []).map(_toCardShape)
+        } catch (e) { return [] }
+    }
+    readonly property var _liveWorkflows: _featuredRows.concat(
+        // De-dupe browse against featured so a featured workflow doesn't
+        // appear twice on the same page.
+        _browseRows.filter(b =>
+            !_featuredRows.some(f => f.id === b.id))
+    )
 
     // ==== Mock community workflows ====
     // Shape: { id, title, subtitle, author, category, kinds, imports, forks, steps, hasShell, trending, newSubmission }
@@ -59,13 +195,27 @@ Item {
           imports: 691, forks: 51, steps: 5, hasShell: true }
     ]
 
-    readonly property var featured: communityWorkflows[0]
-    readonly property var trending: communityWorkflows.filter(w => w.trending)
-    readonly property var newSubmissions: communityWorkflows.filter(w => w.newSubmission)
+    // Prefer live data once the bridge has populated featured + browse;
+    // fall back to the mock catalog before the network resolves so the
+    // page never paints empty.
+    readonly property var _activeCatalog: _liveWorkflows.length > 0
+        ? _liveWorkflows
+        : communityWorkflows
+
+    // Featured today — the first six rows of the v0 /featured response,
+    // or the first six community workflows when offline. wflows.com's
+    // featured rotation is six picks per week, so the desktop renders
+    // the same six in a curated grid up top.
+    readonly property var featuredToday: {
+        const src = _liveWorkflows.length > 0 ? _featuredRows : communityWorkflows
+        return src.slice(0, 6)
+    }
+    readonly property var trending: _activeCatalog.filter(w => w.trending)
+    readonly property var newSubmissions: _activeCatalog.filter(w => w.newSubmission)
     readonly property var filtered: (
         selectedCategory === "All"
-            ? communityWorkflows
-            : communityWorkflows.filter(w => w.category === selectedCategory)
+            ? _activeCatalog
+            : _activeCatalog.filter(w => w.category === selectedCategory)
     )
 
     Column {
@@ -97,11 +247,138 @@ Item {
                     width: page.width - 48
                 }
 
-                ExploreHero {
+                // Featured today — wflows.com curates six picks a week
+                // and the desktop mirrors that. Two-column layout:
+                // the explainer body on the left frames what the
+                // section is, the six cards sit on the right in a
+                // 3×2 grid (or 2×3 when narrow). The section itself
+                // sits inside an accent-tinted rectangle with a
+                // hairline coral border so it reads as deliberate
+                // curation rather than just another row.
+                Item {
                     x: 24
                     width: page.width - 48
-                    wf: root.featured
-                    onActivated: (id) => root.selectWorkflow(id)
+                    height: featuredSection.implicitHeight
+
+                    Rectangle {
+                        id: featuredSection
+                        anchors.fill: parent
+                        radius: Theme.radiusLg
+                        color: Theme.accentDim
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.35)
+                        border.width: 1
+
+                        readonly property real innerPad: 28
+                        readonly property real colGap: 28
+                        readonly property real leftColW: 260
+                        readonly property real rightW: width - innerPad * 2 - leftColW - colGap
+                        readonly property int rightCols: rightW > 600 ? 3 : 2
+                        readonly property real rightGap: 12
+                        readonly property real rightCardW:
+                            (rightW - rightGap * (rightCols - 1)) / rightCols
+                        readonly property real rightCardH: 220
+                        readonly property int rightRows:
+                            Math.ceil(root.featuredToday.length / rightCols)
+                        readonly property real rightGridH:
+                            rightRows * rightCardH + Math.max(0, rightRows - 1) * rightGap
+
+                        implicitHeight: innerPad * 2 + Math.max(leftCol.implicitHeight, rightGridH)
+
+                        Column {
+                            id: leftCol
+                            x: featuredSection.innerPad
+                            y: featuredSection.innerPad
+                            width: featuredSection.leftColW
+                            spacing: 14
+
+                            Row {
+                                spacing: 8
+                                Rectangle {
+                                    width: 6; height: 6; radius: 3
+                                    color: Theme.accent
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "FEATURED TODAY"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Text {
+                                text: "Six workflows, hand-picked"
+                                color: Theme.text
+                                font.family: Theme.familyDisplay
+                                font.pixelSize: Theme.fontXl
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: -0.3
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                            }
+
+                            Text {
+                                text: "Every week the wflow team picks six community workflows we think you should try. Real recipes from real people — keyboard chords, shell pipelines, window dances — the kinds of things you stumble on in someone's dotfiles and immediately want for yourself."
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                                lineHeight: 1.5
+                            }
+
+                            Row {
+                                spacing: 6
+                                topPadding: 4
+                                Text {
+                                    text: "See all featured"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: Font.DemiBold
+                                }
+                                Text {
+                                    text: "→"
+                                    color: Theme.accent
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontSm
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    // Hook into a future filter ("featured")
+                                    // once the v0 endpoint exposes the tag;
+                                    // for now this is a visual affordance.
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: rightGrid
+                            x: featuredSection.innerPad + featuredSection.leftColW + featuredSection.colGap
+                            y: featuredSection.innerPad
+                            width: featuredSection.rightW
+                            height: featuredSection.rightGridH
+
+                            Repeater {
+                                model: root.featuredToday
+                                delegate: CommunityCard {
+                                    wf: modelData
+                                    x: (index % featuredSection.rightCols)
+                                        * (featuredSection.rightCardW + featuredSection.rightGap)
+                                    y: Math.floor(index / featuredSection.rightCols)
+                                        * (featuredSection.rightCardH + featuredSection.rightGap)
+                                    cardW: featuredSection.rightCardW
+                                    cardH: featuredSection.rightCardH
+                                    onActivated: (id) => root.selectWorkflow(id)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Category pills
@@ -142,25 +419,52 @@ Item {
                         }
                     }
 
-                    ScrollView {
+                    // Plain Flickable — not ScrollView — because the
+                    // controls' nested Flickable steals vertical wheel
+                    // events even when the row only scrolls
+                    // horizontally. interactive:false disables the
+                    // built-in wheel handling, then a horizontal-only
+                    // WheelHandler does the actual scrolling so a
+                    // vertical wheel keeps bubbling to the page-level
+                    // scroll. ScrollBar is wired manually since we no
+                    // longer have ScrollView providing one.
+                    Flickable {
+                        id: trendingFlick
                         width: parent.width
-                        height: 162
+                        height: 232
+                        contentWidth: trendingRow.width
                         contentHeight: height
+                        flickableDirection: Flickable.HorizontalFlick
+                        boundsBehavior: Flickable.StopAtBounds
+                        interactive: false
                         clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
 
                         Row {
+                            id: trendingRow
                             spacing: 12
                             Repeater {
                                 model: root.trending
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 150
+                                    cardH: 220
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
+                        }
+
+                        WheelHandler {
+                            orientation: Qt.Horizontal
+                            onWheel: (wheel) => {
+                                trendingFlick.contentX = Math.max(0,
+                                    Math.min(
+                                        Math.max(0, trendingFlick.contentWidth - trendingFlick.width),
+                                        trendingFlick.contentX - wheel.angleDelta.x))
+                            }
+                        }
+
+                        ScrollBar.horizontal: ScrollBar {
+                            policy: ScrollBar.AsNeeded
                         }
                     }
                 }
@@ -191,25 +495,43 @@ Item {
                         }
                     }
 
-                    ScrollView {
+                    Flickable {
+                        id: newFlick
                         width: parent.width
-                        height: 162
+                        height: 232
+                        contentWidth: newRow.width
                         contentHeight: height
+                        flickableDirection: Flickable.HorizontalFlick
+                        boundsBehavior: Flickable.StopAtBounds
+                        interactive: false
                         clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
 
                         Row {
+                            id: newRow
                             spacing: 12
                             Repeater {
                                 model: root.newSubmissions
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 150
+                                    cardH: 220
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
+                        }
+
+                        WheelHandler {
+                            orientation: Qt.Horizontal
+                            onWheel: (wheel) => {
+                                newFlick.contentX = Math.max(0,
+                                    Math.min(
+                                        Math.max(0, newFlick.contentWidth - newFlick.width),
+                                        newFlick.contentX - wheel.angleDelta.x))
+                            }
+                        }
+
+                        ScrollBar.horizontal: ScrollBar {
+                            policy: ScrollBar.AsNeeded
                         }
                     }
                 }
@@ -238,14 +560,16 @@ Item {
                         }
                     }
 
-                    // Auto-column grid
+                    // Auto-column grid — same proportions as the Library
+                    // grid so a workflow on Explore reads at the same
+                    // visual cadence as a workflow on Library.
                     Item {
                         id: grid
                         width: parent.width
                         readonly property int cols: Math.max(2, Math.floor(width / 300))
                         readonly property real gap: 12
                         readonly property real cardW: (width - gap * (cols - 1)) / cols
-                        readonly property real cardH: 150
+                        readonly property real cardH: 220
                         readonly property int rows: Math.ceil(root.filtered.length / cols)
                         height: rows * cardH + Math.max(0, rows - 1) * gap
 
@@ -270,15 +594,32 @@ Item {
     ExploreDetail {
         anchors.fill: parent
         wf: root.selectedWorkflow
+        detail: root.selectedDetail
+        loading: root.detailLoading
         open: root.selectedWorkflow !== null
-        onClosed: root.selectedWorkflow = null
-        onImported: (id) => {
-            // TODO: actually import via bridge; for now route to editor.
+        onClosed: {
             root.selectedWorkflow = null
-            root.openWorkflow(id)
+            root.selectedDetail = null
+        }
+        onImported: (id) => {
+            const wf = root.selectedWorkflow
+            // Live entries carry handle + slug; fall back to id-based
+            // routing for any leftover mock cards (only matters before
+            // the network call lands or in offline mode).
+            if (wf && wf.handle && wf.slug) {
+                root._lastImportError = ""
+                catalog.import_workflow(wf.handle, wf.slug)
+            } else {
+                root.selectedWorkflow = null
+                root.openWorkflow(id)
+            }
         }
         onDryRunRequested: (id) => {
-            // TODO: dry-run walk-through; mocked.
+            // Dry-run walk-through is on the roadmap. For now, kick the
+            // user to the workflow's page on wflows.com, where the
+            // hosted preview already shows steps + KDL.
+            const wf = root.selectedWorkflow
+            if (wf && wf.detailUrl) root._openInBrowser(wf.detailUrl)
         }
     }
 }

@@ -29,9 +29,11 @@ fn main() {
             QmlFile::from("qml/components/WfMenu.qml"),
             QmlFile::from("qml/components/WfMenuItem.qml"),
             QmlFile::from("qml/components/WfConfirmDialog.qml"),
+            QmlFile::from("qml/components/DeeplinkConfirmDialog.qml"),
             QmlFile::from("qml/components/GradientPill.qml"),
             QmlFile::from("qml/components/Avatar.qml"),
             QmlFile::from("qml/components/MiniStep.qml"),
+            QmlFile::from("qml/components/StepChipTrail.qml"),
             QmlFile::from("qml/components/DotGrid.qml"),
             // Library (user-switchable layouts)
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
@@ -54,7 +56,6 @@ fn main() {
             QmlFile::from("qml/components/record/AmbientRec.qml"),
             // Explore
             QmlFile::from("qml/components/explore/ExploreSearch.qml"),
-            QmlFile::from("qml/components/explore/ExploreHero.qml"),
             QmlFile::from("qml/components/explore/CategoryPills.qml"),
             QmlFile::from("qml/components/explore/CommunityCard.qml"),
             QmlFile::from("qml/components/explore/ExploreDetail.qml"),
@@ -68,6 +69,7 @@ fn main() {
             QmlFile::from("qml/pages/SettingsPage.qml"),
         ]),
     )
+    .file("src/bridge/explore.rs")
     .file("src/bridge/library.rs")
     .file("src/bridge/state.rs")
     .file("src/bridge/workflow.rs")
