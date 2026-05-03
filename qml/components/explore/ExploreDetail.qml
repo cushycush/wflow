@@ -2,12 +2,15 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Right-side slide-in drawer for a community workflow.
-// Shows step preview, safety banner for shell actions, Import + Dry run +
-// Discussion. Closes on Esc or on the scrim.
+// Right-side drawer for a community workflow. wf is the catalog row
+// (always present); detail is the rich JSON loaded async from the v0
+// API. Falls back to wf-derived placeholders so the drawer never
+// flashes empty.
 FocusScope {
     id: root
     property var wf
+    property var detail
+    property bool loading: false
     property bool open: false
     signal imported(string id)
     signal dryRunRequested(string id)
@@ -15,50 +18,128 @@ FocusScope {
 
     focus: open
 
-    // Mock step generation from kinds, so every card has a preview without
-    // the mock data having to list every step inline.
     readonly property var kindSummary: ({
         "key": "Press key chord",
         "type": "Type text",
-        "click": "Click at",
+        "click": "Click",
         "move": "Move mouse",
         "scroll": "Scroll",
         "focus": "Focus window",
         "wait": "Wait",
         "shell": "Run shell command",
         "notify": "Show notification",
-        "clipboard": "Clipboard",
-        "note": "Note"
-    })
-    readonly property var kindValues: ({
-        "key": ["Super + 1", "Ctrl + Shift + T", "Return", "Esc"],
-        "type": ["hyprland wiki", "cd ~/projects && ls"],
-        "shell": ["hyprctl dispatch exec 'kitty'", "wl-copy < /tmp/notes", "git log --oneline -20"],
-        "focus": ["Firefox", "Slack", "Zoom", "kitty"],
-        "notify": ["Started", "Connected", "Done"],
-        "clipboard": ["paste"],
-        "click": ["(pixel 612, 208)"],
-        "scroll": ["dy +180"],
-        "wait": ["220 ms", "500 ms"],
-        "note": ["…"],
-        "move": ["(400, 300)"]
+        "clipboard": "Copy to clipboard",
+        "note": "Note",
+        "repeat": "Repeat block",
+        "when": "Conditional (when)",
+        "unless": "Conditional (unless)",
+        "use": "Reuse fragment"
     })
 
-    function stepsFor(wf) {
-        if (!wf || !wf.kinds) return []
-        const pool = wf.kinds
-        const total = wf.steps || pool.length
+    // Used by the offline / mock path so the preview renders one row
+    // per unique kind with a believable value instead of duplicates.
+    readonly property var _kindSamples: ({
+        "key":       "ctrl+shift+t",
+        "type":      "/standup",
+        "click":     "button 1",
+        "move":      "(400, 300)",
+        "scroll":    "dy 180",
+        "focus":     "Slack",
+        "wait":      "200ms",
+        "shell":     "git status",
+        "notify":    "Done",
+        "clipboard": "{{selection}}",
+        "note":      "(workflow note)",
+        "repeat":    "3× (inner steps)",
+        "when":      "when window=Slack",
+        "unless":    "unless file=lock",
+        "use":       "fragment"
+    })
+
+    function _resolvedSteps() {
+        if (root.detail && root.detail.steps && root.detail.steps.length > 0) {
+            return root.detail.steps.map((s, i) => ({
+                kind: s.kind,
+                summary: root.kindSummary[s.kind] || s.kind,
+                value: s.value || "",
+                note: s.note || "",
+                details: s.details || [],
+                nested: s.nested || [],
+                nestedElse: s.nestedElse || []
+            }))
+        }
+        if (!root.wf || !root.wf.kinds) return []
+        const seen = ({})
         const out = []
-        for (let i = 0; i < total; i++) {
-            const k = pool[i % pool.length]
-            const values = kindValues[k] || ["…"]
+        for (let i = 0; i < root.wf.kinds.length; i++) {
+            const k = root.wf.kinds[i]
+            if (seen[k]) continue
+            seen[k] = true
             out.push({
                 kind: k,
-                summary: kindSummary[k] || k,
-                value: values[i % values.length]
+                summary: root.kindSummary[k] || k,
+                value: root._kindSamples[k] || "",
+                note: "",
+                details: [],
+                nested: [],
+                nestedElse: []
             })
         }
         return out
+    }
+
+    // True when we're rendering the offline / mock fallback
+    // instead of the live v0 detail. Drives the small "preview"
+    // banner above the step list so the user knows what they're
+    // looking at hasn't been fetched from wflows.com yet.
+    readonly property bool _isPreviewFallback:
+        !(root.detail && root.detail.steps && root.detail.steps.length > 0)
+
+    function _formatStamp(prefix, iso) {
+        if (!iso || iso.length === 0) return ""
+        const d = new Date(iso)
+        if (isNaN(d.getTime())) return ""
+        const now = new Date()
+        const ms = now.getTime() - d.getTime()
+        const day = 24 * 60 * 60 * 1000
+        if (ms < day) {
+            const hrs = Math.max(1, Math.floor(ms / (60 * 60 * 1000)))
+            return prefix + " " + hrs + (hrs === 1 ? " hour ago" : " hours ago")
+        }
+        if (ms < 30 * day) {
+            const days = Math.floor(ms / day)
+            return prefix + " " + days + (days === 1 ? " day ago" : " days ago")
+        }
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        const sameYear = d.getFullYear() === now.getFullYear()
+        const stamp = months[d.getMonth()] + " " + d.getDate() + (sameYear ? "" : (", " + d.getFullYear()))
+        return prefix + " " + stamp
+    }
+
+    function _hasShell() {
+        if (root.detail && root.detail.steps) {
+            return root.detail.steps.some(s => s.kind === "shell")
+        }
+        return root.wf ? !!root.wf.hasShell : false
+    }
+
+    function _stepCount() {
+        if (root.detail && root.detail.stepCount > 0) return root.detail.stepCount
+        return root.wf ? (root.wf.steps || (root.wf.kinds ? root.wf.kinds.length : 0)) : 0
+    }
+
+    function _installCount() {
+        if (root.detail) return root.detail.installCount || 0
+        return root.wf ? (root.wf.imports || 0) : 0
+    }
+
+    function _commentCount() {
+        return root.detail ? (root.detail.commentCount || 0) : 0
+    }
+
+    function _description() {
+        if (root.detail && root.detail.description) return root.detail.description
+        return root.wf ? (root.wf.subtitle || "") : ""
     }
 
     Keys.onEscapePressed: if (root.open) root.closed()
@@ -180,34 +261,58 @@ FocusScope {
                 }
 
                 Text {
-                    text: root.wf ? root.wf.subtitle : ""
+                    text: root._description()
                     color: Theme.text2
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontMd
                     lineHeight: 1.4
                     width: body.width - body.leftPadding - body.rightPadding
                     wrapMode: Text.WordWrap
+                    visible: text.length > 0
+                }
+
+                // Timestamp line, published / updated, both relative.
+                // Hidden until the live detail lands so we don't print
+                // "published just now" against an empty string.
+                Row {
+                    spacing: 12
+                    visible: root.detail !== null
+                    Text {
+                        text: root.detail ? root._formatStamp("Published", root.detail.publishedAt) : ""
+                        color: Theme.text3
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontXs
+                        visible: text.length > 0
+                    }
+                    Text {
+                        text: root.detail ? root._formatStamp("Updated", root.detail.updatedAt) : ""
+                        color: Theme.text3
+                        font.family: Theme.familyMono
+                        font.pixelSize: Theme.fontXs
+                        visible: text.length > 0
+                    }
                 }
 
                 Row {
                     spacing: 22
 
                     Column {
-                        Text { text: root.wf ? root.wf.imports.toString() : "0"
+                        Text { text: root._installCount().toString()
                                color: Theme.text; font.family: Theme.familyBody
                                font.pixelSize: Theme.fontLg; font.weight: Font.DemiBold }
-                        Text { text: "imports"; color: Theme.text3
+                        Text { text: "installs"; color: Theme.text3
                                font.family: Theme.familyMono; font.pixelSize: Theme.fontXs }
                     }
                     Column {
-                        Text { text: root.wf ? root.wf.forks.toString() : "0"
+                        visible: root.detail !== null
+                        Text { text: root._commentCount().toString()
                                color: Theme.text; font.family: Theme.familyBody
                                font.pixelSize: Theme.fontLg; font.weight: Font.DemiBold }
-                        Text { text: "forks"; color: Theme.text3
+                        Text { text: "comments"; color: Theme.text3
                                font.family: Theme.familyMono; font.pixelSize: Theme.fontXs }
                     }
                     Column {
-                        Text { text: root.wf ? root.wf.steps.toString() : "0"
+                        Text { text: root._stepCount().toString()
                                color: Theme.text; font.family: Theme.familyBody
                                font.pixelSize: Theme.fontLg; font.weight: Font.DemiBold }
                         Text { text: "steps"; color: Theme.text3
@@ -216,7 +321,7 @@ FocusScope {
                 }
 
                 Rectangle {
-                    visible: root.wf && root.wf.hasShell
+                    visible: root._hasShell()
                     width: body.width - body.leftPadding - body.rightPadding
                     height: bannerCol.implicitHeight + 22
                     radius: Theme.radiusSm
@@ -273,67 +378,256 @@ FocusScope {
                     width: body.width - body.leftPadding - body.rightPadding
                     spacing: 6
 
-                    Text {
-                        text: "STEPS"
-                        color: Theme.text3
-                        font.family: Theme.familyMono
-                        font.pixelSize: 10
-                        font.weight: Font.Bold
-                        font.letterSpacing: 0.9
-                        bottomPadding: 4
+                    Row {
+                        spacing: 8
+                        Text {
+                            text: "STEPS"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 0.9
+                            bottomPadding: 4
+                        }
+                        Text {
+                            visible: root.loading
+                            text: "loading…"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.9
+                        }
                     }
 
-                    Repeater {
-                        model: root.stepsFor(root.wf)
-                        delegate: Rectangle {
-                            width: parent.width
-                            height: 48
-                            radius: Theme.radiusSm
-                            color: Theme.surface
-                            border.color: Theme.lineSoft
-                            border.width: 1
+                    Rectangle {
+                        visible: root._isPreviewFallback && !root.loading
+                        width: parent.width
+                        height: previewHint.implicitHeight + 14
+                        radius: Theme.radiusSm
+                        color: Qt.rgba(Theme.text3.r, Theme.text3.g, Theme.text3.b, 0.08)
+                        border.color: Theme.lineSoft
+                        border.width: 1
+                        Text {
+                            id: previewHint
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            text: "Preview only, sample values shown. Install the workflow to see the actual KDL."
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            wrapMode: Text.WordWrap
+                        }
+                    }
 
-                            Row {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 14
-                                spacing: 12
+                    Item {
+                        id: timeline
+                        width: parent.width
+                        readonly property real railX: 9
+                        readonly property real dotSize: 10
+                        readonly property var steps: root._resolvedSteps()
+                        height: stepsCol.implicitHeight
 
-                                Text {
-                                    text: (index + 1 < 10 ? "0" : "") + (index + 1)
-                                    color: Theme.text3
-                                    font.family: Theme.familyMono
-                                    font.pixelSize: Theme.fontXs
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 18
-                                }
+                        Rectangle {
+                            visible: timeline.steps.length > 1
+                            x: timeline.railX
+                            y: 4
+                            width: 1
+                            height: stepsCol.implicitHeight - 8
+                            color: Theme.lineSoft
+                        }
 
-                                CategoryIcon {
-                                    kind: modelData.kind
-                                    size: 26
-                                    hovered: false
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
+                        Column {
+                            id: stepsCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: 14
 
-                                Column {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 18 - 12 - 26 - 12 - 14
-                                    spacing: 1
+                            Repeater {
+                                model: timeline.steps
+                                delegate: Item {
+                                    readonly property color dotColor:
+                                        Theme.catFor(modelData.kind || "wait")
+                                    readonly property bool _hasNote:
+                                        (modelData.note || "").length > 0
+                                    width: parent.width
+                                    height: stepBody.implicitHeight
 
-                                    Text {
-                                        text: modelData.summary
-                                        color: Theme.text
-                                        font.family: Theme.familyBody
-                                        font.pixelSize: Theme.fontSm
-                                        font.weight: Font.Medium
+                                    // 2px bg ring punches the rail
+                                    // line behind the dot.
+                                    Rectangle {
+                                        x: timeline.railX - timeline.dotSize / 2 + 0.5
+                                        y: 4
+                                        width: timeline.dotSize
+                                        height: timeline.dotSize
+                                        radius: width / 2
+                                        color: parent.dotColor
+                                        border.color: Theme.bg
+                                        border.width: 2
                                     }
-                                    Text {
-                                        text: modelData.value
-                                        color: Theme.text3
-                                        font.family: Theme.familyMono
-                                        font.pixelSize: Theme.fontXs
-                                        elide: Text.ElideRight
-                                        width: parent.width
+
+                                    Column {
+                                        id: stepBody
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: timeline.railX + timeline.dotSize / 2 + 14
+                                        anchors.right: parent.right
+                                        spacing: 2
+
+                                        Row {
+                                            spacing: 8
+                                            Text {
+                                                text: (index + 1 < 10 ? "0" : "") + (index + 1)
+                                                color: Theme.text3
+                                                font.family: Theme.familyMono
+                                                font.pixelSize: Theme.fontXs
+                                                font.letterSpacing: 0.4
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: modelData.summary
+                                                color: Theme.text
+                                                font.family: Theme.familyBody
+                                                font.pixelSize: Theme.fontSm
+                                                font.weight: Font.DemiBold
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        Text {
+                                            // Wraps; cards elide, the
+                                            // drawer doesn't.
+                                            text: modelData.value
+                                            color: Theme.text2
+                                            font.family: Theme.familyMono
+                                            font.pixelSize: Theme.fontSm
+                                            wrapMode: Text.Wrap
+                                            width: parent.width
+                                            visible: text.length > 0
+                                        }
+
+                                        Text {
+                                            text: modelData.note
+                                            color: Theme.text3
+                                            font.family: Theme.familyBody
+                                            font.italic: true
+                                            font.pixelSize: Theme.fontXs
+                                            wrapMode: Text.WordWrap
+                                            width: parent.width
+                                            visible: text.length > 0
+                                            topPadding: 2
+                                        }
+
+                                        Column {
+                                            visible: modelData.details && modelData.details.length > 0
+                                            width: parent.width
+                                            spacing: 1
+                                            topPadding: 4
+
+                                            Repeater {
+                                                model: modelData.details || []
+                                                delegate: Row {
+                                                    spacing: 6
+                                                    Text {
+                                                        text: modelData.label
+                                                        color: Theme.text3
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                        font.letterSpacing: 0.6
+                                                        font.weight: Font.DemiBold
+                                                    }
+                                                    Text {
+                                                        text: "·"
+                                                        color: Theme.text3
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                    }
+                                                    Text {
+                                                        text: modelData.value
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 10
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Nested-step body for Repeat
+                                        // and Conditional. Indented
+                                        // one level so the visual
+                                        // hierarchy reads as "this is
+                                        // inside that step." Renders
+                                        // as a slim Column of mini-
+                                        // rows, kind dot + value.
+                                        // not a full sub-timeline.
+                                        Column {
+                                            visible: modelData.nested && modelData.nested.length > 0
+                                            width: parent.width
+                                            spacing: 4
+                                            topPadding: 6
+
+                                            Repeater {
+                                                model: modelData.nested || []
+                                                delegate: Row {
+                                                    spacing: 8
+                                                    Rectangle {
+                                                        width: 6
+                                                        height: 6
+                                                        radius: 3
+                                                        color: Theme.catFor(modelData.kind || "wait")
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    Text {
+                                                        text: modelData.value || modelData.kind
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 11
+                                                        elide: Text.ElideRight
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Column {
+                                            visible: modelData.nestedElse && modelData.nestedElse.length > 0
+                                            width: parent.width
+                                            spacing: 4
+                                            topPadding: 6
+
+                                            Text {
+                                                text: "ELSE"
+                                                color: Theme.text3
+                                                font.family: Theme.familyMono
+                                                font.pixelSize: 9
+                                                font.letterSpacing: 0.8
+                                                font.weight: Font.Bold
+                                                bottomPadding: 2
+                                            }
+
+                                            Repeater {
+                                                model: modelData.nestedElse || []
+                                                delegate: Row {
+                                                    spacing: 8
+                                                    Rectangle {
+                                                        width: 6
+                                                        height: 6
+                                                        radius: 3
+                                                        color: Theme.catFor(modelData.kind || "wait")
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                    Text {
+                                                        text: modelData.value || modelData.kind
+                                                        color: Theme.text2
+                                                        font.family: Theme.familyMono
+                                                        font.pixelSize: 11
+                                                        elide: Text.ElideRight
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

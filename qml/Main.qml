@@ -123,6 +123,50 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // ExplorePage owns its own instance for catalog fetches; this
+    // one is the deeplink pipe.
+    ExploreController {
+        id: deeplinkPipe
+        onImport_succeeded: (id) => root.openWorkflowDoc(id)
+        onImport_failed: (reason) => {
+            console.warn("deeplink import failed:", reason)
+        }
+        // {title, handle, slug, description, stepCount, sourceUrl}.
+        onDeeplink_preview_ready: (previewJson) => {
+            try {
+                const preview = JSON.parse(previewJson)
+                deeplinkConfirmDialog.preview = preview
+                deeplinkConfirmDialog.open()
+            } catch (e) {
+                console.warn("deeplink preview parse failed:", e)
+            }
+        }
+    }
+
+    // Consent gate before the bridge writes anything to disk.
+    DeeplinkConfirmDialog {
+        id: deeplinkConfirmDialog
+        anchors.centerIn: parent
+        onConfirmed: (sourceUrl) => deeplinkPipe.import_from_url(sourceUrl)
+        onCancelled: console.info("deeplink import cancelled by user")
+    }
+
+    // wflow://import?source=<URL> arrives as a CLI arg. Decode the
+    // source, fetch a preview without writing to disk, and let the
+    // user confirm before the install actually happens. A malicious
+    // page that opens such a URL in the user's browser shouldn't be
+    // able to silently install a workflow on the desktop — the
+    // dialog is the one place that consent lives.
+    function _resolveDeeplink(deeplinkUrl) {
+        const m = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
+        if (!m) {
+            console.warn("unknown deeplink shape:", deeplinkUrl)
+            return
+        }
+        const source = decodeURIComponent(m[1])
+        deeplinkPipe.fetch_deeplink_preview(source)
+    }
+
     ChromeFloating {
         id: chrome
         anchors.fill: parent
@@ -255,5 +299,12 @@ ApplicationWindow {
             // coach overlay reads target rects.
             Qt.callLater(() => Qt.callLater(tutorial.start))
         }
+        // Cold-start deeplink (env var). Cleared after read.
+        Qt.callLater(() => {
+            const url = deeplinkPipe.take_pending_deeplink()
+            if (url && url.length > 0) {
+                _resolveDeeplink(url)
+            }
+        })
     }
 }

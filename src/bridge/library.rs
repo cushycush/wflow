@@ -76,7 +76,14 @@ struct WorkflowSummary {
     last_run: Option<String>,
     modified: Option<String>,
     kinds: Vec<String>,
+    trail: Vec<TrailEntry>,
     folder: String,
+}
+
+#[derive(Serialize)]
+struct TrailEntry {
+    kind: &'static str,
+    value: String,
 }
 
 pub struct LibraryControllerRust {
@@ -245,6 +252,15 @@ fn load_as_json() -> QString {
                     .iter()
                     .map(|s| s.action.category().to_string())
                     .collect();
+                let trail: Vec<TrailEntry> = wf
+                    .steps
+                    .iter()
+                    .take(12)
+                    .map(|s| TrailEntry {
+                        kind: s.action.category(),
+                        value: crate::actions::step_value_label(&s.action),
+                    })
+                    .collect();
                 let folder = wf.folder.clone().unwrap_or_default();
                 WorkflowSummary {
                     id: wf.id,
@@ -254,6 +270,7 @@ fn load_as_json() -> QString {
                     last_run: wf.last_run.map(|t| t.to_rfc3339()),
                     modified: wf.modified.map(|t| t.to_rfc3339()),
                     kinds,
+                    trail,
                     folder,
                 }
             })

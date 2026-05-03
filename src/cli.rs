@@ -26,6 +26,16 @@ Run `wflow` with no arguments to launch the GUI."
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
+
+    /// Deep-link target. The Linux `wflow://` URL handler routes here:
+    /// the registered .desktop file passes the URL as a positional
+    /// argument, this argument captures it without a subcommand, and
+    /// the GUI launches with the import dialog ready to fire.
+    ///
+    /// Hidden from help so it doesn't pollute `wflow --help`; the
+    /// integration is documented in the .desktop file we ship.
+    #[arg(hide = true)]
+    pub deeplink: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
