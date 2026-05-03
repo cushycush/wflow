@@ -394,75 +394,114 @@ FocusScope {
                         }
                     }
 
-                    Repeater {
-                        model: root._resolvedSteps()
-                        delegate: Rectangle {
-                            // Rows grow when a note is present so the
-                            // user can read the handwritten margin
-                            // text inline. Without a note the row
-                            // collapses to the standard 48px height,
-                            // matching the rest of the editor list
-                            // views.
-                            readonly property bool _hasNote: (modelData.note || "").length > 0
-                            width: parent.width
-                            height: _hasNote ? 68 : 48
-                            radius: Theme.radiusSm
-                            color: Theme.surface
-                            border.color: Theme.lineSoft
-                            border.width: 1
+                    // Workflow timeline. A faint vertical rail runs the
+                    // height of the step list; each step's kind dot
+                    // sits on the rail and "lights up" the same way
+                    // the chip cascade does on the cards. Reads as
+                    // a sequence rather than a list of separate rows
+                    // — same visual language as the chips, scaled up
+                    // for the drawer where there's room to breathe.
+                    Item {
+                        id: timeline
+                        width: parent.width
+                        readonly property real railX: 9
+                        readonly property real dotSize: 10
+                        readonly property var steps: root._resolvedSteps()
+                        height: stepsCol.implicitHeight
 
-                            Row {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 14
-                                spacing: 12
+                        // The rail itself — a 1px hairline behind the
+                        // dots. Sized to span the full step list, with
+                        // a 4px tuck top and bottom so the line doesn't
+                        // overshoot the first / last dot.
+                        Rectangle {
+                            visible: timeline.steps.length > 1
+                            x: timeline.railX
+                            y: 4
+                            width: 1
+                            height: stepsCol.implicitHeight - 8
+                            color: Theme.lineSoft
+                        }
 
-                                Text {
-                                    text: (index + 1 < 10 ? "0" : "") + (index + 1)
-                                    color: Theme.text3
-                                    font.family: Theme.familyMono
-                                    font.pixelSize: Theme.fontXs
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 18
-                                }
+                        Column {
+                            id: stepsCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: 14
 
-                                CategoryIcon {
-                                    kind: modelData.kind
-                                    size: 26
-                                    hovered: false
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
+                            Repeater {
+                                model: timeline.steps
+                                delegate: Item {
+                                    readonly property color dotColor:
+                                        Theme.catFor(modelData.kind || "wait")
+                                    readonly property bool _hasNote:
+                                        (modelData.note || "").length > 0
+                                    width: parent.width
+                                    height: stepBody.implicitHeight
 
-                                Column {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 18 - 12 - 26 - 12 - 14
-                                    spacing: 1
-
-                                    Text {
-                                        text: modelData.summary
-                                        color: Theme.text
-                                        font.family: Theme.familyBody
-                                        font.pixelSize: Theme.fontSm
-                                        font.weight: Font.Medium
+                                    // Kind dot, painted on the rail.
+                                    // 2px ring of bg punches a clean
+                                    // hole through the line behind it
+                                    // so the dot reads as a node, not
+                                    // an overlap.
+                                    Rectangle {
+                                        x: timeline.railX - timeline.dotSize / 2 + 0.5
+                                        y: 4
+                                        width: timeline.dotSize
+                                        height: timeline.dotSize
+                                        radius: width / 2
+                                        color: parent.dotColor
+                                        border.color: Theme.bg
+                                        border.width: 2
                                     }
-                                    Text {
-                                        text: modelData.value
-                                        color: Theme.text3
-                                        font.family: Theme.familyMono
-                                        font.pixelSize: Theme.fontXs
-                                        elide: Text.ElideRight
-                                        width: parent.width
-                                        visible: text.length > 0
-                                    }
-                                    Text {
-                                        text: modelData.note
-                                        color: Theme.text3
-                                        font.family: Theme.familyBody
-                                        font.italic: true
-                                        font.pixelSize: Theme.fontXs
-                                        elide: Text.ElideRight
-                                        width: parent.width
-                                        visible: text.length > 0
+
+                                    Column {
+                                        id: stepBody
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: timeline.railX + timeline.dotSize / 2 + 14
+                                        anchors.right: parent.right
+                                        spacing: 2
+
+                                        Row {
+                                            spacing: 8
+                                            Text {
+                                                text: (index + 1 < 10 ? "0" : "") + (index + 1)
+                                                color: Theme.text3
+                                                font.family: Theme.familyMono
+                                                font.pixelSize: Theme.fontXs
+                                                font.letterSpacing: 0.4
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text {
+                                                text: modelData.summary
+                                                color: Theme.text
+                                                font.family: Theme.familyBody
+                                                font.pixelSize: Theme.fontSm
+                                                font.weight: Font.DemiBold
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        Text {
+                                            text: modelData.value
+                                            color: Theme.text2
+                                            font.family: Theme.familyMono
+                                            font.pixelSize: Theme.fontSm
+                                            elide: Text.ElideRight
+                                            width: parent.width
+                                            visible: text.length > 0
+                                        }
+
+                                        Text {
+                                            text: modelData.note
+                                            color: Theme.text3
+                                            font.family: Theme.familyBody
+                                            font.italic: true
+                                            font.pixelSize: Theme.fontXs
+                                            wrapMode: Text.WordWrap
+                                            width: parent.width
+                                            visible: text.length > 0
+                                            topPadding: 2
+                                        }
                                     }
                                 }
                             }
