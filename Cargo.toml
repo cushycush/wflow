@@ -1,6 +1,6 @@
 [package]
 name = "wflow"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 description = "A CLI workflow engine (and GUI) for Wayland automation"
 license = "MIT OR Apache-2.0"
@@ -62,7 +62,7 @@ futures-util = "0.3"
 # v0.4.0 absorbed wflow's recorder code — we now consume it as a
 # `Stream<Item = RecEvent>` from `wdotool_core::recorder` instead of
 # maintaining parallel portal / evdev pumps in this crate.
-wdotool-core = { version = "0.4", features = ["libei", "wlroots", "kde", "gnome", "uinput", "recorder"] }
+wdotool-core = { version = "0.5", features = ["libei", "wlroots", "kde", "gnome", "uinput", "recorder"] }
 
 [build-dependencies]
 cxx-qt-build = "0.8"
