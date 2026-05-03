@@ -48,8 +48,9 @@ Item {
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
-                      root.currentPage === "workflow" ? 2 :
-                      root.currentPage === "record" ? 3 : 4
+                      root.currentPage === "favorites" ? 2 :
+                      root.currentPage === "workflow" ? 3 :
+                      root.currentPage === "record" ? 4 : 5
 
         // Subtle "page settles in" transition each time the active
         // tab changes. Fade + tiny scale-up on the new page; the old
@@ -93,6 +94,10 @@ Item {
             onRecordRequested: root.recordRequested()
         }
         ExplorePage {
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        FavoritesPage {
+            id: favoritesPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         // Workflow slot: a tab strip at the top-left + a Repeater of
@@ -382,6 +387,15 @@ Item {
                     // workflows is what most users want to see first.
                     if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
                     out.push({ id: "library", label: "Library" })
+                    // Favorites tab only appears when signed in. Hidden
+                    // for anonymous users so the nav doesn't tease a
+                    // page they can't populate. Auth state lives on
+                    // Theme._auth so the pill re-renders the moment
+                    // the controller flips between signed_out and
+                    // signed_in.
+                    if (Theme._auth.state === "signed_in") {
+                        out.push({ id: "favorites", label: "Favorites" })
+                    }
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",
