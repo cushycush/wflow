@@ -497,6 +497,35 @@ The condition is evaluated **each time** the block is reached, not at
 workflow start. A `when file="/tmp/marker"` guarding the second half
 of a workflow will pick up a marker file created by the first half.
 
+#### Else branch
+
+`when` and `unless` accept an optional `else { ... }` block. Steps
+inside `else` run when the predicate flips the other way: the false
+side of `when`, the true side of `unless`. Without `else`, a failing
+predicate skips silently.
+
+```kdl
+// Run the IDE setup if Slack's already up; otherwise launch Slack first.
+when window="Slack" {
+    focus "Slack"
+    key "ctrl+k"
+    type "{{channel}}"
+    else {
+        shell "slack"
+        wait-window "Slack" timeout="20s"
+        focus "Slack"
+        key "ctrl+k"
+        type "{{channel}}"
+    }
+}
+```
+
+The `else` block must come last inside the parent `when` / `unless`;
+steps after it are rejected at parse time. Only one `else` per
+conditional. Inside `else { ... }` you can use anything you'd use at
+the top of a workflow — including nested `when` / `unless` /
+`repeat` if you need a richer dispatch tree.
+
 ### imports + use
 
 To share the same opening-the-IDE / entering-the-password / whatever

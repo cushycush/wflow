@@ -312,16 +312,35 @@ Item {
             // Conditionals additionally surface their inner steps as
             // siblings on the canvas. Repeat keeps the container
             // model — it's a loop, not a branch.
+            //
+            // Yes-side cards (the `steps` block) tag with
+            // `_branchSide: "yes"`; no-side cards (the `else_steps`
+            // block) tag with `_branchSide: "no"`. The canvas's
+            // wire generator + layout passes branch on this so the
+            // two columns lay out on opposite sides of the parent.
             if (step.action && step.action.kind === "conditional") {
-                const inner = step.action.steps || []
-                for (let j = 0; j < inner.length; j++) {
-                    if (inner[j] && inner[j].action
-                        && inner[j].action.kind === "note") continue
-                    const innerShaped = root._stepToAction(inner[j])
+                const yesInner = step.action.steps || []
+                for (let j = 0; j < yesInner.length; j++) {
+                    if (yesInner[j] && yesInner[j].action
+                        && yesInner[j].action.kind === "note") continue
+                    const innerShaped = root._stepToAction(yesInner[j])
                     innerShaped._displayKind = "inner"
                     innerShaped._topIdx = -1
                     innerShaped._innerIdx = j
                     innerShaped._parentTopIdx = i
+                    innerShaped._branchSide = "yes"
+                    out.push(innerShaped)
+                }
+                const noInner = step.action.else_steps || []
+                for (let j = 0; j < noInner.length; j++) {
+                    if (noInner[j] && noInner[j].action
+                        && noInner[j].action.kind === "note") continue
+                    const innerShaped = root._stepToAction(noInner[j])
+                    innerShaped._displayKind = "inner"
+                    innerShaped._topIdx = -1
+                    innerShaped._innerIdx = j
+                    innerShaped._parentTopIdx = i
+                    innerShaped._branchSide = "no"
                     out.push(innerShaped)
                 }
             }
@@ -356,7 +375,15 @@ Item {
         // equals) which needs a richer editor; primary stays read-only
         // and the inspector falls back to the cond summary for now.
         case "repeat":      shaped = { kind: "repeat",  summary: "Repeat", value: act.count + "×, " + (act.steps || []).length + " inner step(s)", rawPrimary: String(act.count), editable: true, intOnly: true, unit: "×" }; break
-        case "conditional": shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + (act.steps || []).length + " inner step(s)", rawPrimary: "", editable: false }; break
+        case "conditional": {
+            const yesN = (act.steps || []).length
+            const noN = (act.else_steps || []).length
+            const branchSummary = noN > 0
+                ? yesN + " yes / " + noN + " else"
+                : yesN + " inner step(s)"
+            shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + branchSummary, rawPrimary: "", editable: false }
+            break
+        }
         case "use":         shaped = { kind: "use",     summary: "Use import", value: act.name, rawPrimary: act.name, editable: true }; break
         default:                    shaped = { kind: "note", summary: kind, value: "", rawPrimary: "", editable: false }
         }
@@ -581,7 +608,12 @@ Item {
             const innerIdx = meta._innerIdx
             if (parentIdx < 0 || parentIdx >= steps.length) return
             const parent = steps[parentIdx]
-            const innerSteps = parent && parent.action ? parent.action.steps : null
+            // Pick the right branch list. Conditional `else_steps`
+            // cards carry `_branchSide: "no"`; everything else (yes
+            // branch on conditionals, repeat inner) splices into
+            // `action.steps`.
+            const branchKey = meta._branchSide === "no" ? "else_steps" : "steps"
+            const innerSteps = parent && parent.action ? parent.action[branchKey] : null
             if (!Array.isArray(innerSteps)) return
             if (innerIdx < 0 || innerIdx >= innerSteps.length) return
             innerSteps.splice(innerIdx, 1)
@@ -782,15 +814,17 @@ Item {
         if (!meta) return null
 
         // Conditional inner step (when / unless) — surfaced as its
-        // own card in the shaped list.
+        // own card in the shaped list. Pick the branch list by side.
         if (meta._displayKind === "inner") {
             const parentIdx = meta._parentTopIdx
             const innerIdx = meta._innerIdx
             if (parentIdx < 0 || parentIdx >= steps.length) return null
             const parent = steps[parentIdx]
-            if (!parent.action || !Array.isArray(parent.action.steps)) return null
-            if (innerIdx < 0 || innerIdx >= parent.action.steps.length) return null
-            return parent.action.steps[innerIdx]
+            const branchKey = meta._branchSide === "no" ? "else_steps" : "steps"
+            const branch = parent.action ? parent.action[branchKey] : null
+            if (!Array.isArray(branch)) return null
+            if (innerIdx < 0 || innerIdx >= branch.length) return null
+            return branch[innerIdx]
         }
 
         // Top-level step. If selectedInnerIndex >= 0 we're looking at
@@ -975,6 +1009,40 @@ Item {
         if (!action || !Array.isArray(action.steps)) return
         if (innerIndex < 0 || innerIndex >= action.steps.length) return
         action.steps.splice(innerIndex, 1)
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    // The else_steps siblings of _addInnerStep / _deleteInnerStep.
+    // Operate on the conditional's `else_steps` array (the false
+    // branch). Conditional-only — repeat doesn't have a false side.
+    function _addElseStep(stepIndex, kind) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || action.kind !== "conditional") return
+        if (!Array.isArray(action.else_steps)) action.else_steps = []
+        action.else_steps.push({
+            id: _uuid(),
+            enabled: true,
+            on_error: "stop",
+            action: _defaultActionForKind(kind)
+        })
+        root.workflow = wf
+        _scheduleSave()
+    }
+
+    function _deleteElseStep(stepIndex, innerIndex) {
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const steps = _stepsAtCrumb(wf)
+        if (!steps) return
+        if (stepIndex < 0 || stepIndex >= steps.length) return
+        const action = steps[stepIndex].action
+        if (!action || !Array.isArray(action.else_steps)) return
+        if (innerIndex < 0 || innerIndex >= action.else_steps.length) return
+        action.else_steps.splice(innerIndex, 1)
         root.workflow = wf
         _scheduleSave()
     }
@@ -1999,6 +2067,8 @@ Item {
                     onNegateToggled: (stepIndex, negate) => root._commitNegate(stepIndex, negate)
                     onInnerStepAdded: (stepIndex, kind) => root._addInnerStep(stepIndex, kind)
                     onInnerStepDeleted: (stepIndex, innerIndex) => root._deleteInnerStep(stepIndex, innerIndex)
+                    onElseStepAdded: (stepIndex, kind) => root._addElseStep(stepIndex, kind)
+                    onElseStepDeleted: (stepIndex, innerIndex) => root._deleteElseStep(stepIndex, innerIndex)
                 }
             }
 

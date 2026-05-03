@@ -42,6 +42,10 @@ Item {
     signal innerStepAdded(int stepIndex, string kind)
     // Drop an inner step at innerIndex from a container.
     signal innerStepDeleted(int stepIndex, int innerIndex)
+    // Same pair, but for the `else_steps` branch of a conditional —
+    // the false-side path. Conditional-only; repeat ignores these.
+    signal elseStepAdded(int stepIndex, string kind)
+    signal elseStepDeleted(int stepIndex, int innerIndex)
 
     Rectangle {
         anchors.fill: parent
@@ -709,7 +713,14 @@ Item {
                     readonly property var inner: act && act.steps ? act.steps : []
 
                     Text {
-                        text: "INNER STEPS  (" + innerStepsSection.inner.length + ")"
+                        // Conditionals get "TRUE BRANCH" so the
+                        // section reads symmetrically with the
+                        // FALSE BRANCH section below. Repeat keeps
+                        // "INNER STEPS" — there's no true/false
+                        // split there, just a loop body.
+                        text: (root.sel && root.sel.rawKind === "conditional"
+                            ? "TRUE BRANCH  ("
+                            : "INNER STEPS  (") + innerStepsSection.inner.length + ")"
                         color: Theme.text3
                         font.family: Theme.familyBody
                         font.pixelSize: 10
@@ -855,6 +866,177 @@ Item {
 
                 Rectangle {
                     visible: innerStepsSection.visible
+                    width: parent.width - 48
+                    height: 1
+                    color: Theme.lineSoft
+                }
+
+                // False-branch (else) panel. Only for conditionals.
+                // Mirrors the inner-steps panel shape but operates on
+                // `act.else_steps` and emits the elseStep* signals.
+                // The canvas doesn't yet render else cards as a
+                // separate column (follow-up); for now this is the
+                // authoritative editor for the false branch.
+                Column {
+                    id: elseStepsSection
+                    width: parent.width - 48
+                    spacing: 8
+                    visible: root.sel && root.sel.rawKind === "conditional"
+
+                    readonly property var act: root.sel ? root.sel.rawAction : null
+                    readonly property var elseSteps: act && act.else_steps ? act.else_steps : []
+
+                    Text {
+                        text: "FALSE BRANCH  (" + elseStepsSection.elseSteps.length + ")"
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                        font.letterSpacing: 1.0
+                    }
+
+                    Text {
+                        visible: elseStepsSection.elseSteps.length === 0
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: "Steps that run when the condition is false. Empty by default — add one and the engine treats this `when` as a true/false split."
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                    }
+
+                    Repeater {
+                        model: elseStepsSection.elseSteps
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 36
+                            radius: Theme.radiusMd
+                            color: elseRowArea.containsMouse ? Theme.surface2 : Theme.bg
+                            border.color: Theme.lineSoft
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                            Row {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 4
+                                spacing: 8
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: String(model.index + 1).padStart(2, "0")
+                                    color: Theme.text3
+                                    font.family: Theme.familyMono
+                                    font.pixelSize: 10
+                                    width: 18
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 18 - 8 - 22 - 8
+                                    text: {
+                                        const a = modelData ? modelData.action : null
+                                        if (!a) return ""
+                                        return (a.kind || "") + (a.text || a.chord || a.name || a.command || a.path || "" ?
+                                            "  ·  " + (a.text || a.chord || a.name || a.command || a.path || "") : "")
+                                    }
+                                    color: Theme.text2
+                                    font.family: Theme.familyBody
+                                    font.pixelSize: Theme.fontXs
+                                    elide: Text.ElideRight
+                                }
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 22; height: 22; radius: 4
+                                    color: elseDelArea.containsMouse
+                                        ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                                        : "transparent"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "×"
+                                        color: elseDelArea.containsMouse ? Theme.err : Theme.text2
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 14
+                                    }
+                                    MouseArea {
+                                        id: elseDelArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.elseStepDeleted(root.selectedIndex, model.index)
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: elseRowArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 32
+                        radius: Theme.radiusMd
+                        color: addElseArea.containsMouse ? Theme.surface2 : "transparent"
+                        border.color: Theme.lineSoft
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Text {
+                                text: "+"
+                                color: root.catColor
+                                font.family: Theme.familyBody
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: "Add else step"
+                                color: Theme.text2
+                                font.family: Theme.familyBody
+                                font.pixelSize: Theme.fontSm
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: addElseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: addElseMenu.popup()
+                        }
+
+                        WfMenu {
+                            id: addElseMenu
+                            Repeater {
+                                model: [
+                                    { kind: "key",       label: "Key chord"    },
+                                    { kind: "type",      label: "Type text"    },
+                                    { kind: "click",     label: "Click"        },
+                                    { kind: "focus",     label: "Focus window" },
+                                    { kind: "wait",      label: "Wait"         },
+                                    { kind: "shell",     label: "Shell"        },
+                                    { kind: "notify",    label: "Notify"       },
+                                    { kind: "clipboard", label: "Clipboard"    },
+                                    { kind: "note",      label: "Note"         }
+                                ]
+                                delegate: WfMenuItem {
+                                    text: modelData.label
+                                    onTriggered: root.elseStepAdded(root.selectedIndex, modelData.kind)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: elseStepsSection.visible
                     width: parent.width - 48
                     height: 1
                     color: Theme.lineSoft

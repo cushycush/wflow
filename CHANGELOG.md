@@ -12,6 +12,52 @@ data). See [BACKLOG.md](BACKLOG.md) for the road there.
 
 ---
 
+## [0.6.0] — 2026-05-02
+
+[Full release notes](docs/release-notes/v0.6.0.md)
+
+Conditionals get a real false branch. `when` and `unless` now accept
+an `else { ... }` block, the canvas draws the no-side as a parallel
+column or row across every layout, and the inspector grew a FALSE
+BRANCH section so authoring matches the engine.
+
+### Added
+
+- **`else { ... }` block** inside `when` and `unless` runs when the
+  predicate flips the other way. KDL encoder + decoder round-trip,
+  CLI explain renders both branches, parser rejects multiple `else`
+  blocks and stray steps after an `else` with clear errors.
+- **Inspector FALSE BRANCH section** for conditionals. Add / delete
+  steps from either side; the existing INNER STEPS section renames
+  to TRUE BRANCH on conditionals so the labels read symmetrically.
+  Repeat keeps INNER STEPS — there's no true / false split there.
+- **Canvas else-column rendering** in every layout. Vertical layout
+  fans yes-cards right, no-cards left, both at the conditional's
+  vertical mid. Horizontal does yes-below, no-above; conditional
+  cell stays past the parent's right edge. Grid aligns all parents
+  on a single row baseline so inter-cell wires don't thread through
+  branch stacks. Smart Tidy splits each conditional cell with no on
+  the left, yes on the right, all parents in a column at the same
+  X.
+
+### Changed
+
+- **Wire routing** for same-row back-flow goes left-out / right-in
+  instead of the old right-out / left-in lobe. Vertical-layout
+  conditionals route their no-side wire as a clean horizontal
+  diagonal between adjacent edges instead of dipping below the
+  parent and U-turning back up.
+- **Reset zoom** preserves the world point at the viewport centre
+  through the zoom-to-1.0 transition. Used to pass raw contentX/Y
+  across the zoom delta and shift cards off-screen.
+- **First-load auto-fit** snaps the viewport to all cards regardless
+  of whether the workflow has saved positions. Was gated on "no
+  positions yet", which only fired for brand-new workflows; now
+  triggers on every fresh workflow open via a 120ms timer that
+  waits for card heights to publish.
+
+---
+
 ## [0.5.0] — 2026-05-01
 
 [Full release notes](docs/release-notes/v0.5.0.md)
