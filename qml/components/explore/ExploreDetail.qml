@@ -53,16 +53,9 @@ FocusScope {
     // in, fall back to the kind-list placeholder for offline / mock
     // rows so the drawer still renders something meaningful before
     // the network resolves.
-    // Detail-mode toggle. Off: shows just summary + value per step
-    // (compact scan). On: also reveals each step's per-action options
-    // (timeout, retries, capture-as, on-error policy, ...) and
-    // expands Repeat / Conditional inner steps inline.
-    property bool showDetails: false
-
     // Fallback samples per kind — used by the offline / mock path
     // so the drawer always renders believable values instead of
-    // empty strings. The Show details un-elide has something to
-    // reveal, and a workflow card with [shell, type, notify] no
+    // empty strings. A workflow card with [shell, type, notify] no
     // longer renders nine duplicate rows just because the mock
     // step count was nine.
     readonly property var _kindSamples: ({
@@ -425,103 +418,24 @@ FocusScope {
                     width: body.width - body.leftPadding - body.rightPadding
                     spacing: 6
 
-                    Item {
-                        width: parent.width
-                        height: stepsHeading.implicitHeight + 4
-                        Row {
-                            id: stepsHeading
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
-                            Text {
-                                text: "STEPS"
-                                color: Theme.text3
-                                font.family: Theme.familyMono
-                                font.pixelSize: 10
-                                font.weight: Font.Bold
-                                font.letterSpacing: 0.9
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Text {
-                                visible: root.loading
-                                text: "loading…"
-                                color: Theme.text3
-                                font.family: Theme.familyMono
-                                font.pixelSize: 10
-                                font.letterSpacing: 0.9
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                    Row {
+                        spacing: 8
+                        Text {
+                            text: "STEPS"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 0.9
+                            bottomPadding: 4
                         }
-                        // Show / hide per-step option detail. Sits
-                        // next to the STEPS heading so the affordance
-                        // is the first thing the user sees when they
-                        // start scanning the workflow. Wrapped in an
-                        // Item that the MouseArea can actually fill —
-                        // a MouseArea parented to a Row gets a 0-width
-                        // slot from Row's layout and never gets the
-                        // clicks. TextMetrics width pre-reserves space
-                        // for the longer "Hide details" label so the
-                        // right edge doesn't clip when the user
-                        // toggles the state.
-                        Item {
-                            id: toggleArea
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            // Width is the longer label + gap + chevron,
-                            // pre-reserved via TextMetrics so the layout
-                            // never moves when the state flips. Label is
-                            // right-aligned inside its slot so the gap
-                            // between text and chevron is constant for
-                            // both "Show details" and "Hide details" —
-                            // the shorter text just gets extra empty
-                            // space to its left, not a collision on the
-                            // right.
-                            width: hideMetrics.width + 8 + arrowMetrics.width
-                            height: toggleLbl.implicitHeight + 8
-                            visible: !root.loading
-
-                            TextMetrics {
-                                id: hideMetrics
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontXs
-                                font.weight: Font.DemiBold
-                                text: "Hide details"
-                            }
-                            TextMetrics {
-                                id: arrowMetrics
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontXs
-                                text: "▾"
-                            }
-
-                            Text {
-                                id: arrowLbl
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: root.showDetails ? "▾" : "▸"
-                                color: Theme.accent
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontXs
-                            }
-                            Text {
-                                id: toggleLbl
-                                anchors.right: arrowLbl.left
-                                anchors.rightMargin: 6
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                horizontalAlignment: Text.AlignRight
-                                text: root.showDetails ? "Hide details" : "Show details"
-                                color: Theme.accent
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontXs
-                                font.weight: Font.DemiBold
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.showDetails = !root.showDetails
-                            }
+                        Text {
+                            visible: root.loading
+                            text: "loading…"
+                            color: Theme.text3
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.9
                         }
                     }
 
@@ -642,23 +556,19 @@ FocusScope {
                                         }
 
                                         Text {
-                                            // Compact mode: single line,
-                                            // truncated. Detailed mode:
-                                            // wraps so the user sees the
+                                            // Wraps so the user sees the
                                             // whole command / typed text
                                             // without having to scroll
                                             // horizontally or open the
-                                            // file. This is the always-
-                                            // on visible change when
-                                            // Show details fires, even
-                                            // for steps with no extra
-                                            // options to reveal.
+                                            // file. The drawer is the
+                                            // detailed view by design —
+                                            // the cards' chip trail is
+                                            // where eliding happens.
                                             text: modelData.value
                                             color: Theme.text2
                                             font.family: Theme.familyMono
                                             font.pixelSize: Theme.fontSm
-                                            elide: root.showDetails ? Text.ElideNone : Text.ElideRight
-                                            wrapMode: root.showDetails ? Text.Wrap : Text.NoWrap
+                                            wrapMode: Text.Wrap
                                             width: parent.width
                                             visible: text.length > 0
                                         }
@@ -677,15 +587,13 @@ FocusScope {
 
                                         // Per-action option key-values
                                         // (timeout, retries, capture-as,
-                                        // on-error, ...). Hidden until
-                                        // the user flips Show details
-                                        // on. Each option renders as
-                                        // "label · value" with the
-                                        // value in mono so a number /
-                                        // duration / variable name
-                                        // stays scannable.
+                                        // on-error, ...). Each option
+                                        // renders as "label · value"
+                                        // with the value in mono so a
+                                        // number / duration / variable
+                                        // name stays scannable.
                                         Column {
-                                            visible: root.showDetails && (modelData.details && modelData.details.length > 0)
+                                            visible: modelData.details && modelData.details.length > 0
                                             width: parent.width
                                             spacing: 1
                                             topPadding: 4
@@ -727,7 +635,7 @@ FocusScope {
                                         // rows — kind dot + value —
                                         // not a full sub-timeline.
                                         Column {
-                                            visible: root.showDetails && (modelData.nested && modelData.nested.length > 0)
+                                            visible: modelData.nested && modelData.nested.length > 0
                                             width: parent.width
                                             spacing: 4
                                             topPadding: 6
@@ -761,7 +669,7 @@ FocusScope {
                                         // separately from the yes-
                                         // side. Same mini-row format.
                                         Column {
-                                            visible: root.showDetails && (modelData.nestedElse && modelData.nestedElse.length > 0)
+                                            visible: modelData.nestedElse && modelData.nestedElse.length > 0
                                             width: parent.width
                                             spacing: 4
                                             topPadding: 6
