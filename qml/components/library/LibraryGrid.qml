@@ -28,10 +28,11 @@ Item {
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
     readonly property real gap: 12
     readonly property real cardW: (root.width - gap * (cols - 1)) / cols
-    // EXPERIMENT: bumped from 136 to fit the wflows.com hero-card
-    // rhythm (avatar + title-block + run pill + description + step
-    // trail + ruled footer).
-    readonly property real cardH: 200
+    // Sized to fit a 2-line description + 2-row chip trail without
+    // overlapping the footer rule when both run long. The trail's
+    // own component caps overflow with a +N badge, but the card
+    // still has to reserve the vertical budget the trail will use.
+    readonly property real cardH: 220
 
     readonly property int totalItems: (folders ? folders.length : 0) + (workflows ? workflows.length : 0)
     readonly property int rows: Math.ceil(totalItems / cols)

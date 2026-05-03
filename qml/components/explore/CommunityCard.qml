@@ -13,7 +13,7 @@ Rectangle {
     id: card
     property var wf
     property real cardW: 280
-    property real cardH: 200
+    property real cardH: 220
     signal activated(string id)
 
     width: cardW

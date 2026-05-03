@@ -202,9 +202,14 @@ Item {
         ? _liveWorkflows
         : communityWorkflows
 
-    readonly property var featured: _liveWorkflows.length > 0
-        ? _featuredRows[0]
-        : communityWorkflows[0]
+    // Featured today — the first six rows of the v0 /featured response,
+    // or the first six community workflows when offline. wflows.com's
+    // featured rotation is six picks per week, so the desktop renders
+    // the same six in a curated grid up top.
+    readonly property var featuredToday: {
+        const src = _liveWorkflows.length > 0 ? _featuredRows : communityWorkflows
+        return src.slice(0, 6)
+    }
     readonly property var trending: _activeCatalog.filter(w => w.trending)
     readonly property var newSubmissions: _activeCatalog.filter(w => w.newSubmission)
     readonly property var filtered: (
@@ -242,11 +247,69 @@ Item {
                     width: page.width - 48
                 }
 
-                ExploreHero {
+                // Featured today — wflows.com curates six picks a
+                // week and the desktop mirrors that. Auto-column grid
+                // sized the same way Library is so featured cards
+                // read at the same cadence as the rest of Explore;
+                // no gradient, no special chrome — the chip trail's
+                // cascade is the visual that does the work.
+                Column {
                     x: 24
                     width: page.width - 48
-                    wf: root.featured
-                    onActivated: (id) => root.selectWorkflow(id)
+                    spacing: 12
+
+                    Row {
+                        spacing: 10
+                        Rectangle {
+                            width: 6; height: 6; radius: 3
+                            color: Theme.accent
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "FEATURED TODAY"
+                            color: Theme.accent
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.6
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "six picks curated by @wflow this week"
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            font.letterSpacing: 0.4
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    // Auto-column grid, same proportions as the
+                    // browse grid below it — three across at typical
+                    // window widths, two when narrow, one on a phone-
+                    // sized window. Six cards land in a tidy 3×2.
+                    Item {
+                        id: featuredGrid
+                        width: parent.width
+                        readonly property int cols: Math.max(2, Math.floor(width / 300))
+                        readonly property real gap: 12
+                        readonly property real cardW: (width - gap * (cols - 1)) / cols
+                        readonly property real cardH: 220
+                        readonly property int rows: Math.ceil(root.featuredToday.length / cols)
+                        height: rows * cardH + Math.max(0, rows - 1) * gap
+
+                        Repeater {
+                            model: root.featuredToday
+                            delegate: CommunityCard {
+                                wf: modelData
+                                x: (index % featuredGrid.cols) * (featuredGrid.cardW + featuredGrid.gap)
+                                y: Math.floor(index / featuredGrid.cols) * (featuredGrid.cardH + featuredGrid.gap)
+                                cardW: featuredGrid.cardW
+                                cardH: featuredGrid.cardH
+                                onActivated: (id) => root.selectWorkflow(id)
+                            }
+                        }
+                    }
                 }
 
                 // Category pills
@@ -289,7 +352,7 @@ Item {
 
                     ScrollView {
                         width: parent.width
-                        height: 212
+                        height: 232
                         contentHeight: height
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
@@ -302,7 +365,7 @@ Item {
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 200
+                                    cardH: 220
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
@@ -338,7 +401,7 @@ Item {
 
                     ScrollView {
                         width: parent.width
-                        height: 212
+                        height: 232
                         contentHeight: height
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
@@ -351,7 +414,7 @@ Item {
                                 delegate: CommunityCard {
                                     wf: modelData
                                     cardW: 280
-                                    cardH: 200
+                                    cardH: 220
                                     onActivated: (id) => root.selectWorkflow(id)
                                 }
                             }
@@ -392,7 +455,7 @@ Item {
                         readonly property int cols: Math.max(2, Math.floor(width / 300))
                         readonly property real gap: 12
                         readonly property real cardW: (width - gap * (cols - 1)) / cols
-                        readonly property real cardH: 200
+                        readonly property real cardH: 220
                         readonly property int rows: Math.ceil(root.filtered.length / cols)
                         height: rows * cardH + Math.max(0, rows - 1) * gap
 
