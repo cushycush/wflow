@@ -59,6 +59,30 @@ FocusScope {
     // expands Repeat / Conditional inner steps inline.
     property bool showDetails: false
 
+    // Fallback samples per kind — used by the offline / mock path
+    // so the drawer always renders believable values instead of
+    // empty strings. The Show details un-elide has something to
+    // reveal, and a workflow card with [shell, type, notify] no
+    // longer renders nine duplicate rows just because the mock
+    // step count was nine.
+    readonly property var _kindSamples: ({
+        "key":       "ctrl+shift+t",
+        "type":      "/standup",
+        "click":     "button 1",
+        "move":      "(400, 300)",
+        "scroll":    "dy 180",
+        "focus":     "Slack",
+        "wait":      "200ms",
+        "shell":     "git status",
+        "notify":    "Done",
+        "clipboard": "{{selection}}",
+        "note":      "(workflow note)",
+        "repeat":    "3× (inner steps)",
+        "when":      "when window=Slack",
+        "unless":    "unless file=lock",
+        "use":       "fragment"
+    })
+
     function _resolvedSteps() {
         if (root.detail && root.detail.steps && root.detail.steps.length > 0) {
             return root.detail.steps.map((s, i) => ({
@@ -72,14 +96,23 @@ FocusScope {
             }))
         }
         if (!root.wf || !root.wf.kinds) return []
-        const total = root.wf.steps || root.wf.kinds.length
+        // No live detail — render one row per unique kind in the
+        // catalog summary, with a per-kind sample value so the
+        // drawer reads as a preview instead of nine duplicates.
+        // The full step list lives behind the v0 detail fetch;
+        // this fallback fires only when the workflow is a mock
+        // catalog entry (no handle / slug to fetch against) or
+        // before the network call resolves.
+        const seen = ({})
         const out = []
-        for (let i = 0; i < total; i++) {
-            const k = root.wf.kinds[i % root.wf.kinds.length]
+        for (let i = 0; i < root.wf.kinds.length; i++) {
+            const k = root.wf.kinds[i]
+            if (seen[k]) continue
+            seen[k] = true
             out.push({
                 kind: k,
                 summary: root.kindSummary[k] || k,
-                value: "",
+                value: root._kindSamples[k] || "",
                 note: "",
                 details: [],
                 nested: [],
@@ -88,6 +121,13 @@ FocusScope {
         }
         return out
     }
+
+    // True when we're rendering the offline / mock fallback
+    // instead of the live v0 detail. Drives the small "preview"
+    // banner above the step list so the user knows what they're
+    // looking at hasn't been fetched from wflows.com yet.
+    readonly property bool _isPreviewFallback:
+        !(root.detail && root.detail.steps && root.detail.steps.length > 0)
 
     // Format an ISO timestamp as a short relative line — "updated 3
     // days ago", "published Apr 22". Live detail carries them; the
@@ -482,6 +522,35 @@ FocusScope {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.showDetails = !root.showDetails
                             }
+                        }
+                    }
+
+                    // Preview banner — visible only when the drawer
+                    // is rendering the mock kind list instead of
+                    // live v0 detail. Tells the user they're looking
+                    // at a sketch rather than the actual KDL so the
+                    // sample values don't read as the workflow's
+                    // real chord / command / window.
+                    Rectangle {
+                        visible: root._isPreviewFallback && !root.loading
+                        width: parent.width
+                        height: previewHint.implicitHeight + 14
+                        radius: Theme.radiusSm
+                        color: Qt.rgba(Theme.text3.r, Theme.text3.g, Theme.text3.b, 0.08)
+                        border.color: Theme.lineSoft
+                        border.width: 1
+                        Text {
+                            id: previewHint
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            text: "Preview only — sample values shown. Install the workflow to see the actual KDL."
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            wrapMode: Text.WordWrap
                         }
                     }
 
