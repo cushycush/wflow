@@ -4,7 +4,7 @@ import Wflow
 
 // Quiet surface button with a hairline border. Used for every non-dominant
 // action — Share, Record, Cancel, Close — so coral accent stays reserved.
-// Pill shape + line-strong border on hover mirrors wflows.com .btn-ghost.
+// Pill shape + line-strong border on hover mirrors wflows.io .btn-ghost.
 Button {
     id: root
     topPadding: 8

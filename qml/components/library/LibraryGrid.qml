@@ -398,14 +398,14 @@ Item {
             WfMenu {
                 id: cardMenu
                 WfMenuItem {
-                    // Visible only when signed in to wflows.com — the
+                    // Visible only when signed in to wflows.io — the
                     // publish API needs a Bearer token. Hidden for
                     // anonymous users so the menu doesn't tease an
                     // affordance they can't act on. Theme._auth.state
                     // re-evaluates reactively, so signing in mid-session
                     // makes the item appear without any reload.
                     visible: Theme._auth.state === "signed_in"
-                    text: "↑ Publish to wflows.com"
+                    text: "↑ Publish to wflows.io"
                     onTriggered: root.publishRequested(card.wf.id)
                 }
                 WfMenuItem {
@@ -418,7 +418,7 @@ Item {
                 }
             }
 
-            // EXPERIMENT: layout mirrors the wflows.com hero-card
+            // EXPERIMENT: layout mirrors the wflows.io hero-card
             // rhythm — avatar + title-block + open-pill on top, a
             // description block, then the step-trail, then a ruled
             // footer with meta on the left and an imported badge on
@@ -453,7 +453,7 @@ Item {
 
                     // Publish pill — sits where the Open pill used to,
                     // anchored to the top-right of the card. Visible
-                    // only when signed in to wflows.com so anonymous
+                    // only when signed in to wflows.io so anonymous
                     // users don't see an affordance they can't use.
                     // Clicking the rest of the card still opens the
                     // editor; the pill stops propagation so it always
@@ -498,7 +498,7 @@ Item {
 
                         ToolTip.visible: publishArea.containsMouse
                         ToolTip.delay: 400
-                        ToolTip.text: "Publish to wflows.com"
+                        ToolTip.text: "Publish to wflows.io"
                     }
 
                     // Title + byline. When the publish pill is showing
@@ -556,7 +556,7 @@ Item {
                     visible: text.length > 0
                 }
 
-                // ── Step trail (wflows.com chip preview) ──
+                // ── Step trail (wflows.io chip preview) ──
                 // Shared with the explore catalog cards. Hover state
                 // forwards from the card so chips stagger in left to
                 // right when the user mouses over a workflow.

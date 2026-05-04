@@ -36,7 +36,7 @@ Plus two siblings that this package references:
 3. **Upload the logo concepts** under `docs/branding/` so brand-mark
    choices are anchored.
 4. **Paste the relevant section of `design-brief.md`** for whatever
-   you're working on (e.g. the wflows.com landing page section).
+   you're working on (e.g. the wflows.io landing page section).
 5. **Iterate** with inline comments / direct edits / sliders rather
    than starting fresh each turn.
 

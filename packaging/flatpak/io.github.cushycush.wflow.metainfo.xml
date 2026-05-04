@@ -102,7 +102,7 @@
     <release version="0.5.0" date="2026-05-01">
       <description>
         <p>
-          The brand-palette release. wflow now ships two skins side by side and the first-run tour lets you pick one. Warm Paper (the wflows.com identity, cream surfaces around hue 55 with a coral accent at hue 25, ink-tinted category chips) is the new default. Cool Slate (the original 0.4.x slate-blue at hue 260 with a warm amber accent at hue 60, saturated category chips) stays available for users who liked the v0.4 look.
+          The brand-palette release. wflow now ships two skins side by side and the first-run tour lets you pick one. Warm Paper (the wflows.io identity, cream surfaces around hue 55 with a coral accent at hue 25, ink-tinted category chips) is the new default. Cool Slate (the original 0.4.x slate-blue at hue 260 with a warm amber accent at hue 60, saturated category chips) stays available for users who liked the v0.4 look.
         </p>
         <p>
           Both palettes carry full light + dark variants. Theme + palette switch independently from Settings, so any of the four combinations is a real surface you can live in. The palette persists in `state.toml` next to your theme preference.

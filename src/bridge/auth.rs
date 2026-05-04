@@ -1,4 +1,4 @@
-//! AuthController — wflows.com sign-in via browser handoff.
+//! AuthController — wflows.io sign-in via browser handoff.
 //!
 //! State machine the UI mirrors:
 //!
@@ -12,7 +12,7 @@
 //!   1. UI calls `start_sign_in()`. We mint a single-use nonce, persist
 //!      it in memory, and `xdg-open` the browser at
 //!      `${site_origin}/auth/desktop?nonce=<nonce>`.
-//!   2. User signs in on the web. wflows.com redirects to
+//!   2. User signs in on the web. wflows.io redirects to
 //!      `wflow://auth/callback?nonce=<nonce>&token=<token>`. xdg-open
 //!      hands the URL to the desktop's existing wflow:// scheme handler.
 //!   3. QML's deeplink handler sees the auth/callback shape, calls
@@ -52,7 +52,7 @@ pub mod qobject {
         /// Empty when not in a failure state. Human-readable.
         #[qproperty(QString, last_error)]
         /// Mirrors ExploreController's site_origin so the two stay
-        /// pointed at the same backend (wflows.vercel.app today).
+        /// pointed at the same backend (wflows.io in production).
         #[qproperty(QString, site_origin)]
         type AuthController = super::AuthControllerRust;
 
@@ -142,7 +142,7 @@ impl Default for AuthControllerRust {
     fn default() -> Self {
         let inner = crate::state::load();
         let origin = std::env::var("WFLOW_SITE_ORIGIN")
-            .unwrap_or_else(|_| "https://wflows.vercel.app".to_string());
+            .unwrap_or_else(|_| "https://wflows.io".to_string());
 
         let (state, handle, display_name, avatar_url) = match inner.auth.as_ref() {
             Some(snap) => (

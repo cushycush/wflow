@@ -4,7 +4,7 @@ import Wflow
 
 // Accent-filled button used for the dominant action on a page (New workflow,
 // Run, Import, etc.). One per page at most — coral accent is load-bearing.
-// Pill shape mirrors wflows.com .btn-primary so the chrome reads from the
+// Pill shape mirrors wflows.io .btn-primary so the chrome reads from the
 // same family as the marketing site.
 Button {
     id: root

@@ -6,7 +6,7 @@ import Wflow
 // Without it, a malicious page could open `wflow://import?source=...`
 // in the user's browser and silently land a workflow on disk. The
 // dialog renders the metadata the bridge fetched (title, author
-// handle, description, step count) plus a "from wflows.com" pill
+// handle, description, step count) plus a "from wflows.io" pill
 // the user can read before saying yes.
 //
 // Usage:
@@ -59,7 +59,7 @@ Dialog {
             anchors.margins: 24
             spacing: 16
 
-            // Source pill — quiet "from wflows.com" tag at the top
+            // Source pill — quiet "from wflows.io" tag at the top
             // so the user knows where this came from before reading
             // anything else.
             Rectangle {
@@ -73,7 +73,7 @@ Dialog {
                 Text {
                     id: pillText
                     anchors.centerIn: parent
-                    text: "from wflows.com"
+                    text: "from wflows.io"
                     color: Theme.accent
                     font.family: Theme.familyMono
                     font.pixelSize: 10

@@ -96,7 +96,7 @@ Emotional goal: **this recedes behind the task.**
 ### Aesthetic Direction
 
 References: macOS Shortcuts dark, Linear, Raycast, Requestly, Arc settings,
-wflows.com (the marketing site). Anti-references: editorial layouts, modular
+wflows.io (the marketing site). Anti-references: editorial layouts, modular
 synth / rack, glassmorphism, neon-on-dark, purple-blue gradients,
 skeuomorphic hardware, dense SaaS dashboard templates, bouncy animation.
 
@@ -106,7 +106,7 @@ As of v0.5.0, wflow ships two brand palettes. The active one is set on
 first run via the tutorial and persists in `state.toml`; users can flip
 any time from Settings. Both support light + dark.
 
-**Warm Paper** (default, mirrors wflows.com): warm-cream surfaces (hue
+**Warm Paper** (default, mirrors wflows.io): warm-cream surfaces (hue
 55-60, near-white at L≈0.97 light / warm near-black at L≈0.16 dark)
 with a coral accent (hue 25-32). This is the published marketing-site
 identity.
@@ -121,7 +121,7 @@ need a token's value, read Theme.qml — don't copy hex into a component.
 
 Cat-tint chips also branch by palette so the saturated original set
 rides with cool slate and the muted ink-* register (mirrored from
-wflows.com tokens.css) rides with warm paper. Either way, the rule
+wflows.io tokens.css) rides with warm paper. Either way, the rule
 holds: tint only on the chip, accent only on the primary affordance.
 
 ### Typography
@@ -143,7 +143,7 @@ Scale: 11 / 13 / 14 / 16 / 20 / 28 px.
    tags), `radiusSm` (6, compact buttons / inputs), `radiusMd` (10, cards
    and dialogs), `radiusLg` (16, hero / big cards), `radiusXl` (22, large
    panels), `radiusPill` (999, primary / secondary buttons, triggers).
-   Mirrors wflows.com's full ladder. Don't free-hand corner radii.
+   Mirrors wflows.io's full ladder. Don't free-hand corner radii.
 3. **Flat, not skeuomorphic.** No gradients on surfaces, no embossed edges,
    no drop shadows except for a true overlay (dialog backdrop).
 4. **Category color is functional.** Tint only on the chip; accent amber is

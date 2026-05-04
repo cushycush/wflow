@@ -38,6 +38,10 @@ pub mod qobject {
         #[qproperty(QString, store_path)]
         #[qproperty(QString, default_store_path)]
         #[qproperty(bool, store_path_is_default)]
+        /// Build version pulled from `CARGO_PKG_VERSION` at compile
+        /// time. Surfaced so the Settings → About section reads the
+        /// real version instead of a hand-typed string that drifts.
+        #[qproperty(QString, app_version)]
         type StateController = super::StateControllerRust;
 
         /// Persist that the user has seen the welcome card. Idempotent
@@ -134,6 +138,7 @@ pub struct StateControllerRust {
     pub store_path: QString,
     pub default_store_path: QString,
     pub store_path_is_default: bool,
+    pub app_version: QString,
     inner: state::State,
 }
 
@@ -167,6 +172,7 @@ impl Default for StateControllerRust {
             store_path,
             default_store_path,
             store_path_is_default,
+            app_version: QString::from(env!("CARGO_PKG_VERSION")),
             inner,
         }
     }

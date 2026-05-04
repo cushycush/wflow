@@ -118,7 +118,7 @@ Item {
                 // ---- Account ----
                 // Sign-in flow lives here. Browser-handoff via the
                 // wflow:// scheme handler — clicking Sign in opens a
-                // tab at wflows.com/auth/desktop, the user signs in
+                // tab at wflows.io/auth/desktop, the user signs in
                 // there, the page redirects to wflow://auth/callback
                 // with a nonce-bound token that AuthController
                 // verifies before storing. State is read off
@@ -131,7 +131,7 @@ Item {
                     // Signed out — Sign in CTA + a one-line pitch.
                     SettingRow {
                         visible: Theme._auth.state === "signed_out"
-                        title: "Sign in to wflows.com"
+                        title: "Sign in to wflows.io"
                         subtitle: "Save favorites, comment on workflows, publish your own."
 
                         Button {
@@ -174,7 +174,7 @@ Item {
                     SettingRow {
                         visible: Theme._auth.state === "signed_in"
                         title: Theme._auth.handle.length > 0 ? "Signed in as @" + Theme._auth.handle : "Signed in"
-                        subtitle: Theme._auth.display_name.length > 0 ? Theme._auth.display_name : "Your wflows.com account is connected."
+                        subtitle: Theme._auth.display_name.length > 0 ? Theme._auth.display_name : "Your wflows.io account is connected."
 
                         SecondaryButton {
                             text: "Sign out"
@@ -238,7 +238,7 @@ Item {
 
                     SettingRow {
                         title: "Palette"
-                        subtitle: "Warm Paper is the wflows.com brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
+                        subtitle: "Warm Paper is the wflows.io brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
 
                         SegmentedControl {
                             items: [
@@ -405,7 +405,12 @@ Item {
                         subtitle: "wflow desktop"
 
                         Text {
-                            text: "0.3.26"
+                            // Pulled from CARGO_PKG_VERSION at build
+                            // time via StateController.app_version, so
+                            // a Cargo.toml bump propagates here
+                            // without anyone having to remember to
+                            // edit this row.
+                            text: ctrl.app_version
                             color: Theme.text2
                             font.family: Theme.familyMono
                             font.pixelSize: Theme.fontSm

@@ -7,7 +7,7 @@ import Wflow
 // the step-trail, then a ruled footer with meta on the left and a
 // category tag on the right) so a workflow on Explore reads like a
 // workflow on Library — same shape, same rhythm. The step trail is
-// the wflows.com hero-card preview look: a row of CategoryIcons for
+// the wflows.io hero-card preview look: a row of CategoryIcons for
 // the first few kinds, plus a `+N` sentinel when there are more.
 Rectangle {
     id: card
@@ -84,7 +84,7 @@ Rectangle {
                 }
             }
 
-            // Pill mirror of wflows.com's "Open in wflow" CTA, except
+            // Pill mirror of wflows.io's "Open in wflow" CTA, except
             // for catalog cards it reads "Install" so the action is
             // unambiguous before the user even reaches the drawer.
             Rectangle {
@@ -142,7 +142,7 @@ Rectangle {
             visible: text.length > 0
         }
 
-        // ── Step trail (wflows.com chip preview) ──
+        // ── Step trail (wflows.io chip preview) ──
         // Shared with the library card via StepChipTrail. Hover state
         // forwards from the card so the chips stagger in left-to-right
         // when the user mouses over the workflow.

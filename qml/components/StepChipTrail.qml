@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// wflows.com-style horizontal chip trail. Shared by the library and
+// wflows.io-style horizontal chip trail. Shared by the library and
 // explore cards so a workflow reads the same way on both surfaces.
 //
 // Each chip is a pill with:
@@ -20,7 +20,7 @@ import Wflow
 // `hovered` is the host card's hover state. When it flips true each
 // chip's border briefly flashes to its kind's category color in
 // sequence — a wave from the first chip to the last, like the engine
-// invoking each step in order. Same trick wflows.com hero card runs.
+// invoking each step in order. Same trick wflows.io hero card runs.
 Item {
     id: root
 
@@ -313,7 +313,7 @@ Item {
     }
 
     // The chord / type / shell chips read better with the same
-    // shorthand wflows.com uses: ⌘ for super, ⌥ for alt, ⌃ for ctrl,
+    // shorthand wflows.io uses: ⌘ for super, ⌥ for alt, ⌃ for ctrl,
     // ⇧ for shift, ↵ for return. Long shell commands trim to the
     // first token so the chip reads as a verb instead of a wall.
     function _abbrev(kind, value) {

@@ -8,7 +8,7 @@ is grounded.
 
 1. **wflow desktop** (this repo, Qt 6 + cxx-qt + Rust + QML). The
    design language exists here and is the authoritative source.
-2. **wflows.com** (Next.js, Drizzle, Postgres, Better Auth). The
+2. **wflows.io** (Next.js, Drizzle, Postgres, Better Auth). The
    public catalog. Currently has a lighter, more raw treatment that
    should be reworked to match the desktop's visual language.
 
@@ -16,7 +16,7 @@ Both share one identity. The desktop drives; the website follows.
 
 ## What we want designed, ordered by priority
 
-### Priority 1: wflows.com landing page
+### Priority 1: wflows.io landing page
 
 The single most important surface. Today's homepage is sparse and
 under-positioned. Goals:
@@ -41,7 +41,7 @@ under-positioned. Goals:
 
 Theme: dark default, light fallback. Mirror the desktop's surfaces.
 
-### Priority 2: wflows.com browse + workflow detail pages
+### Priority 2: wflows.io browse + workflow detail pages
 
 **Browse page** is the search + filter + grid. Today's renders the
 data correctly but the design is the SSR placeholder. Wants:
@@ -70,7 +70,7 @@ from a search or shared link. Wants:
   handle, bio, supporter badge if present), and "more from this
   author."
 
-### Priority 3: wflows.com profile + publish + auth
+### Priority 3: wflows.io profile + publish + auth
 
 **Profile page** (`/:handle`): avatar at top, bio, supporter badge,
 grid of the author's public workflows. Quiet.

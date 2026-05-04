@@ -1687,7 +1687,7 @@ Item {
                 ToolTip.text: "Redo (Ctrl+Shift+Z)"
             }
 
-            // Publish — only available when signed in to wflows.com,
+            // Publish — only available when signed in to wflows.io,
             // since the API needs a Bearer token. The dialog itself
             // has a "not signed in" guard but hiding the button
             // entirely keeps the toolbar quiet for anonymous users.
@@ -1708,7 +1708,7 @@ Item {
                 }
                 ToolTip.visible: hovered
                 ToolTip.delay: 400
-                ToolTip.text: "Publish this workflow to wflows.com"
+                ToolTip.text: "Publish this workflow to wflows.io"
             }
 
             // Run / debug control. When idle: Run + Debug. When in

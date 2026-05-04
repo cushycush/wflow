@@ -670,8 +670,8 @@ Item {
                     ToolTip.visible: containsMouse
                     ToolTip.delay: 400
                     ToolTip.text: authPill._signedIn
-                        ? "Manage your wflows.com account"
-                        : "Sign in to wflows.com"
+                        ? "Manage your wflows.io account"
+                        : "Sign in to wflows.io"
                 }
             }
 

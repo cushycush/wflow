@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Modal that posts a local workflow to wflows.com via
+// Modal that posts a local workflow to wflows.io via
 // ExploreController.publish_workflow. The dialog is the only
 // surface that captures publish metadata — description, readme,
 // tags, visibility — so the user gets one focused screen instead
