@@ -78,6 +78,29 @@ impl Backend for HyprlandBackend {
             _ => return Err(anyhow!("hyprland backend: only chord triggers supported today")),
         };
         let (mods, key) = parse_chord(chord)?;
+
+        // Evict any pre-existing bind for this chord first. Hyprland's
+        // `keyword bind` ADDs a binding rather than replacing — without
+        // this, a chord already bound in the user's hyprland.conf
+        // (e.g. `bind = SUPER, T, exec, kitty`) and a wflow bind would
+        // both fire on the chord. Pressing `Super+T` would launch kitty
+        // AND fire the workflow, which is exactly the "wflow binds
+        // should supersede all other binds" behaviour the user
+        // flagged.
+        //
+        // Unbind silently — the response is "ok" on success or an
+        // "Unable to find ..." style message otherwise. Either is
+        // fine; the failure just means the chord wasn't bound to
+        // anything yet. The user's hyprland.conf bind comes back on
+        // a `hyprctl reload` after the daemon stops. A future polish
+        // could remember + restore the previous bind on shutdown,
+        // but the cost / complexity isn't worth it for v1.
+        let unbind_cmd = format!("keyword unbind = {mods}, {key}");
+        match self.request(&unbind_cmd) {
+            Ok(resp) => tracing::debug!(chord, %resp, "pre-bind unbind"),
+            Err(e) => tracing::debug!(chord, %e, "pre-bind unbind failed (chord likely not bound)"),
+        }
+
         let cmd = format!(
             "keyword bind = {mods}, {key}, exec, {} run {} --yes",
             self.wflow_bin.display(),

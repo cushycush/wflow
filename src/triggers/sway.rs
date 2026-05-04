@@ -111,6 +111,19 @@ impl Backend for SwayBackend {
             _ => return Err(anyhow!("sway backend: only chord triggers supported today")),
         };
         let sway_chord = translate_chord(chord)?;
+
+        // Evict any pre-existing bind for this chord first. Sway's
+        // `bindsym` rejects a duplicate binding outright (the
+        // `success: false` reply we'd otherwise propagate as an
+        // error), so we always unbind speculatively. Failure means
+        // the chord wasn't bound — fine. Same "wflow binds
+        // supersede" model Hyprland uses; user's sway config bind
+        // comes back on `swaymsg reload` after the daemon stops.
+        let unbind_cmd = format!("unbindsym {sway_chord}");
+        if let Err(e) = self.run_command(&unbind_cmd) {
+            tracing::debug!(chord, %e, "pre-bind unbind failed (chord likely not bound)");
+        }
+
         let cmd = format!(
             "bindsym {sway_chord} exec {} run {} --yes",
             self.wflow_bin.display(),

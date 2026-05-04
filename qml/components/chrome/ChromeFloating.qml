@@ -49,8 +49,9 @@ Item {
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
                       root.currentPage === "favorites" ? 2 :
-                      root.currentPage === "workflow" ? 3 :
-                      root.currentPage === "record" ? 4 : 5
+                      root.currentPage === "triggers" ? 3 :
+                      root.currentPage === "workflow" ? 4 :
+                      root.currentPage === "record" ? 5 : 6
 
         // Subtle "page settles in" transition each time the active
         // tab changes. Fade + tiny scale-up on the new page; the old
@@ -98,6 +99,10 @@ Item {
         }
         FavoritesPage {
             id: favoritesPageInst
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        TriggersPage {
+            id: triggersPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         // Workflow slot: a tab strip at the top-left + a Repeater of
@@ -396,6 +401,7 @@ Item {
                     if (Theme._auth.state === "signed_in") {
                         out.push({ id: "favorites", label: "Favorites" })
                     }
+                    out.push({ id: "triggers", label: "Triggers" })
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",
@@ -515,6 +521,62 @@ Item {
                                 radius: 4
                                 color: tab.tabFg
                             }
+
+                            // Triggers: keyboard key cap. Outlined
+                            // rounded rectangle with a small horizontal
+                            // mark inside — reads as a key with a
+                            // shortcut etched on it. Mirrors the chord
+                            // pill style on TriggersPage so the visual
+                            // language stays consistent: "this tab is
+                            // about keyboard chords."
+                            Item {
+                                visible: modelData.id === "triggers"
+                                anchors.fill: parent
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11
+                                    height: 11
+                                    radius: 2.5
+                                    color: "transparent"
+                                    border.color: tab.tabFg
+                                    border.width: 1.3
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5
+                                    height: 1.3
+                                    color: tab.tabFg
+                                }
+                            }
+
+                            // Favorites: 5-pointed star, drawn from two
+                            // overlaid triangles via Shape primitives
+                            // would be heavy at this size. Cheap path:
+                            // an asterisk made from three thin lines
+                            // crossing at the centre. Reads as "starred"
+                            // without paying the Path tax.
+                            Item {
+                                visible: modelData.id === "favorites"
+                                anchors.fill: parent
+                                // Three crossing strokes — vertical,
+                                // diagonal-down, diagonal-up — give the
+                                // 6-spoke asterisk look.
+                                Repeater {
+                                    model: 3
+                                    delegate: Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 12
+                                        height: 1.5
+                                        radius: 0.75
+                                        color: tab.tabFg
+                                        transform: Rotation {
+                                            origin.x: 6
+                                            origin.y: 0.75
+                                            angle: index * 60
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Text {
@@ -544,6 +606,76 @@ Item {
             }
 
             Item { width: 2; height: 1 }
+
+            // Auth pill — shows "Sign in" when signed_out, the user's
+            // handle when signed_in, "…" while a sign-in is pending.
+            // Click routes to Settings → Account so the action surface
+            // (Sign in / Sign out / try again) lives in one place;
+            // discoverability lives here so the user doesn't have to
+            // hunt for it. Hidden during failed-state for now —
+            // Settings shows the error and the Try-again button.
+            Rectangle {
+                id: authPill
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property string authState: Theme._auth.state
+                readonly property bool _signedIn: authState === "signed_in"
+                readonly property bool _pending: authState === "pending"
+                readonly property string label:
+                    _pending ? "Signing in…" :
+                    _signedIn ? ("@" + Theme._auth.handle) : "Sign in"
+                width: authLbl.implicitWidth + 22
+                height: 26
+                radius: height / 2
+                color: authArea.containsMouse
+                    ? (authPill._signedIn ? Theme.surface3 : Theme.accent)
+                    : (authPill._signedIn ? Theme.surface2 : Theme.accentDim)
+                border.color: authPill._signedIn
+                    ? Theme.line
+                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // Tiny accent dot when signed in — visual confirmation
+                // separate from the handle text. Doubles as a "you're
+                // online" indicator.
+                Rectangle {
+                    visible: authPill._signedIn
+                    width: 6; height: 6; radius: 3
+                    anchors.left: parent.left
+                    anchors.leftMargin: 9
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.ok
+                }
+
+                Text {
+                    id: authLbl
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: authPill._signedIn ? 5 : 0
+                    text: authPill.label
+                    color: authPill._signedIn
+                        ? Theme.text2
+                        : (authArea.containsMouse ? Theme.accentText : Theme.accent)
+                    font.family: Theme.familyBody
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 0.4
+                }
+
+                MouseArea {
+                    id: authArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.navigate("settings")
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: authPill._signedIn
+                        ? "Manage your wflows.com account"
+                        : "Sign in to wflows.com"
+                }
+            }
+
+            Item { width: 4; height: 1 }
 
             // (Theme cycle button moved to Settings — Ctrl+. still cycles
             // for keyboard users; the chrome no longer carries it now
