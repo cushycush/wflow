@@ -137,6 +137,21 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // Inbox for URLs forwarded from second-launch wflow processes.
+    // xdg-open's "Exec=wflow %u" path spawns a new process for every
+    // wflow:// URL, and gui_lock turns those second launches into
+    // forwarders that write the URL through a Unix socket back to
+    // this instance. DeeplinkInbox.url_received fires on the Qt
+    // thread for each forwarded URL; we route through the same
+    // _resolveDeeplink function the cold-start path uses, so import
+    // and auth-callback shapes both work whether the URL came in via
+    // the env var on launch or via the inbox while running.
+    DeeplinkInbox {
+        id: deeplinkInbox
+        Component.onCompleted: deeplinkInbox.start()
+        onUrl_received: (url) => _resolveDeeplink(url)
+    }
+
     // AuthController lives on Theme as Theme._auth so both Main.qml
     // and SettingsPage share one instance (the pending nonce minted
     // by start_sign_in has to be visible to the deeplink-driven
