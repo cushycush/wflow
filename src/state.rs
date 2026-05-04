@@ -60,7 +60,7 @@ pub struct State {
     /// PathBuf-shaped TOML schema.
     #[serde(default)]
     pub workflows_dir: Option<String>,
-    /// Wflows.com sign-in state. None when signed out. The token is the
+    /// Wflows.io sign-in state. None when signed out. The token is the
     /// PAT issued by `/auth/desktop`'s deeplink return; the cached
     /// profile lets the UI render "Signed in as @handle" on launch
     /// before the network round-trip to `/api/v0/me` resolves.

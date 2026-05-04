@@ -109,7 +109,7 @@ Dialog {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: root.succeeded ? "PUBLISHED" : "PUBLISH TO WFLOWS.COM"
+                    text: root.succeeded ? "PUBLISHED" : "PUBLISH TO WFLOWS.IO"
                     color: Theme.accent
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontXs
