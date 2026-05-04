@@ -123,6 +123,14 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // Forwards URLs from second-launch wflows; cold-start URLs come
+    // through ExploreController.take_pending_deeplink instead.
+    DeeplinkInbox {
+        id: deeplinkInbox
+        Component.onCompleted: deeplinkInbox.start()
+        onUrl_received: (url) => _resolveDeeplink(url)
+    }
+
     // Theme._auth is shared across Main and SettingsPage so the nonce
     // minted by start_sign_in survives the deeplink callback.
     Connections {

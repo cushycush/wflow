@@ -71,6 +71,7 @@ fn main() {
         ]),
     )
     .file("src/bridge/auth.rs")
+    .file("src/bridge/deeplink_inbox.rs")
     .file("src/bridge/explore.rs")
     .file("src/bridge/library.rs")
     .file("src/bridge/state.rs")
