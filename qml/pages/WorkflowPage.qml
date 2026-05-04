@@ -2144,6 +2144,186 @@ Item {
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
 
+            // Pinned trigger card — floats over the canvas at the
+            // top-left, anchored to canvasView (NOT inside its
+            // Flickable) so canvas pan / zoom don't move it. Reads
+            // the current chord trigger from root.workflow.triggers
+            // and lets the user bind / edit / clear without
+            // hand-editing KDL. Hidden in fragment-edit mode since
+            // fragments don't carry triggers (they're spliced into
+            // the parent workflow that does).
+            Item {
+                id: triggerPinned
+                visible: canvasView.visible && !root.fragmentMode
+                anchors.left: canvasView.left
+                anchors.top: canvasView.top
+                anchors.leftMargin: 16
+                anchors.topMargin: 16
+                width: triggerCard.width
+                height: triggerCard.height
+                z: 5
+
+                // Pull the first chord trigger out of the workflow's
+                // triggers array. Same shape as LibraryController's
+                // chord summary; v1 binds one chord per workflow.
+                readonly property var _firstChordTrigger: {
+                    const triggers = (root.workflow && root.workflow.triggers) || []
+                    for (let i = 0; i < triggers.length; ++i) {
+                        const t = triggers[i]
+                        if (t && t.kind === "chord" && t.chord) {
+                            return t
+                        }
+                    }
+                    return null
+                }
+                readonly property string chord: _firstChordTrigger ? _firstChordTrigger.chord : ""
+                readonly property string whenKind: {
+                    const t = _firstChordTrigger
+                    if (!t || !t.when) return ""
+                    return t.when.kind === "window_class" ? "window-class"
+                         : t.when.kind === "window_title" ? "window-title"
+                         : ""
+                }
+                readonly property string whenValue: {
+                    const t = _firstChordTrigger
+                    if (!t || !t.when) return ""
+                    return t.when.class || t.when.title || ""
+                }
+
+                Rectangle {
+                    id: triggerCard
+                    width: 240
+                    height: triggerLayout.implicitHeight + 24
+                    radius: Theme.radiusMd
+                    color: triggerArea.containsMouse ? Theme.surface2 : Theme.surface
+                    border.color: triggerPinned.chord.length > 0
+                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.3)
+                    border.width: 1.5
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                    Column {
+                        id: triggerLayout
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 6
+
+                        // Eyebrow: small key-cap glyph + "TRIGGER"
+                        // mono kicker. Same icon shape as the
+                        // Triggers tab in the nav, so the user reads
+                        // "this card is the same kind of thing as the
+                        // tab" at a glance.
+                        Row {
+                            spacing: 8
+                            Item {
+                                width: 12; height: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11; height: 11
+                                    radius: 2.5
+                                    color: "transparent"
+                                    border.color: Theme.accent
+                                    border.width: 1.3
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5; height: 1.3
+                                    color: Theme.accent
+                                }
+                            }
+                            Text {
+                                text: "TRIGGER"
+                                color: Theme.accent
+                                font.family: Theme.familyMono
+                                font.pixelSize: 10
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.9
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        // Chord display — the bound chord in mono,
+                        // or a "Bind a chord" CTA when none.
+                        Text {
+                            text: triggerPinned.chord.length > 0
+                                ? triggerPinned.chord
+                                : "+ Bind a chord"
+                            color: triggerPinned.chord.length > 0
+                                ? Theme.text
+                                : Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: triggerPinned.chord.length > 0
+                                ? Theme.fontMd
+                                : Theme.fontSm
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.4
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+
+                        // Predicate hint, only when a `when` block
+                        // exists. Mirrors how TriggersPage describes
+                        // the predicate so the same vocabulary shows
+                        // up everywhere.
+                        Text {
+                            visible: triggerPinned.chord.length > 0 && triggerPinned.whenKind.length > 0
+                            text: {
+                                const k = triggerPinned.whenKind
+                                const v = triggerPinned.whenValue
+                                const verb = k === "window-class"
+                                    ? "when window class is"
+                                    : "when window title contains"
+                                return verb + " " + v
+                            }
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                    }
+
+                    MouseArea {
+                        id: triggerArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            triggerCardChordDialog.initialChord = triggerPinned.chord
+                            triggerCardChordDialog.initialWhenKind = triggerPinned.whenKind
+                            triggerCardChordDialog.initialWhenValue = triggerPinned.whenValue
+                            triggerCardChordDialog.open()
+                        }
+                    }
+                }
+
+                ChordCaptureDialog {
+                    id: triggerCardChordDialog
+                    onCaptured: (chord, whenKind, whenValue) => {
+                        if (root.workflowId.length > 0) {
+                            libCtrl.set_chord(root.workflowId, chord, whenKind, whenValue)
+                            // libCtrl.workflows refresh fires
+                            // wfCtrl.load on the next bind via
+                            // existing wiring; the pinned card's
+                            // bindings re-evaluate off root.workflow
+                            // automatically.
+                            wfCtrl.load(root.workflowId)
+                        }
+                    }
+                    onCleared: {
+                        if (root.workflowId.length > 0) {
+                            libCtrl.set_chord(root.workflowId, "", "", "")
+                            wfCtrl.load(root.workflowId)
+                        }
+                    }
+                }
+            }
+
             // Floating step palette. Drag a chip onto the canvas to
             // add a step at the drop point — palette uses the canvas
             // ref to drive an in-canvas card-shaped preview ghost.

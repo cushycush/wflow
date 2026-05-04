@@ -32,15 +32,15 @@ Item {
 
     ChordCaptureDialog {
         id: chordDialog
-        onCaptured: (chord) => {
+        onCaptured: (chord, whenKind, whenValue) => {
             if (root._editingId.length > 0) {
-                libCtrl.set_chord(root._editingId, chord)
+                libCtrl.set_chord(root._editingId, chord, whenKind, whenValue)
             }
             root._editingId = ""
         }
         onCleared: {
             if (root._editingId.length > 0) {
-                libCtrl.set_chord(root._editingId, "")
+                libCtrl.set_chord(root._editingId, "", "", "")
             }
             root._editingId = ""
         }
@@ -156,6 +156,8 @@ Item {
                                     root._editingId = modelData.id
                                     workflowPickerDialog.close()
                                     chordDialog.initialChord = ""
+                                    chordDialog.initialWhenKind = ""
+                                    chordDialog.initialWhenValue = ""
                                     chordDialog.open()
                                 }
                             }
@@ -301,7 +303,7 @@ Item {
                                 }
                             }
 
-                            // Workflow title + step count, click → open in editor.
+                            // Workflow title + when-predicate hint, click → open in editor.
                             Column {
                                 anchors.left: parent.left
                                 anchors.leftMargin: 16 + chordText.implicitWidth + 22 + 16
@@ -318,10 +320,28 @@ Item {
                                     elide: Text.ElideRight
                                     width: parent.width
                                 }
+                                // Subtitle line: when a predicate is
+                                // set, surface it in the secondary
+                                // slot so the user can scan "this
+                                // chord only fires when X" without
+                                // opening the editor. Falls back to
+                                // the workflow's own subtitle / step
+                                // count when the chord fires
+                                // unconditionally.
                                 Text {
-                                    text: modelData.subtitle && modelData.subtitle.length > 0
-                                        ? modelData.subtitle
-                                        : modelData.steps + " step" + (modelData.steps === 1 ? "" : "s")
+                                    text: {
+                                        const k = modelData.chord_when_kind || ""
+                                        const v = modelData.chord_when_value || ""
+                                        if (k && v) {
+                                            const verb = k === "window-class"
+                                                ? "when window class is"
+                                                : "when window title contains"
+                                            return verb + " " + v
+                                        }
+                                        return modelData.subtitle && modelData.subtitle.length > 0
+                                            ? modelData.subtitle
+                                            : modelData.steps + " step" + (modelData.steps === 1 ? "" : "s")
+                                    }
                                     color: Theme.text3
                                     font.family: Theme.familyBody
                                     font.pixelSize: Theme.fontXs
@@ -342,12 +362,14 @@ Item {
                                     onClicked: {
                                         root._editingId = modelData.id
                                         chordDialog.initialChord = modelData.chord
+                                        chordDialog.initialWhenKind = modelData.chord_when_kind || ""
+                                        chordDialog.initialWhenValue = modelData.chord_when_value || ""
                                         chordDialog.open()
                                     }
                                 }
                                 SecondaryButton {
                                     text: "Clear"
-                                    onClicked: libCtrl.set_chord(modelData.id, "")
+                                    onClicked: libCtrl.set_chord(modelData.id, "", "", "")
                                 }
                             }
 

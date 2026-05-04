@@ -28,16 +28,33 @@ Dialog {
     /// existing binding pre-displayed (so the user sees what they're
     /// replacing). Press a new combo to override.
     property string initialChord: ""
+    /// Initial values for the when-predicate, mirrored from the
+    /// existing trigger so editing an existing binding keeps its
+    /// scope. `whenKind` is "" / "window-class" / "window-title";
+    /// `whenValue` is the matched string. Both empty → no predicate.
+    property string initialWhenKind: ""
+    property string initialWhenValue: ""
 
     /// Captured chord string. Updates live as the user presses keys;
     /// confirmCaptured signal fires on Save.
     property string capturedChord: ""
+    /// Predicate state. Updated by the When section's UI.
+    property string capturedWhenKind: ""
+    property string capturedWhenValue: ""
 
-    signal captured(string chord)
+    /// Emitted on Bind. The handler is expected to call
+    /// libCtrl.set_chord(id, chord, whenKind, whenValue). When the
+    /// user didn't pick a predicate both whenKind and whenValue are
+    /// empty strings.
+    signal captured(string chord, string whenKind, string whenValue)
     signal cleared()
 
     onOpened: {
         capturedChord = initialChord
+        capturedWhenKind = initialWhenKind
+        capturedWhenValue = initialWhenValue
+        manualField.text = initialChord
+        whenValueField.text = initialWhenValue
         captureFocus.forceActiveFocus()
     }
 
@@ -65,8 +82,8 @@ Dialog {
 
         Text {
             text: root.initialChord.length > 0
-                ? "Currently bound to " + root.initialChord + ". Press a new combination to replace, or click Clear to unbind."
-                : "Press the chord you want to bind. Hold modifiers (Ctrl, Shift, Alt, Super) and tap a key. Esc to cancel."
+                ? "Currently bound to " + root.initialChord + ". Press a new combination to replace, type one in, or Clear to unbind."
+                : "Press the chord — hold modifiers (Ctrl/Shift/Alt/Super) and tap a key. Or type the chord directly below if your compositor's already bound it (it'll fire the existing binding instead of letting wflow capture). Esc to cancel."
             color: Theme.text2
             font.family: Theme.familyBody
             font.pixelSize: Theme.fontSm
@@ -124,8 +141,166 @@ Dialog {
                     if (event.modifiers & Qt.MetaModifier) parts.push("super")
                     parts.push(_keyName(event.key, event.text))
                     root.capturedChord = parts.join("+")
+                    manualField.text = root.capturedChord
                     event.accepted = true
                 }
+            }
+        }
+
+        // Manual fallback. Wayland apps can't grab keys ahead of the
+        // compositor; if a chord is already bound to a launcher /
+        // workspace switcher / etc, pressing it fires that bind and
+        // wflow never sees the keypress. Typing the chord here is
+        // the workaround. Also useful for chords that don't have a
+        // unique key event we can capture (Print, XF86 keys, etc).
+        Column {
+            width: parent.width
+            spacing: 4
+            Row {
+                spacing: 8
+                Text {
+                    text: "OR TYPE A CHORD"
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 9
+                    font.weight: Font.Bold
+                    font.letterSpacing: 0.8
+                }
+                Text {
+                    text: "ctrl+shift+t · super+space · F11 · alt+Return"
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 9
+                    font.letterSpacing: 0.4
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+            TextField {
+                id: manualField
+                width: parent.width
+                placeholderText: "ctrl+shift+t"
+                font.family: Theme.familyMono
+                font.pixelSize: Theme.fontSm
+                color: Theme.text
+                placeholderTextColor: Theme.text3
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: manualField.activeFocus
+                        ? Theme.surface2
+                        : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.5)
+                    border.color: manualField.activeFocus ? Theme.accent : Theme.lineSoft
+                    border.width: 1
+                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                }
+                onTextChanged: {
+                    const trimmed = text.trim()
+                    if (trimmed.length > 0) {
+                        // Mirror the manual entry into the captured
+                        // chord so the Bind button enables and the
+                        // capture-pill above shows what's about to
+                        // be saved. Normalisation (canonical form)
+                        // happens server-side on save via the bridge,
+                        // so the user can type "Cmd+Shift+T" and the
+                        // resulting bind is "super+shift+t" without
+                        // them having to know the canonical spelling.
+                        root.capturedChord = trimmed
+                    } else if (root.capturedChord === text) {
+                        root.capturedChord = ""
+                    }
+                }
+                Keys.onReturnPressed: if (saveBtn.enabled) saveBtn.clicked()
+            }
+        }
+
+        // When-predicate scope. Lets the user constrain the chord
+        // to fire only when a specific window is focused — same
+        // shape as KDL's `when window-class "firefox"`. Optional;
+        // empty kind = fire unconditionally.
+        Column {
+            width: parent.width
+            spacing: 6
+
+            Text {
+                text: "FIRE ONLY WHEN…"
+                color: Theme.text3
+                font.family: Theme.familyMono
+                font.pixelSize: 9
+                font.weight: Font.Bold
+                font.letterSpacing: 0.8
+            }
+
+            Row {
+                spacing: 8
+                width: parent.width
+
+                ComboBox {
+                    id: whenKindCombo
+                    width: 180
+                    model: [
+                        { label: "Always (no condition)", value: "" },
+                        { label: "Window class is", value: "window-class" },
+                        { label: "Window title contains", value: "window-title" }
+                    ]
+                    textRole: "label"
+                    valueRole: "value"
+                    Component.onCompleted: {
+                        // Pre-select the existing kind if we're
+                        // editing a binding that already has one.
+                        for (let i = 0; i < model.length; ++i) {
+                            if (model[i].value === root.capturedWhenKind) {
+                                currentIndex = i
+                                return
+                            }
+                        }
+                        currentIndex = 0
+                    }
+                    onActivated: {
+                        root.capturedWhenKind = currentValue
+                        if (currentValue === "") {
+                            // Clear the value when the user picks
+                            // "Always" so a leftover string doesn't
+                            // round-trip into the saved KDL.
+                            whenValueField.text = ""
+                            root.capturedWhenValue = ""
+                        }
+                    }
+                }
+
+                TextField {
+                    id: whenValueField
+                    visible: root.capturedWhenKind.length > 0
+                    width: parent.width - whenKindCombo.width - 8
+                    placeholderText: root.capturedWhenKind === "window-class"
+                        ? "firefox · slack · code (case-insensitive)"
+                        : "Inbox · Pull Request · Discord (substring)"
+                    font.family: Theme.familyMono
+                    font.pixelSize: Theme.fontSm
+                    color: Theme.text
+                    placeholderTextColor: Theme.text3
+                    background: Rectangle {
+                        radius: Theme.radiusSm
+                        color: whenValueField.activeFocus
+                            ? Theme.surface2
+                            : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.5)
+                        border.color: whenValueField.activeFocus ? Theme.accent : Theme.lineSoft
+                        border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    }
+                    onTextChanged: root.capturedWhenValue = text.trim()
+                }
+            }
+
+            Text {
+                visible: root.capturedWhenKind.length > 0
+                text: root.capturedWhenKind === "window-class"
+                    ? "Wayland app_id (Hyprland: hyprctl activewindow → class). Case-insensitive substring match."
+                    : "Substring of the focused window's title bar text. Useful for in-app context — \"Inbox\" only when Gmail is open."
+                color: Theme.text3
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontXs
+                wrapMode: Text.WordWrap
+                width: parent.width
+                lineHeight: 1.3
             }
         }
 
@@ -161,7 +336,11 @@ Dialog {
                 }
 
                 onClicked: {
-                    root.captured(root.capturedChord)
+                    root.captured(
+                        root.capturedChord,
+                        root.capturedWhenKind,
+                        root.capturedWhenValue
+                    )
                     root.accept()
                 }
             }

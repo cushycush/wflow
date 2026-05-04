@@ -521,6 +521,62 @@ Item {
                                 radius: 4
                                 color: tab.tabFg
                             }
+
+                            // Triggers: keyboard key cap. Outlined
+                            // rounded rectangle with a small horizontal
+                            // mark inside — reads as a key with a
+                            // shortcut etched on it. Mirrors the chord
+                            // pill style on TriggersPage so the visual
+                            // language stays consistent: "this tab is
+                            // about keyboard chords."
+                            Item {
+                                visible: modelData.id === "triggers"
+                                anchors.fill: parent
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11
+                                    height: 11
+                                    radius: 2.5
+                                    color: "transparent"
+                                    border.color: tab.tabFg
+                                    border.width: 1.3
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5
+                                    height: 1.3
+                                    color: tab.tabFg
+                                }
+                            }
+
+                            // Favorites: 5-pointed star, drawn from two
+                            // overlaid triangles via Shape primitives
+                            // would be heavy at this size. Cheap path:
+                            // an asterisk made from three thin lines
+                            // crossing at the centre. Reads as "starred"
+                            // without paying the Path tax.
+                            Item {
+                                visible: modelData.id === "favorites"
+                                anchors.fill: parent
+                                // Three crossing strokes — vertical,
+                                // diagonal-down, diagonal-up — give the
+                                // 6-spoke asterisk look.
+                                Repeater {
+                                    model: 3
+                                    delegate: Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 12
+                                        height: 1.5
+                                        radius: 0.75
+                                        color: tab.tabFg
+                                        transform: Rotation {
+                                            origin.x: 6
+                                            origin.y: 0.75
+                                            angle: index * 60
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Text {
