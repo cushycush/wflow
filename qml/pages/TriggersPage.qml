@@ -93,6 +93,8 @@ Item {
                 height: 360
                 clip: true
                 visible: root.untriggered.length > 0
+                contentWidth: availableWidth
+
                 Column {
                     width: parent.width
                     spacing: 4
@@ -100,37 +102,49 @@ Item {
                         model: root.untriggered
                         delegate: Rectangle {
                             width: parent.width
-                            height: 48
+                            height: 56
                             radius: Theme.radiusSm
                             color: pickArea.containsMouse ? Theme.surface2 : "transparent"
                             border.color: pickArea.containsMouse ? Theme.lineSoft : "transparent"
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                            Column {
+                            // Inner Item gives us a fixed inset rect to
+                            // vertical-center the title block in. The
+                            // Texts inside the Column lay out top-to-
+                            // bottom with `spacing: 1` — no anchors on
+                            // them (anchors inside a Column fight the
+                            // Column's own positioning, which was the
+                            // bug that had every workflow's title
+                            // stacking on the same y).
+                            Item {
                                 anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 1
-                                Text {
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                Column {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.title
-                                    color: Theme.text
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: Theme.fontSm
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                    width: parent.width
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.subtitle || (modelData.steps + " step" + (modelData.steps === 1 ? "" : "s"))
-                                    color: Theme.text3
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: Theme.fontXs
-                                    elide: Text.ElideRight
-                                    width: parent.width
+                                    spacing: 2
+                                    Text {
+                                        text: modelData.title
+                                        color: Theme.text
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: Theme.fontSm
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                        width: parent.width
+                                    }
+                                    Text {
+                                        text: modelData.subtitle && modelData.subtitle.length > 0
+                                            ? modelData.subtitle
+                                            : modelData.steps + " step" + (modelData.steps === 1 ? "" : "s")
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: Theme.fontXs
+                                        elide: Text.ElideRight
+                                        width: parent.width
+                                    }
                                 }
                             }
                             MouseArea {

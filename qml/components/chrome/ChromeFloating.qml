@@ -551,6 +551,76 @@ Item {
 
             Item { width: 2; height: 1 }
 
+            // Auth pill — shows "Sign in" when signed_out, the user's
+            // handle when signed_in, "…" while a sign-in is pending.
+            // Click routes to Settings → Account so the action surface
+            // (Sign in / Sign out / try again) lives in one place;
+            // discoverability lives here so the user doesn't have to
+            // hunt for it. Hidden during failed-state for now —
+            // Settings shows the error and the Try-again button.
+            Rectangle {
+                id: authPill
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property string authState: Theme._auth.state
+                readonly property bool _signedIn: authState === "signed_in"
+                readonly property bool _pending: authState === "pending"
+                readonly property string label:
+                    _pending ? "Signing in…" :
+                    _signedIn ? ("@" + Theme._auth.handle) : "Sign in"
+                width: authLbl.implicitWidth + 22
+                height: 26
+                radius: height / 2
+                color: authArea.containsMouse
+                    ? (authPill._signedIn ? Theme.surface3 : Theme.accent)
+                    : (authPill._signedIn ? Theme.surface2 : Theme.accentDim)
+                border.color: authPill._signedIn
+                    ? Theme.line
+                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                // Tiny accent dot when signed in — visual confirmation
+                // separate from the handle text. Doubles as a "you're
+                // online" indicator.
+                Rectangle {
+                    visible: authPill._signedIn
+                    width: 6; height: 6; radius: 3
+                    anchors.left: parent.left
+                    anchors.leftMargin: 9
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.ok
+                }
+
+                Text {
+                    id: authLbl
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: authPill._signedIn ? 5 : 0
+                    text: authPill.label
+                    color: authPill._signedIn
+                        ? Theme.text2
+                        : (authArea.containsMouse ? Theme.accentText : Theme.accent)
+                    font.family: Theme.familyBody
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 0.4
+                }
+
+                MouseArea {
+                    id: authArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.navigate("settings")
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: authPill._signedIn
+                        ? "Manage your wflows.com account"
+                        : "Sign in to wflows.com"
+                }
+            }
+
+            Item { width: 4; height: 1 }
+
             // (Theme cycle button moved to Settings — Ctrl+. still cycles
             // for keyboard users; the chrome no longer carries it now
             // that there's a real Settings page.)
