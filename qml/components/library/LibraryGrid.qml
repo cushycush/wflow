@@ -451,16 +451,65 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
-                    // Title + byline take the full width now that the
-                    // Open pill is gone — clicking anywhere on the
-                    // card already opens the editor, so a dedicated
-                    // Open button was redundant. Publish lives in
-                    // the footer instead.
+                    // Publish pill — sits where the Open pill used to,
+                    // anchored to the top-right of the card. Visible
+                    // only when signed in to wflows.com so anonymous
+                    // users don't see an affordance they can't use.
+                    // Clicking the rest of the card still opens the
+                    // editor; the pill stops propagation so it always
+                    // means publish.
+                    Rectangle {
+                        id: publishPill
+                        visible: Theme._auth.state === "signed_in"
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: visible ? publishLabel.implicitWidth + 20 : 0
+                        height: 24
+                        radius: Theme.radiusPill
+                        color: publishArea.containsMouse
+                            ? Theme.accent
+                            : "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Text {
+                            id: publishLabel
+                            anchors.centerIn: parent
+                            text: "↑ Publish"
+                            color: publishArea.containsMouse ? Theme.accentText : Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.3
+                            font.weight: Font.DemiBold
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        }
+
+                        MouseArea {
+                            id: publishArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                mouse.accepted = true
+                                root.publishRequested(card.wf.id)
+                            }
+                        }
+
+                        ToolTip.visible: publishArea.containsMouse
+                        ToolTip.delay: 400
+                        ToolTip.text: "Publish to wflows.com"
+                    }
+
+                    // Title + byline. When the publish pill is showing
+                    // we right-anchor against it so a long title elides
+                    // before colliding; signed-out users get the full
+                    // width back.
                     Column {
                         anchors.left: monoAvatar.right
                         anchors.leftMargin: 10
-                        anchors.right: parent.right
-                        anchors.rightMargin: 4
+                        anchors.right: publishPill.visible ? publishPill.left : parent.right
+                        anchors.rightMargin: publishPill.visible ? 8 : 4
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
 
@@ -579,86 +628,27 @@ Item {
                         }
                     }
 
-                    // Right side of the footer. Publish chip when
-                    // signed in, imported-from badge when the
-                    // workflow came in from wflows.com. Both can
-                    // exist (rare — published a workflow that you
-                    // imported from someone else); they sit
-                    // side-by-side in that case.
-                    Row {
+                    // Imported-from badge sits in the right slot.
+                    // Read-only metadata; publish lives at the top of
+                    // the card so a long title can't squash it.
+                    Rectangle {
+                        visible: !!card.wf.importedFrom
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-
-                        // Imported-from badge — preserved from the
-                        // old footer-right slot. Read-only metadata.
-                        Rectangle {
-                            visible: !!card.wf.importedFrom
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: importedText.implicitWidth + 12
-                            height: 16
-                            radius: 8
-                            color: "transparent"
-                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
-                            border.width: 1
-                            Text {
-                                id: importedText
-                                anchors.centerIn: parent
-                                text: card.wf.importedFrom ? "↑ @" + card.wf.importedFrom : ""
-                                color: Theme.accent
-                                font.family: Theme.familyMono
-                                font.pixelSize: 9
-                                font.letterSpacing: 0.3
-                            }
-                        }
-
-                        // Publish chip. Same height as the imported
-                        // badge so they sit on the same baseline.
-                        // Visible only when signed in to wflows.com;
-                        // a hover-fill makes it readable as a click
-                        // target instead of decorative metadata.
-                        Rectangle {
-                            id: publishChip
-                            visible: Theme._auth.state === "signed_in"
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: publishText.implicitWidth + 14
-                            height: 16
-                            radius: 8
-                            color: publishArea.containsMouse
-                                ? Theme.accent
-                                : "transparent"
-                            border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-                            Text {
-                                id: publishText
-                                anchors.centerIn: parent
-                                text: "↑ Publish"
-                                color: publishArea.containsMouse ? Theme.accentText : Theme.accent
-                                font.family: Theme.familyMono
-                                font.pixelSize: 9
-                                font.letterSpacing: 0.3
-                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                            }
-
-                            MouseArea {
-                                id: publishArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                // Prevent the underlying card's
-                                // openWorkflow click from also firing
-                                // when the user hits this chip.
-                                onClicked: (mouse) => {
-                                    mouse.accepted = true
-                                    root.publishRequested(card.wf.id)
-                                }
-                            }
-
-                            ToolTip.visible: publishArea.containsMouse
-                            ToolTip.delay: 400
-                            ToolTip.text: "Publish to wflows.com"
+                        width: importedText.implicitWidth + 12
+                        height: 16
+                        radius: 8
+                        color: "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.4)
+                        border.width: 1
+                        Text {
+                            id: importedText
+                            anchors.centerIn: parent
+                            text: card.wf.importedFrom ? "↑ @" + card.wf.importedFrom : ""
+                            color: Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.3
                         }
                     }
                 }
