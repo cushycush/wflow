@@ -14,7 +14,7 @@ ApplicationWindow {
     color: Theme.bg
 
     property string currentPage: Theme.showExplore ? "explore" : "library"
-    // valid values: "library" | "explore" | "workflow" | "record" | "settings"
+    // valid values: "library" | "explore" | "favorites" | "workflow" | "record" | "settings"
 
     // Open documents — one per tab in the workflow editor. Each
     // entry is `{ kind, source }`:
