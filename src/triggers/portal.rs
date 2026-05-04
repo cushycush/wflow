@@ -128,15 +128,21 @@ pub async fn run(bindings: Vec<Binding>) -> Result<RunSummary> {
                     continue;
                 };
                 let bin = wflow_bin.clone();
+                // Dispatch via `trigger-fire` so the workflow's
+                // `trigger.when` predicate gets checked against the
+                // focused window before the engine runs. KDE Plasma 6
+                // and GNOME 46+ don't expose a class/title probe yet;
+                // the wrapper falls open in that case so the chord
+                // still fires.
                 tokio::spawn(async move {
                     let status = Command::new(&bin)
-                        .args(["run", &workflow_id, "--yes"])
+                        .args(["trigger-fire", &workflow_id])
                         .status()
                         .await;
                     match status {
                         Ok(s) if s.success() => {}
-                        Ok(s) => tracing::warn!(workflow_id, ?s, "wflow run exited non-zero"),
-                        Err(e) => tracing::warn!(workflow_id, ?e, "wflow run failed to spawn"),
+                        Ok(s) => tracing::warn!(workflow_id, ?s, "trigger-fire exited non-zero"),
+                        Err(e) => tracing::warn!(workflow_id, ?e, "trigger-fire failed to spawn"),
                     }
                 });
             }

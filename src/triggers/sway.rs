@@ -124,8 +124,11 @@ impl Backend for SwayBackend {
             tracing::debug!(chord, %e, "pre-bind unbind failed (chord likely not bound)");
         }
 
+        // Dispatch via `trigger-fire` so the workflow's
+        // `trigger.when` predicate gets checked against the focused
+        // window before the engine runs.
         let cmd = format!(
-            "bindsym {sway_chord} exec {} run {} --yes",
+            "bindsym {sway_chord} exec {} trigger-fire {}",
             self.wflow_bin.display(),
             b.workflow_id,
         );
