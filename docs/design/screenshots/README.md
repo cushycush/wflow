@@ -6,36 +6,34 @@ decisions to what's actually shipped.
 
 ## Manifest
 
-The full set is 20 PNGs: 10 surfaces × 2 themes. Capture both dark
+The full set is 30 PNGs: 15 surfaces × 2 themes. Capture both dark
 and light for each. Filenames use `<surface>.<theme>.png`.
 
 | File                              | Surface                             | Notes                                      |
 |-----------------------------------|-------------------------------------|--------------------------------------------|
-| `library-grid.dark.png`           | Library, grid layout, populated     | Several workflows visible                  |
-| `library-empty.dark.png`          | Library on first launch             | Empty state with the welcome card          |
-| `editor-canvas.dark.png`          | Workflow editor, canvas view        | A workflow with 6+ steps + a conditional   |
-| `editor-step-palette.dark.png`    | Editor palette dock expanded        | Hover over the left dock so labels slide in next to each colored chip |
-| `editor-inspector.dark.png`       | Editor with a step selected         | Inspector panel slid in on the right       |
-| `record-idle.dark.png`            | Record page, idle (amber)           | Big central button, no events captured     |
-| `record-recording.dark.png`       | Record page, recording (red)        | A few events visible in the bottom drawer  |
-| `explore-grid.dark.png`           | Explore page, grid + featured       | Hero + trending + new + browse             |
+| `library-grid.dark.png`           | Library, grid layout                | Five workflow cards plus the Daily folder tile |
+| `library-folder-open.dark.png`    | Library, inside a folder            | Drilled into Daily; Resume coding + Daily standup visible |
+| `library-publish-pill.dark.png`   | Library, signed-in card pills       | Top-right '↑ Publish' pill on every card; only meaningful when signed in |
+| `editor-canvas.dark.png`          | Workflow editor, canvas             | Resume coding, Smart-tidied; the when/else block fans into two branches |
+| `editor-step-palette.dark.png`    | Editor palette dock expanded        | Hover over the left dock so labels slide in next to each chip |
+| `editor-inspector.dark.png`       | Editor with a step selected         | Inspector slid in on the right             |
+| `editor-trigger-card.dark.png`    | Editor pinned trigger card          | Top-left card showing the chord (super+shift+c) |
+| `triggers-tab.dark.png`           | Triggers tab in chrome              | List of bound workflows with their chords  |
+| `explore-grid.dark.png`           | Explore tab, live catalog           | Featured row + browse grid populated from wflows.io |
 | `explore-detail.dark.png`         | Explore detail drawer open          | Slide-in over the grid                     |
-| `settings.dark.png`               | Settings page                       | All sections visible                       |
-| `library-grid.light.png`          | (same as above, light theme)        |                                            |
-| `library-empty.light.png`         |                                     |                                            |
-| `editor-canvas.light.png`         |                                     |                                            |
-| `editor-step-palette.light.png`   |                                     |                                            |
-| `editor-inspector.light.png`      |                                     |                                            |
-| `record-idle.light.png`           |                                     |                                            |
-| `record-recording.light.png`      |                                     |                                            |
-| `explore-grid.light.png`          |                                     |                                            |
-| `explore-detail.light.png`        |                                     |                                            |
-| `settings.light.png`              |                                     |                                            |
+| `record-idle.dark.png`            | Record tab, idle                    | Big amber button, no events captured       |
+| `record-recording.dark.png`       | Record tab, mid-session             | Events streaming in below                  |
+| `settings.dark.png`               | Settings page top                   | First sections visible                     |
+| `settings-account.dark.png`       | Settings → Account                  | Sign-in button or @handle row depending on state |
+| `settings-palette.dark.png`       | Settings → Palette                  | Warm Paper / Cool Slate switcher           |
+| `publish-dialog.dark.png`         | Publish dialog mid-fill             | Description + tags entered; signed-in only |
 
-If 18 is too many for a first pass, the priority subset is:
-`library-grid.dark`, `editor-canvas.dark`, `record-idle.dark`,
-`explore-grid.dark`, `settings.dark`. Five PNGs cover every page in
-the app's dark theme (the default).
+Each row above also has a `.light.png` counterpart.
+
+If 30 is too many for a first pass, the priority subset is:
+`library-grid.dark`, `editor-canvas.dark`, `triggers-tab.dark`,
+`explore-grid.dark`, `record-idle.dark`, `publish-dialog.dark`.
+Six PNGs cover the v1.0 launch story in the default dark theme.
 
 ## How to capture
 
