@@ -49,8 +49,9 @@ Item {
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
                       root.currentPage === "favorites" ? 2 :
-                      root.currentPage === "workflow" ? 3 :
-                      root.currentPage === "record" ? 4 : 5
+                      root.currentPage === "triggers" ? 3 :
+                      root.currentPage === "workflow" ? 4 :
+                      root.currentPage === "record" ? 5 : 6
 
         // Subtle "page settles in" transition each time the active
         // tab changes. Fade + tiny scale-up on the new page; the old
@@ -98,6 +99,10 @@ Item {
         }
         FavoritesPage {
             id: favoritesPageInst
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        TriggersPage {
+            id: triggersPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         // Workflow slot: a tab strip at the top-left + a Repeater of
@@ -396,6 +401,7 @@ Item {
                     if (Theme._auth.state === "signed_in") {
                         out.push({ id: "favorites", label: "Favorites" })
                     }
+                    out.push({ id: "triggers", label: "Triggers" })
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",

@@ -81,6 +81,26 @@ pub mod qobject {
         /// summary so the library picks up the new folder.
         #[qinvokable]
         fn create_folder(self: Pin<&mut LibraryController>, name: QString);
+
+        /// Bind a keyboard chord to a workflow. Replaces any existing
+        /// chord trigger on the workflow (one-chord-per-workflow is
+        /// the v1 model — additional chord shapes can land later).
+        /// Empty string clears the trigger entirely. Validates the
+        /// chord through `actions::normalize_chord` before saving so
+        /// "Cmd+Shift+T" canonicalises to "super+shift+t" on disk
+        /// and the daemon's chord-string compare works deterministically.
+        /// Refreshes the workflows summary so the Triggers list /
+        /// editor re-renders. The trigger daemon's file watcher
+        /// picks up the change automatically.
+        ///
+        /// Returns the canonical chord string on success, empty
+        /// string on any failure (workflow not found, save failed).
+        #[qinvokable]
+        fn set_chord(
+            self: Pin<&mut LibraryController>,
+            id: QString,
+            chord: QString,
+        ) -> QString;
     }
 }
 
@@ -105,6 +125,11 @@ struct WorkflowSummary {
     /// Folder / category from `workflows.toml`. Empty string when
     /// the workflow lives at the top level (no folder assigned).
     folder: String,
+    /// Bound keyboard chord (e.g. "ctrl+shift+t"), or empty string
+    /// when no chord trigger is configured. v1 surfaces only the
+    /// first chord trigger — multi-chord workflows are rare, the
+    /// model accepts them but the GUI binds one-at-a-time.
+    chord: String,
 }
 
 #[derive(Serialize)]
@@ -278,6 +303,60 @@ impl qobject::LibraryController {
         // Refresh — folder count badge in the sidebar updates.
         self.as_mut().set_workflows(load_as_json());
     }
+
+    fn set_chord(
+        mut self: Pin<&mut Self>,
+        id: QString,
+        chord: QString,
+    ) -> QString {
+        let id_s: String = id.to_string();
+        let chord_s: String = chord.to_string();
+
+        // Empty chord = clear all chord triggers on this workflow.
+        // Per-window predicates and hotstrings (v0.5+) survive — we
+        // only touch chord-shaped triggers so the v0.4 "Chord"
+        // variant is the one we manage.
+        let mut wf = match crate::store::load(&id_s) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::warn!(?e, "set_chord: load {id_s} failed");
+                return QString::from("");
+            }
+        };
+
+        // Drop any existing chord triggers so the new one (if any)
+        // doesn't end up as a duplicate. v1 binds one chord per
+        // workflow — the daemon would warn on duplicates anyway.
+        wf.triggers.retain(|t| !matches!(
+            t.kind,
+            crate::actions::TriggerKind::Chord { .. }
+        ));
+
+        let canonical = if chord_s.trim().is_empty() {
+            String::new()
+        } else {
+            let normalized = crate::actions::normalize_chord(chord_s.trim());
+            wf.triggers.push(crate::actions::Trigger {
+                kind: crate::actions::TriggerKind::Chord {
+                    chord: normalized.clone(),
+                },
+                when: None,
+            });
+            normalized
+        };
+
+        if let Err(e) = crate::store::save(wf) {
+            tracing::warn!(?e, "set_chord: save {id_s} failed");
+            return QString::from("");
+        }
+
+        // Refresh the workflows summary so any QML view (Library
+        // grid, Triggers tab, the editor's trigger panel) re-renders
+        // the new chord state. The trigger daemon's file watcher
+        // sees the KDL change and re-binds without a restart.
+        self.as_mut().set_workflows(load_as_json());
+        QString::from(&canonical)
+    }
 }
 
 fn load_as_json() -> QString {
@@ -300,6 +379,18 @@ fn load_as_json() -> QString {
                     })
                     .collect();
                 let folder = wf.folder.clone().unwrap_or_default();
+                // Surface the first chord trigger to QML. Multi-
+                // chord workflows are rare and v1's GUI binds one-
+                // at-a-time; the daemon still parses and respects
+                // every trigger block in the KDL regardless.
+                let chord = wf
+                    .triggers
+                    .iter()
+                    .find_map(|t| match &t.kind {
+                        crate::actions::TriggerKind::Chord { chord } => Some(chord.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
                 WorkflowSummary {
                     id: wf.id,
                     title: wf.title,
@@ -310,6 +401,7 @@ fn load_as_json() -> QString {
                     kinds,
                     trail,
                     folder,
+                    chord,
                 }
             })
             .collect(),
