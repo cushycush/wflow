@@ -140,6 +140,83 @@ Dialog {
                 }
             }
 
+            // Chord-trigger block. Surfaces every chord the workflow
+            // wants bound on import so the user knows the chord is
+            // about to register globally before they accept. Hidden
+            // when the workflow ships without triggers (most common
+            // for on-demand workflows).
+            Column {
+                visible: root.preview && root.preview.chords && root.preview.chords.length > 0
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: "Will bind"
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 10
+                    font.letterSpacing: 0.5
+                    font.weight: Font.Bold
+                }
+
+                Repeater {
+                    model: root.preview ? (root.preview.chords || []) : []
+                    delegate: Column {
+                        spacing: 2
+                        width: parent.width
+
+                        Row {
+                            spacing: 8
+                            // Key-cap pill for the chord itself. Reads
+                            // like a keyboard label rather than another
+                            // generic badge.
+                            Rectangle {
+                                width: chordText.implicitWidth + 14
+                                height: 24
+                                radius: Theme.radiusSm
+                                color: Theme.surface2
+                                border.color: modelData.conflictsWith
+                                    ? Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.6)
+                                    : Theme.lineStrong
+                                border.width: 1
+                                Text {
+                                    id: chordText
+                                    anchors.centerIn: parent
+                                    text: modelData.chord
+                                    color: Theme.text
+                                    font.family: Theme.familyMono
+                                    font.pixelSize: Theme.fontSm
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+                            // Optional when-predicate label, mono'd.
+                            Text {
+                                visible: modelData.whenLabel.length > 0
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.whenLabel
+                                color: Theme.text3
+                                font.family: Theme.familyMono
+                                font.pixelSize: Theme.fontXs
+                            }
+                        }
+
+                        // Conflict warning. The daemon will replace
+                        // the existing binding on save (its file
+                        // watcher does the diff), so this is a
+                        // heads-up, not a blocker.
+                        Text {
+                            visible: modelData.conflictsWith.length > 0
+                            text: "⚠ replaces an existing binding on “" + modelData.conflictsWith + "”"
+                            color: Theme.warn
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            wrapMode: Text.WordWrap
+                            width: 380
+                        }
+                    }
+                }
+            }
+
             Row {
                 width: parent.width
                 spacing: 8
