@@ -90,6 +90,13 @@ impl Backend for SwayBackend {
             _ => return Err(anyhow!("sway backend: only chord triggers supported today")),
         };
         let sway_chord = translate_chord(chord)?;
+
+        // Sway's `bindsym` rejects duplicates; unbind speculatively.
+        let unbind_cmd = format!("unbindsym {sway_chord}");
+        if let Err(e) = self.run_command(&unbind_cmd) {
+            tracing::debug!(chord, %e, "pre-bind unbind failed (chord likely not bound)");
+        }
+
         let cmd = format!(
             "bindsym {sway_chord} exec {} run {} --yes",
             self.wflow_bin.display(),

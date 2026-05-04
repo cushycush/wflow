@@ -14,7 +14,7 @@ ApplicationWindow {
     color: Theme.bg
 
     property string currentPage: Theme.showExplore ? "explore" : "library"
-    // valid values: "library" | "explore" | "favorites" | "workflow" | "record" | "settings"
+    // "library" | "explore" | "favorites" | "triggers" | "workflow" | "record" | "settings"
 
     // Editor tabs. Each entry is { kind, source } where kind is
     // "workflow" | "fragment" and source is a workflow id or

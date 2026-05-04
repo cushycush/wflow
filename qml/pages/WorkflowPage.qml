@@ -1815,6 +1815,165 @@ Item {
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
 
+            // Anchored to canvasView (not inside its Flickable) so
+            // canvas pan/zoom don't move it.
+            Item {
+                id: triggerPinned
+                visible: canvasView.visible && !root.fragmentMode
+                anchors.left: canvasView.left
+                anchors.top: canvasView.top
+                anchors.leftMargin: 16
+                anchors.topMargin: 16
+                width: triggerCard.width
+                height: triggerCard.height
+                z: 5
+
+                // Trigger.kind is itself a TriggerKind tagged "kind",
+                // hence the double dereference. The when block uses
+                // kebab-case (TriggerCondition is rename_all kebab).
+                readonly property var _firstChordTrigger: {
+                    const triggers = (root.workflow && root.workflow.triggers) || []
+                    for (let i = 0; i < triggers.length; ++i) {
+                        const t = triggers[i]
+                        if (t && t.kind && t.kind.kind === "chord" && t.kind.chord) {
+                            return t
+                        }
+                    }
+                    return null
+                }
+                readonly property string chord: {
+                    const t = _firstChordTrigger
+                    return (t && t.kind) ? (t.kind.chord || "") : ""
+                }
+                readonly property string whenKind: {
+                    const t = _firstChordTrigger
+                    if (!t || !t.when || !t.when.kind) return ""
+                    return t.when.kind
+                }
+                readonly property string whenValue: {
+                    const t = _firstChordTrigger
+                    if (!t || !t.when) return ""
+                    return t.when.class || t.when.title || ""
+                }
+
+                Rectangle {
+                    id: triggerCard
+                    width: 240
+                    height: triggerLayout.implicitHeight + 24
+                    radius: Theme.radiusMd
+                    color: triggerArea.containsMouse ? Theme.surface2 : Theme.surface
+                    border.color: triggerPinned.chord.length > 0
+                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.3)
+                    border.width: 1.5
+                    Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                    Column {
+                        id: triggerLayout
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 6
+
+                        Row {
+                            spacing: 8
+                            Item {
+                                width: 12; height: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11; height: 11
+                                    radius: 2.5
+                                    color: "transparent"
+                                    border.color: Theme.accent
+                                    border.width: 1.3
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5; height: 1.3
+                                    color: Theme.accent
+                                }
+                            }
+                            Text {
+                                text: "TRIGGER"
+                                color: Theme.accent
+                                font.family: Theme.familyMono
+                                font.pixelSize: 10
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.9
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        Text {
+                            text: triggerPinned.chord.length > 0
+                                ? triggerPinned.chord
+                                : "+ Bind a chord"
+                            color: triggerPinned.chord.length > 0
+                                ? Theme.text
+                                : Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: triggerPinned.chord.length > 0
+                                ? Theme.fontMd
+                                : Theme.fontSm
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.4
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+
+                        Text {
+                            visible: triggerPinned.chord.length > 0 && triggerPinned.whenKind.length > 0
+                            text: {
+                                const k = triggerPinned.whenKind
+                                const v = triggerPinned.whenValue
+                                const verb = k === "window-class"
+                                    ? "when window class is"
+                                    : "when window title contains"
+                                return verb + " " + v
+                            }
+                            color: Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontXs
+                            elide: Text.ElideRight
+                            width: parent.width
+                        }
+                    }
+
+                    MouseArea {
+                        id: triggerArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            triggerCardChordDialog.initialChord = triggerPinned.chord
+                            triggerCardChordDialog.initialWhenKind = triggerPinned.whenKind
+                            triggerCardChordDialog.initialWhenValue = triggerPinned.whenValue
+                            triggerCardChordDialog.open()
+                        }
+                    }
+                }
+
+                ChordCaptureDialog {
+                    id: triggerCardChordDialog
+                    onCaptured: (chord, whenKind, whenValue) => {
+                        if (root.workflowId.length > 0) {
+                            libCtrl.set_chord(root.workflowId, chord, whenKind, whenValue)
+                            wfCtrl.load(root.workflowId)
+                        }
+                    }
+                    onCleared: {
+                        if (root.workflowId.length > 0) {
+                            libCtrl.set_chord(root.workflowId, "", "", "")
+                            wfCtrl.load(root.workflowId)
+                        }
+                    }
+                }
+            }
+
             StepPalette {
                 id: paletteDockInst
                 visible: root.workflowId.length > 0 || root.fragmentMode

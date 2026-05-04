@@ -45,6 +45,9 @@ pub struct State {
     /// One-shot. We never retry; a user who disabled the unit stays.
     #[serde(default)]
     pub daemon_autostart_attempted: bool,
+    /// Re-runs only on binary path change.
+    #[serde(default)]
+    pub scheme_handler_installed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -88,6 +91,7 @@ impl Default for State {
             workflows_dir: None,
             auth: None,
             daemon_autostart_attempted: false,
+            scheme_handler_installed: false,
         }
     }
 }

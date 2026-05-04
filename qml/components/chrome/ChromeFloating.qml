@@ -30,8 +30,9 @@ Item {
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
                       root.currentPage === "favorites" ? 2 :
-                      root.currentPage === "workflow" ? 3 :
-                      root.currentPage === "record" ? 4 : 5
+                      root.currentPage === "triggers" ? 3 :
+                      root.currentPage === "workflow" ? 4 :
+                      root.currentPage === "record" ? 5 : 6
 
         // Listening to currentPage (not currentIndex) so the animation
         // runs on the first nav too, where the index doesn't change.
@@ -68,6 +69,10 @@ Item {
         }
         FavoritesPage {
             id: favoritesPageInst
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        TriggersPage {
+            id: triggersPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         // Repeater keeps inactive WorkflowPages alive so per-doc state
@@ -315,6 +320,7 @@ Item {
                     if (Theme._auth.state === "signed_in") {
                         out.push({ id: "favorites", label: "Favorites" })
                     }
+                    out.push({ id: "triggers", label: "Triggers" })
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",
@@ -419,6 +425,48 @@ Item {
                                 radius: 4
                                 color: tab.tabFg
                             }
+
+                            Item {
+                                visible: modelData.id === "triggers"
+                                anchors.fill: parent
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 11
+                                    height: 11
+                                    radius: 2.5
+                                    color: "transparent"
+                                    border.color: tab.tabFg
+                                    border.width: 1.3
+                                }
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5
+                                    height: 1.3
+                                    color: tab.tabFg
+                                }
+                            }
+
+                            // Three crossing rects → 6-spoke asterisk.
+                            // Cheaper than a real Shape star at this size.
+                            Item {
+                                visible: modelData.id === "favorites"
+                                anchors.fill: parent
+                                Repeater {
+                                    model: 3
+                                    delegate: Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 12
+                                        height: 1.5
+                                        radius: 0.75
+                                        color: tab.tabFg
+                                        transform: Rotation {
+                                            origin.x: 6
+                                            origin.y: 0.75
+                                            angle: index * 60
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Text {
@@ -445,6 +493,68 @@ Item {
             }
 
             Item { width: 2; height: 1 }
+
+            // Click routes to Settings → Account; this pill is just a
+            // discoverable handle for the auth state.
+            Rectangle {
+                id: authPill
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property string authState: Theme._auth.state
+                readonly property bool _signedIn: authState === "signed_in"
+                readonly property bool _pending: authState === "pending"
+                readonly property string label:
+                    _pending ? "Signing in…" :
+                    _signedIn ? ("@" + Theme._auth.handle) : "Sign in"
+                width: authLbl.implicitWidth + 22
+                height: 26
+                radius: height / 2
+                color: authArea.containsMouse
+                    ? (authPill._signedIn ? Theme.surface3 : Theme.accent)
+                    : (authPill._signedIn ? Theme.surface2 : Theme.accentDim)
+                border.color: authPill._signedIn
+                    ? Theme.line
+                    : Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.5)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                Rectangle {
+                    visible: authPill._signedIn
+                    width: 6; height: 6; radius: 3
+                    anchors.left: parent.left
+                    anchors.leftMargin: 9
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Theme.ok
+                }
+
+                Text {
+                    id: authLbl
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: authPill._signedIn ? 5 : 0
+                    text: authPill.label
+                    color: authPill._signedIn
+                        ? Theme.text2
+                        : (authArea.containsMouse ? Theme.accentText : Theme.accent)
+                    font.family: Theme.familyBody
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 0.4
+                }
+
+                MouseArea {
+                    id: authArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.navigate("settings")
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: 400
+                    ToolTip.text: authPill._signedIn
+                        ? "Manage your wflows.com account"
+                        : "Sign in to wflows.com"
+                }
+            }
+
+            Item { width: 4; height: 1 }
 
             // (Theme cycle button moved to Settings, Ctrl+. still cycles
             // for keyboard users; the chrome no longer carries it now

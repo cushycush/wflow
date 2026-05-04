@@ -11,6 +11,7 @@ mod gui_lock;
 mod host;
 mod kdl_format;
 mod recorder;
+mod scheme_handler;
 mod security;
 mod state;
 mod store;
@@ -54,12 +55,9 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
     match lock_outcome {
         gui_lock::AcquireOutcome::Acquired(guard, url_rx) => {
             bridge::deeplink_inbox::install_url_receiver(url_rx);
-            // First-run side-effect: enable the systemd user unit so
-            // the trigger daemon starts with every graphical session
-            // afterwards. No-op on subsequent launches and on
-            // Flatpak. Runs synchronously but quickly — systemctl
-            // returns in well under a second on a normal session.
+            // First-run side-effects. Both are state.toml-gated.
             daemon_autostart::ensure_enabled();
+            scheme_handler::ensure_installed();
             run_gui_with_lock(Some(guard), deeplink)
         }
         gui_lock::AcquireOutcome::AlreadyRunning { pid } => {

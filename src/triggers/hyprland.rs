@@ -59,6 +59,16 @@ impl Backend for HyprlandBackend {
             _ => return Err(anyhow!("hyprland backend: only chord triggers supported today")),
         };
         let (mods, key) = parse_chord(chord)?;
+
+        // Evict pre-existing binds; `keyword bind` ADDs rather than
+        // replacing. The user's hyprland.conf bind comes back on a
+        // `hyprctl reload` after the daemon exits.
+        let unbind_cmd = format!("keyword unbind = {mods}, {key}");
+        match self.request(&unbind_cmd) {
+            Ok(resp) => tracing::debug!(chord, %resp, "pre-bind unbind"),
+            Err(e) => tracing::debug!(chord, %e, "pre-bind unbind failed (chord likely not bound)"),
+        }
+
         let cmd = format!(
             "keyword bind = {mods}, {key}, exec, {} run {} --yes",
             self.wflow_bin.display(),
