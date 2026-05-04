@@ -688,13 +688,13 @@ pub fn fmt_duration_ms(ms: u64) -> String {
 fn quote_short(s: &str) -> String {
     const MAX: usize = 64;
     let single_line = s.replace('\n', " ↵ ");
-    let mut trimmed = single_line.as_str();
-    let mut truncated = String::new();
-    if single_line.chars().count() > MAX {
-        truncated = single_line.chars().take(MAX).collect::<String>();
+    let trimmed = if single_line.chars().count() > MAX {
+        let mut truncated: String = single_line.chars().take(MAX).collect();
         truncated.push('…');
-        trimmed = truncated.as_str();
-    }
+        truncated
+    } else {
+        single_line
+    };
     format!("\"{trimmed}\"")
 }
 
