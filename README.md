@@ -4,7 +4,7 @@
 a global-hotkey daemon, and a community catalog at
 [wflows.io](https://wflows.io).**
 
-![wflow library — five workflow cards plus a Daily folder, each tagged with its action types](docs/design/screenshots/claude-design/library-grid.dark.png)
+![wflow library, five workflow cards plus a Daily folder, each tagged with its action types](docs/design/screenshots/claude-design/library-grid.dark.png)
 
 A Qt Quick app for building, editing, recording, and replaying desktop
 workflows on Wayland. Pick a template or start blank, edit the steps,
@@ -12,7 +12,7 @@ hit Run, watch each step report back. Or skip the editor entirely and
 hand-write the file in `$EDITOR`. Both paths produce the same output.
 
 Built on [wdotool-core](https://github.com/cushycush/wdotool) for input
-injection — linked in process, no `wdotool` binary required at runtime.
+injection, linked in process, no `wdotool` binary required at runtime.
 
 ## The editor
 
@@ -23,7 +23,7 @@ repeat is a container with an inline strip of inner rows. Smart Tidy
 on the right-side tool dock picks the layout that keeps cards readable
 at the closest-to-1.0 zoom.
 
-![Resume coding workflow open in the editor — four steps with a when/else block fanning into two branches](docs/design/screenshots/claude-design/editor-canvas.dark.png)
+![Resume coding workflow open in the editor, four steps with a when/else block fanning into two branches](docs/design/screenshots/claude-design/editor-canvas.dark.png)
 
 The pinned trigger card at the top-left of the canvas surfaces the
 chord binding for the workflow, so you don't have to read the KDL to
@@ -43,20 +43,20 @@ A community catalog of workflows lives at
 [wflows.io](https://wflows.io). Sign in from Settings → Account, browse
 from the Explore tab, click any card to import it.
 
-![Explore tab — featured row plus browse grid, each card tagged with action types and install / star counts](docs/design/screenshots/claude-design/explore-grid.dark.png)
+![Explore tab, featured row plus browse grid, each card tagged with action types and install / star counts](docs/design/screenshots/claude-design/explore-grid.dark.png)
 
 The detail drawer parses the inline KDL through the same decoder the
 runner uses, so the step preview is exactly what the engine would
 execute. Install and star counts come from the live API. Importing
 shows a confirm dialog with title, author, description, and step
-count before anything writes to disk — a drive-by page that opens
+count before anything writes to disk, a drive-by page that opens
 `wflow://import?source=...` in your browser can't silently install
 something you didn't intend to keep.
 
 When you're signed in, every card in your local Library grows a small
 "↑ Publish" pill in the top-right corner. Click it, fill in the
 description, tags, and visibility, hit publish, and your workflow
-posts to wflows.io. The KDL on disk is the source of truth — no
+posts to wflows.io. The KDL on disk is the source of truth, no
 copy-paste, no reformatting.
 
 ## Triggers
@@ -66,7 +66,7 @@ chord declared in your library and dispatches the right workflow when
 one fires. It picks the GlobalShortcuts portal on Plasma 6 and GNOME
 46+, and falls back to compositor IPC on Hyprland and Sway.
 
-![Triggers tab — list of bound workflows with their chords](docs/design/screenshots/claude-design/triggers-tab.dark.png)
+![Triggers tab, list of bound workflows with their chords](docs/design/screenshots/claude-design/triggers-tab.dark.png)
 
 Author chords inside each workflow's KDL (`trigger { chord
 "super+shift+c" }`) or use the Triggers tab in the GUI. Either way the
@@ -82,7 +82,7 @@ unit so the daemon starts on every login.
 Walk through the actions you want to replay, stop, the captured stream
 becomes a new workflow.
 
-![Record tab — idle state, big amber button waiting](docs/design/screenshots/claude-design/record-idle.dark.png)
+![Record tab, idle state, big amber button waiting](docs/design/screenshots/claude-design/record-idle.dark.png)
 
 Record uses `org.freedesktop.portal.RemoteDesktop` on Plasma 6 and
 GNOME 46+ (explicit consent dialog, no extra permissions). On
@@ -121,7 +121,7 @@ cargo install --path . --locked
 For desktop notifications and clipboard actions, install `libnotify`
 (for `notify-send`) and `wl-clipboard` (for `wl-copy`) through your
 distro. Input/window automation goes through `wdotool-core` linked
-into wflow itself — no separate binary to install.
+into wflow itself, no separate binary to install.
 
 ### Prebuilt tarball
 
@@ -253,17 +253,17 @@ full man page is `wflow man` (one page per subcommand if you pass
 
 ## Status
 
-- **v0.1.0 – v0.4.1** — CLI runner; KDL language; GUI editor with
+- **v0.1.0 – v0.4.1**: CLI runner; KDL language; GUI editor with
   templates; recording; first-run trust prompt; AUR + Flatpak +
   GitHub Actions release flow.
-- **v0.5.0** — Two brand skins (Warm Paper / Cool Slate), full light +
+- **v0.5.0**: Two brand skins (Warm Paper / Cool Slate), full light +
   dark coverage, first-run picker, switcher in Settings.
-- **v0.6.0** — Conditionals get a real false branch. `when` / `unless`
+- **v0.6.0**: Conditionals get a real false branch. `when` / `unless`
   accept an `else { ... }` block; canvas draws the no-side as a
   parallel column or row across every layout.
-- **v0.7.0** — Trigger daemon. `wflow daemon` binds keyboard chords
+- **v0.7.0**: Trigger daemon. `wflow daemon` binds keyboard chords
   to workflows on KDE Plasma 6, GNOME 46+, Hyprland, and Sway.
-- **v1.0.0** — The catalog goes live. Explore is on, the desktop
+- **v1.0.0**: The catalog goes live. Explore is on, the desktop
   signs in to wflows.io, one-click import via `wflow://`, publish
   from the library card, Triggers tab in the GUI, daemon
   auto-enable on first GUI run, brand-domain rename to wflows.io.
