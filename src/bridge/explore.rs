@@ -120,6 +120,29 @@ pub mod qobject {
             slug: QString,
         );
 
+        /// POST a local workflow to wflows.com's publish endpoint.
+        /// Loads the workflow from the local store, encodes it to
+        /// KDL, attaches the supplied metadata, and posts to
+        /// `/api/v0/workflows` with the persisted Bearer token.
+        ///
+        /// `tags_json` is a JSON array of strings; empty / invalid
+        /// JSON gets sent as no tags. `visibility` is "public" or
+        /// "draft" (anything else lands as "public" server-side).
+        ///
+        /// Emits `publish_succeeded(handle, slug, url)` on 201,
+        /// `publish_failed(reason)` on any other outcome. Routes 401
+        /// through `auth_expired` so the UI flips back to signed-out
+        /// the same way other authenticated calls do.
+        #[qinvokable]
+        fn publish_workflow(
+            self: Pin<&mut ExploreController>,
+            workflow_id: QString,
+            description: QString,
+            readme: QString,
+            tags_json: QString,
+            visibility: QString,
+        );
+
         #[qsignal]
         fn import_succeeded(self: Pin<&mut ExploreController>, workflow_id: QString);
 
@@ -143,6 +166,28 @@ pub mod qobject {
         /// drops out of signed-in state without seeing stale data.
         #[qsignal]
         fn auth_expired(self: Pin<&mut ExploreController>);
+
+        /// Emitted on a successful `POST /api/v0/workflows`. Carries
+        /// the resulting handle / slug / URL so the QML shell can
+        /// route the user to the new public listing or surface a
+        /// success toast with a deep-link.
+        #[qsignal]
+        fn publish_succeeded(
+            self: Pin<&mut ExploreController>,
+            handle: QString,
+            slug: QString,
+            url: QString,
+        );
+
+        /// Emitted on any non-success publish path — auth failure,
+        /// validation error, network blip. Reason is human-readable
+        /// and goes into the publish dialog's error slot. 401s also
+        /// fire `auth_expired` so the global auth state flips.
+        #[qsignal]
+        fn publish_failed(
+            self: Pin<&mut ExploreController>,
+            reason: QString,
+        );
     }
 
     impl cxx_qt::Threading for ExploreController {}
@@ -185,6 +230,75 @@ impl Default for ExploreControllerRust {
 enum FetchError {
     Unauthorized,
     Other(String),
+}
+
+/// Same shape as FetchError but for the publish path. Kept separate
+/// so the message-formatting logic for validation errors can land
+/// here without bleeding into the read-side fetches.
+enum PublishError {
+    Unauthorized,
+    Other(String),
+}
+
+#[derive(serde::Deserialize)]
+struct PublishResponse {
+    #[serde(default)]
+    handle: String,
+    #[serde(default)]
+    slug: String,
+    #[serde(default)]
+    url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct PublishErrorBody {
+    #[serde(default)]
+    error: String,
+    #[serde(default)]
+    message: String,
+}
+
+async fn post_publish(
+    url: &str,
+    token: &str,
+    body: &serde_json::Value,
+) -> Result<PublishResponse, PublishError> {
+    let resp = http_client()
+        .post(url)
+        .bearer_auth(token)
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| PublishError::Other(format!("{e}")))?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err(PublishError::Unauthorized);
+    }
+    if status == reqwest::StatusCode::CREATED || status.is_success() {
+        let body_text = resp
+            .text()
+            .await
+            .map_err(|e| PublishError::Other(format!("read body: {e}")))?;
+        return serde_json::from_str::<PublishResponse>(&body_text)
+            .map_err(|e| PublishError::Other(format!("parse response: {e}")));
+    }
+
+    // Non-success: try to surface the server's structured error
+    // message. Falls back to "HTTP <status>" when the body isn't
+    // the {error, message} shape.
+    let body_text = resp.text().await.unwrap_or_default();
+    if let Ok(eb) = serde_json::from_str::<PublishErrorBody>(&body_text) {
+        let msg = if !eb.message.is_empty() {
+            eb.message
+        } else if !eb.error.is_empty() {
+            eb.error
+        } else {
+            format!("HTTP {status}")
+        };
+        return Err(PublishError::Other(msg));
+    }
+    Err(PublishError::Other(format!("HTTP {status}")))
 }
 
 /// Snapshot the persisted auth token from state.toml. Cheap — TOML
@@ -414,6 +528,100 @@ impl qobject::ExploreController {
             urlencoded(&slug_s),
         );
         spawn_import(qt_thread, url, Some(origin));
+    }
+
+    fn publish_workflow(
+        mut self: Pin<&mut Self>,
+        workflow_id: QString,
+        description: QString,
+        readme: QString,
+        tags_json: QString,
+        visibility: QString,
+    ) {
+        use cxx_qt::CxxQtType;
+        let origin = self.as_ref().rust().site_origin.to_string();
+        let qt_thread = self.qt_thread();
+        self.as_mut().set_loading(true);
+        self.as_mut().set_last_error(QString::from(""));
+
+        let id_s = workflow_id.to_string();
+        let description_s = description.to_string();
+        let readme_s = readme.to_string();
+        let tags_json_s = tags_json.to_string();
+        let visibility_s = visibility.to_string();
+
+        let token = match current_token() {
+            Some(t) => t,
+            None => {
+                self.as_mut().set_loading(false);
+                self.as_mut().set_last_error(QString::from(
+                    "publish: not signed in",
+                ));
+                self.as_mut()
+                    .publish_failed(QString::from("not signed in"));
+                return;
+            }
+        };
+
+        // Encode the workflow to KDL on this thread — the store API
+        // is sync and we want the error to surface before we commit
+        // a tokio task. If the workflow doesn't exist locally
+        // there's no point posting anything.
+        let kdl = match crate::store::export_kdl(&id_s) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(?e, "publish: export_kdl {id_s} failed");
+                self.as_mut().set_loading(false);
+                let msg = format!("couldn't read workflow: {e}");
+                self.as_mut().set_last_error(QString::from(&msg));
+                self.as_mut().publish_failed(QString::from(&msg));
+                return;
+            }
+        };
+
+        let tags: Vec<String> = serde_json::from_str(&tags_json_s).unwrap_or_default();
+        let visibility = if visibility_s == "draft" { "draft" } else { "public" };
+
+        let body = serde_json::json!({
+            "kdl": kdl,
+            "description": description_s,
+            "readme": readme_s,
+            "tags": tags,
+            "visibility": visibility,
+        });
+
+        tokio::spawn(async move {
+            let url = format!("{origin}/api/v0/workflows");
+            let outcome = post_publish(&url, &token, &body).await;
+            let _ = qt_thread.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+                ctrl.as_mut().set_loading(false);
+                match outcome {
+                    Ok(p) => {
+                        ctrl.as_mut().set_last_error(QString::from(""));
+                        ctrl.as_mut().publish_succeeded(
+                            QString::from(&p.handle),
+                            QString::from(&p.slug),
+                            QString::from(&p.url),
+                        );
+                    }
+                    Err(PublishError::Unauthorized) => {
+                        tracing::info!("publish: 401 — token rejected");
+                        ctrl.as_mut().set_last_error(QString::from(
+                            "signed out — token expired or was revoked",
+                        ));
+                        ctrl.as_mut().auth_expired();
+                        ctrl.as_mut().publish_failed(QString::from(
+                            "not signed in",
+                        ));
+                    }
+                    Err(PublishError::Other(reason)) => {
+                        tracing::warn!(error=%reason, "publish failed");
+                        ctrl.as_mut().set_last_error(QString::from(&reason));
+                        ctrl.as_mut().publish_failed(QString::from(&reason));
+                    }
+                }
+            });
+        });
     }
 
     fn take_pending_deeplink(self: Pin<&mut Self>) -> QString {
