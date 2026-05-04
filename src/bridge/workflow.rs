@@ -500,7 +500,7 @@ impl qobject::WorkflowController {
         });
     }
 
-    fn _build_sink(mut self: Pin<&mut Self>) -> engine::EventSink {
+    fn _build_sink(self: Pin<&mut Self>) -> engine::EventSink {
         let qt_thread = self.qt_thread();
         Arc::new(move |ev: RunEvent| {
             let thread = qt_thread.clone();

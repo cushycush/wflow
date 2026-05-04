@@ -392,12 +392,6 @@ fn kv_str(name: &str, v: &str) -> KdlNode {
     n.push(arg_str(v));
     n
 }
-fn kv_int(name: &str, v: i128) -> KdlNode {
-    let mut n = KdlNode::new(name);
-    n.push(arg_int(v));
-    n
-}
-
 // ---------------------------------------------------------- Decoding --------
 
 /// Parse a KDL file as authored — the imports map and any `use NAME`
