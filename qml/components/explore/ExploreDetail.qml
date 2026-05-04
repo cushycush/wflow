@@ -130,6 +130,11 @@ FocusScope {
         return root.wf ? (root.wf.imports || 0) : 0
     }
 
+    function _starCount() {
+        if (root.detail) return root.detail.starCount || 0
+        return root.wf ? (root.wf.stars || 0) : 0
+    }
+
     function _commentCount() {
         return root.detail ? (root.detail.commentCount || 0) : 0
     }
@@ -298,6 +303,13 @@ FocusScope {
                                color: Theme.text; font.family: Theme.familyBody
                                font.pixelSize: Theme.fontLg; font.weight: Font.DemiBold }
                         Text { text: "installs"; color: Theme.text3
+                               font.family: Theme.familyMono; font.pixelSize: Theme.fontXs }
+                    }
+                    Column {
+                        Text { text: "★ " + root._starCount().toString()
+                               color: Theme.text; font.family: Theme.familyBody
+                               font.pixelSize: Theme.fontLg; font.weight: Font.DemiBold }
+                        Text { text: "stars"; color: Theme.text3
                                font.family: Theme.familyMono; font.pixelSize: Theme.fontXs }
                     }
                     Column {
