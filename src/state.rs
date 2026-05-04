@@ -37,7 +37,7 @@ pub struct State {
     /// to whichever scheme the binary was built against.
     #[serde(default = "default_theme_mode")]
     pub theme_mode: String,
-    /// Brand palette: "warm" (warm-paper + coral, mirrors wflows.com)
+    /// Brand palette: "warm" (warm-paper + coral, mirrors wflows.io)
     /// or "cool" (slate-blue surfaces + amber, the original wflow
     /// brand). Defaults to "warm" because that's the published
     /// marketing-site identity; the first-run tutorial offers the

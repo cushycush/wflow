@@ -29,7 +29,7 @@ brief refer back to them.
 | Term         | Surface                                              | File                              |
 |--------------|------------------------------------------------------|-----------------------------------|
 | **Library**  | Workflow grid + folder rail.                         | `qml/pages/LibraryPage.qml`       |
-| **Explore**  | Community catalog (talks to wflows.com).             | `qml/pages/ExplorePage.qml`       |
+| **Explore**  | Community catalog (talks to wflows.io).             | `qml/pages/ExplorePage.qml`       |
 | **Editor**   | Workflow authoring surface.                          | `qml/pages/WorkflowPage.qml`      |
 | **Record**   | Capture mode with the ambient red wash.              | `qml/pages/RecordPage.qml`        |
 | **Settings** | Preferences page.                                    | `qml/pages/SettingsPage.qml`      |
@@ -306,7 +306,7 @@ workflow.
 A small segmented icon button to switch between Grid and List
 layouts. Lives in the page header.
 
-## Explore surfaces (talks to wflows.com)
+## Explore surfaces (talks to wflows.io)
 
 ### `ExploreSearch`
 

@@ -323,7 +323,7 @@ Item {
                         {
                             id: "warm",
                             label: "Warm Paper",
-                            sub: "wflows.com brand",
+                            sub: "wflows.io brand",
                             bg:      "#faf8f2",
                             bgDark:  "#1b1411",
                             surface: "#ece6da",

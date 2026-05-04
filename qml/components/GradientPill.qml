@@ -63,7 +63,7 @@ Rectangle {
 
     // Value text fills the remaining width and elides on overflow.
     // Mono font because the content is almost always a command, key
-    // chord, or path — same register as wflows.com's .kdl-block
+    // chord, or path — same register as wflows.io's .kdl-block
     // values, just inline.
     Text {
         id: valueText

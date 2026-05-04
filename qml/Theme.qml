@@ -3,7 +3,7 @@ import QtQuick
 import Wflow
 
 // Design tokens. The runtime carries TWO brand palettes side-by-side —
-// "warm" (warm-paper + coral, mirroring wflows.com) and "cool" (slate
+// "warm" (warm-paper + coral, mirroring wflows.io) and "cool" (slate
 // surfaces + amber, the original wflow brand brief). The active palette
 // is set on first run via the tutorial and can be flipped any time
 // from Settings; persisted via StateController.
@@ -67,7 +67,7 @@ QtObject {
     }
 
     // ============ Surfaces ============
-    // Warm = wflows.com warm-paper / warm-near-black (hue 35-60).
+    // Warm = wflows.io warm-paper / warm-near-black (hue 35-60).
     // Cool = original wflow brand brief: slate surfaces (hue 260, low
     // chroma) for dark, near-white cool gray for light.
     readonly property color bg:         _pl("#232629", "#f5f6f8", "#1b1411", "#faf8f2")
@@ -86,13 +86,13 @@ QtObject {
     readonly property color textInv: _pl("#232629", "#fafbfd", "#1b1411", "#f6f2eb")
 
     // ============ Accent ============
-    // Warm = wflows.com coral (hue 25-32). Cool = original amber (hue
+    // Warm = wflows.io coral (hue 25-32). Cool = original amber (hue
     // 55-65). On light surfaces the cool palette deepens the amber so
     // it carries enough contrast on cool gray paper.
     readonly property color accent:    _pl("#e1a04a", "#9c5a18", "#ed8068", "#c73e2c")
     readonly property color accentHi:  _pl("#f0b964", "#b87024", "#f49b82", "#d54f3d")
     readonly property color accentLo:  _pl("#b27418", "#844614", "#e36850", "#b72a1c")
-    // Pre-baked soft accent surface (wflows.com --accent-wash analog).
+    // Pre-baked soft accent surface (wflows.io --accent-wash analog).
     // Use this when you need the brand's named "wash" tone as a fixed
     // color; reach for the accentWash(alpha) helper below when you want
     // the blend to track an arbitrary alpha against the live accent.
@@ -116,7 +116,7 @@ QtObject {
     // ============ Category chip tints ============
     // Cool palette keeps the original saturated kind colors (they read
     // well on slate surfaces); warm palette uses the muted ink-* register
-    // mirrored from wflows.com tokens.css so the chips don't compete
+    // mirrored from wflows.io tokens.css so the chips don't compete
     // with the coral brand.
     readonly property color catKey:    _pl("#a890d2", "#6e54a8", "#a483c8", "#6c52a4")  // purple
     readonly property color catType:   _pl("#889bcb", "#4862ad", "#7b95c4", "#445e9e")  // blue
@@ -147,7 +147,7 @@ QtObject {
     readonly property int s8: 64
 
     // ============ Radii ============
-    // Mirrors wflows.com's full ladder: xs=4 (tiny chips/tags), sm=6
+    // Mirrors wflows.io's full ladder: xs=4 (tiny chips/tags), sm=6
     // (compact buttons/inputs), md=10 (cards, dialogs, kdl blocks),
     // lg=16 (hero/big cards), xl=22 (the get-wflow callout, large
     // panels), pill=999 (triggers, install button, hero toggle).
@@ -167,7 +167,7 @@ QtObject {
     readonly property int fontXl:   28
 
     // ============ Fonts ============
-    // Tried Boska + Supreme (the wflows.com brand pair) — they read poorly
+    // Tried Boska + Supreme (the wflows.io brand pair) — they read poorly
     // at the dense UI sizes we use here. Back on Hanken Grotesk + Geist
     // Mono. familyDisplay stays as a separate token so titles can grow
     // a heavier weight without affecting body copy.
@@ -192,7 +192,7 @@ QtObject {
     }
 
     // ============ Feature flags ============
-    // Explore is wired to the wflows.com v0 catalog API for browse / detail /
+    // Explore is wired to the wflows.io v0 catalog API for browse / detail /
     // import. The page falls back to the bundled mock catalog before the
     // network resolves so the tab never paints empty.
     readonly property bool showExplore: true

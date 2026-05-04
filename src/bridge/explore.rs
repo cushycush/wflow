@@ -1,4 +1,4 @@
-//! ExploreController — talks to the wflows.com /api/v0 catalog.
+//! ExploreController — talks to the wflows.io /api/v0 catalog.
 //!
 //! Owns:
 //!   - `featured_json` — the latest /api/v0/featured response, JSON-stringified
@@ -67,7 +67,7 @@ pub mod qobject {
             limit: i32,
         );
 
-        /// Import a workflow from `wflows.com` by author handle + slug.
+        /// Import a workflow from `wflows.io` by author handle + slug.
         /// Resolves the v0 detail endpoint, decodes the KDL through the
         /// same path the run command uses, mints fresh ids, and saves
         /// to the local store. On success emits `import_succeeded`
@@ -112,7 +112,7 @@ pub mod qobject {
         /// engine would execute. Emits `workflow_detail_ready` with a
         /// rich JSON payload (live install / comment counts, parsed
         /// steps, timestamps); failures route through `import_failed`
-        /// so the existing "couldn't reach wflows.com" surface holds.
+        /// so the existing "couldn't reach wflows.io" surface holds.
         #[qinvokable]
         fn fetch_workflow_detail(
             self: Pin<&mut ExploreController>,
@@ -120,7 +120,7 @@ pub mod qobject {
             slug: QString,
         );
 
-        /// POST a local workflow to wflows.com's publish endpoint.
+        /// POST a local workflow to wflows.io's publish endpoint.
         /// Loads the workflow from the local store, encodes it to
         /// KDL, attaches the supplied metadata, and posts to
         /// `/api/v0/workflows` with the persisted Bearer token.
@@ -204,15 +204,14 @@ pub struct ExploreControllerRust {
 
 impl Default for ExploreControllerRust {
     fn default() -> Self {
-        // wflows.com itself is currently parked on a GoDaddy lander —
-        // the actual deployment lives at wflows.vercel.app. Defaulting
-        // to the Vercel origin is what makes the live Explore catalog
-        // actually return JSON instead of the lander's HTML, which the
-        // bridge silently fails to parse and falls back to the mock
-        // fixture for. Override via `WFLOW_SITE_ORIGIN` once the
-        // wflows.com DNS points at Vercel.
+        // Production catalog lives at wflows.io (the brand domain
+        // points at the Vercel deployment). `WFLOW_SITE_ORIGIN`
+        // overrides for staging / local-dev — set to
+        // `http://localhost:3000` against a `bun dev` of the
+        // wflows.io repo, or to `https://wflows.vercel.app` to
+        // hit the deploy preview directly.
         let origin = std::env::var("WFLOW_SITE_ORIGIN")
-            .unwrap_or_else(|_| "https://wflows.vercel.app".to_string());
+            .unwrap_or_else(|_| "https://wflows.io".to_string());
         Self {
             featured_json: QString::from("{\"data\":[]}"),
             browse_json: QString::from("{\"data\":[],\"hasMore\":false}"),
@@ -867,7 +866,7 @@ async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
     let preview = match serde_json::from_str::<DetailEnvelope>(&body) {
         Ok(env) => {
             let wf = crate::kdl_format::decode(&env.data.kdl_source)
-                .context("decode kdl from wflows.com")?;
+                .context("decode kdl from wflows.io")?;
             DeeplinkPreview {
                 title: env.data.title,
                 handle: env.data.handle,
@@ -917,7 +916,7 @@ async fn fetch_and_import(url: &str) -> anyhow::Result<String> {
         };
 
     let mut wf = crate::kdl_format::decode(&kdl_text)
-        .context("decode kdl from wflows.com")?;
+        .context("decode kdl from wflows.io")?;
     // Mint fresh ids so importing the same workflow twice produces
     // distinct local copies. The remote slug is preserved in the
     // workflow's name so the user can find it.
@@ -1049,7 +1048,7 @@ async fn fetch_detail(url: &str) -> anyhow::Result<WorkflowDetail> {
     let env: DetailEnvelope = serde_json::from_str(&body)
         .context("parse detail json")?;
     let wf = crate::kdl_format::decode(&env.data.kdl_source)
-        .context("decode kdl from wflows.com")?;
+        .context("decode kdl from wflows.io")?;
 
     let steps: Vec<StepPreview> = wf.steps.iter().map(step_preview).collect();
     let has_shell = wf.steps.iter().any(|s| {
