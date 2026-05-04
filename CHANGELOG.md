@@ -4,11 +4,73 @@ What landed in each release of wflow, what to look at first, and where
 to read the full story. Highlights live in this file. Long-form prose
 notes live one per release in [`docs/release-notes/`](docs/release-notes/).
 
-Versions follow `MAJOR.MINOR.PATCH`. The 0.x line is unstable on disk
-format only when a release explicitly says so; everything else is
-additive. v1.0 ships when the wflows.io integration lands (Explore
-re-enabled, sign-in, deeplink import, detail drawer wired to live
-data). See [BACKLOG.md](BACKLOG.md) for the road there.
+Versions follow `MAJOR.MINOR.PATCH`. v1.0 marks the wflows.io
+integration landing. Releases past 1.0 follow normal semver: minor for
+additive features, patch for fixes, major when something genuinely
+breaks.
+
+---
+
+## [1.0.0] — 2026-05-04
+
+[Full release notes](docs/release-notes/v1.0.0.md)
+
+The catalog goes live. Explore is on, the desktop signs in to
+wflows.io, you can import community workflows in one click, and you
+can publish your own straight from the library card.
+
+### Added
+
+- **Live Explore tab.** Featured rows, browse with sort / search /
+  tag filters, real install and comment counts, the detail drawer
+  parses inline KDL through the runner's decoder so the step preview
+  is what the engine would actually run. Mock fixtures are gone.
+- **One-click import via `wflow://`.** Click Open in wflow on any
+  wflows.io page; the desktop catches the URL, shows a confirm
+  dialog (title, author, description, step count) before writing
+  anything to disk. Drive-by pages can't silently install workflows.
+- **Single-instance lock.** A second `wflow` invocation forwards
+  argv to the running process via a Unix socket so deeplinks fire in
+  your existing window.
+- **Sign-in via browser handoff.** Settings → Account opens
+  wflows.io in your browser; sign-in redirects to a
+  `wflow://auth?token=...` URL the desktop catches. Token persists
+  in `state.toml`. Nav-bar pill shows your handle when signed in.
+- **Favorites tab in Explore** populated from your wflows.io
+  account; 401s on authenticated calls route through a clean
+  sign-out.
+- **Publish from the library.** Right-click menu item plus a visible
+  Publish pill on every card in the top-right corner when signed in.
+  Walks you through description, tags, visibility; reads the KDL on
+  disk, encodes through the same encoder the CLI uses, posts to
+  `/api/v0/workflows`.
+- **Triggers tab in the GUI.** Lists every active chord binding
+  across your library, lets you add / edit / remove without hand-
+  editing KDL. Chord-capture dialog, manual text entry for chords
+  the compositor already grabs, when-predicates (window-class /
+  window-title).
+- **Daemon auto-enable.** First GUI launch offers to enable the
+  systemd user unit; respects your decision afterwards.
+
+### Changed
+
+- **Brand domain is wflows.io** across the codebase, the marketing
+  site, and the site repo. `WFLOW_SITE_ORIGIN` defaults there. The
+  wflows.com domain is parked.
+- **Settings → About** reads `env!("CARGO_PKG_VERSION")` instead of
+  a hardcoded string.
+- **KDL tokenizer on the website** accepts the v2 bareword set the
+  desktop emits (chord syntax with `+`, bare strings in notify
+  titles), so published workflows round-trip cleanly.
+
+### Fixed
+
+- Pinned trigger card on the editor canvas now reads the actual
+  `trigger.kind.kind` shape and renders chord values correctly.
+- Workflow picker dialog no longer overlaps its own rows.
+- `wflow://` scheme handler installs on first GUI run, so sign-in
+  no longer hangs at "Signing in…" on installs without an existing
+  desktop entry.
 
 ---
 
