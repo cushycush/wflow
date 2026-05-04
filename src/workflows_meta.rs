@@ -249,34 +249,6 @@ pub fn get_positions(id: &str) -> BTreeMap<String, [f64; 2]> {
         .unwrap_or_default()
 }
 
-/// Set or clear the folder this workflow lives in. Pass an empty
-/// string (or `None`) to move the workflow back to the top level.
-pub fn set_folder(id: &str, folder: Option<String>) {
-    let mut file = load_file();
-    let entry = file.meta.entry(id.to_string()).or_default();
-    entry.folder = folder.filter(|s| !s.is_empty());
-    if entry.is_empty() {
-        file.meta.remove(id);
-    }
-    save_file(&file);
-}
-
-/// All distinct, non-empty folder names referenced by workflows on
-/// disk. Used by the library UI to populate the folder sidebar
-/// without a separate "list of folders" file. Sorted ascending.
-pub fn all_folders() -> Vec<String> {
-    let file = load_file();
-    let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for meta in file.meta.values() {
-        if let Some(f) = &meta.folder {
-            if !f.is_empty() {
-                set.insert(f.clone());
-            }
-        }
-    }
-    set.into_iter().collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

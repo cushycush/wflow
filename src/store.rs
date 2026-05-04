@@ -89,10 +89,6 @@ fn safe_id(id: &str) -> String {
     id.replace(['/', '\\', '.'], "_")
 }
 
-fn kdl_path_for(id: &str) -> Result<PathBuf> {
-    kdl_path_for_in(id, None)
-}
-
 /// Return the .kdl path for a workflow id inside a specific folder.
 /// folder=None ⇒ top-level (workflows_dir directly). folder=Some("a")
 /// ⇒ workflows_dir/a/<safe_id>.kdl. Nested paths like "a/b" produce
@@ -487,19 +483,6 @@ pub fn touch_last_run(id: &str) {
 
 pub fn export_kdl(id: &str) -> Result<String> {
     Ok(kdl_format::encode(&load(id)?))
-}
-
-/// Parse a KDL document and save it as a new workflow (new id minted).
-/// Returns the saved workflow.
-pub fn import_kdl(text: &str) -> Result<Workflow> {
-    let mut wf = kdl_format::decode(text).context("the pasted recipe didn't parse")?;
-    // Always mint a fresh id on import so sharing doesn't clobber the user's
-    // own workflow with the same id.
-    wf.id = uuid::Uuid::new_v4().to_string();
-    wf.last_run = None;
-    wf.created = None;
-    wf.modified = None;
-    save(wf)
 }
 
 #[cfg(test)]

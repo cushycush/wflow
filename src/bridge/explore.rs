@@ -512,7 +512,7 @@ impl qobject::ExploreController {
     }
 
     fn import_workflow(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         handle: QString,
         slug: QString,
     ) {

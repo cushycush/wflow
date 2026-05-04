@@ -599,7 +599,7 @@ impl qobject::WorkflowController {
     /// matching qproperty / signal. Pulled out so the two engine
     /// entry points stay short and identical apart from the
     /// PauseControl + debug_tx handling.
-    fn _build_sink(mut self: Pin<&mut Self>) -> engine::EventSink {
+    fn _build_sink(self: Pin<&mut Self>) -> engine::EventSink {
         let qt_thread = self.qt_thread();
         Arc::new(move |ev: RunEvent| {
             let thread = qt_thread.clone();
