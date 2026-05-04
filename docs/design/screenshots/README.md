@@ -12,12 +12,12 @@ and light for each. Filenames use `<surface>.<theme>.png`.
 | File                              | Surface                             | Notes                                      |
 |-----------------------------------|-------------------------------------|--------------------------------------------|
 | `library-grid.dark.png`           | Library, grid layout                | Five workflow cards plus the Daily folder tile |
-| `library-folder-open.dark.png`    | Library, inside a folder            | Drilled into Daily; Morning sync + Daily standup visible |
+| `library-folder-open.dark.png`    | Library, inside a folder            | Drilled into Daily; Resume coding + Daily standup visible |
 | `library-publish-pill.dark.png`   | Library, signed-in card pills       | Top-right '↑ Publish' pill on every card; only meaningful when signed in |
-| `editor-canvas.dark.png`          | Workflow editor, canvas             | Morning sync, Smart-tidied; chord trigger visible |
+| `editor-canvas.dark.png`          | Workflow editor, canvas             | Resume coding, Smart-tidied; the when/else block fans into two branches |
 | `editor-step-palette.dark.png`    | Editor palette dock expanded        | Hover over the left dock so labels slide in next to each chip |
 | `editor-inspector.dark.png`       | Editor with a step selected         | Inspector slid in on the right             |
-| `editor-trigger-card.dark.png`    | Editor pinned trigger card          | Top-left card showing the chord + when-predicate |
+| `editor-trigger-card.dark.png`    | Editor pinned trigger card          | Top-left card showing the chord (super+shift+c) |
 | `triggers-tab.dark.png`           | Triggers tab in chrome              | List of bound workflows with their chords  |
 | `explore-grid.dark.png`           | Explore tab, live catalog           | Featured row + browse grid populated from wflows.io |
 | `explore-detail.dark.png`         | Explore detail drawer open          | Slide-in over the grid                     |

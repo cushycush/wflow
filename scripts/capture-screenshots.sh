@@ -167,18 +167,20 @@ pair "library-grid" \
     "Library tab. Five workflow cards plus the 'Daily' folder tile, no menus open."
 
 pair "library-folder-open" \
-    "Click the 'Daily' folder tile to drill in. Two cards visible: Morning sync + Daily standup."
+    "Click the 'Daily' folder tile to drill in. Two cards visible: Resume coding + Daily standup."
 
 pair "library-publish-pill" \
     "Library tab, signed in to wflows.io. Each card should show the '↑ Publish' pill in the top-right corner. Skip if signed out."
 
-# Editor — Morning sync is the demo workflow (rich chip trail, chord
-# trigger, vars, repeat block, conditional). Make sure it has saved
-# card positions before running this script — open it once and let
+# Editor — Resume coding is the demo workflow. Short enough to fit on
+# screen at a readable zoom, but the when/else block fans the canvas
+# into branches (the v0.6.0 conditional feature) so the layout isn't
+# a boring straight line. Lives at Daily/resume-coding.kdl. Make sure
+# it has saved card positions before running — open it once and let
 # Smart Tidy do its thing.
 nav_library
 pair "editor-canvas" \
-    "From Library, open Morning sync. Hover the right tool dock and click ✦ Smart tidy. Whole flow at a readable zoom."
+    "From Library, drill into the Daily folder, open Resume coding. Hover the right tool dock and click ✦ Smart tidy. The when/else block should fan into two branches; the whole flow fits at a readable zoom."
 
 pair "editor-step-palette" \
     "Same workflow open. Hover over the LEFT dock during the countdown so the palette expands and the labels slide in next to each chip."
@@ -187,13 +189,15 @@ pair "editor-inspector" \
     "Same workflow open. Click any step card so the inspector slides in from the right."
 
 pair "editor-trigger-card" \
-    "Same workflow open. The pinned trigger card at the top-left of the canvas should read the chord (super+m) and any when-predicate."
+    "Same workflow open. The pinned trigger card at the top-left of the canvas should read the chord 'super+shift+c'."
 
-# Triggers tab — chrome pill, fourth slot. Three workflows have
-# chord bindings (morning-sync, screenshot-and-share, loop-tab-thru).
+# Triggers tab — chrome pill, fourth slot. Four workflows ship with
+# chord bindings: resume-coding (super+shift+c), daily-standup
+# (super+shift+d), screenshot-and-share (super+shift+s), loop-tab-thru
+# (super+shift+t).
 nav_library
 pair "triggers-tab" \
-    "Click the 'Triggers' tab in the chrome pill. List shows the three bound workflows with their chords."
+    "Click the 'Triggers' tab in the chrome pill. List shows the four bound workflows with their chords."
 
 # Explore tab — Ctrl+2 navigates here when showExplore is on.
 nav_explore
