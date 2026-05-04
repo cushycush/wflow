@@ -910,6 +910,39 @@ Item {
         }
     }
 
+    ExploreController {
+        id: publishCatalog
+        onPublish_succeeded: (handle, slug, url) => {
+            publishDialog.publishedHandle = handle
+            publishDialog.publishedSlug = slug
+            publishDialog.publishedUrl = url
+            publishDialog.lastError = ""
+            publishDialog.succeeded = true
+        }
+        onPublish_failed: (reason) => {
+            publishDialog.lastError = reason
+            publishDialog.succeeded = false
+        }
+        onAuth_expired: {
+            Theme._auth.sign_out()
+            publishDialog.lastError = "signed out, sign in again to publish"
+        }
+    }
+
+    PublishDialog {
+        id: publishDialog
+        busy: publishCatalog.loading
+        onPublishRequested: (workflowId, description, readme, tagsJson, visibility) => {
+            publishCatalog.publish_workflow(
+                workflowId,
+                description,
+                readme,
+                tagsJson,
+                visibility
+            )
+        }
+    }
+
     function _saveNow() {
         root.saveState = "saving"
         const json = JSON.stringify(root.workflow)
@@ -1366,6 +1399,30 @@ Item {
                 ToolTip.visible: hovered
                 ToolTip.delay: 400
                 ToolTip.text: "Redo (Ctrl+Shift+Z)"
+            }
+
+            // Publish — only available when signed in to wflows.com,
+            // since the API needs a Bearer token. The dialog itself
+            // has a "not signed in" guard but hiding the button
+            // entirely keeps the toolbar quiet for anonymous users.
+            // Sits before Run/Debug so the run controls stay the
+            // right-edge anchor.
+            SecondaryButton {
+                visible: !root.fragmentMode
+                    && Theme._auth.state === "signed_in"
+                    && !root.running
+                text: "↑ Publish"
+                leftPadding: 14
+                rightPadding: 14
+                enabled: (root.actions || []).length > 0
+                onClicked: {
+                    publishDialog.workflowId = root.workflowId
+                    publishDialog.workflowTitle = (root.workflow && root.workflow.title) || ""
+                    publishDialog.open()
+                }
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Publish this workflow to wflows.com"
             }
 
             // Idle: Run + Debug. Debugging: Step / Continue / Stop.
