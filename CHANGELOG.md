@@ -11,6 +11,33 @@ breaks.
 
 ---
 
+## [1.0.1] — 2026-05-04
+
+[Full release notes](docs/release-notes/v1.0.1.md)
+
+Triggers do what they say.
+
+### Fixed
+
+- **Trigger when-predicates now gate dispatch.** The GUI has been
+  letting users author `when window-class=firefox` since 1.0, but
+  the daemon ignored the field. Pressing the chord fired the
+  workflow regardless of focus. Daemon binds now route through a
+  new internal `wflow trigger-fire <id>` wrapper that probes the
+  focused window via Hyprland (`hyprctl activewindow -j`) or Sway
+  (i3 IPC tree walk) before firing. KDE / GNOME portal users fail
+  open until per-DE probes land.
+
+### Added
+
+- **Deeplink confirm dialog surfaces chord triggers.** Every chord
+  the imported workflow wants bound shows as a key-cap pill in the
+  "Will bind" section, with conflict detection against the local
+  library. Accepting an import that takes `super+t` from an existing
+  workflow now warns before the swap rather than after.
+
+---
+
 ## [1.0.0] — 2026-05-04
 
 [Full release notes](docs/release-notes/v1.0.0.md)
