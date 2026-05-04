@@ -794,21 +794,33 @@ fn cmd_daemon() -> Result<ExitCode> {
         }
     }
 
-    if registered.is_empty() {
-        println!();
-        println!("  {} nothing to subscribe to — exiting", dim("·"));
-        return Ok(ExitCode::SUCCESS);
-    }
-
     println!();
-    println!(
-        "  {} {} binding{} registered with {}. Edit a workflow's KDL and the daemon\n  \
-         picks up the change; Ctrl+C to unbind and exit.",
-        check(),
-        registered.len(),
-        plural_s(registered.len()),
-        backend.name(),
-    );
+    if registered.is_empty() {
+        // No triggers in the library yet, but we still want to stay
+        // alive — the file watcher below will pick up the user's
+        // first `trigger { chord "..." }` block when they author it
+        // and bind without requiring a daemon restart. Exiting here
+        // (the v0.7 behaviour) made first-run UX bad: the systemd
+        // unit auto-enabled by GUI startup would launch the daemon,
+        // find no triggers, exit, and not come back until the next
+        // graphical-session boot — so any trigger added in the
+        // current session silently didn't fire.
+        println!(
+            "  {} no triggers to bind yet. Watching the library — \
+             the daemon will pick up the first {} you author.",
+            dim("·"),
+            "trigger { chord \"…\" }",
+        );
+    } else {
+        println!(
+            "  {} {} binding{} registered with {}. Edit a workflow's KDL and the daemon\n  \
+             picks up the change; Ctrl+C to unbind and exit.",
+            check(),
+            registered.len(),
+            plural_s(registered.len()),
+            backend.name(),
+        );
+    }
 
     // Watch the workflow library for on-disk changes. notify hands us
     // an event per filesystem op (write, create, remove, rename); we
