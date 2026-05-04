@@ -17,6 +17,9 @@ QtObject {
 
     // StateController is the source of truth; locals mirror + write back.
     property StateController _state: StateController { }
+    // Shared so Main.qml's deeplink handler and SettingsPage's sign-in
+    // UI see the same nonce.
+    property AuthController _auth: AuthController { }
     property string mode: theme._state.theme_mode || "auto"
     property string palette: theme._state.palette || "warm"
 

@@ -123,6 +123,21 @@ ApplicationWindow {
 
     StateController { id: introState }
 
+    // Theme._auth is shared across Main and SettingsPage so the nonce
+    // minted by start_sign_in survives the deeplink callback.
+    Connections {
+        target: Theme._auth
+        function onSign_in_succeeded(handle) {
+            console.info("signed in as @" + handle)
+        }
+        function onSign_in_failed(reason) {
+            console.warn("sign-in failed:", reason)
+        }
+        function onSigned_out_event() {
+            console.info("signed out")
+        }
+    }
+
     // ExplorePage owns its own instance for catalog fetches; this
     // one is the deeplink pipe.
     ExploreController {
@@ -151,20 +166,39 @@ ApplicationWindow {
         onCancelled: console.info("deeplink import cancelled by user")
     }
 
-    // wflow://import?source=<URL> arrives as a CLI arg. Decode the
-    // source, fetch a preview without writing to disk, and let the
-    // user confirm before the install actually happens. A malicious
-    // page that opens such a URL in the user's browser shouldn't be
-    // able to silently install a workflow on the desktop — the
-    // dialog is the one place that consent lives.
+    // wflow://import?source=<URL> and wflow://auth/callback?nonce=...&token=...
     function _resolveDeeplink(deeplinkUrl) {
-        const m = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
-        if (!m) {
-            console.warn("unknown deeplink shape:", deeplinkUrl)
+        const importMatch = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
+        if (importMatch) {
+            const source = decodeURIComponent(importMatch[1])
+            deeplinkPipe.fetch_deeplink_preview(source)
             return
         }
-        const source = decodeURIComponent(m[1])
-        deeplinkPipe.fetch_deeplink_preview(source)
+        const authMatch = /^wflow:\/\/auth\/callback\?(.+)$/.exec(deeplinkUrl)
+        if (authMatch) {
+            const params = _parseQuery(authMatch[1])
+            const nonce = params.nonce || ""
+            const token = params.token || ""
+            if (!nonce || !token) {
+                console.warn("auth callback missing nonce or token")
+                return
+            }
+            Theme._auth.complete_sign_in(nonce, token)
+            return
+        }
+        console.warn("unknown deeplink shape:", deeplinkUrl)
+    }
+
+    function _parseQuery(qs) {
+        const out = ({})
+        for (const part of qs.split("&")) {
+            const eq = part.indexOf("=")
+            if (eq < 0) continue
+            const k = decodeURIComponent(part.substring(0, eq))
+            const v = decodeURIComponent(part.substring(eq + 1))
+            out[k] = v
+        }
+        return out
     }
 
     ChromeFloating {
@@ -292,6 +326,7 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
+        Theme._auth.restore()
         // Bumping the tour key (intro_tour_v2 → v3) replays once when
         // major editor features land.
         if (!introState.tutorial_seen("intro_tour_v3")) {
