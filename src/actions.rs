@@ -199,18 +199,14 @@ pub enum OnError {
     Continue,
 }
 
-/// A binding that fires the workflow on an external event. AHK-style
-/// hotkeys today; hotstrings, file-watch, schedule, and per-window
-/// conditions land in later releases. The runner ignores triggers
-/// (workflows still execute via GUI / CLI / library card the same way
-/// they always have); the v0.4 daemon is what actually subscribes to
-/// the configured triggers and dispatches workflows on activation.
+/// External event that fires the workflow. The runner ignores these;
+/// `wflow daemon` is what subscribes and dispatches.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trigger {
     pub kind: TriggerKind,
-    /// Optional context predicate. v0.5 and later — the daemon gates
-    /// activation on whether the condition holds at fire time. v0.4
-    /// parses the field but doesn't act on it.
+    /// Daemon binds the chord globally (Wayland has no per-window
+    /// grabs); `wflow trigger-fire` probes the focused window per fire.
+    /// Hyprland and Sway probe today; portal-bound DEs fire ungated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<TriggerCondition>,
 }

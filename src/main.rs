@@ -2,6 +2,7 @@
 //! routes through `cli/` and never brings up Qt.
 
 mod actions;
+mod active_window;
 mod bridge;
 mod cli;
 mod daemon_autostart;

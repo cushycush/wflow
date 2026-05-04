@@ -162,6 +162,17 @@ pub enum Command {
     /// falls back to compositor IPC on Hyprland and Sway. Ctrl+C
     /// unbinds everything cleanly.
     Daemon,
+    /// Internal: invoked by the trigger daemon's compositor binds.
+    /// Loads the workflow, checks `trigger.when` against the focused
+    /// window, and runs the workflow if the predicate holds (or no
+    /// predicate is set). Exits 0 silently when the predicate fails
+    /// so the chord registers as a no-op rather than a noisy error.
+    /// Not meant for direct CLI use — `wflow run` is the public path.
+    #[command(hide = true)]
+    TriggerFire {
+        /// Library id of the workflow to fire.
+        target: String,
+    },
 }
 
 /// Top-level entry point from main(). Returns a process exit code.
@@ -191,6 +202,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Command::Migrate { dry_run } => cmd_migrate(dry_run),
         Command::Man { output } => cmd_man(output.as_deref()),
         Command::Daemon => cmd_daemon(),
+        Command::TriggerFire { target } => cmd_trigger_fire(&target),
     };
 
     match result {
@@ -1211,6 +1223,96 @@ fn cmd_show(target: &str) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// Daemon-side dispatch wrapper. Compositor binds (Hyprland, Sway,
+/// portal) point at `wflow trigger-fire <id>` instead of `wflow run`
+/// so we can gate on the workflow's `trigger.when` predicate before
+/// firing — the bind itself is global because no Wayland compositor
+/// exposes per-window hotkey grabs.
+///
+/// Predicate semantics:
+///   - No `when` clause: fire as if predicate held.
+///   - `window-class="x"`: fire iff the focused window's class
+///     contains `x`, case-insensitive.
+///   - `window-title="x"`: fire iff the focused window's title
+///     contains `x`, case-insensitive.
+///   - Probe failed (no Hyprland / Sway IPC reachable): fire anyway,
+///     fail-open. KDE / GNOME portal users get the chord without
+///     gating until the per-DE probe lands.
+///
+/// A skipped fire is silent (exit 0, single tracing::info! line) so
+/// the chord registers as a no-op rather than a noisy failure on
+/// every press in the wrong window.
+fn cmd_trigger_fire(target: &str) -> Result<ExitCode> {
+    use crate::actions::{TriggerCondition, TriggerKind};
+
+    let wf = match load_target(target) {
+        Ok(wf) => wf,
+        Err(e) => {
+            tracing::warn!(target, ?e, "trigger-fire: load failed");
+            return Ok(ExitCode::SUCCESS);
+        }
+    };
+
+    // The chord that fired might be one of several triggers on the
+    // same workflow — we don't know which. If any chord-trigger has
+    // no `when`, fire. If every chord-trigger has a `when`, fire only
+    // if at least one matches. This collapses to "no when blocks
+    // fire" / "first matching when fires" without needing the daemon
+    // to pass the activated chord back through.
+    let chord_triggers: Vec<_> = wf
+        .triggers
+        .iter()
+        .filter(|t| matches!(t.kind, TriggerKind::Chord { .. }))
+        .collect();
+
+    if chord_triggers.is_empty() {
+        // Should never happen — daemon wouldn't have bound this — but
+        // fail open if a workflow's triggers got edited mid-session.
+        return cmd_run(target, false, false, true);
+    }
+
+    let any_unconditional = chord_triggers.iter().any(|t| t.when.is_none());
+    if any_unconditional {
+        return cmd_run(target, false, false, true);
+    }
+
+    let active = crate::active_window::probe();
+    if active.is_none() {
+        // No probe reachable on this compositor (KDE / GNOME today).
+        // Fail open: better to fire a workflow when the user pressed
+        // its chord than silently swallow it. Tracing makes this
+        // debuggable from the daemon journal.
+        tracing::debug!(
+            target,
+            "trigger-fire: no active-window probe available; firing without gate"
+        );
+        return cmd_run(target, false, false, true);
+    }
+
+    let active = active.unwrap();
+    let matched = chord_triggers.iter().any(|t| match &t.when {
+        Some(TriggerCondition::WindowClass { class }) => {
+            active.class.to_lowercase().contains(&class.to_lowercase())
+        }
+        Some(TriggerCondition::WindowTitle { title }) => {
+            active.title.to_lowercase().contains(&title.to_lowercase())
+        }
+        None => true,
+    });
+
+    if !matched {
+        tracing::info!(
+            target,
+            class = %active.class,
+            title = %active.title,
+            "trigger-fire: predicate did not match focused window; skipping"
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    cmd_run(target, false, false, true)
 }
 
 fn cmd_run(target: &str, dry_run: bool, explain: bool, yes: bool) -> Result<ExitCode> {

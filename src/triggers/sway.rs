@@ -98,7 +98,7 @@ impl Backend for SwayBackend {
         }
 
         let cmd = format!(
-            "bindsym {sway_chord} exec {} run {} --yes",
+            "bindsym {sway_chord} exec {} trigger-fire {}",
             self.wflow_bin.display(),
             b.workflow_id,
         );

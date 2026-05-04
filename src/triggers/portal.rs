@@ -99,15 +99,17 @@ pub async fn run(bindings: Vec<Binding>) -> Result<RunSummary> {
                     continue;
                 };
                 let bin = wflow_bin.clone();
+                // trigger-fire gates on the workflow's `when`. KDE 6 /
+                // GNOME 46+ have no class/title probe; falls open there.
                 tokio::spawn(async move {
                     let status = Command::new(&bin)
-                        .args(["run", &workflow_id, "--yes"])
+                        .args(["trigger-fire", &workflow_id])
                         .status()
                         .await;
                     match status {
                         Ok(s) if s.success() => {}
-                        Ok(s) => tracing::warn!(workflow_id, ?s, "wflow run exited non-zero"),
-                        Err(e) => tracing::warn!(workflow_id, ?e, "wflow run failed to spawn"),
+                        Ok(s) => tracing::warn!(workflow_id, ?s, "trigger-fire exited non-zero"),
+                        Err(e) => tracing::warn!(workflow_id, ?e, "trigger-fire failed to spawn"),
                     }
                 });
             }
