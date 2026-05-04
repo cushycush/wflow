@@ -209,6 +209,21 @@ Rectangle {
                     font.letterSpacing: 0.4
                     visible: card.wf && card.wf.imports
                 }
+                Text {
+                    text: "·"
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 9
+                    visible: card.wf && card.wf.stars
+                }
+                Text {
+                    text: card.wf ? "★ " + _formatCount(card.wf.stars) : ""
+                    color: Theme.text3
+                    font.family: Theme.familyMono
+                    font.pixelSize: 9
+                    font.letterSpacing: 0.4
+                    visible: card.wf && card.wf.stars
+                }
             }
 
             // Category tag in the same slot library cards use for the

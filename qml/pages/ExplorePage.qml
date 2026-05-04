@@ -121,6 +121,7 @@ Item {
             kinds: kinds,
             trail: trail,
             imports: row.installCount || 0,
+            stars: row.starCount || 0,
             forks: row.remixCount || 0,
             steps: row.stepCount || kinds.length,
             hasShell: kinds.indexOf("shell") >= 0,
