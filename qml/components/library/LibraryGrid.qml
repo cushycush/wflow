@@ -15,6 +15,7 @@ Item {
     signal openFolder(string fullPath)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
+    signal publishRequested(string id)
     signal toggleSelected(string id)
 
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
@@ -321,6 +322,17 @@ Item {
             WfMenu {
                 id: cardMenu
                 WfMenuItem {
+                    // Visible only when signed in to wflows.com — the
+                    // publish API needs a Bearer token. Hidden for
+                    // anonymous users so the menu doesn't tease an
+                    // affordance they can't act on. Theme._auth.state
+                    // re-evaluates reactively, so signing in mid-session
+                    // makes the item appear without any reload.
+                    visible: Theme._auth.state === "signed_in"
+                    text: "↑ Publish to wflows.com"
+                    onTriggered: root.publishRequested(card.wf.id)
+                }
+                WfMenuItem {
                     text: "Duplicate"
                     onTriggered: root.duplicateRequested(card.wf.id)
                 }
@@ -358,11 +370,61 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
+                    // Publish pill, sits where the Open pill used to,
+                    // anchored to the top-right of the card. Visible
+                    // only when signed in to wflows.com so anonymous
+                    // users don't see an affordance they can't use.
+                    // Clicking the rest of the card still opens the
+                    // editor; the pill stops propagation so it always
+                    // means publish.
+                    Rectangle {
+                        id: publishPill
+                        visible: Theme._auth.state === "signed_in"
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: visible ? publishLabel.implicitWidth + 20 : 0
+                        height: 24
+                        radius: Theme.radiusPill
+                        color: publishArea.containsMouse
+                            ? Theme.accent
+                            : "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Text {
+                            id: publishLabel
+                            anchors.centerIn: parent
+                            text: "↑ Publish"
+                            color: publishArea.containsMouse ? Theme.accentText : Theme.accent
+                            font.family: Theme.familyMono
+                            font.pixelSize: 10
+                            font.letterSpacing: 0.3
+                            font.weight: Font.DemiBold
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        }
+
+                        MouseArea {
+                            id: publishArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                mouse.accepted = true
+                                root.publishRequested(card.wf.id)
+                            }
+                        }
+
+                        ToolTip.visible: publishArea.containsMouse
+                        ToolTip.delay: 400
+                        ToolTip.text: "Publish to wflows.com"
+                    }
+
                     Column {
                         anchors.left: monoAvatar.right
                         anchors.leftMargin: 10
-                        anchors.right: openPill.left
-                        anchors.rightMargin: 10
+                        anchors.right: publishPill.visible ? publishPill.left : parent.right
+                        anchors.rightMargin: publishPill.visible ? 8 : 4
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
 
@@ -385,43 +447,6 @@ Item {
                             font.pixelSize: 10
                             elide: Text.ElideRight
                             width: parent.width
-                        }
-                    }
-
-                    // Pill mirror of wflows.com's "Open in wflow" CTA.
-                    // Click does the same thing the whole card does,
-                    // just with a deliberate accent on hover.
-                    Rectangle {
-                        id: openPill
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: openText.implicitWidth + 22
-                        height: 26
-                        radius: height / 2
-                        color: openArea.containsMouse ? Theme.accent : Theme.surface2
-                        border.color: openArea.containsMouse ? Theme.accent : Theme.line
-                        border.width: 1
-                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-
-                        Text {
-                            id: openText
-                            anchors.centerIn: parent
-                            text: "↗  Open"
-                            color: openArea.containsMouse ? Theme.accentText : Theme.text2
-                            font.family: Theme.familyBody
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                            font.letterSpacing: 0.4
-                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                        }
-
-                        MouseArea {
-                            id: openArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.openWorkflow(card.wf.id)
                         }
                     }
                 }
@@ -516,6 +541,9 @@ Item {
                         }
                     }
 
+                    // Imported-from badge sits in the right slot.
+                    // Read-only metadata; publish lives at the top of
+                    // the card so a long title can't squash it.
                     Rectangle {
                         visible: !!card.wf.importedFrom
                         anchors.right: parent.right

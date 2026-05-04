@@ -212,6 +212,42 @@ Item {
         onConfirmed: libCtrl.remove(deleteDialog.targetId)
     }
 
+    function _openPublish(id) {
+        const wf = root.workflows.find(w => w.id === id)
+        publishDialog.workflowId = id
+        publishDialog.workflowTitle = wf ? wf.title : id
+        publishDialog.open()
+    }
+
+    ExploreController {
+        id: publishCatalog
+        onPublish_succeeded: (handle, slug, url) => {
+            publishDialog.publishedHandle = handle
+            publishDialog.publishedSlug = slug
+            publishDialog.publishedUrl = url
+            publishDialog.lastError = ""
+            publishDialog.succeeded = true
+        }
+        onPublish_failed: (reason) => {
+            publishDialog.lastError = reason
+            publishDialog.succeeded = false
+        }
+        onAuth_expired: {
+            Theme._auth.sign_out()
+            publishDialog.lastError = "signed out, sign in again to publish"
+        }
+    }
+
+    PublishDialog {
+        id: publishDialog
+        busy: publishCatalog.loading
+        onPublishRequested: (workflowId, description, readme, tagsJson, visibility) => {
+            publishCatalog.publish_workflow(
+                workflowId, description, readme, tagsJson, visibility
+            )
+        }
+    }
+
     property bool selectMode: false
     property var selectedIds: ({})
     readonly property int selectedCount: Object.keys(root.selectedIds).length
@@ -831,6 +867,7 @@ Item {
                             onOpenFolder: (path) => { root.currentFolder = path }
                             onDeleteRequested: (id) => root._askDelete(id)
                             onDuplicateRequested: (id) => libCtrl.duplicate(id)
+                            onPublishRequested: (id) => root._openPublish(id)
                             onToggleSelected: (id) => root._toggleSelected(id)
                         }
                     }
