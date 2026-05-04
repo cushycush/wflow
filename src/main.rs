@@ -8,6 +8,7 @@
 mod actions;
 mod bridge;
 mod cli;
+mod daemon_autostart;
 mod daemon_lock;
 mod engine;
 mod gui_lock;
@@ -66,6 +67,12 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
             // start invokable will pull it out once QML constructs
             // the singleton.
             bridge::deeplink_inbox::install_url_receiver(url_rx);
+            // First-run side-effect: enable the systemd user unit so
+            // the trigger daemon starts with every graphical session
+            // afterwards. No-op on subsequent launches and on
+            // Flatpak. Runs synchronously but quickly — systemctl
+            // returns in well under a second on a normal session.
+            daemon_autostart::ensure_enabled();
             run_gui_with_lock(Some(guard), deeplink)
         }
         gui_lock::AcquireOutcome::AlreadyRunning { pid } => {

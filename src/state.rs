@@ -66,6 +66,13 @@ pub struct State {
     /// before the network round-trip to `/api/v0/me` resolves.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthSnapshot>,
+    /// True once we've tried to enable the systemd user unit for the
+    /// trigger daemon. Set on first GUI launch; afterwards the user
+    /// is in control of `systemctl --user enable/disable wflow-daemon`.
+    /// We never retry, so a user who explicitly disables the unit
+    /// doesn't get it re-enabled by us on the next launch.
+    #[serde(default)]
+    pub daemon_autostart_attempted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -108,6 +115,7 @@ impl Default for State {
             library_sort: default_library_sort(),
             workflows_dir: None,
             auth: None,
+            daemon_autostart_attempted: false,
         }
     }
 }
