@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Capture the full design-docs / Claude Design screenshot baseline
-# in one pass.
+# Capture the v1.0 screenshot baseline in one pass — the catalog,
+# sign-in, publish, triggers, and the editor surfaces that the
+# README and design docs reference.
 #
 # For each surface this script:
 #   1. Prompts you to set up the UI state
@@ -9,16 +10,13 @@
 #   4. Captures <surface>.light.png
 #   5. Flips theme back to dark
 #
-# Output lands in docs/design/screenshots/claude-design/, isolated
-# from the README v0.4 captures (which live in the screenshots root
-# named <surface>.04.dark / .light). Upload the contents of the
-# claude-design subdir verbatim. Skip a surface by pressing 'n' at
-# the prompt; capture all of it by pressing Enter.
+# Output lands in docs/design/screenshots/claude-design/. Skip a
+# surface by pressing 'n' at the prompt.
 #
 # Requires: cargo, grim, jq, wtype, and a Hyprland or Sway session.
-# Explore captures are skipped when Theme.showExplore is false (the
-# 0.4.0 default). Re-enable the flag in qml/Theme.qml + rebuild if
-# you want them.
+# A signed-in wflow account is needed for the account-signed-in,
+# publish-dialog, and publish-card-pill shots. Skip those with 'n'
+# if you're capturing on a fresh / signed-out install.
 
 set -euo pipefail
 
@@ -27,10 +25,6 @@ cd "$ROOT"
 
 BIN="$ROOT/target/debug/wflow"
 LOG="/tmp/wflow-shoot.log"
-# Claude Design / design-docs baseline shots land in their own subdir
-# so they don't get mixed up with the README v0.4 captures (named
-# <surface>.04.dark / .light) sitting in the screenshots root. Upload
-# the contents of this subdir verbatim to Claude Design.
 DEST="$ROOT/docs/design/screenshots/claude-design"
 GRAB_DEST="$ROOT/docs/design/screenshots"
 mkdir -p "$DEST"
@@ -68,9 +62,6 @@ if ! hyprctl -j clients 2>/dev/null | jq -e '.[] | select(.class == "wflow")' > 
 fi
 
 # ---- Helpers ----
-# Send a key combo to wflow. Focuses wflow first so the keystroke
-# lands on the right window even if you alt-tabbed away during a
-# user prompt.
 focus_wflow() {
     local addr
     addr=$(hyprctl -j clients 2>/dev/null \
@@ -79,9 +70,6 @@ focus_wflow() {
     sleep 0.3
 }
 
-# State.toml is the source of truth for the theme. apply_theme_mode
-# saves to disk synchronously (see src/bridge/state.rs), so reading
-# it after a keystroke tells us whether the flip actually committed.
 STATE_TOML="${XDG_CONFIG_HOME:-$HOME/.config}/wflow/state.toml"
 read_theme() {
     grep -m1 '^theme_mode' "$STATE_TOML" 2>/dev/null \
@@ -89,9 +77,6 @@ read_theme() {
         | tr -d '\n'
 }
 
-# Press Ctrl+. once and poll state.toml until theme_mode changes.
-# Returns 0 if the keystroke landed, 1 if it didn't reach wflow
-# (terminal probably stole focus).
 press_cycle() {
     local before; before=$(read_theme)
     focus_wflow
@@ -101,18 +86,13 @@ press_cycle() {
         sleep 0.1
         local now; now=$(read_theme)
         if [[ -n "$now" && "$now" != "$before" ]]; then
-            sleep 0.3   # let the QML ColorAnimation settle
+            sleep 0.3
             return 0
         fi
     done
     return 1
 }
 
-# Cycle Ctrl+. until theme_mode == $1. The theme cycles
-# dark → auto → light → dark — so going dark→light needs TWO
-# presses, light→dark needs one. ensure_theme handles either.
-# Falls back to asking the user to flip manually if four cycles
-# don't get there.
 ensure_theme() {
     local target="$1"
     local cur; cur=$(read_theme)
@@ -123,9 +103,6 @@ ensure_theme() {
             sleep 0.5
         fi
         cur=$(read_theme)
-        # `tries=$((tries+1))` instead of `((tries++))` — the latter
-        # returns the pre-increment value, which is 0 on the first
-        # iteration; under `set -e` that kills the script.
         tries=$((tries + 1))
     done
     if [[ "$cur" != "$target" ]]; then
@@ -136,10 +113,6 @@ ensure_theme() {
 
 capture() {
     local name="$1"
-    # Re-focus + a generous settle before grim fires, so any pending
-    # theme transition or repaint has finished by the time we sample
-    # pixels. Then move from grab.sh's default path into the
-    # claude-design subdir.
     focus_wflow
     sleep 0.5
     "$ROOT/scripts/grab.sh" "$name" >/dev/null
@@ -149,8 +122,6 @@ capture() {
     echo "  ✓ $DEST/$name.png"
 }
 
-# 5-second countdown after Enter — gives you time to move the cursor
-# onto the element you want hovered before grim fires.
 countdown() {
     echo "  position your cursor inside wflow now..."
     for i in 5 4 3 2 1; do
@@ -160,8 +131,6 @@ countdown() {
     printf "    capture!     \n"
 }
 
-# Capture a (dark, light) pair for one surface. Prompts the user to
-# set up the state first; pressing 'n' skips both shots.
 pair() {
     local base="$1"
     local prompt="$2"
@@ -179,57 +148,87 @@ pair() {
     ensure_theme light
     countdown
     capture "${base}.light"
-    ensure_theme dark   # leave on dark for the next surface
+    ensure_theme dark
 }
 
-# Send a Ctrl+N shortcut to navigate. This lets the script bounce
-# between Library / Record without needing the user to click — but
-# the editor + settings still need a manual click in between.
+# ---- Nav helpers ----
+# Ctrl+N follows the chrome pill order with Theme.showExplore on:
+#   Ctrl+1 = Library, Ctrl+2 = Explore, Ctrl+3 = Record.
+# Triggers, Favorites, Settings have no shortcuts — click in chrome.
 nav_library() { focus_wflow; wtype -M ctrl -k 1 -m ctrl; sleep 0.4; }
-nav_record()  { focus_wflow; wtype -M ctrl -k 2 -m ctrl; sleep 0.4; }
+nav_explore() { focus_wflow; wtype -M ctrl -k 2 -m ctrl; sleep 0.4; }
+nav_record()  { focus_wflow; wtype -M ctrl -k 3 -m ctrl; sleep 0.4; }
 
 # ---- Walk the manifest ----
 
+# Library — the Daily folder + 5 top-level cards layout.
 nav_library
 pair "library-grid" \
-    "Library page. The eight bundled templates should be visible. No menus open."
+    "Library tab. Five workflow cards plus the 'Daily' folder tile, no menus open."
 
-# Library empty: requires a workflow folder swap. Skip via prompt
-# unless the user has already cleared the library.
-pair "library-empty" \
-    "(Optional) Move all .kdl files out of ~/.config/wflow/workflows/ first to see the empty state. Press n to skip if your library is full."
+pair "library-folder-open" \
+    "Click the 'Daily' folder tile to drill in. Two cards visible: Resume coding + Daily standup."
 
+pair "library-publish-pill" \
+    "Library tab, signed in to wflows.io. Each card should show the '↑ Publish' pill in the top-right corner. Skip if signed out."
+
+# Editor — Resume coding is the demo workflow. Short enough to fit on
+# screen at a readable zoom, but the when/else block fans the canvas
+# into branches (the v0.6.0 conditional feature) so the layout isn't
+# a boring straight line. Lives at Daily/resume-coding.kdl. Make sure
+# it has saved card positions before running — open it once and let
+# Smart Tidy do its thing.
+nav_library
 pair "editor-canvas" \
-    "Open Morning sync. Hover the right-side tool dock and click ✦ Smart tidy. The whole flow should fit at a readable zoom."
+    "From Library, drill into the Daily folder, open Resume coding. Hover the right tool dock and click ✦ Smart tidy. The when/else block should fan into two branches; the whole flow fits at a readable zoom."
 
 pair "editor-step-palette" \
-    "Same workflow open. Hover over the LEFT dock during the countdown so the palette expands and the labels slide in next to each coloured chip — that's the shot."
+    "Same workflow open. Hover over the LEFT dock during the countdown so the palette expands and the labels slide in next to each chip."
 
 pair "editor-inspector" \
     "Same workflow open. Click any step card so the inspector slides in from the right."
 
+pair "editor-trigger-card" \
+    "Same workflow open. The pinned trigger card at the top-left of the canvas should read the chord 'super+shift+c'."
+
+# Triggers tab — chrome pill, fourth slot. Four workflows ship with
+# chord bindings: resume-coding (super+shift+c), daily-standup
+# (super+shift+d), screenshot-and-share (super+shift+s), loop-tab-thru
+# (super+shift+t).
+nav_library
+pair "triggers-tab" \
+    "Click the 'Triggers' tab in the chrome pill. List shows the four bound workflows with their chords."
+
+# Explore tab — Ctrl+2 navigates here when showExplore is on.
+nav_explore
+pair "explore-grid" \
+    "Explore tab. Featured row + browse grid populated from wflows.io. No drawer open."
+
+pair "explore-detail" \
+    "Click any Explore card to slide the detail drawer in over the grid."
+
+# Record tab.
 nav_record
 pair "record-idle" \
-    "Record page in idle state — big amber button, no events captured."
+    "Record tab in idle state — big amber button, no events captured."
 
 pair "record-recording" \
     "Click the big button to arm, perform a few keystrokes, leave the recorder running. Capture mid-session."
 
-# Settings is reachable from the cog in the chrome — no shortcut.
+# Settings — gear icon in the bottom-right of the nav pill.
 pair "settings" \
-    "Click the gear in the bottom-right of the nav pill to open Settings."
+    "Click the gear in the bottom-right of the nav pill to open Settings. Capture the top of the page."
 
-# Explore — only if the flag is on.
-if grep -q 'showExplore: true' qml/Theme.qml 2>/dev/null; then
-    pair "explore-grid" \
-        "Explore page (Ctrl+2). Mock catalog visible."
-    pair "explore-detail" \
-        "Click any Explore card to slide the detail drawer in over the grid."
-else
-    echo
-    echo "Skipping explore-grid / explore-detail — Theme.showExplore is false."
-    echo "(Re-enable the flag in qml/Theme.qml + rebuild if you want them.)"
-fi
+pair "settings-account" \
+    "Settings open. Scroll to the Account section. Signed out shows the Sign in button; signed in shows @handle and a Sign out button. Capture whichever state is real."
+
+pair "settings-palette" \
+    "Settings open. Scroll to the Palette section showing the Warm Paper / Cool Slate switcher."
+
+# Publish flow — only meaningful when signed in. Skip otherwise.
+nav_library
+pair "publish-dialog" \
+    "Library tab. Right-click any workflow → 'Publish to wflows.io', or click the publish pill on a card. Fill in description + a few tags so the form has content. Skip if signed out."
 
 echo
 echo "Done. $(ls "$DEST"/*.png 2>/dev/null | wc -l) PNGs in $DEST/"
