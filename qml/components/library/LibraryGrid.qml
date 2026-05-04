@@ -22,6 +22,11 @@ Item {
     signal openFolder(string fullPath)
     signal deleteRequested(string id)
     signal duplicateRequested(string id)
+    /// Routed up to LibraryPage which owns the PublishDialog +
+    /// ExploreController instance for the publish flow. Cards just
+    /// emit the id and forget; the page handles auth-state gating
+    /// and the dialog lifecycle.
+    signal publishRequested(string id)
     signal toggleSelected(string id)
 
     // Auto-column — each column wants ~300px minimum.
@@ -393,6 +398,17 @@ Item {
             WfMenu {
                 id: cardMenu
                 WfMenuItem {
+                    // Visible only when signed in to wflows.com — the
+                    // publish API needs a Bearer token. Hidden for
+                    // anonymous users so the menu doesn't tease an
+                    // affordance they can't act on. Theme._auth.state
+                    // re-evaluates reactively, so signing in mid-session
+                    // makes the item appear without any reload.
+                    visible: Theme._auth.state === "signed_in"
+                    text: "↑ Publish to wflows.com"
+                    onTriggered: root.publishRequested(card.wf.id)
+                }
+                WfMenuItem {
                     text: "Duplicate"
                     onTriggered: root.duplicateRequested(card.wf.id)
                 }
@@ -463,6 +479,51 @@ Item {
                             elide: Text.ElideRight
                             width: parent.width
                         }
+                    }
+
+                    // Publish pill — visible only when signed in. Same
+                    // shape as the Open pill but accent-bordered to
+                    // signal its outbound-action register. Routes
+                    // through LibraryGrid's publishRequested signal so
+                    // the page (which holds the dialog + bridge) can
+                    // open the publish flow.
+                    Rectangle {
+                        id: publishPill
+                        visible: Theme._auth.state === "signed_in"
+                        anchors.right: openPill.left
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: publishText.implicitWidth + 22
+                        height: 26
+                        radius: height / 2
+                        color: publishArea.containsMouse ? Theme.accent : "transparent"
+                        border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Text {
+                            id: publishText
+                            anchors.centerIn: parent
+                            text: "↑  Publish"
+                            color: publishArea.containsMouse ? Theme.accentText : Theme.accent
+                            font.family: Theme.familyBody
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            font.letterSpacing: 0.4
+                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                        }
+
+                        MouseArea {
+                            id: publishArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.publishRequested(card.wf.id)
+                        }
+
+                        ToolTip.visible: publishArea.containsMouse
+                        ToolTip.delay: 400
+                        ToolTip.text: "Publish this workflow to wflows.com"
                     }
 
                     // Pill mirror of wflows.com's "Open in wflow" CTA.
