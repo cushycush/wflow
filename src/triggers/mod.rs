@@ -35,11 +35,11 @@ pub struct Binding {
 }
 
 impl Binding {
-    /// Skip non-chord triggers for now (hotstrings need a global
-    /// keyboard monitor, not a compositor binding) and skip chord
-    /// triggers with a `when` predicate (the compositor binds
-    /// globally; per-window gating ships in v0.5 alongside Sway /
-    /// KDE / GNOME backends).
+    /// Chord triggers (with or without a `when` predicate) are
+    /// dispatchable today. The daemon binds them globally and
+    /// `wflow trigger-fire` gates activation by probing the focused
+    /// window before running. Hotstrings still need a separate global
+    /// keyboard monitor and aren't bound yet.
     pub fn is_dispatchable_today(&self) -> bool {
         matches!(self.trigger.kind, TriggerKind::Chord { .. })
     }
