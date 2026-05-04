@@ -801,7 +801,10 @@ struct DetailData {
 /// Preview payload sent to QML for the confirm dialog. `step_count`
 /// is derived from parsing `kdl_source` through the same decoder
 /// the run path uses, so it matches what the engine would actually
-/// execute — not a byte heuristic.
+/// execute — not a byte heuristic. `chords` carries any chord
+/// triggers declared in the workflow, plus a conflict flag computed
+/// against the user's existing library so the dialog can warn before
+/// the user accepts.
 #[derive(serde::Serialize)]
 struct DeeplinkPreview {
     title: String,
@@ -812,6 +815,75 @@ struct DeeplinkPreview {
     step_count: usize,
     #[serde(rename = "sourceUrl")]
     source_url: String,
+    /// Chord triggers the workflow wants bound on import. Empty
+    /// vector when the workflow ships with no triggers (still
+    /// useful — clicking Import then opens the editor without
+    /// any chord magic). Conflicts are scored against the local
+    /// library at preview time so the dialog can surface them.
+    chords: Vec<DeeplinkChord>,
+}
+
+#[derive(serde::Serialize)]
+struct DeeplinkChord {
+    chord: String,
+    /// "ghostty" / "Slack" etc. — empty string when the trigger has
+    /// no `when` predicate. The QML dialog renders this as a
+    /// secondary line under the chord pill.
+    #[serde(rename = "whenLabel")]
+    when_label: String,
+    /// Title of an existing local workflow that already binds this
+    /// chord, if any. Empty string when there's no conflict. The
+    /// dialog uses this to warn the user that accepting will swap
+    /// the chord onto the imported workflow.
+    #[serde(rename = "conflictsWith")]
+    conflicts_with: String,
+}
+
+/// Walk the local library once and return a chord → workflow-title
+/// map for conflict detection. Cheap (KDL parse on every file in
+/// `~/.config/wflow/workflows/`) and only used for previews, which
+/// happen once per `wflow://` click.
+fn local_chord_index() -> std::collections::HashMap<String, String> {
+    let mut idx = std::collections::HashMap::new();
+    let workflows = match crate::store::list() {
+        Ok(w) => w,
+        Err(_) => return idx,
+    };
+    for wf in workflows {
+        for t in &wf.triggers {
+            if let crate::actions::TriggerKind::Chord { chord } = &t.kind {
+                idx.insert(chord.clone(), wf.title.clone());
+            }
+        }
+    }
+    idx
+}
+
+fn build_chord_previews(triggers: &[crate::actions::Trigger]) -> Vec<DeeplinkChord> {
+    let local = local_chord_index();
+    triggers
+        .iter()
+        .filter_map(|t| {
+            let crate::actions::TriggerKind::Chord { chord } = &t.kind else {
+                return None;
+            };
+            let when_label = match &t.when {
+                Some(crate::actions::TriggerCondition::WindowClass { class }) => {
+                    format!("when window-class={class}")
+                }
+                Some(crate::actions::TriggerCondition::WindowTitle { title }) => {
+                    format!("when window-title={title}")
+                }
+                None => String::new(),
+            };
+            let conflicts_with = local.get(chord).cloned().unwrap_or_default();
+            Some(DeeplinkChord {
+                chord: chord.clone(),
+                when_label,
+                conflicts_with,
+            })
+        })
+        .collect()
 }
 
 fn spawn_preview(
@@ -867,6 +939,7 @@ async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
         Ok(env) => {
             let wf = crate::kdl_format::decode(&env.data.kdl_source)
                 .context("decode kdl from wflows.io")?;
+            let chords = build_chord_previews(&wf.triggers);
             DeeplinkPreview {
                 title: env.data.title,
                 handle: env.data.handle,
@@ -874,11 +947,13 @@ async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
                 description: env.data.description.unwrap_or_default(),
                 step_count: wf.steps.len(),
                 source_url: url.to_string(),
+                chords,
             }
         }
         Err(_) => {
             let wf = crate::kdl_format::decode(&body)
                 .context("decode raw kdl")?;
+            let chords = build_chord_previews(&wf.triggers);
             DeeplinkPreview {
                 title: wf.title.clone(),
                 handle: String::new(),
@@ -886,6 +961,7 @@ async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
                 description: wf.subtitle.clone().unwrap_or_default(),
                 step_count: wf.steps.len(),
                 source_url: url.to_string(),
+                chords,
             }
         }
     };
