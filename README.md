@@ -1,41 +1,97 @@
 # wflow
 
-**Shortcuts for Linux. GUI editor backed by plain-text workflow files.**
+**Shortcuts for Linux. GUI editor backed by plain-text workflow files,
+a global-hotkey daemon, and a community catalog at
+[wflows.io](https://wflows.io).**
 
-![wflow library — eight example workflows in a grid, each tagged with its action types](assets/screenshots/wflow-library.png)
+![wflow library — five workflow cards plus a Daily folder, each tagged with its action types](docs/design/screenshots/claude-design/library-grid.dark.png)
 
 A Qt Quick app for building, editing, recording, and replaying desktop
 workflows on Wayland. Pick a template or start blank, edit the steps,
 hit Run, watch each step report back. Or skip the editor entirely and
 hand-write the file in `$EDITOR`. Both paths produce the same output.
 
-Built on [wdotool-core](https://github.com/cushycush/wdotool) for
-input injection — linked in process, no `wdotool` binary required at
-runtime.
+Built on [wdotool-core](https://github.com/cushycush/wdotool) for input
+injection — linked in process, no `wdotool` binary required at runtime.
 
 ## The editor
 
-Free-positioning canvas. Drag chips from the palette dock on the left to
-drop a step anywhere; wires auto-route between consecutive steps; conditionals
-render as branch shapes with explicit yes/no outputs; repeat is a container
-with an inline strip of inner rows. Smart Tidy on the right-side tool dock
-picks the layout that keeps cards readable at the closest-to-1.0 zoom.
+Free-positioning canvas. Drag chips from the palette dock on the left
+to drop a step anywhere; wires auto-route between consecutive steps;
+conditionals render as branch shapes with explicit yes/no outputs;
+repeat is a container with an inline strip of inner rows. Smart Tidy
+on the right-side tool dock picks the layout that keeps cards readable
+at the closest-to-1.0 zoom.
 
-![Morning sync workflow open in the editor — eleven steps, a yes/no conditional, a repeat container with an inner step, and three coloured group rectangles annotating the update / verify / share sections](assets/screenshots/wflow-editor.png)
+![Resume coding workflow open in the editor — four steps with a when/else block fanning into two branches](docs/design/screenshots/claude-design/editor-canvas.dark.png)
 
-Multi-select with shift- or ctrl-click; lasso a region with shift- or
-ctrl-drag; alt-drag to draw a coloured group rectangle behind cards as a
-visual annotation. Selection highlights live as the marquee crosses cards.
-
-![The same workflow with a marquee dragged around four cards on the right side, all highlighted as the rect moves](assets/screenshots/wflow-multiselect.png)
+The pinned trigger card at the top-left of the canvas surfaces the
+chord binding for the workflow, so you don't have to read the KDL to
+know what fires it. Multi-select with shift- or ctrl-click; lasso a
+region with shift- or ctrl-drag; alt-drag to draw a coloured group
+rectangle behind cards as a visual annotation.
 
 Step-by-step debugger. ⏯ Debug pauses the engine between every action;
 Step / Continue / Stop are the controls. The active card pulses; each
 step's status dot settles to green / red / grey on outcome. Repeat
-inner steps each get their own dot and pulse on every iteration so loops
-are easy to read.
+inner steps each get their own dot and pulse on every iteration so
+loops are easy to read.
 
-![The editor in debug mode — the run controls have flipped to Step / Continue / Stop, the conditional card is highlighted as the active step, and the status dots show the steps that have already finished](assets/screenshots/wflow-debug.png)
+## Explore
+
+A community catalog of workflows lives at
+[wflows.io](https://wflows.io). Sign in from Settings → Account, browse
+from the Explore tab, click any card to import it.
+
+![Explore tab — featured row plus browse grid, each card tagged with action types and install / star counts](docs/design/screenshots/claude-design/explore-grid.dark.png)
+
+The detail drawer parses the inline KDL through the same decoder the
+runner uses, so the step preview is exactly what the engine would
+execute. Install and star counts come from the live API. Importing
+shows a confirm dialog with title, author, description, and step
+count before anything writes to disk — a drive-by page that opens
+`wflow://import?source=...` in your browser can't silently install
+something you didn't intend to keep.
+
+When you're signed in, every card in your local Library grows a small
+"↑ Publish" pill in the top-right corner. Click it, fill in the
+description, tags, and visibility, hit publish, and your workflow
+posts to wflows.io. The KDL on disk is the source of truth — no
+copy-paste, no reformatting.
+
+## Triggers
+
+`wflow daemon` is a long-lived background process that binds every
+chord declared in your library and dispatches the right workflow when
+one fires. It picks the GlobalShortcuts portal on Plasma 6 and GNOME
+46+, and falls back to compositor IPC on Hyprland and Sway.
+
+![Triggers tab — list of bound workflows with their chords](docs/design/screenshots/claude-design/triggers-tab.dark.png)
+
+Author chords inside each workflow's KDL (`trigger { chord
+"super+shift+c" }`) or use the Triggers tab in the GUI. Either way the
+daemon's file watcher picks up changes in real time on Hyprland and
+Sway; portal-mode users restart the daemon to apply trigger changes
+(the GlobalShortcuts portal binds shortcuts once per session by spec).
+
+The first time you launch the GUI it offers to enable the systemd user
+unit so the daemon starts on every login.
+
+## Record
+
+Walk through the actions you want to replay, stop, the captured stream
+becomes a new workflow.
+
+![Record tab — idle state, big amber button waiting](docs/design/screenshots/claude-design/record-idle.dark.png)
+
+Record uses `org.freedesktop.portal.RemoteDesktop` on Plasma 6 and
+GNOME 46+ (explicit consent dialog, no extra permissions). On
+Hyprland, Sway, and other wlroots compositors that don't ship the
+portal interface yet, Record falls back to reading
+`/dev/input/event*` directly via `evdev`. That requires being in the
+`input` group: `sudo usermod -aG input $USER` then log out and back
+in. If neither path is available, Record shows a clear setup error
+instead of silently capturing nothing.
 
 ## Install
 
@@ -47,27 +103,25 @@ paru -S wflow              # builds from source, ~5min on a fast machine
 paru -S wflow-git          # tracks main, builds from source
 ```
 
-`wflow-bin` is the same binary the GitHub release ships. Install
-it if you want to skip the cargo build; install `wflow` if you
-prefer a from-source build with your local rustc + LTO.
+`wflow-bin` is the same binary the GitHub release ships. Install it if
+you want to skip the cargo build; install `wflow` if you prefer a
+from-source build with your local rustc + LTO.
 
 PKGBUILDs in [`packaging/aur/`](packaging/aur/) for local builds.
 
 ### From source
 
-Requires Rust 1.77+ and Qt 6 development headers (`qt6-base`,
-`qt6-declarative` on Arch; `qt6-base-dev`, `qt6-declarative-dev` on
-Debian/Ubuntu).
+Requires Rust 1.77+ and Qt 6.11+ (`qt6-base`, `qt6-declarative`,
+`qt6-quickcontrols2` on Arch; equivalents on Debian/Ubuntu).
 
 ```sh
 cargo install --path . --locked
 ```
 
-For desktop notifications and clipboard actions, install
-`libnotify` (for `notify-send`) and `wl-clipboard` (for `wl-copy`)
-through your distro. Input/window automation goes through
-`wdotool-core` linked into wflow itself — no separate binary to
-install.
+For desktop notifications and clipboard actions, install `libnotify`
+(for `notify-send`) and `wl-clipboard` (for `wl-copy`) through your
+distro. Input/window automation goes through `wdotool-core` linked
+into wflow itself — no separate binary to install.
 
 ### Prebuilt tarball
 
@@ -83,9 +137,6 @@ submission lands once the last host-machine verification item closes.
 For now: build locally with `./packaging/flatpak/build-local.sh`.
 
 ### Auto-start on login
-
-If you're using global-hotkey triggers, you'll want the daemon running
-every time you sign in. Use the bundled systemd user unit:
 
 ```sh
 # AUR / Flatpak / distro package: the unit is already at
@@ -106,47 +157,7 @@ daemon starts with KDE / GNOME / Hyprland / Sway and stops on logout.
 If you installed via `cargo install --path .` and your user systemd
 hasn't been told about `~/.cargo/bin`, edit `ExecStart=wflow daemon`
 in the unit file to an absolute path like
-`ExecStart=%h/.cargo/bin/wflow daemon`. Systemd's user environment
-doesn't always inherit your shell's PATH.
-
-## Building a workflow
-
-Launch wflow. The first time, you get a welcome card with two paths:
-
-- **`+ New workflow`** opens a dialog with three tabs:
-  - **Blank** drops you into the editor with no steps and a tooltip
-    on `+ Add step` showing what to do first.
-  - **From template** lists eight hand-authored examples covering
-    shell, key chords, window focus, conditionals, retries, fragment
-    imports, and the full Record-mode output shape. Pick one, it
-    copies into your library, and the editor opens on the copy.
-  - **Record** opens the recorder. Walk through the actions you want
-    to replay, stop, the captured stream becomes a new workflow.
-- **`● Record`** shortcuts straight to the recorder if you already
-  know that's what you want.
-
-Record uses `org.freedesktop.portal.RemoteDesktop` on Plasma 6 and
-GNOME 46+ (explicit consent dialog, no extra permissions). On
-Hyprland, Sway, and other wlroots compositors that don't ship the
-portal interface yet, Record falls back to reading
-`/dev/input/event*` directly via `evdev`. That requires being in
-the `input` group, which you can do with
-`sudo usermod -aG input $USER` (then log out and back in). If
-neither path is available, Record shows a clear setup error
-instead of silently capturing nothing.
-
-The editor is split: step list on the left, inspector on the right.
-The inspector shows the value field plus per-action options (skip,
-on-error, retries / backoff / timeout for shell, clear-modifiers for
-key, delay-per-character for type). Saving is automatic, debounced
-~600ms after your last keystroke. The save indicator at the top tells
-you where it is in the cycle.
-
-Hit **Run** to execute. Each step reports an outcome (`✓ ok`, `· skipped`,
-`✗ error`) inline in the step list as the engine works through them.
-Use **`Run --dry-run`** equivalents from the CLI if you want a no-op
-preview, or **`wflow run --explain`** to see the literal subprocess
-commands each step would invoke.
+`ExecStart=%h/.cargo/bin/wflow daemon`.
 
 ## Workflows as plain text
 
@@ -155,35 +166,39 @@ workflow. Diff it in git, hand-edit it in `$EDITOR`, share it as a
 single file. No proprietary container, no binary blob.
 
 ```kdl
-workflow "Morning standup" {
-    subtitle "open slack, focus the channel, paste the daily message"
-
+workflow "Resume coding" {
+    subtitle "ghostty + nvim, restore the session if there is one"
     vars {
-        channel "#standup-platform"
+        project "~/projects/wflow"
+        session "~/.local/share/nvim/sessions/wflow.vim"
     }
-
-    shell "hyprctl dispatch exec 'slack'"
-    wait-window "Slack" timeout="20s"
-    focus "Slack"
-    key "ctrl+k" clear-modifiers=#true
-    type "{{channel}}" delay-ms=15
-    key "Return"
-    shell "date +%H:%M" as="now"
-    notify "standup ready" body="checked in at {{now}}"
+    trigger {
+        chord super+shift+c
+    }
+    shell "hyprctl dispatch exec 'ghostty --working-directory={{project}}'"
+    wait-window Ghostty timeout-ms=4000
+    when file="{{session}}" {
+        type "nvim -S {{session}}"
+        else {
+            type "nvim ."
+        }
+    }
+    key Return
 }
 ```
 
-Same workflow as the screenshot above. The GUI is a view onto this
-file. Edit either side, the other catches up.
+Same workflow as the editor screenshot above. The GUI is a view onto
+this file. Edit either side, the other catches up.
 
-The full vocabulary (every action, every property, how each one runs)
-is in [`docs/KDL.md`](docs/KDL.md). Variables, conditionals (`when` /
-`unless`), loops (`repeat`), shared fragments (`include` / `imports`),
-shell retries with backoff, window-wait predicates: all there.
+The full vocabulary lives in the [docs](https://wflows.io/docs).
+Variables, conditionals (`when` / `unless` with `else`), loops
+(`repeat`), shared fragments (`include` / `imports`), shell retries
+with backoff, window-wait predicates: all there.
 
-The filename is the id. `dev-setup.kdl` runs as `wflow run dev-setup`.
-Timestamps live in `~/.config/wflow/workflows.toml`, not the workflow
-file, so a `git diff` shows what you actually changed.
+The filename is the id. `resume-coding.kdl` runs as `wflow run
+resume-coding`. Timestamps live in `~/.config/wflow/workflows.toml`,
+not the workflow file, so a `git diff` shows what you actually
+changed.
 
 ### Where workflows live
 
@@ -192,7 +207,8 @@ $XDG_CONFIG_HOME/wflow/workflows/
 ```
 
 Usually `~/.config/wflow/workflows/`. One `.kdl` file per workflow.
-Put the directory under git if you want version-controlled automation.
+Subdirectories show as folders in the GUI. Put the directory under git
+if you want version-controlled automation.
 
 ### Examples
 
@@ -215,15 +231,15 @@ The GUI is the front door. The CLI is for cron, keybinds, and
 pipelines. Same engine, no Qt.
 
 ```sh
-wflow run morning-standup              # by id from the library
+wflow run resume-coding                # by id from the library
 wflow run ./path/to/file.kdl --yes     # by path, skip the trust prompt
 wflow run --dry-run ...                # don't execute, just print
 wflow run --explain ...                # print the literal subprocess commands
 wflow list                             # show the library
-wflow show morning-standup             # pretty-print the steps
+wflow show resume-coding               # pretty-print the steps
 wflow validate examples/*.kdl          # parse, no execution (CI-friendly)
 wflow doctor                           # check required binaries on PATH
-wflow migrate                          # convert pre-v0.4 files in place
+wflow daemon                           # run the trigger daemon
 wflow new "title"                      # scaffold a new workflow
 wflow ids                              # one-per-line, for shell completion
 ```
@@ -237,41 +253,25 @@ full man page is `wflow man` (one page per subcommand if you pass
 
 ## Status
 
-- **v0.1.0** — CLI runner, first cut of the KDL format, GUI as a viewer.
-- **v0.2.0** — Full KDL language; GUI editor with value/option/title
-  editing, add/delete/reorder; real ashpd + libei Record backend; man
-  pages; AUR PKGBUILDs; dual MIT/Apache-2.0 license.
-- **v0.3.0** — First public release. Welcome card + New-workflow dialog
-  with templates; first-run trust prompt for unfamiliar workflow files
-  (CLI + GUI, see [`REVIEW.md`](REVIEW.md)); Flatpak manifest with
-  host-spawn redirect; GitHub Actions CI + draft-release-on-tag.
-- **v0.4.0** — Editor grows up. Free-positioning canvas, branch shapes
-  for conditionals, repeat container, multi-select + marquee, undo /
-  redo, group rectangles, step-by-step debugger, run-feedback dots,
-  fragment imports.
-- **v0.4.1** — Left-rail selection follows the canvas marquee in real
-  time as the rect moves.
-- **v0.5.0** — Brand-palette release. Two skins (Warm Paper / Cool
-  Slate) with full light + dark coverage, first-run picker, switch
-  any time from Settings.
-- **v0.6.0** — Conditionals get a real false branch. `when` and
-  `unless` accept an `else { ... }` block, the canvas draws the
-  no-side as a parallel column or row across every layout, the
-  inspector grew a FALSE BRANCH section. Plus wire-routing cleanup
-  and a first-load auto-fit fix.
+- **v0.1.0 – v0.4.1** — CLI runner; KDL language; GUI editor with
+  templates; recording; first-run trust prompt; AUR + Flatpak +
+  GitHub Actions release flow.
+- **v0.5.0** — Two brand skins (Warm Paper / Cool Slate), full light +
+  dark coverage, first-run picker, switcher in Settings.
+- **v0.6.0** — Conditionals get a real false branch. `when` / `unless`
+  accept an `else { ... }` block; canvas draws the no-side as a
+  parallel column or row across every layout.
 - **v0.7.0** — Trigger daemon. `wflow daemon` binds keyboard chords
   to workflows on KDE Plasma 6, GNOME 46+, Hyprland, and Sway.
-  GlobalShortcuts portal first, compositor IPC fallback. Hot-reload
-  on workflow library changes, single-instance pidfile lock,
-  bundled systemd user unit for autostart on login. Picks up
-  wdotool-core 0.5's wlroots roundtrip fix.
-- **next** — Hotstrings (text expansion), per-window conditional
-  hotkeys, Triggers tab in the GUI, Flathub submission. Plus the
-  wflows.io integration push toward v1.0 (Explore re-enabled,
-  deeplink import confirm dialog, detail drawer with live data).
+- **v1.0.0** — The catalog goes live. Explore is on, the desktop
+  signs in to wflows.io, one-click import via `wflow://`, publish
+  from the library card, Triggers tab in the GUI, daemon
+  auto-enable on first GUI run, brand-domain rename to wflows.io.
+  See [`docs/release-notes/v1.0.0.md`](docs/release-notes/v1.0.0.md).
 
-See `CLAUDE.md` for architecture notes and design decisions, and
-[`CHANGELOG.md`](CHANGELOG.md) for what shipped in each release.
+See [`CLAUDE.md`](CLAUDE.md) for architecture notes and design
+decisions, and [`CHANGELOG.md`](CHANGELOG.md) for what shipped in each
+release.
 
 ## License
 
