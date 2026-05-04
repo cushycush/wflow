@@ -267,7 +267,7 @@ full man page is `wflow man` (one page per subcommand if you pass
   wdotool-core 0.5's wlroots roundtrip fix.
 - **next** — Hotstrings (text expansion), per-window conditional
   hotkeys, Triggers tab in the GUI, Flathub submission. Plus the
-  wflows.com integration push toward v1.0 (Explore re-enabled,
+  wflows.io integration push toward v1.0 (Explore re-enabled,
   deeplink import confirm dialog, detail drawer with live data).
 
 See `CLAUDE.md` for architecture notes and design decisions, and

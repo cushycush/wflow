@@ -89,22 +89,16 @@ Item {
                     }
                 }
 
-                // ---- Account ----
-                // Sign-in flow lives here. Browser-handoff via the
-                // wflow:// scheme handler, clicking Sign in opens a
-                // tab at wflows.com/auth/desktop, the user signs in
-                // there, the page redirects to wflow://auth/callback
-                // with a nonce-bound token that AuthController
-                // verifies before storing. State is read off
-                // Theme._auth.state directly so the section reflects the
-                // controller without a property-mirror dance.
+                // Sign-in flow: wflow:// scheme handler hands off from
+                // a browser tab; AuthController verifies the nonce-bound
+                // token before storing.
                 SettingSection {
                     title: "Account"
                     Layout.fillWidth: true
 
                     SettingRow {
                         visible: Theme._auth.state === "signed_out"
-                        title: "Sign in to wflows.com"
+                        title: "Sign in to wflows.io"
                         subtitle: "Save favorites, comment on workflows, publish your own."
 
                         Button {
@@ -145,7 +139,7 @@ Item {
                     SettingRow {
                         visible: Theme._auth.state === "signed_in"
                         title: Theme._auth.handle.length > 0 ? "Signed in as @" + Theme._auth.handle : "Signed in"
-                        subtitle: Theme._auth.display_name.length > 0 ? Theme._auth.display_name : "Your wflows.com account is connected."
+                        subtitle: Theme._auth.display_name.length > 0 ? Theme._auth.display_name : "Your wflows.io account is connected."
 
                         SecondaryButton {
                             text: "Sign out"
@@ -207,7 +201,7 @@ Item {
 
                     SettingRow {
                         title: "Palette"
-                        subtitle: "Warm Paper is the wflows.com brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
+                        subtitle: "Warm Paper is the wflows.io brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
 
                         SegmentedControl {
                             items: [
@@ -368,7 +362,9 @@ Item {
                         subtitle: "wflow desktop"
 
                         Text {
-                            text: "0.3.26"
+                            // CARGO_PKG_VERSION at build time, so Cargo.toml
+                            // bumps land here automatically.
+                            text: ctrl.app_version
                             color: Theme.text2
                             font.family: Theme.familyMono
                             font.pixelSize: Theme.fontSm

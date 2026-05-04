@@ -2,27 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Modal that posts a local workflow to wflows.com via
-// ExploreController.publish_workflow. The dialog is the only
-// surface that captures publish metadata, description, readme,
-// tags, visibility, so the user gets one focused screen instead
-// of a multi-step flow.
-//
-// Caller wires it like:
-//   PublishDialog {
-//       id: dlg
-//       workflowId: "<the local id>"
-//       workflowTitle: "Morning sync"
-//       onPublishRequested: (id, desc, readme, tagsJson, vis) => {
-//           catalog.publish_workflow(id, desc, readme, tagsJson, vis)
-//       }
-//   }
-//   dlg.open()
-//
-// The host listens to ExploreController.publish_succeeded /
-// publish_failed and either flips the dialog into a "shipped"
-// success view (showing the public URL) or surfaces the failure
-// inline so the user can fix their input and retry.
+// Posts a workflow to wflows.io via ExploreController.publish_workflow.
+// Host listens to publish_succeeded / publish_failed and flips the
+// dialog state.
 Dialog {
     id: root
     modal: true

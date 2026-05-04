@@ -20,11 +20,7 @@ pub struct State {
     /// "auto" | "light" | "dark".
     #[serde(default = "default_theme_mode")]
     pub theme_mode: String,
-    /// Brand palette: "warm" (warm-paper + coral, mirrors wflows.com)
-    /// or "cool" (slate-blue surfaces + amber, the original wflow
-    /// brand). Defaults to "warm" because that's the published
-    /// marketing-site identity; the first-run tutorial offers the
-    /// user a chance to flip it before they ever see Library.
+    /// "warm" (paper + coral, wflows.io) | "cool" (slate + amber).
     #[serde(default = "default_palette")]
     pub palette: String,
     #[serde(default)]

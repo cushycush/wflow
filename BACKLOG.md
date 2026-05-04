@@ -3,7 +3,7 @@
 As of 0.5.0 (2026-05-01), the editor redesign and the brand-palette
 switcher (warm-paper / cool-slate, light + dark, first-run picker)
 have shipped. What's left is the trigger daemon (the AHK launch is
-gated on this, lands as v0.6.0) and the wflows.com integration (the
+gated on this, lands as v0.6.0) and the wflows.io integration (the
 target for v1.0).
 
 # Active: v0.4 trigger daemon + AHK-positioned launch
@@ -66,7 +66,7 @@ None of these ship in v0.6. Re-evaluate the leg-1 commitment after the
 launch based on the audience metric (distinct GitHub issue authors who
 name AHK in their use case).
 
-# v1.0 = wflows.com integration
+# v1.0 = wflows.io integration
 
 The Explore tab is hidden in 0.4.0 (`Theme.showExplore = false`). It
 flips back on once the items in this section are done, at which point
@@ -86,7 +86,7 @@ The `wflow://import?source=...` path runs the import the moment the
 GUI lays out. A malicious page that opens such a URL in the user's
 browser could quietly install a workflow they didn't intend to keep.
 Add a small confirm dialog that shows the workflow's title, author,
-description, step count, and a "from wflows.com" pill before we write
+description, step count, and a "from wflows.io" pill before we write
 to disk. The detail JSON is already fetched; this is just a render
 step plus a yes/no handoff.
 
@@ -108,7 +108,7 @@ Two follow-ups in one sweep:
 
 ## Sign-in + favorites tab
 
-Better Auth's session machinery on wflows.com would let the desktop
+Better Auth's session machinery on wflows.io would let the desktop
 authenticate and show a "My favorites" tab populated from the user's
 account. Same path enables posting comments and (eventually)
 publishing. The gate is the auth flow itself: Better Auth is browser-
@@ -119,7 +119,7 @@ browser, paste token back" handoff rather than embedding a webview.
 
 ## OS hotkey trigger sync
 
-Workflows on wflows.com carry trigger metadata. When a user installs
+Workflows on wflows.io carry trigger metadata. When a user installs
 one, we know they want it bound to "Super+Shift+P" or whatever; right
 now they have to wire that up by hand. Once v0.6.0 ships with the
 daemon (in flight, see top of file), the install path should append
@@ -131,7 +131,7 @@ so it lives behind that work.
 
 A small daemon-side recorder that posts run outcomes (workflow id,
 step count, ms elapsed, ok/error) to `/api/v1/runs`. The dashboard
-lives on wflows.com under the user's profile. This is the natural
+lives on wflows.io under the user's profile. This is the natural
 flagship of a Pro tier: people running workflows want to know which
 ones break and how often. Needs the Pro tier, opt-in at install, and
 a clear "delete my history" path.
@@ -146,7 +146,7 @@ more complexity than the audience needs at the start.
 
 ## Auto-update notifier
 
-`workflow_versions` and `remixedFromId` are already in the wflows.com
+`workflow_versions` and `remixedFromId` are already in the wflows.io
 schema. When a workflow you installed publishes a new version, the
 desktop should ping the user with a "this got an update" toast and
 let them apply or dismiss. Free feature, low cost, high stickiness.
@@ -154,7 +154,7 @@ let them apply or dismiss. Free feature, low cost, high stickiness.
 ## Theme switcher with first-run picker
 
 The `experiment/wflows-com-skin` branch has the desktop running on the
-wflows.com warm-coral palette: cream paper / warm ink surfaces, coral
+wflows.io warm-coral palette: cream paper / warm ink surfaces, coral
 accent, muted category tints, and the new hero-card library layout.
 The original amber-on-steel-blue feels distinct and confident for a
 tool; the coral version unifies the brand with the website. Rather
@@ -186,7 +186,7 @@ the surfaces.
 - Show an offline indicator when the catalog fetch fails, instead of
   silently rendering the mock list. A small "offline. showing cached
   results" pill at the top of Explore.
-- The detail drawer's "Dry run" today opens the wflows.com page. A
+- The detail drawer's "Dry run" today opens the wflows.io page. A
   real desktop dry-run that walks the parsed steps without firing
   side effects would be more useful, and the engine already supports
   --dry-run from the CLI.

@@ -6,7 +6,7 @@ notes live one per release in [`docs/release-notes/`](docs/release-notes/).
 
 Versions follow `MAJOR.MINOR.PATCH`. The 0.x line is unstable on disk
 format only when a release explicitly says so; everything else is
-additive. v1.0 ships when the wflows.com integration lands (Explore
+additive. v1.0 ships when the wflows.io integration lands (Explore
 re-enabled, sign-in, deeplink import, detail drawer wired to live
 data). See [BACKLOG.md](BACKLOG.md) for the road there.
 
@@ -109,7 +109,7 @@ you pick one on first run.
 
 ### Added
 
-- **Two brand palettes.** Warm Paper (the wflows.com identity, cream
+- **Two brand palettes.** Warm Paper (the wflows.io identity, cream
   surfaces with a coral accent) and Cool Slate (the original 0.4.x
   brief, slate-blue surfaces with a warm amber accent). Both carry
   full light + dark variants.
@@ -134,13 +134,13 @@ you pick one on first run.
   The "shell chevron looks oversized on canvas cards" issue is gone.
 - Inner step icons inside Repeat containers grew from `size: 14` to
   `size: 18` so the per-kind glyph ratios actually take effect.
-- Primary and Secondary buttons are pill-shaped, matching wflows.com
+- Primary and Secondary buttons are pill-shaped, matching wflows.io
   button language. Library cards picked up `radiusLg` corners and a
   `lineStrong` hover border.
 - The active tab in the floating nav pill no longer paints a coral
   focus ring on click; selection reads from the accent-wash fill.
 - `CategoryChip` is pill-shaped with a hairline border, quieter, in
-  the same family as wflows.com `.wf-trigger`.
+  the same family as wflows.io `.wf-trigger`.
 
 ### Fixed
 
@@ -157,7 +157,7 @@ you pick one on first run.
 ### Reverted
 
 - Briefly experimented with switching the font pair to Boska serif +
-  Supreme sans (the wflows.com brand faces). They read poorly at the
+  Supreme sans (the wflows.io brand faces). They read poorly at the
   dense UI sizes wflow uses, so we're back on Hanken Grotesk + Geist
   Mono. `familyDisplay` stays as a separate token hook for a future
   heavier display face.

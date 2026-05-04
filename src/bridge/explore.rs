@@ -1,15 +1,5 @@
-//! ExploreController — talks to the wflows.com /api/v0 catalog.
-//!
-//! Owns:
-//!   - `featured_json`, the latest /api/v0/featured response, JSON-stringified
-//!   - `browse_json`  , the latest /api/v0/browse response, JSON-stringified
-//!   - `loading`      , true while a fetch is in flight
-//!   - `last_error`   , empty string on success, human-readable on failure
-//!
-//! All work runs on the shared tokio runtime. Results land back on the Qt
-//! thread via `qt_thread.queue(...)`. The site URL is read from
-//! `WFLOW_SITE_ORIGIN` so test / staging runs can point at localhost
-//! without a code change; default is the production origin.
+//! ExploreController. The wflows.io /api/v0 catalog surface for QML.
+//! `WFLOW_SITE_ORIGIN` overrides the default origin for staging runs.
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -57,12 +47,8 @@ pub mod qobject {
             limit: i32,
         );
 
-        /// Import a workflow from `wflows.com` by author handle + slug.
-        /// Resolves the v0 detail endpoint, decodes the KDL through the
-        /// same path the run command uses, mints fresh ids, and saves
-        /// to the local store. On success emits `import_succeeded`
-        /// with the new workflow id; on failure emits `import_failed`
-        /// with a human-readable reason.
+        /// Resolves /api/v0/workflow/:handle/:slug, mints fresh ids,
+        /// saves locally. Emits `import_succeeded` or `import_failed`.
         #[qinvokable]
         fn import_workflow(
             self: Pin<&mut ExploreController>,
@@ -86,14 +72,8 @@ pub mod qobject {
         #[qinvokable]
         fn fetch_deeplink_preview(self: Pin<&mut ExploreController>, url: QString);
 
-        /// Fetch the v0 detail for a catalog row by handle + slug.
-        /// Resolves on /api/v0/workflow/:handle/:slug and parses the
-        /// inline `kdlSource` through the same decoder the runner
-        /// uses, so the step list emitted to QML is exactly what the
-        /// engine would execute. Emits `workflow_detail_ready` with a
-        /// rich JSON payload (live install / comment counts, parsed
-        /// steps, timestamps); failures route through `import_failed`
-        /// so the existing "couldn't reach wflows.com" surface holds.
+        /// Catalog-row detail. Parses `kdlSource` through the runner's
+        /// decoder so QML sees the exact step list the engine would run.
         #[qinvokable]
         fn fetch_workflow_detail(
             self: Pin<&mut ExploreController>,
@@ -101,19 +81,10 @@ pub mod qobject {
             slug: QString,
         );
 
-        /// POST a local workflow to wflows.com's publish endpoint.
-        /// Loads the workflow from the local store, encodes it to
-        /// KDL, attaches the supplied metadata, and posts to
-        /// `/api/v0/workflows` with the persisted Bearer token.
-        ///
-        /// `tags_json` is a JSON array of strings; empty / invalid
-        /// JSON gets sent as no tags. `visibility` is "public" or
-        /// "draft" (anything else lands as "public" server-side).
-        ///
-        /// Emits `publish_succeeded(handle, slug, url)` on 201,
-        /// `publish_failed(reason)` on any other outcome. Routes 401
-        /// through `auth_expired` so the UI flips back to signed-out
-        /// the same way other authenticated calls do.
+        /// POST /api/v0/workflows. `tags_json` is a JSON string array
+        /// (invalid = no tags). `visibility` is "public" | "draft".
+        /// 201 → `publish_succeeded(handle, slug, url)`, anything else
+        /// → `publish_failed(reason)`. 401 also fires `auth_expired`.
         #[qinvokable]
         fn publish_workflow(
             self: Pin<&mut ExploreController>,
@@ -176,15 +147,10 @@ pub struct ExploreControllerRust {
 
 impl Default for ExploreControllerRust {
     fn default() -> Self {
-        // wflows.com itself is currently parked on a GoDaddy lander —
-        // the actual deployment lives at wflows.vercel.app. Defaulting
-        // to the Vercel origin is what makes the live Explore catalog
-        // actually return JSON instead of the lander's HTML, which the
-        // bridge silently fails to parse and falls back to the mock
-        // fixture for. Override via `WFLOW_SITE_ORIGIN` once the
-        // wflows.com DNS points at Vercel.
+        // Production lives at wflows.io. `WFLOW_SITE_ORIGIN` overrides
+        // for staging or `bun dev` against the wflows.io repo.
         let origin = std::env::var("WFLOW_SITE_ORIGIN")
-            .unwrap_or_else(|_| "https://wflows.vercel.app".to_string());
+            .unwrap_or_else(|_| "https://wflows.io".to_string());
         Self {
             featured_json: QString::from("{\"data\":[]}"),
             browse_json: QString::from("{\"data\":[],\"hasMore\":false}"),
@@ -824,7 +790,7 @@ async fn fetch_preview(url: &str) -> anyhow::Result<DeeplinkPreview> {
     let preview = match serde_json::from_str::<DetailEnvelope>(&body) {
         Ok(env) => {
             let wf = crate::kdl_format::decode(&env.data.kdl_source)
-                .context("decode kdl from wflows.com")?;
+                .context("decode kdl from wflows.io")?;
             DeeplinkPreview {
                 title: env.data.title,
                 handle: env.data.handle,
@@ -874,7 +840,7 @@ async fn fetch_and_import(url: &str) -> anyhow::Result<String> {
         };
 
     let mut wf = crate::kdl_format::decode(&kdl_text)
-        .context("decode kdl from wflows.com")?;
+        .context("decode kdl from wflows.io")?;
     // Mint fresh ids so importing the same workflow twice produces
     // distinct local copies. The remote slug is preserved in the
     // workflow's name so the user can find it.
@@ -1006,7 +972,7 @@ async fn fetch_detail(url: &str) -> anyhow::Result<WorkflowDetail> {
     let env: DetailEnvelope = serde_json::from_str(&body)
         .context("parse detail json")?;
     let wf = crate::kdl_format::decode(&env.data.kdl_source)
-        .context("decode kdl from wflows.com")?;
+        .context("decode kdl from wflows.io")?;
 
     let steps: Vec<StepPreview> = wf.steps.iter().map(step_preview).collect();
     let has_shell = wf.steps.iter().any(|s| {

@@ -2,13 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Community workflow card. Mirrors the LibraryGrid workflow card layout
-// (avatar + title-block + open-pill on top, a description block, then
-// the step-trail, then a ruled footer with meta on the left and a
-// category tag on the right) so a workflow on Explore reads like a
-// workflow on Library, same shape, same rhythm. The step trail is
-// the wflows.com hero-card preview look: a row of CategoryIcons for
-// the first few kinds, plus a `+N` sentinel when there are more.
+// Mirrors the LibraryGrid workflow card so an Explore row reads with
+// the same rhythm as a Library row.
 Rectangle {
     id: card
     property var wf
@@ -83,9 +78,6 @@ Rectangle {
                 }
             }
 
-            // Pill mirror of wflows.com's "Open in wflow" CTA, except
-            // for catalog cards it reads "Install" so the action is
-            // unambiguous before the user even reaches the drawer.
             Rectangle {
                 id: openPill
                 anchors.right: parent.right
@@ -140,10 +132,6 @@ Rectangle {
             visible: text.length > 0
         }
 
-        // ── Step trail (wflows.com chip preview) ──
-        // Shared with the library card via StepChipTrail. Hover state
-        // forwards from the card so the chips stagger in left-to-right
-        // when the user mouses over the workflow.
         StepChipTrail {
             id: trailFlow
             anchors.top: descText.visible ? descText.bottom : topRow.bottom

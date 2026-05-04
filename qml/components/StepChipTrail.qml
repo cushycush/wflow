@@ -2,25 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// wflows.com-style horizontal chip trail. Shared by the library and
-// explore cards so a workflow reads the same way on both surfaces.
-//
-// Each chip is a pill with:
-//   - a colored dot in the kind's category color
-//   - a short mono label (chord, command verb, duration, ...)
-//   - a hairline border that lights up in the kind's color while the
-//     workflow is "playing" through itself (see hovered animation)
-//
-// Lays out within a fixed two-row budget. Chips render until they
-// would push past row 2; everything past that drops behind a +N
-// sentinel. The card's height is sized to fit two rows + the rule +
-// the footer, so the trail can't ever overlap the rule even when
-// every label is long.
-//
-// `hovered` is the host card's hover state. When it flips true each
-// chip's border briefly flashes to its kind's category color in
-// sequence, a wave from the first chip to the last, like the engine
-// invoking each step in order. Same trick wflows.com hero card runs.
+// Two-row chip trail with a +N overflow sentinel. Cascade fires the
+// chip borders in sequence on hover.
 Item {
     id: root
 
@@ -257,7 +240,7 @@ Item {
     }
 
     // The chord / type / shell chips read better with the same
-    // shorthand wflows.com uses: ⌘ for super, ⌥ for alt, ⌃ for ctrl,
+    // shorthand wflows.io uses: ⌘ for super, ⌥ for alt, ⌃ for ctrl,
     // ⇧ for shift, ↵ for return. Long shell commands trim to the
     // first token so the chip reads as a verb instead of a wall.
     function _abbrev(kind, value) {

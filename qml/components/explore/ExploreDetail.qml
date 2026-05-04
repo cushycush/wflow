@@ -88,10 +88,7 @@ FocusScope {
         return out
     }
 
-    // True when we're rendering the offline / mock fallback
-    // instead of the live v0 detail. Drives the small "preview"
-    // banner above the step list so the user knows what they're
-    // looking at hasn't been fetched from wflows.com yet.
+    // Drives the "preview" banner above the step list.
     readonly property bool _isPreviewFallback:
         !(root.detail && root.detail.steps && root.detail.steps.length > 0)
 

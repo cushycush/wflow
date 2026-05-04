@@ -2,11 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// "My favorites", workflows the signed-in user has starred on
-// wflows.com. Mirrors ExplorePage's grid + drawer composition but
-// without the Featured / Trending / New sections that don't make
-// sense for a personal collection. The page is hidden in the nav
-// when signed out (see ChromeFloating's pill model).
+// Starred workflows for the signed-in user. ChromeFloating hides this
+// in the nav when signed out.
 Item {
     id: root
     signal openWorkflow(string id)
@@ -123,8 +120,8 @@ Item {
             width: parent.width
             title: "Favorites"
             subtitle: root.workflows.length === 1
-                ? "1 workflow starred on wflows.com"
-                : root.workflows.length + " workflows starred on wflows.com"
+                ? "1 workflow starred on wflows.io"
+                : root.workflows.length + " workflows starred on wflows.io"
         }
 
         ScrollView {
@@ -150,7 +147,7 @@ Item {
                     Text {
                         text: catalog.loading
                             ? ""
-                            : "Star a workflow on Explore (or on wflows.com) to find it here."
+                            : "Star a workflow on Explore (or on wflows.io) to find it here."
                         anchors.horizontalCenter: parent.horizontalCenter
                         color: Theme.text3
                         font.family: Theme.familyBody

@@ -33,10 +33,6 @@ Rectangle {
         width: visible ? size : 0
     }
 
-    // Value text fills the remaining width and elides on overflow.
-    // Mono font because the content is almost always a command, key
-    // chord, or path — same register as wflows.com's .kdl-block
-    // values, just inline.
     Text {
         id: valueText
         anchors.left: iconChip.right

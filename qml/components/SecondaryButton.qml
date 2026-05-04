@@ -2,9 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Quiet surface button with a hairline border. Used for every non-dominant
-// action, Share, Record, Cancel, Close, so coral accent stays reserved.
-// Pill shape + line-strong border on hover mirrors wflows.com .btn-ghost.
+// Quiet ghost button; keeps coral accent reserved for primaries.
 Button {
     id: root
     topPadding: 8

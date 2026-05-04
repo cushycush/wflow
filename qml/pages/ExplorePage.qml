@@ -2,14 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Community catalog. Browse and import workflows submitted by other users.
-// Read-pane by design. Submission, discussion, profiles, ratings all live on
-// the web; the app only consumes the catalog.
-//
-// Talks to wflows.com over the v0 JSON API (see ExploreController). The
-// mock workflow list at the bottom of this file is the offline / pre-
-// network fallback; once /api/v0/featured + /api/v0/browse return data
-// the live results take over via _liveWorkflows.
+// Read-pane catalog of community workflows. Submission / discussion /
+// ratings live on the web. Live data via ExploreController; mock list
+// at the bottom is the offline fallback.
 Item {
     id: root
     signal openWorkflow(string id)
@@ -171,10 +166,7 @@ Item {
         ? _liveWorkflows
         : communityWorkflows
 
-    // Featured today, the first six rows of the v0 /featured response,
-    // or the first six community workflows when offline. wflows.com's
-    // featured rotation is six picks per week, so the desktop renders
-    // the same six in a curated grid up top.
+    // Six picks/week, mirrored from the wflows.io rotation.
     readonly property var featuredToday: {
         const src = _liveWorkflows.length > 0 ? _featuredRows : communityWorkflows
         return src.slice(0, 6)
@@ -216,14 +208,6 @@ Item {
                     width: page.width - 48
                 }
 
-                // Featured today — wflows.com curates six picks a week
-                // and the desktop mirrors that. Two-column layout:
-                // the explainer body on the left frames what the
-                // section is, the six cards sit on the right in a
-                // 3×2 grid (or 2×3 when narrow). The section itself
-                // sits inside an accent-tinted rectangle with a
-                // hairline coral border so it reads as deliberate
-                // curation rather than just another row.
                 Item {
                     x: 24
                     width: page.width - 48
@@ -565,7 +549,7 @@ Item {
         }
         onDryRunRequested: (id) => {
             // Dry-run walk-through is on the roadmap. For now, kick the
-            // user to the workflow's page on wflows.com, where the
+            // user to the workflow's page on wflows.io, where the
             // hosted preview already shows steps + KDL.
             const wf = root.selectedWorkflow
             if (wf && wf.detailUrl) root._openInBrowser(wf.detailUrl)

@@ -27,6 +27,7 @@ pub mod qobject {
         #[qproperty(QString, store_path)]
         #[qproperty(QString, default_store_path)]
         #[qproperty(bool, store_path_is_default)]
+        #[qproperty(QString, app_version)]
         type StateController = super::StateControllerRust;
 
         #[qinvokable]
@@ -100,6 +101,7 @@ pub struct StateControllerRust {
     pub store_path: QString,
     pub default_store_path: QString,
     pub store_path_is_default: bool,
+    pub app_version: QString,
     inner: state::State,
 }
 
@@ -131,6 +133,7 @@ impl Default for StateControllerRust {
             store_path,
             default_store_path,
             store_path_is_default,
+            app_version: QString::from(env!("CARGO_PKG_VERSION")),
             inner,
         }
     }

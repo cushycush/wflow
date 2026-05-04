@@ -2,22 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Confirm dialog the wflow:// import flow shows before installing.
-// Without it, a malicious page could open `wflow://import?source=...`
-// in the user's browser and silently land a workflow on disk. The
-// dialog renders the metadata the bridge fetched (title, author
-// handle, description, step count) plus a "from wflows.com" pill
-// the user can read before saying yes.
-//
-// Usage:
-//   DeeplinkConfirmDialog {
-//       id: dlg
-//       onConfirmed: (sourceUrl) => ctrl.import_from_url(sourceUrl)
-//       onCancelled: console.info("import cancelled")
-//   }
-//   ...
-//   dlg.preview = parsedJson
-//   dlg.open()
+// Without this, a wflow:// link could land a workflow silently. Shows
+// the bridge-fetched metadata before the user says yes.
 Dialog {
     id: root
     modal: true
@@ -56,9 +42,6 @@ Dialog {
             anchors.margins: 24
             spacing: 16
 
-            // Source pill — quiet "from wflows.com" tag at the top
-            // so the user knows where this came from before reading
-            // anything else.
             Rectangle {
                 visible: pillText.text.length > 0
                 width: pillText.implicitWidth + 16
@@ -70,7 +53,7 @@ Dialog {
                 Text {
                     id: pillText
                     anchors.centerIn: parent
-                    text: "from wflows.com"
+                    text: "from wflows.io"
                     color: Theme.accent
                     font.family: Theme.familyMono
                     font.pixelSize: 10

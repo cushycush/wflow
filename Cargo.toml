@@ -41,7 +41,7 @@ notify = "8"
 sha2 = "0.10"
 toml = "0.9"
 
-# HTTP client for the wflows.com v0 catalog API. rustls so we don't
+# HTTP client for the wflows.io v0 catalog API. rustls so we don't
 # pull a system OpenSSL into a Qt app's runtime; gzip so the public
 # API can stay compressed without us having to flip a header.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip"] }

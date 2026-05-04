@@ -1,31 +1,7 @@
-//! AuthController — wflows.com sign-in via browser handoff.
-//!
-//! State machine the UI mirrors:
-//!
-//!   signed_out  ──start_sign_in──>  pending  ──complete_sign_in──>  signed_in
-//!        ▲                             │                                │
-//!        │                             ▼                                │
-//!        └────cancel_sign_in / sign_out / failure──────────────────────┘
-//!
-//! Flow per `docs/designs/v1.0-sign-in.md`:
-//!
-//!   1. UI calls `start_sign_in()`. We mint a single-use nonce, persist
-//!      it in memory, and `xdg-open` the browser at
-//!      `${site_origin}/auth/desktop?nonce=<nonce>`.
-//!   2. User signs in on the web. wflows.com redirects to
-//!      `wflow://auth/callback?nonce=<nonce>&token=<token>`. xdg-open
-//!      hands the URL to the desktop's existing wflow:// scheme handler.
-//!   3. QML's deeplink handler sees the auth/callback shape, calls
-//!      `complete_sign_in(nonce, token)`. We verify the nonce matches
-//!      the one we just minted, then fetch `/api/v0/me` to confirm the
-//!      token is live and pull the user's profile.
-//!   4. On success the cached profile gets persisted via StateController
-//!      and we transition to `signed_in`. Subsequent launches restore
-//!      the snapshot from disk and re-verify in the background.
-//!
-//! Token storage lives in `state.toml` under `auth = { token, handle, ... }`.
-//! Same trust model as the workflow library, user's home directory.
-//! libsecret integration is a follow-up if anyone asks.
+//! Browser-handoff sign-in to wflows.io. State machine:
+//! `signed_out → pending → signed_in`, with cancel / sign_out / failure
+//! returning to `signed_out`. Token persists in `state.toml`. Flow
+//! detail lives in `docs/designs/v1.0-sign-in.md`.
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -49,8 +25,6 @@ pub mod qobject {
         #[qproperty(QString, display_name)]
         #[qproperty(QString, avatar_url)]
         #[qproperty(QString, last_error)]
-        /// Mirrors ExploreController's site_origin so the two stay
-        /// pointed at the same backend (wflows.vercel.app today).
         #[qproperty(QString, site_origin)]
         type AuthController = super::AuthControllerRust;
 
@@ -116,7 +90,7 @@ impl Default for AuthControllerRust {
     fn default() -> Self {
         let inner = crate::state::load();
         let origin = std::env::var("WFLOW_SITE_ORIGIN")
-            .unwrap_or_else(|_| "https://wflows.vercel.app".to_string());
+            .unwrap_or_else(|_| "https://wflows.io".to_string());
 
         let (state, handle, display_name, avatar_url) = match inner.auth.as_ref() {
             Some(snap) => (

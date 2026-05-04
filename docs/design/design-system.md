@@ -12,7 +12,7 @@ record or hand-author sequences of keystrokes, clicks, shell commands,
 and waits, then replay them. Workflows persist as plain `.kdl` files
 under `~/.config/wflow/workflows/`.
 
-Companion to **wflows.com**, the public catalog where the same users
+Companion to **wflows.io**, the public catalog where the same users
 share their workflows with each other. The desktop and the website
 share one visual language; the desktop is authoritative.
 
