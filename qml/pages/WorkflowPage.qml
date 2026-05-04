@@ -2164,25 +2164,33 @@ Item {
                 z: 5
 
                 // Pull the first chord trigger out of the workflow's
-                // triggers array. Same shape as LibraryController's
-                // chord summary; v1 binds one chord per workflow.
+                // triggers array. wfCtrl serialises a full Workflow
+                // struct, so each Trigger is shaped:
+                //   { kind: { kind: "chord", chord: "..." }, when: ... }
+                // — the outer field NAMED "kind" holds a TriggerKind
+                // serialised with a tag-named "kind" too. Hence the
+                // double dereference. The when block's nested kind
+                // uses kebab-case ("window-class", "window-title")
+                // because TriggerCondition is `#[serde(rename_all =
+                // "kebab-case")]`.
                 readonly property var _firstChordTrigger: {
                     const triggers = (root.workflow && root.workflow.triggers) || []
                     for (let i = 0; i < triggers.length; ++i) {
                         const t = triggers[i]
-                        if (t && t.kind === "chord" && t.chord) {
+                        if (t && t.kind && t.kind.kind === "chord" && t.kind.chord) {
                             return t
                         }
                     }
                     return null
                 }
-                readonly property string chord: _firstChordTrigger ? _firstChordTrigger.chord : ""
+                readonly property string chord: {
+                    const t = _firstChordTrigger
+                    return (t && t.kind) ? (t.kind.chord || "") : ""
+                }
                 readonly property string whenKind: {
                     const t = _firstChordTrigger
-                    if (!t || !t.when) return ""
-                    return t.when.kind === "window_class" ? "window-class"
-                         : t.when.kind === "window_title" ? "window-title"
-                         : ""
+                    if (!t || !t.when || !t.when.kind) return ""
+                    return t.when.kind  // already kebab-case from serde
                 }
                 readonly property string whenValue: {
                     const t = _firstChordTrigger

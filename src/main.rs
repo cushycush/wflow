@@ -15,6 +15,7 @@ mod gui_lock;
 mod host;
 mod kdl_format;
 mod recorder;
+mod scheme_handler;
 mod security;
 mod state;
 mod store;
@@ -67,12 +68,18 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
             // start invokable will pull it out once QML constructs
             // the singleton.
             bridge::deeplink_inbox::install_url_receiver(url_rx);
-            // First-run side-effect: enable the systemd user unit so
-            // the trigger daemon starts with every graphical session
-            // afterwards. No-op on subsequent launches and on
-            // Flatpak. Runs synchronously but quickly — systemctl
-            // returns in well under a second on a normal session.
+            // First-run side-effects on the lock-holder path. Both
+            // are idempotent across launches via state.toml flags
+            // and skip on Flatpak (sandbox can't reach host
+            // systemd / user applications dir).
             daemon_autostart::ensure_enabled();
+            // Install the wflow:// URL scheme handler so the
+            // browser's redirect after sign-in actually reaches the
+            // running app. Without this, source / cargo installs
+            // get sign-in flows that complete in the browser but
+            // never deliver the callback URL — the app stays in
+            // "Signing in…" forever.
+            scheme_handler::ensure_installed();
             run_gui_with_lock(Some(guard), deeplink)
         }
         gui_lock::AcquireOutcome::AlreadyRunning { pid } => {

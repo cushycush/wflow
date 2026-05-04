@@ -235,7 +235,8 @@ Dialog {
 
                 ComboBox {
                     id: whenKindCombo
-                    width: 180
+                    width: 200
+                    height: 36
                     model: [
                         { label: "Always (no condition)", value: "" },
                         { label: "Window class is", value: "window-class" },
@@ -243,6 +244,119 @@ Dialog {
                     ]
                     textRole: "label"
                     valueRole: "value"
+                    font.family: Theme.familyBody
+                    font.pixelSize: Theme.fontSm
+
+                    // Default ControlsImpl style draws a heavy
+                    // platform-themed combobox that fights the brand.
+                    // Replace with the same surface-pill chrome the
+                    // rest of the dialog uses: rounded surface fill,
+                    // hairline border that lights up on hover/focus,
+                    // mono caret pointer.
+                    background: Rectangle {
+                        radius: Theme.radiusSm
+                        color: whenKindCombo.hovered
+                            ? Theme.surface2
+                            : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.5)
+                        border.color: whenKindCombo.activeFocus
+                            ? Theme.accent
+                            : (whenKindCombo.hovered ? Theme.line : Theme.lineSoft)
+                        border.width: 1
+                        Behavior on border.color {
+                            ColorAnimation { duration: Theme.dur(Theme.durFast) }
+                        }
+                    }
+
+                    contentItem: Text {
+                        anchors.left: parent.left
+                        anchors.right: caretIcon.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 6
+                        text: whenKindCombo.displayText
+                        color: Theme.text
+                        font: whenKindCombo.font
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    indicator: Item {
+                        id: caretIcon
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 8
+                        height: 5
+                        // Tiny chevron drawn from two thin rectangles
+                        // — same primitive style the nav-tab icons
+                        // use. No Unicode glyph variance.
+                        Rectangle {
+                            x: 0; y: 0
+                            width: 5; height: 1.4
+                            radius: 0.7
+                            color: Theme.text2
+                            transform: Rotation { origin.x: 0; origin.y: 0.7; angle: 30 }
+                        }
+                        Rectangle {
+                            x: 4; y: 0
+                            width: 5; height: 1.4
+                            radius: 0.7
+                            color: Theme.text2
+                            transform: Rotation { origin.x: 5; origin.y: 0.7; angle: -30 }
+                        }
+                    }
+
+                    popup: Popup {
+                        y: whenKindCombo.height + 4
+                        width: whenKindCombo.width
+                        implicitHeight: contentItem.implicitHeight + 8
+                        padding: 4
+
+                        background: Rectangle {
+                            color: Theme.surface
+                            radius: Theme.radiusSm
+                            border.color: Theme.line
+                            border.width: 1
+                        }
+
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: whenKindCombo.popup.visible
+                                ? whenKindCombo.delegateModel
+                                : null
+                            currentIndex: whenKindCombo.highlightedIndex
+                        }
+                    }
+
+                    delegate: ItemDelegate {
+                        width: whenKindCombo.width
+                        height: 32
+
+                        background: Rectangle {
+                            color: whenKindCombo.highlightedIndex === index
+                                ? Theme.surface2
+                                : (hovered ? Theme.surface2 : "transparent")
+                            radius: Theme.radiusXs
+                            Behavior on color {
+                                ColorAnimation { duration: Theme.dur(Theme.durFast) }
+                            }
+                        }
+
+                        contentItem: Text {
+                            text: modelData.label
+                            color: Theme.text
+                            font.family: Theme.familyBody
+                            font.pixelSize: Theme.fontSm
+                            font.weight: whenKindCombo.currentIndex === index
+                                ? Font.DemiBold
+                                : Font.Normal
+                            anchors.left: parent.left
+                            anchors.leftMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
                     Component.onCompleted: {
                         // Pre-select the existing kind if we're
                         // editing a binding that already has one.

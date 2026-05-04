@@ -30,6 +30,11 @@ Item {
     /// edited. Cleared on dialog close.
     property string _editingId: ""
 
+    /// Filter text in the workflow picker. Substring match against
+    /// title + subtitle, case-insensitive. Cleared when the picker
+    /// dialog closes so the next open starts fresh.
+    property string _pickerFilter: ""
+
     ChordCaptureDialog {
         id: chordDialog
         onCaptured: (chord, whenKind, whenValue) => {
@@ -46,6 +51,19 @@ Item {
         }
     }
 
+    // Filtered untriggered workflows for the picker. Updated live
+    // as the user types in the search field. Empty filter ⇒ full
+    // list.
+    readonly property var _filteredUntriggered: {
+        const q = root._pickerFilter.toLowerCase().trim()
+        if (q.length === 0) return root.untriggered
+        return root.untriggered.filter(w => {
+            const t = (w.title || "").toLowerCase()
+            const s = (w.subtitle || "").toLowerCase()
+            return t.indexOf(q) >= 0 || s.indexOf(q) >= 0
+        })
+    }
+
     // "Pick a workflow to bind" sheet. Shows untriggered workflows;
     // clicking one opens the chord capture dialog for that workflow.
     Dialog {
@@ -55,6 +73,7 @@ Item {
         anchors.centerIn: parent
         width: 460
         height: Math.min(parent.height - 80, 520)
+        onClosed: root._pickerFilter = ""
 
         header: Item { width: 0; height: 0 }
         footer: Item { width: 0; height: 0 }
@@ -88,9 +107,34 @@ Item {
                 lineHeight: 1.4
             }
 
+            // Filter — visible only when there's enough untriggered
+            // workflows that scrolling becomes a thing. Substring
+            // match against title + subtitle, case-insensitive,
+            // updates live.
+            TextField {
+                id: pickerSearch
+                visible: root.untriggered.length > 6
+                width: parent.width
+                placeholderText: "Filter workflows…"
+                font.family: Theme.familyBody
+                font.pixelSize: Theme.fontSm
+                color: Theme.text
+                placeholderTextColor: Theme.text3
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: pickerSearch.activeFocus
+                        ? Theme.surface2
+                        : Qt.rgba(Theme.surface2.r, Theme.surface2.g, Theme.surface2.b, 0.5)
+                    border.color: pickerSearch.activeFocus ? Theme.accent : Theme.lineSoft
+                    border.width: 1
+                    Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                }
+                onTextChanged: root._pickerFilter = text
+            }
+
             ScrollView {
                 width: parent.width
-                height: 360
+                height: pickerSearch.visible ? 320 : 360
                 clip: true
                 visible: root.untriggered.length > 0
                 contentWidth: availableWidth
@@ -98,8 +142,19 @@ Item {
                 Column {
                     width: parent.width
                     spacing: 4
+                    Text {
+                        visible: root._filteredUntriggered.length === 0
+                            && root.untriggered.length > 0
+                        text: "No workflows match \"" + root._pickerFilter + "\""
+                        color: Theme.text3
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontSm
+                        font.italic: true
+                        topPadding: 8
+                        leftPadding: 4
+                    }
                     Repeater {
-                        model: root.untriggered
+                        model: root._filteredUntriggered
                         delegate: Rectangle {
                             width: parent.width
                             height: 56

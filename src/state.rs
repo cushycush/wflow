@@ -73,6 +73,16 @@ pub struct State {
     /// doesn't get it re-enabled by us on the next launch.
     #[serde(default)]
     pub daemon_autostart_attempted: bool,
+    /// True once we've tried to install the user-level `.desktop` file
+    /// that registers the `wflow://` URL scheme handler. Set on first
+    /// GUI launch; the file persists at
+    /// `~/.local/share/applications/` afterwards. Re-attempted only
+    /// when the binary path changes (a fresh cargo build moves to
+    /// `target/release` etc.) — the install routine compares the
+    /// existing Exec= line to the current path and rewrites if they
+    /// differ.
+    #[serde(default)]
+    pub scheme_handler_installed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -116,6 +126,7 @@ impl Default for State {
             workflows_dir: None,
             auth: None,
             daemon_autostart_attempted: false,
+            scheme_handler_installed: false,
         }
     }
 }
