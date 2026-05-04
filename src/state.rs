@@ -42,6 +42,9 @@ pub struct State {
     /// before the network round-trip to `/api/v0/me` resolves.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthSnapshot>,
+    /// One-shot. We never retry; a user who disabled the unit stays.
+    #[serde(default)]
+    pub daemon_autostart_attempted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -84,6 +87,7 @@ impl Default for State {
             library_sort: default_library_sort(),
             workflows_dir: None,
             auth: None,
+            daemon_autostart_attempted: false,
         }
     }
 }
