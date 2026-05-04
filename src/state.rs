@@ -32,10 +32,8 @@ pub struct State {
     /// doesn't have to carry PathBuf-shaped TOML.
     #[serde(default)]
     pub workflows_dir: Option<String>,
-    /// Wflows.com sign-in state. None when signed out. The token is the
-    /// PAT issued by `/auth/desktop`'s deeplink return; the cached
-    /// profile lets the UI render "Signed in as @handle" on launch
-    /// before the network round-trip to `/api/v0/me` resolves.
+    /// `None` when signed out. Cached so the UI can paint immediately
+    /// before /api/v0/me round-trips.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthSnapshot>,
     /// One-shot. We never retry; a user who disabled the unit stays.
