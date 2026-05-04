@@ -64,6 +64,7 @@ fn main() {
             // Pages
             QmlFile::from("qml/pages/LibraryPage.qml"),
             QmlFile::from("qml/pages/ExplorePage.qml"),
+            QmlFile::from("qml/pages/FavoritesPage.qml"),
             QmlFile::from("qml/pages/WorkflowPage.qml"),
             QmlFile::from("qml/pages/RecordPage.qml"),
             QmlFile::from("qml/pages/SettingsPage.qml"),

@@ -29,6 +29,7 @@ pub mod qobject {
         #[qml_element]
         #[qproperty(QString, featured_json)]
         #[qproperty(QString, browse_json)]
+        #[qproperty(QString, favorites_json)]
         #[qproperty(bool, loading)]
         #[qproperty(QString, last_error)]
         #[qproperty(QString, site_origin)]
@@ -36,6 +37,12 @@ pub mod qobject {
 
         #[qinvokable]
         fn fetch_featured(self: Pin<&mut ExploreController>);
+
+        /// Authenticated. Falls back silently when no token is set;
+        /// the UI hides the favorites tab in that case. 401 fires
+        /// `auth_expired` and sets `last_error`.
+        #[qinvokable]
+        fn fetch_favorites(self: Pin<&mut ExploreController>);
 
         /// Empty strings = no filter. Defaults: sort=recent, limit=24.
         /// `offset` clamps to >= 0.
@@ -111,6 +118,11 @@ pub mod qobject {
             self: Pin<&mut ExploreController>,
             detail_json: QString,
         );
+
+        /// Fires on any 401 from an authenticated call. QML wires it
+        /// to AuthController.sign_out.
+        #[qsignal]
+        fn auth_expired(self: Pin<&mut ExploreController>);
     }
 
     impl cxx_qt::Threading for ExploreController {}
@@ -119,6 +131,7 @@ pub mod qobject {
 pub struct ExploreControllerRust {
     pub featured_json: QString,
     pub browse_json: QString,
+    pub favorites_json: QString,
     pub loading: bool,
     pub last_error: QString,
     pub site_origin: QString,
@@ -138,11 +151,31 @@ impl Default for ExploreControllerRust {
         Self {
             featured_json: QString::from("{\"data\":[]}"),
             browse_json: QString::from("{\"data\":[],\"hasMore\":false}"),
+            favorites_json: QString::from("{\"data\":[]}"),
             loading: false,
             last_error: QString::from(""),
             site_origin: QString::from(&origin),
         }
     }
+}
+
+/// Internal error type for authenticated fetches. Lets the queue
+/// callback distinguish a 401 (which should fire auth_expired) from
+/// any other failure (just sets last_error).
+enum FetchError {
+    Unauthorized,
+    Other(String),
+}
+
+/// Snapshot the persisted auth token from state.toml. Cheap — TOML
+/// parse on a small file. Called at the start of each authenticated
+/// fetch so an in-flight task uses whatever token was current when it
+/// started, even if the user signs out mid-flight.
+fn current_token() -> Option<String> {
+    let s = crate::state::load();
+    s.auth.and_then(|a| {
+        if a.token.is_empty() { None } else { Some(a.token) }
+    })
 }
 
 fn http_client() -> reqwest::Client {
@@ -271,6 +304,71 @@ impl qobject::ExploreController {
                     }
                     Err(e) => {
                         tracing::warn!(error=%e, "fetch_browse failed");
+                        ctrl.as_mut().set_last_error(QString::from(&e));
+                    }
+                }
+            });
+        });
+    }
+
+    fn fetch_favorites(mut self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        let origin = self.as_ref().rust().site_origin.to_string();
+        let qt_thread = self.qt_thread();
+        self.as_mut().set_loading(true);
+        self.as_mut().set_last_error(QString::from(""));
+
+        let token = match current_token() {
+            Some(t) => t,
+            None => {
+                self.as_mut().set_loading(false);
+                self.as_mut().set_last_error(QString::from(
+                    "favorites: not signed in",
+                ));
+                return;
+            }
+        };
+
+        tokio::spawn(async move {
+            let url = format!("{origin}/api/v0/favorites");
+            let outcome: Result<String, FetchError> = match http_client()
+                .get(&url)
+                .bearer_auth(&token)
+                .send()
+                .await
+            {
+                Ok(resp) => {
+                    if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+                        Err(FetchError::Unauthorized)
+                    } else if !resp.status().is_success() {
+                        Err(FetchError::Other(format!("HTTP {}", resp.status())))
+                    } else {
+                        match resp.text().await {
+                            Ok(body) => Ok(body),
+                            Err(e) => Err(FetchError::Other(format!("read failed: {e}"))),
+                        }
+                    }
+                }
+                Err(e) => Err(FetchError::Other(format!("{e}"))),
+            };
+
+            let _ = qt_thread.queue(move |mut ctrl: Pin<&mut qobject::ExploreController>| {
+                ctrl.as_mut().set_loading(false);
+                match outcome {
+                    Ok(body) => {
+                        ctrl.as_mut().set_favorites_json(QString::from(&body));
+                        ctrl.as_mut().set_last_error(QString::from(""));
+                    }
+                    Err(FetchError::Unauthorized) => {
+                        tracing::info!("favorites: 401, token rejected");
+                        ctrl.as_mut().set_favorites_json(QString::from("{\"data\":[]}"));
+                        ctrl.as_mut().set_last_error(QString::from(
+                            "signed out, token expired or was revoked",
+                        ));
+                        ctrl.as_mut().auth_expired();
+                    }
+                    Err(FetchError::Other(e)) => {
+                        tracing::warn!(error=%e, "fetch_favorites failed");
                         ctrl.as_mut().set_last_error(QString::from(&e));
                     }
                 }

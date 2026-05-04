@@ -29,8 +29,9 @@ Item {
         anchors.fill: parent
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
-                      root.currentPage === "workflow" ? 2 :
-                      root.currentPage === "record" ? 3 : 4
+                      root.currentPage === "favorites" ? 2 :
+                      root.currentPage === "workflow" ? 3 :
+                      root.currentPage === "record" ? 4 : 5
 
         // Listening to currentPage (not currentIndex) so the animation
         // runs on the first nav too, where the index doesn't change.
@@ -63,6 +64,10 @@ Item {
             onRecordRequested: root.recordRequested()
         }
         ExplorePage {
+            onOpenWorkflow: (id) => root.openWorkflow(id)
+        }
+        FavoritesPage {
+            id: favoritesPageInst
             onOpenWorkflow: (id) => root.openWorkflow(id)
         }
         // Repeater keeps inactive WorkflowPages alive so per-doc state
@@ -305,6 +310,11 @@ Item {
                     const out = []
                     if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
                     out.push({ id: "library", label: "Library" })
+                    // Hidden when signed out so we don't tease a page
+                    // anonymous users can't populate.
+                    if (Theme._auth.state === "signed_in") {
+                        out.push({ id: "favorites", label: "Favorites" })
+                    }
                     if ((root.openDocs || []).length > 0) {
                         out.push({
                             id: "workflow",
