@@ -54,8 +54,20 @@
 
   <screenshots>
     <screenshot type="default">
-      <caption>Library page — seven example workflows, each tagged with its action types</caption>
-      <image>https://raw.githubusercontent.com/cushycush/wflow/main/assets/screenshots/wflow-library.png</image>
+      <caption>Library — five workflow cards plus a Daily folder, each tagged with its action types</caption>
+      <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/library-grid.dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Editor canvas — Resume coding workflow with a when/else block fanning into two branches</caption>
+      <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/editor-canvas.dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Explore — community catalog populated from wflows.io</caption>
+      <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/explore-grid.dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Triggers — list of bound chord shortcuts across the library</caption>
+      <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/triggers-tab.dark.png</image>
     </screenshot>
   </screenshots>
 
@@ -64,6 +76,44 @@
   </provides>
 
   <releases>
+    <release version="1.0.1" date="2026-05-04">
+      <description>
+        <p>
+          Triggers do what they say. Two patches to the trigger surface that 1.0 had ignored.
+        </p>
+        <p>
+          Trigger when-predicates now gate dispatch. The GUI has been letting you author `when window-class=firefox` since 1.0, but the daemon ignored the field. Pressing the chord fired the workflow regardless of focus. Daemon binds now route through a new internal `wflow trigger-fire` wrapper that probes the focused window via Hyprland (`hyprctl activewindow -j`) or Sway (i3 IPC tree walk) before firing. KDE / GNOME portal users fail open until per-DE probes land.
+        </p>
+        <p>
+          Imported workflows surface their chords before binding. Every chord the imported workflow wants bound shows as a key-cap pill in the deeplink confirm dialog's "Will bind" section, with conflict detection against the local library. Accepting an import that takes super+t from an existing workflow now warns before the swap rather than after.
+        </p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-05-04">
+      <description>
+        <p>
+          The catalog goes live. Explore is on, the desktop signs in to wflows.io, you can import community workflows in one click, and you can publish your own straight from the library card.
+        </p>
+        <p>
+          Live Explore tab. Featured rows, browse with sort / search / tag filters, real install and comment counts, the detail drawer parses inline KDL through the runner's decoder so the step preview is what the engine would actually run. Mock fixtures are gone.
+        </p>
+        <p>
+          One-click import via wflow://. Click Open in wflow on any wflows.io page; the desktop catches the URL, shows a confirm dialog (title, author, description, step count) before writing anything to disk. Drive-by pages can't silently install workflows. Single-instance lock forwards a second wflow invocation's argv to the running process via a Unix socket so deeplinks fire in your existing window.
+        </p>
+        <p>
+          Sign-in via browser handoff. Settings → Account opens wflows.io in your browser; sign-in redirects to a wflow://auth?token=... URL the desktop catches. Token persists in state.toml. Nav-bar pill shows your handle when signed in. The Favorites tab in Explore populates from your wflows.io account; 401s on authenticated calls route through a clean sign-out.
+        </p>
+        <p>
+          Publish from the library. Right-click menu item plus a visible Publish pill on every card in the top-right corner when signed in. Walks you through description, tags, visibility; reads the KDL on disk, encodes through the same encoder the CLI uses, posts to /api/v0/workflows.
+        </p>
+        <p>
+          Triggers tab in the GUI. Lists every active chord binding across your library, lets you add / edit / remove without hand-editing KDL. Chord-capture dialog, manual text entry for chords the compositor already grabs, when-predicates (window-class / window-title).
+        </p>
+        <p>
+          Daemon auto-enable. First GUI launch offers to enable the systemd user unit; respects your decision afterwards. Brand domain is wflows.io across the codebase; the wflows.com domain is parked.
+        </p>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-05-03">
       <description>
         <p>
