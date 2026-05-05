@@ -331,22 +331,32 @@ Item {
                                 lineHeight: 1.5
                             }
 
-                            Row {
-                                spacing: 6
-                                topPadding: 4
-                                Text {
-                                    text: "See all featured"
-                                    color: Theme.accent
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: Theme.fontSm
-                                    font.weight: Font.DemiBold
-                                }
-                                Text {
-                                    text: "→"
-                                    color: Theme.accent
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: Theme.fontSm
-                                    anchors.verticalCenter: parent.verticalCenter
+                            // Wrapper Item so the MouseArea can fill the
+                            // whole "See all featured →" lockup. Putting
+                            // the MouseArea inside Row instead would set
+                            // up a left/fill-anchor fight with Row's own
+                            // positioning and trip a QML warning on every
+                            // launch.
+                            Item {
+                                width: featuredCta.implicitWidth
+                                height: featuredCta.implicitHeight
+                                Row {
+                                    id: featuredCta
+                                    spacing: 6
+                                    topPadding: 4
+                                    Text {
+                                        text: "See all featured"
+                                        color: Theme.accent
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: Theme.fontSm
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Text {
+                                        text: "→"
+                                        color: Theme.accent
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: Theme.fontSm
+                                    }
                                 }
                                 MouseArea {
                                     anchors.fill: parent

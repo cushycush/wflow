@@ -206,7 +206,7 @@ impl qobject::RecorderController {
         tokio::spawn(async move {
             if let Err(e) = inner.start(sink.clone()).await {
                 tracing::warn!(?e, "recorder::start failed");
-                let msg = format!("{e:#}");
+                let msg = flatpak_aware_recorder_error(format!("{e:#}"));
                 let _ = err_qt_thread.queue(move |mut ctrl: Pin<&mut qobject::RecorderController>| {
                     ctrl.as_mut().set_state(QString::from("idle"));
                     ctrl.as_mut().set_last_error(QString::from(&msg));
@@ -283,6 +283,39 @@ impl qobject::RecorderController {
             }
         }
     }
+}
+
+/// Rewrite the upstream recorder error footer when running inside a
+/// Flatpak sandbox. The wdotool-core error text recommends adding the
+/// user to the `input` group so the evdev fallback can read
+/// `/dev/input/event*` — that's correct for native installs but
+/// misleading inside Flatpak, where the sandbox blocks `/dev/input`
+/// regardless of host group membership. The right fix on Hyprland or
+/// Sway under Flatpak is to install one of the non-sandboxed packages
+/// instead. On portal-equipped desktops the upstream guidance still
+/// applies, so we leave that part as the user's first option.
+fn flatpak_aware_recorder_error(msg: String) -> String {
+    if !crate::host::in_flatpak() {
+        return msg;
+    }
+    let Some(idx) = msg.find("Pick one of these to fix it") else {
+        return msg;
+    };
+    let head = msg[..idx].trim_end();
+    format!(
+        "{head}\n\n\
+         Flatpak note: the sandbox doesn't grant /dev/input access by design, \
+         so the evdev fallback can't see your input devices regardless of host \
+         `input` group membership. To fix it:\n  \
+           • On Plasma 6 or GNOME 46+, install or restart `xdg-desktop-portal`. \
+         The RemoteDesktop interface lands in the portal and the recorder uses \
+         it without /dev/input access.\n  \
+           • On Hyprland or Sway today, install the AUR `wflow` / `wflow-bin` \
+         package or the prebuilt tarball from GitHub Releases. Those run \
+         outside the sandbox and read /dev/input directly. Hyprland's portal \
+         doesn't ship RemoteDesktop yet; once it does, the Flatpak path will \
+         work too."
+    )
 }
 
 fn summarize(ev: &RecEvent) -> (String, String) {
