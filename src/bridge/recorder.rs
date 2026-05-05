@@ -197,7 +197,7 @@ impl qobject::RecorderController {
         tokio::spawn(async move {
             if let Err(e) = inner.start(sink.clone()).await {
                 tracing::warn!(?e, "recorder::start failed");
-                let msg = format!("{e:#}");
+                let msg = flatpak_aware_recorder_error(format!("{e:#}"));
                 let _ = err_qt_thread.queue(move |mut ctrl: Pin<&mut qobject::RecorderController>| {
                     ctrl.as_mut().set_state(QString::from("idle"));
                     ctrl.as_mut().set_last_error(QString::from(&msg));
@@ -272,6 +272,34 @@ impl qobject::RecorderController {
             }
         }
     }
+}
+
+/// Inside Flatpak, replace the upstream "add yourself to `input` group"
+/// suggestion with a sandbox-aware version. The sandbox blocks
+/// /dev/input regardless of host group membership, so that fix is a
+/// dead end here. Outside the sandbox, the upstream message is fine.
+fn flatpak_aware_recorder_error(msg: String) -> String {
+    if !crate::host::in_flatpak() {
+        return msg;
+    }
+    let Some(idx) = msg.find("Pick one of these to fix it") else {
+        return msg;
+    };
+    let head = msg[..idx].trim_end();
+    format!(
+        "{head}\n\n\
+         Flatpak note: the sandbox doesn't grant /dev/input access by design, \
+         so the evdev fallback can't see your input devices regardless of host \
+         `input` group membership. To fix it:\n  \
+           • On Plasma 6 or GNOME 46+, install or restart `xdg-desktop-portal`. \
+         The RemoteDesktop interface lands in the portal and the recorder uses \
+         it without /dev/input access.\n  \
+           • On Hyprland or Sway today, install the AUR `wflow` / `wflow-bin` \
+         package or the prebuilt tarball from GitHub Releases. Those run \
+         outside the sandbox and read /dev/input directly. Hyprland's portal \
+         doesn't ship RemoteDesktop yet; once it does, the Flatpak path will \
+         work too."
+    )
 }
 
 fn summarize(ev: &RecEvent) -> (String, String) {
