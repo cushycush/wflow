@@ -412,6 +412,7 @@ impl qobject::WorkflowController {
             None => return, // nothing to confirm
         };
         if let Err(e) = security::mark_trusted(&pt.path, &pt.hash) {
+            // Don't block the run; worst case the next run re-prompts.
             tracing::warn!(?e, "mark_trusted after confirm");
         }
         let debug = self.as_ref().rust().pending_debug;

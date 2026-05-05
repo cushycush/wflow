@@ -11,6 +11,34 @@ breaks.
 
 ---
 
+## [1.0.2] - 2026-05-05
+
+[Full release notes](docs/release-notes/v1.0.2.md)
+
+Flatpak polish for the Flathub submission.
+
+### Fixed
+
+- **Record-can't-start error reads correctly inside the Flatpak
+  sandbox.** The upstream wdotool-core error suggested two fixes
+  when no capture backend was reachable, one of which was "add
+  yourself to the `input` group" so evdev can read
+  `/dev/input/event*`. That's misleading inside Flatpak: the sandbox
+  blocks `/dev/input` regardless of host group membership. The
+  bridge now wraps the upstream message and swaps the footer for
+  sandbox-aware guidance (install/restart `xdg-desktop-portal` on
+  Plasma 6 / GNOME 46+; install the AUR or tarball builds on
+  Hyprland / Sway, since Hyprland's portal doesn't ship
+  RemoteDesktop yet). Outside the sandbox the original text is
+  unchanged.
+- **ExplorePage Row layout warning.** The "See all featured →"
+  lockup put a Text with `verticalCenter` and a `MouseArea` with
+  `anchors.fill` directly inside a Row, both fighting Row's own
+  positioning. QML emitted a warning on every launch. Restructured
+  to a wrapper Item with the Row and MouseArea as siblings.
+
+---
+
 ## [1.0.1] - 2026-05-04
 
 [Full release notes](docs/release-notes/v1.0.1.md)
