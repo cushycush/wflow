@@ -8,6 +8,7 @@
 mod actions;
 mod active_window;
 mod bridge;
+mod catalog;
 mod cli;
 mod daemon_autostart;
 mod daemon_lock;
