@@ -41,7 +41,7 @@ fn main() {
             QmlFile::from("qml/components/library/LibraryLayoutSwitcher.qml"),
             QmlFile::from("qml/components/library/LibraryGrid.qml"),
             QmlFile::from("qml/components/library/LibraryList.qml"),
-            // Workflow editor — single canvas-centric layout: a thin
+            // Workflow editor, single canvas-centric layout: a thin
             // step rail on the left, the node-graph canvas in the
             // middle, and a slide-in inspector on the right when a
             // step is selected. SplitInspector lives on under

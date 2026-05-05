@@ -9,18 +9,18 @@ import Wflow
 // Each step in `steps` is:
 //   { title, body, getTarget?, placement?, page?, scrim?, paletteChooser? }
 //
-//   title          — short headline
-//   body           — one focused sentence or two
-//   getTarget      — () => Item; returns the QML item to point at, or
+//   title         , short headline
+//   body          , one focused sentence or two
+//   getTarget     , () => Item; returns the QML item to point at, or
 //                    null for a centered modal step (no target)
-//   placement      — "above" | "below" | "left" | "right" | "auto"
+//   placement     , "above" | "below" | "left" | "right" | "auto"
 //                    (default: auto, prefers below)
-//   page           — "library" | "explore" | "workflow" | "record" |
-//                    "settings" — switch to this page before showing
+//   page          , "library" | "explore" | "workflow" | "record" |
+//                    "settings", switch to this page before showing
 //                    the step. Optional; omitted = stay where you are.
-//   scrim          — true/false. Default true. Dims the page so the
+//   scrim         , true/false. Default true. Dims the page so the
 //                    target reads as the focal point.
-//   paletteChooser — true to render two brand-palette preview tiles
+//   paletteChooser, true to render two brand-palette preview tiles
 //                    under the body. Clicking a tile applies the
 //                    palette live so the rest of the tour reskins.
 //
@@ -49,7 +49,7 @@ Item {
     readonly property var current:
         (step >= 0 && step < steps.length) ? steps[step] : null
 
-    // Resolve the current step's target lazily — getTarget may
+    // Resolve the current step's target lazily, getTarget may
     // reference items that don't exist yet on first read (e.g. the
     // editor canvas before any document is open). A stale read
     // returns null and the step degrades to a centered modal.
@@ -134,7 +134,7 @@ Item {
         Behavior on width { NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Easing.InOutCubic } }
         Behavior on height { NumberAnimation { duration: Theme.dur(Theme.durSlow); easing.type: Easing.InOutCubic } }
 
-        // Inner glow — a subtle accent wash inside the halo to
+        // Inner glow, a subtle accent wash inside the halo to
         // brighten the target's surroundings without obscuring it.
         Rectangle {
             anchors.fill: parent
@@ -303,7 +303,7 @@ Item {
                 lineHeight: 1.4
             }
 
-            // Palette chooser — only renders when the active step opts
+            // Palette chooser, only renders when the active step opts
             // in via paletteChooser:true. Two tiles, click selects and
             // applies the palette live so the rest of the tour reskins
             // immediately. Tile components draw their own swatches off
@@ -316,7 +316,7 @@ Item {
                 visible: root.current && root.current.paletteChooser === true
 
                 // Helper to render a single palette tile. Built inline
-                // because this is the only callsite — pulling it into
+                // because this is the only callsite, pulling it into
                 // its own component would cost more lines than it saves.
                 Repeater {
                     model: [
@@ -358,7 +358,7 @@ Item {
                             anchors.margins: 12
                             spacing: 6
 
-                            // Swatch row — one accent dot, two surface
+                            // Swatch row, one accent dot, two surface
                             // bars. Reads as a tiny page sample at a
                             // glance.
                             Row {
@@ -474,7 +474,7 @@ Item {
         }
     }
 
-    // Keyboard nav — Esc skips, ←/→ for back/next.
+    // Keyboard nav, Esc skips, ←/→ for back/next.
     Keys.onPressed: (event) => {
         if (!open) return
         switch (event.key) {

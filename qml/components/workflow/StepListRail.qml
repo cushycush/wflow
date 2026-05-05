@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Compact step list — the canvas-editor's left rail. Renders a vertical
+// Compact step list, the canvas-editor's left rail. Renders a vertical
 // list of the workflow's steps with reorder + delete + add affordances,
 // and emits selection / mutation signals for the parent to reconcile.
 //
@@ -121,7 +121,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
                             // 2px accent bar on the left edge of every
-                            // selected row — the canonical "this is
+                            // selected row, the canonical "this is
                             // selected" indicator from CLAUDE.md (macOS /
                             // VS Code source-list pattern).
                             Rectangle {
@@ -217,7 +217,7 @@ Item {
                                 }
                             }
 
-                            // Left edge selection bar — 2px accent
+                            // Left edge selection bar, 2px accent
                             Rectangle {
                                 visible: stepRow.isSelected
                                 width: 2
@@ -228,7 +228,7 @@ Item {
                                 color: stepRow.catColor
                             }
 
-                            // Hover controls — ↑ ↓ × on the right edge
+                            // Hover controls, ↑ ↓ × on the right edge
                             Row {
                                 anchors.right: parent.right
                                 anchors.rightMargin: 6

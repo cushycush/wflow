@@ -16,7 +16,7 @@ Rectangle {
         ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
         : (mouseArea.containsMouse ? Theme.surface2 : "transparent")
 
-    // The 2px accent rail for the selected row — the one place in the app
+    // The 2px accent rail for the selected row, the one place in the app
     // where this pattern appears, on purpose: macOS source list convention.
     Rectangle {
         visible: root.selected

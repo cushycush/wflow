@@ -127,7 +127,7 @@ jobs:
           token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
           # Publish immediately. The wflow-bin AUR package downloads
           # from /releases/download/v<ver>/, which 404s on draft
-          # releases — auto-publish so the bin package can install
+          # releases, auto-publish so the bin package can install
           # the same minute the tag lands.
           draft: false
           name: "wflow ${{ steps.stage.outputs.version }}"
@@ -138,7 +138,7 @@ jobs:
 
             See `INSTALL.txt` inside the tarball for install commands. See [`REVIEW.md`](https://github.com/cushycush/wflow/blob/main/REVIEW.md) for the trust model when running unfamiliar workflows.
 
-            Release notes still need a writeup — replace this body before publishing.
+            Release notes still need a writeup, replace this body before publishing.
           files: |
             stage/${{ steps.stage.outputs.name }}.tar.gz
             stage/SHA256SUMS

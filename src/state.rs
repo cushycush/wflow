@@ -45,7 +45,7 @@ pub struct State {
     #[serde(default = "default_palette")]
     pub palette: String,
     /// Honour the desktop "reduce motion" intent. When true, animation
-    /// durations collapse to zero — useful for users with vestibular
+    /// durations collapse to zero, useful for users with vestibular
     /// sensitivities or anyone who finds Qt Quick's animations
     /// distracting.
     #[serde(default)]
@@ -78,7 +78,7 @@ pub struct State {
     /// GUI launch; the file persists at
     /// `~/.local/share/applications/` afterwards. Re-attempted only
     /// when the binary path changes (a fresh cargo build moves to
-    /// `target/release` etc.) — the install routine compares the
+    /// `target/release` etc.), the install routine compares the
     /// existing Exec= line to the current path and rewrites if they
     /// differ.
     #[serde(default)]
@@ -160,13 +160,13 @@ fn state_path() -> Result<PathBuf> {
         return Ok(PathBuf::from(p));
     }
     let dir = dirs::config_dir()
-        .context("no XDG_CONFIG_HOME or HOME — cannot locate state.toml")?
+        .context("no XDG_CONFIG_HOME or HOME, cannot locate state.toml")?
         .join("wflow");
     Ok(dir.join("state.toml"))
 }
 
 /// Load state from disk. Missing file or unparseable file both return
-/// `Ok(default)` — this function never fails the app's startup. On
+/// `Ok(default)`, this function never fails the app's startup. On
 /// parse failure, the broken file is renamed to
 /// `state.toml.broken-<ts>` so the user can inspect it later.
 pub fn load() -> State {
@@ -216,7 +216,7 @@ pub fn load() -> State {
 }
 
 /// Write state to disk via atomic tempfile rename. Failure is logged
-/// but never bubbles up — at worst the state isn't persisted, the
+/// but never bubbles up, at worst the state isn't persisted, the
 /// user gets a tutorial again next launch.
 pub fn save(state: &State) {
     let path = match state_path() {
@@ -376,7 +376,7 @@ mod tests {
         let _g = setup();
         // A fresh state file (no palette key) should load with the
         // documented "warm" default rather than panicking on the
-        // missing field — this is what protects users on a v0.4.x
+        // missing field, this is what protects users on a v0.4.x
         // → v0.5.0 upgrade from getting stuck.
         let path = PathBuf::from(std::env::var("WFLOW_STATE_PATH").unwrap());
         fs::create_dir_all(path.parent().unwrap()).unwrap();

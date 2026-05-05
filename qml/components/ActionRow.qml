@@ -3,9 +3,9 @@ import QtQuick.Controls
 import Wflow
 
 // A single action in a workflow. Appearance shifts with VisualStyle.mode:
-//  • Bold        — flat row, small chip, hover: surface2.
-//  • Cinematic   — category-tinted fill, icon badge, hover: scale 1.015 + brighter tint.
-//  • Maximalist  — Cinematic + active step pulse aura + slow chip shimmer.
+//  • Bold       , flat row, small chip, hover: surface2.
+//  • Cinematic  , category-tinted fill, icon badge, hover: scale 1.015 + brighter tint.
+//  • Maximalist , Cinematic + active step pulse aura + slow chip shimmer.
 Rectangle {
     id: root
     property int index: 0
@@ -22,7 +22,7 @@ Rectangle {
     implicitHeight: (root.hasError ? 76 : 60) + (root.summary ? 14 : 0)
     radius: Theme.radiusMd
 
-    // Base color — surface + category tint (cinematic) + active lift
+    // Base color, surface + category tint (cinematic) + active lift
     color: {
         if (VisualStyle.categoryTintedRow) {
             const alpha = root.active ? 0.18 :
@@ -111,7 +111,7 @@ Rectangle {
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
         }
 
-        // Category — icon (cinematic+) or chip (bold)
+        // Category, icon (cinematic+) or chip (bold)
         Loader {
             anchors.verticalCenter: parent.verticalCenter
             sourceComponent: VisualStyle.categoryIcons ? iconComp
@@ -168,7 +168,7 @@ Rectangle {
             }
         }
 
-        // Delete — visible on hover, but also whenever the button itself has
+        // Delete, visible on hover, but also whenever the button itself has
         // keyboard focus so a Tab-only user can still see + operate it.
         IconButton {
             id: removeBtn

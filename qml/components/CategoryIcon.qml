@@ -3,7 +3,7 @@ import Wflow
 
 // Compact rounded-square icon for an action category. Foreground glyph
 // (Unicode) on a tinted background. Used everywhere we need a small
-// "this step is a <kind>" marker — chips, palette, inspector, library
+// "this step is a <kind>" marker, chips, palette, inspector, library
 // step row, canvas mini-cards.
 //
 // The radius matches the rest of the app's rounded-square language
@@ -11,7 +11,7 @@ import Wflow
 // icons sit consistently next to library cards, gradient pills, and
 // the chrome.
 //
-// Each Unicode glyph has slightly different metrics — different
+// Each Unicode glyph has slightly different metrics, different
 // optical centers, different cap-heights, different stem lengths.
 // Rather than try to push everything through font.pixelSize alone,
 // we keep two per-kind tables: a SIZE multiplier (so the timer can
@@ -76,7 +76,7 @@ Rectangle {
     // +y on most kinds because Qt's Text bounding box reserves
     // descender space that most of these glyphs don't use, leaving
     // the glyph hanging above the visual center. Per-kind overrides
-    // here are tuned by eye against the rendered output — adjust
+    // here are tuned by eye against the rendered output, adjust
     // when a kind reads off in the editor or library.
     function _nudgeX(k) {
         switch (k) {
@@ -110,7 +110,7 @@ Rectangle {
         font.pixelSize: Math.max(10, Math.round(root.size * root._glyphRatio(root.kind)))
         font.weight: Font.Bold
 
-        // Maximalist — slight spin on hover (from VisualStyle).
+        // Maximalist, slight spin on hover (from VisualStyle).
         rotation: (VisualStyle.iconHoverSpin && root.hovered) ? 8 : 0
         scale: (VisualStyle.iconHoverSpin && root.hovered) ? 1.08 : 1.0
         Behavior on rotation { NumberAnimation { duration: Theme.dur(240); easing.type: Easing.OutCubic } }

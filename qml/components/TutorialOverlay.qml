@@ -2,14 +2,14 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// One-shot tutorial tooltip — a styled callout box the caller anchors
+// One-shot tutorial tooltip, a styled callout box the caller anchors
 // to whatever element they want to teach about. Caller owns the
 // "have we shown this before" state and the visibility binding.
 //
 // Usage (inside a parent that holds the target as a sibling):
 //
 //   TutorialOverlay {
-//       text: "Start by adding a step — try Type text or Press key."
+//       text: "Start by adding a step, try Type text or Press key."
 //       anchors.bottom: addStepRow.top
 //       anchors.bottomMargin: 4
 //       anchors.horizontalCenter: addStepRow.horizontalCenter
@@ -23,7 +23,7 @@ import Wflow
 Rectangle {
     id: root
 
-    /// One-line text shown in the bubble. Caller's responsibility —
+    /// One-line text shown in the bubble. Caller's responsibility.
     /// keep it short, the bubble caps width at 360.
     property string text: ""
 
@@ -48,7 +48,7 @@ Rectangle {
         color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.06)
     }
 
-    // ARIA-equivalent — Qt Quick's Accessibility attached object
+    // ARIA-equivalent, Qt Quick's Accessibility attached object
     // forwards to AT-SPI. Tooltip role so a screen reader announces
     // and moves on rather than trapping focus.
     Accessible.role: Accessible.ToolTip

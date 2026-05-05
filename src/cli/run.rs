@@ -54,13 +54,13 @@ pub(super) fn cmd_run(target: &str, dry_run: bool, explain: bool, yes: bool) -> 
     }
 
     if wf.steps.is_empty() {
-        println!("{} nothing to run", dim("—"));
+        println!("{} nothing to run", dim("·"));
         return Ok(ExitCode::SUCCESS);
     }
 
     preflight(&wf)?;
 
-    // Trust check — require explicit confirmation the first time we
+    // Trust check, require explicit confirmation the first time we
     // run a workflow file we didn't author here. `wflow new` and the
     // GUI editor mark their own files trusted on save, so this only
     // fires for files brought in from outside (downloaded, cloned,
@@ -89,7 +89,7 @@ pub(super) fn cmd_run(target: &str, dry_run: bool, explain: bool, yes: bool) -> 
 
     // The sink receives RunEvents in order from inside run_workflow. We
     // print them as they land so progress is live. `ran` counts
-    // StepDone events — the post-flatten number, which may exceed
+    // StepDone events, the post-flatten number, which may exceed
     // wf.steps.len() when `repeat` blocks expand.
     let title = wf.title.clone();
     let failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -138,7 +138,7 @@ pub(super) fn cmd_trigger_fire(target: &str) -> Result<ExitCode> {
     };
 
     // The chord that fired might be one of several triggers on the
-    // same workflow — we don't know which. If any chord-trigger has
+    // same workflow, we don't know which. If any chord-trigger has
     // no `when`, fire. If every chord-trigger has a `when`, fire only
     // if at least one matches.
     let chord_triggers: Vec<_> = wf
@@ -191,7 +191,7 @@ pub(super) fn cmd_trigger_fire(target: &str) -> Result<ExitCode> {
 
 // ────────────────────────── target resolution + trust ─────────────────────────
 
-/// Resolve TARGET to a `Workflow`. Tries path first — if it contains a
+/// Resolve TARGET to a `Workflow`. Tries path first, if it contains a
 /// slash, ends in `.kdl`, or exists on disk. Otherwise looks the id up
 /// in the library.
 pub(super) fn load_target(target: &str) -> Result<Workflow> {
@@ -240,7 +240,7 @@ fn resolve_trust_path(target: &str, wf: &Workflow) -> Result<PathBuf> {
 
 /// Print a summary of the workflow's risky steps and ask the user to
 /// confirm. Returns Ok(true) if the user typed yes. Errors out (rather
-/// than silently denying) when stdin is not a TTY — a non-interactive
+/// than silently denying) when stdin is not a TTY, a non-interactive
 /// caller should pass `--yes` instead of hanging on a prompt that
 /// will never resolve.
 fn confirm_untrusted_workflow(path: &Path, wf: &Workflow) -> Result<bool> {
@@ -309,7 +309,7 @@ fn confirm_untrusted_workflow(path: &Path, wf: &Workflow) -> Result<bool> {
 
 /// Refuse to start a run if the workflow needs a host binary that
 /// isn't on PATH (notify-send, wl-copy). Input/window actions go
-/// through wdotool-core in-process so they don't appear here — their
+/// through wdotool-core in-process so they don't appear here, their
 /// failure mode is "no backend reachable", caught at first dispatch.
 fn preflight(wf: &Workflow) -> Result<()> {
     use std::collections::BTreeSet;
@@ -320,7 +320,7 @@ fn preflight(wf: &Workflow) -> Result<()> {
         return Ok(());
     }
     Err(anyhow!(
-        "missing required tool{}: {} — run `wflow doctor` for details",
+        "missing required tool{}: {}, run `wflow doctor` for details",
         if missing.len() == 1 { "" } else { "s" },
         missing.join(", "),
     ))
@@ -384,7 +384,7 @@ fn print_event(
             println!("{} {}", arrow(), bold(title));
         }
         RunEvent::StepStart { .. } => {
-            // Quiet on StepStart — only print the outcome so the line
+            // Quiet on StepStart, only print the outcome so the line
             // can carry the success/error glyph.
         }
         RunEvent::StepDone {

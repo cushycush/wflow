@@ -90,7 +90,7 @@ pub fn decode(src: &str) -> Result<Workflow> {
 }
 
 /// New-format decoder: a single root `workflow "title" { ... }` node.
-/// `id` is intentionally NOT set here — the caller fills it from the
+/// `id` is intentionally NOT set here, the caller fills it from the
 /// filename. (For `wflow run <path>` against a hand-written file the
 /// id stays empty, which is fine since we never write back.)
 fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
@@ -146,7 +146,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
                     let key = var_node.name().value().to_string();
                     if key.starts_with("env.") {
                         bail!(
-                            "`vars` can't define `{key}` — the `env.*` namespace is reserved \
+                            "`vars` can't define `{key}`, the `env.*` namespace is reserved \
                              for process environment lookups"
                         );
                     }
@@ -178,7 +178,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
                 for grp_node in inner.nodes() {
                     if grp_node.name().value() != "group" {
                         bail!(
-                            "unexpected `{}` inside `groups {{ ... }}` — only \
+                            "unexpected `{}` inside `groups {{ ... }}`, only \
                              `group` nodes belong here",
                             grp_node.name().value()
                         );
@@ -190,16 +190,16 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
             // top-level fields and don't make sense inside the workflow
             // block. Reject loudly so a half-migrated file gets flagged.
             "id" => bail!(
-                "`id` doesn't belong inside a `workflow` block — \
+                "`id` doesn't belong inside a `workflow` block, \
                  the filename is the id in the new format"
             ),
             "title" => bail!(
-                "`title` doesn't belong inside a `workflow` block — \
+                "`title` doesn't belong inside a `workflow` block, \
                  it's the positional arg of `workflow \"...\"`"
             ),
             "recipe" => bail!(
                 "`recipe {{ ... }}` is the legacy block name. In the new format, \
-                 step nodes are direct children of the `workflow` block — drop the `recipe` wrapper."
+                 step nodes are direct children of the `workflow` block, drop the `recipe` wrapper."
             ),
             "schema" => bail!(
                 "`schema` is no longer a per-file field. The format version is implicit \
@@ -228,7 +228,7 @@ fn decode_workflow_block(wf_node: &KdlNode) -> Result<Workflow> {
 
 fn decode_group(node: &KdlNode) -> Result<crate::actions::Group> {
     use crate::actions::Group;
-    // The first positional string is the comment text — same shape
+    // The first positional string is the comment text, same shape
     // as `note "text"`. Properties carry id, x, y, width, height,
     // color.
     let comment = first_string(node).unwrap_or_default();
@@ -236,7 +236,7 @@ fn decode_group(node: &KdlNode) -> Result<crate::actions::Group> {
         .get("id")
         .and_then(|v| v.as_string().map(str::to_string))
         .unwrap_or_else(|| {
-            // Generate one if missing — old hand-edited files might
+            // Generate one if missing, old hand-edited files might
             // omit this and we'd rather render the group than reject
             // the workflow.
             uuid::Uuid::new_v4().to_string()
@@ -301,7 +301,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
             "modified" => modified = parse_ts_opt(&first_string(node)?),
             "last-run" => last_run = parse_ts_opt(&first_string(node)?),
             "vars" => {
-                // `vars { name "value" ... }` — workflow-level bindings
+                // `vars { name "value" ... }`, workflow-level bindings
                 // that actions can substitute as `{{name}}` at run time.
                 let children = node
                     .children()
@@ -310,7 +310,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
                     let key = var_node.name().value().to_string();
                     if key.starts_with("env.") {
                         bail!(
-                            "`vars` can't define `{key}` — the `env.*` namespace is reserved \
+                            "`vars` can't define `{key}`, the `env.*` namespace is reserved \
                              for process environment lookups"
                         );
                     }
@@ -321,7 +321,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
                 }
             }
             "imports" => {
-                // `imports { name "path" ... }` — named references to
+                // `imports { name "path" ... }`, named references to
                 // fragment files, splice-able as `use name` inside recipe
                 // (or any nested block).
                 let children = node
@@ -348,7 +348,7 @@ fn decode_legacy(doc: &KdlDocument) -> Result<Workflow> {
                 }
             }
             other => {
-                // An unknown top-level node is almost always a typo — say
+                // An unknown top-level node is almost always a typo, say
                 // so loudly instead of dropping it silently.
                 let valid = [
                     "schema", "id", "title", "subtitle", "created",
@@ -445,13 +445,13 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
         "key-up" => Action::WdoKeyUp { chord: normalize_chord(&first_string(node)?) },
         "mouse-down" => {
             let button = first_int_opt(node)
-                .ok_or_else(|| anyhow!("`mouse-down` needs a button number — try `mouse-down 1`"))?
+                .ok_or_else(|| anyhow!("`mouse-down` needs a button number, try `mouse-down 1`"))?
                 as u8;
             Action::WdoMouseDown { button }
         }
         "mouse-up" => {
             let button = first_int_opt(node)
-                .ok_or_else(|| anyhow!("`mouse-up` needs a button number — try `mouse-up 1`"))?
+                .ok_or_else(|| anyhow!("`mouse-up` needs a button number, try `mouse-up 1`"))?
                 as u8;
             Action::WdoMouseUp { button }
         }
@@ -467,7 +467,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
                 ),
                 ([], Some(x), Some(y)) => (x as i32, y as i32),
                 _ => bail!(
-                    "`move` needs two integer coordinates — try `move 640 480` or `move x=640 y=480`"
+                    "`move` needs two integer coordinates, try `move 640 480` or `move x=640 y=480`"
                 ),
             };
             let relative = prop_bool_or(node, "relative", false);
@@ -485,7 +485,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
                 ),
                 ([], Some(dx), Some(dy)) => (dx as i32, dy as i32),
                 _ => bail!(
-                    "`scroll` needs two integer deltas — try `scroll 0 3` or `scroll dx=0 dy=3`"
+                    "`scroll` needs two integer deltas, try `scroll 0 3` or `scroll dx=0 dy=3`"
                 ),
             };
             Action::WdoScroll { dx, dy }
@@ -500,7 +500,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
                 ),
                 (Some(s), None) | (None, Some(s)) if !s.is_empty() => s,
                 _ => bail!(
-                    "`focus` needs a window name — try `focus \"Firefox\"`"
+                    "`focus` needs a window name, try `focus \"Firefox\"`"
                 ),
             };
             Action::WdoActivateWindow { name }
@@ -512,7 +512,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
             let timeout_ms = match (tms, ts) {
                 (Some(_), Some(_)) => bail!(
                     "`await-window`: specify the timeout once, as either \
-                     `timeout-ms=5000` or `timeout=\"5s\"` — not both"
+                     `timeout-ms=5000` or `timeout=\"5s\"`, not both"
                 ),
                 (Some(v), None) => v as u64,
                 (None, Some(s)) => parse_duration_ms(&s)?,
@@ -535,7 +535,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
                 .count();
             if present > 1 {
                 bail!(
-                    "`wait`: specify the duration once — `wait 500`, `wait \"1.5s\"`, \
+                    "`wait`: specify the duration once, `wait 500`, `wait \"1.5s\"`, \
                      or `wait ms=500`"
                 );
             }
@@ -543,7 +543,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
                 (Some(v), _, _) => v as u64,
                 (_, Some(s), _) => parse_duration_ms(&s)?,
                 (_, _, Some(v)) => v as u64,
-                _ => bail!("`wait` needs a duration — try `wait 500` or `wait \"1.5s\"`"),
+                _ => bail!("`wait` needs a duration, try `wait 500` or `wait \"1.5s\"`"),
             };
             Action::Delay { ms }
         }
@@ -556,7 +556,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
             let old_name = prop_string(node, "shell");
             let shell = match (new_name, old_name) {
                 (Some(_), Some(_)) => bail!(
-                    "`shell`: set the interpreter with `with=\"/bin/bash\"` — \
+                    "`shell`: set the interpreter with `with=\"/bin/bash\"`, \
                      drop the older `shell=` alias"
                 ),
                 (Some(s), None) | (None, Some(s)) => Some(s),
@@ -570,7 +570,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
             let timeout_ms = match (tms, ts) {
                 (Some(_), Some(_)) => bail!(
                     "`shell`: specify the timeout once, as either \
-                     `timeout-ms=30000` or `timeout=\"30s\"` — not both"
+                     `timeout-ms=30000` or `timeout=\"30s\"`, not both"
                 ),
                 (Some(v), None) => Some(v as u64),
                 (None, Some(s)) => Some(parse_duration_ms(&s)?),
@@ -587,7 +587,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
             let backoff_ms = match (bms, bs) {
                 (Some(_), Some(_)) => bail!(
                     "`shell`: specify the backoff once, as either \
-                     `backoff-ms=500` or `backoff=\"500ms\"` — not both"
+                     `backoff-ms=500` or `backoff=\"500ms\"`, not both"
                 ),
                 (Some(v), None) => Some(v as u64),
                 (None, Some(s)) => Some(parse_duration_ms(&s)?),
@@ -613,7 +613,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
         }
         "repeat" => {
             let count = first_int_opt(node)
-                .ok_or_else(|| anyhow!("`repeat` needs a positive integer count — try `repeat 3 {{ ... }}`"))?;
+                .ok_or_else(|| anyhow!("`repeat` needs a positive integer count, try `repeat 3 {{ ... }}`"))?;
             if count < 0 {
                 bail!("`repeat` count must be >= 0, got {count}");
             }
@@ -631,9 +631,9 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
         }
         "use" => {
             // Unquoted bareword, `use dev-setup`, parses as a single
-            // string arg in KDL v2 — same path as quoted form.
+            // string arg in KDL v2, same path as quoted form.
             let name = first_string(node).with_context(|| {
-                "`use` needs an import name — try `use dev-setup` after declaring \
+                "`use` needs an import name, try `use dev-setup` after declaring \
                  it in the top-level `imports { ... }` block"
             })?;
             Action::Use { name }
@@ -691,7 +691,7 @@ pub(super) fn decode_step(node: &KdlNode) -> Result<Step> {
     step.note = comment;
     step.on_error = on_error;
     // Honor a stable id if one was emitted on encode. Otherwise
-    // keep the fresh UUID Step::new just generated — that's the
+    // keep the fresh UUID Step::new just generated, that's the
     // first-time-decode path (legacy files / hand-authored .kdl
     // without an _id property).
     if let Some(saved_id) = prop_string(node, "_id") {
@@ -716,7 +716,7 @@ fn decode_condition(node: &KdlNode, verb: &str) -> Result<Condition> {
         .count();
     if present == 0 {
         bail!(
-            "`{verb}` needs exactly one condition — try `{verb} window=\"Firefox\" {{ ... }}`, \
+            "`{verb}` needs exactly one condition, try `{verb} window=\"Firefox\" {{ ... }}`, \
              `{verb} file=\"/tmp/marker\" {{ ... }}`, or `{verb} env=\"DEBUG\" {{ ... }}`"
         );
     }
@@ -795,7 +795,7 @@ fn decode_trigger(node: &KdlNode) -> Result<crate::actions::Trigger> {
                 }
             }
             other => bail!(
-                "unknown `trigger` child `{other}` — expected `chord`, `hotstring`, or `when`"
+                "unknown `trigger` child `{other}`, expected `chord`, `hotstring`, or `when`"
             ),
         }
     }
@@ -873,7 +873,7 @@ fn canonical_verb(raw: &str) -> &str {
 /// Per-action list of property names the decoder will accept, keyed by
 /// the *canonical* verb name. Every action additionally accepts the
 /// common step properties (see `COMMON_PROPS`). Keep in lockstep with
-/// the match arms in `decode_step` — this is the single source of
+/// the match arms in `decode_step`, this is the single source of
 /// truth for "is `shell retries=3` valid?".
 ///
 /// `shell` accepts both `shell=` (the original, now-deprecated prop
@@ -915,7 +915,7 @@ const COMMON_PROPS: &[&str] = &["disabled", "comment", "on-error", "_id"];
 
 /// Walk every named entry on a step node and fail if any name isn't in
 /// the action's allowlist or the common list. Unnamed (positional)
-/// entries are left alone — their handling belongs to the action decoder.
+/// entries are left alone, their handling belongs to the action decoder.
 fn validate_props(node: &KdlNode, kind: &str, allowed: &[&str]) -> Result<()> {
     for entry in node.entries() {
         let Some(name) = entry.name().map(|n| n.value()) else {
@@ -927,7 +927,7 @@ fn validate_props(node: &KdlNode, kind: &str, allowed: &[&str]) -> Result<()> {
         let valid: Vec<&str> = allowed.iter().copied().chain(COMMON_PROPS.iter().copied()).collect();
         let hint = suggest(name, &valid);
         let valid_list = if valid.is_empty() {
-            String::from("(none — this action takes no properties)")
+            String::from("(none, this action takes no properties)")
         } else {
             valid.join(", ")
         };
@@ -939,7 +939,7 @@ fn validate_props(node: &KdlNode, kind: &str, allowed: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Cheap "did you mean?" — returns the closest allowlisted name if the
+/// Cheap "did you mean?", returns the closest allowlisted name if the
 /// Levenshtein distance is <= 2 and strictly smaller than the candidate
 /// length (so `x` doesn't suggest `y`).
 pub(super) fn suggest<'a>(got: &str, valid: &[&'a str]) -> Option<&'a str> {

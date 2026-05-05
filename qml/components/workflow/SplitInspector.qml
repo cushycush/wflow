@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 2 — SPLIT
+// Variant 2, SPLIT
 // List of steps on the left, full inspector on the right for the selected step.
 // Two-pane, detail-oriented. Great for editing a single action closely.
 Item {
@@ -33,7 +33,7 @@ Item {
     signal tutorialDismissed()
 
     // Kinds exposed in the add-step picker. Flow-control (repeat, conditional,
-    // use) is intentionally excluded — those need a richer editor and live
+    // use) is intentionally excluded, those need a richer editor and live
     // in `wflow edit` for now.
     readonly property var _pickableKinds: [
         { kind: "key",       label: "Key chord" },
@@ -55,7 +55,7 @@ Item {
         anchors.fill: parent
         spacing: 16
 
-        // Left — thin step list
+        // Left, thin step list
         Rectangle {
             width: 320
             height: parent.height
@@ -177,7 +177,7 @@ Item {
                             }
                         }
 
-                        // Left edge active indicator — 2px accent bar (allowed by design principles)
+                        // Left edge active indicator, 2px accent bar (allowed by design principles)
                         Rectangle {
                             visible: stepRow.isSelected
                             width: 2
@@ -188,7 +188,7 @@ Item {
                             color: stepRow.catColor
                         }
 
-                        // Hover controls — ↑ ↓ × on the right edge. Visible
+                        // Hover controls, ↑ ↓ × on the right edge. Visible
                         // when the row (or its sub-areas) has the mouse or is
                         // selected so keyboard-only users still see them.
                         Row {
@@ -267,7 +267,7 @@ Item {
                     }
                 }
 
-                // Add-step footer — opens a Menu of kinds.
+                // Add-step footer, opens a Menu of kinds.
                 Rectangle {
                     id: addStepRow
                     width: parent.width
@@ -276,7 +276,7 @@ Item {
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
                     // First-time tutorial tooltip. Shown when the
-                    // parent flips `showTutorial` true — typically on
+                    // parent flips `showTutorial` true, typically on
                     // a blank workflow that's never been opened on
                     // this machine. Auto-dismisses after 4.5s for
                     // screen readers; users can also × it.
@@ -334,7 +334,7 @@ Item {
             }
         }
 
-        // Right — inspector for selected step
+        // Right, inspector for selected step
         Rectangle {
             width: parent.width - 320 - 16
             height: parent.height
@@ -393,7 +393,7 @@ Item {
 
                 Rectangle { width: parent.width; height: 1; color: Theme.lineSoft }
 
-                // Value — editable for string- and int-valued kinds; read-only
+                // Value, editable for string- and int-valued kinds; read-only
                 // display for flow / multi-int kinds that need a richer editor.
                 Column {
                     id: valueSection
@@ -449,7 +449,7 @@ Item {
                         border.width: valueField.activeFocus ? 2 : 1
                         Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
-                        // Editable field — visible only when the action's primary
+                        // Editable field, visible only when the action's primary
                         // is inline-editable (string- or int-valued kind).
                         TextField {
                             id: valueField
@@ -460,7 +460,7 @@ Item {
                             verticalAlignment: TextInput.AlignVCenter
 
                             // Re-sync the field's text whenever the selection or
-                            // upstream primary changes — keyed on a synthetic
+                            // upstream primary changes, keyed on a synthetic
                             // property so user typing doesn't fight the binding
                             // (text is a plain assignment, not a declarative binding).
                             readonly property var syncKey: [root.selectedIndex,
@@ -537,7 +537,7 @@ Item {
                         font.letterSpacing: 1.0
                     }
 
-                    // Skip this step — inverse of `enabled`.
+                    // Skip this step, inverse of `enabled`.
                     Row {
                         width: parent.width
                         height: 28
@@ -578,7 +578,7 @@ Item {
                         }
                     }
 
-                    // On error — Stop / Continue segmented control.
+                    // On error, Stop / Continue segmented control.
                     Row {
                         width: parent.width
                         height: 28

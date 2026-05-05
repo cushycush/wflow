@@ -1,10 +1,10 @@
 // Trigger a deploy script that occasionally times out or hits a transient
 // API failure. Demonstrates the shell resilience features:
 //
-//   - `timeout`     — kill the child after N seconds, error the step
-//   - `retries`     — re-run on failure, up to N additional times
-//   - `backoff`     — sleep between retries (defaults to 500ms)
-//   - `on-error`    — continue past the step on final failure
+//   - `timeout`    , kill the child after N seconds, error the step
+//   - `retries`    , re-run on failure, up to N additional times
+//   - `backoff`    , sleep between retries (defaults to 500ms)
+//   - `on-error`   , continue past the step on final failure
 //
 // In real use, you'd usually want `on-error="stop"` (the default) so a
 // failed deploy halts the workflow; this example sets `continue` so the

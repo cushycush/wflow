@@ -1,4 +1,4 @@
-//! RecorderController — Record Mode state machine exposed to QML.
+//! RecorderController, Record Mode state machine exposed to QML.
 //!
 //! Wraps `recorder::Recorder` and pumps its `RecFrame` stream back onto
 //! the Qt thread as property changes and signals.
@@ -32,7 +32,7 @@ pub mod qobject {
         #[qproperty(QString, last_error)]
         type RecorderController = super::RecorderControllerRust;
 
-        /// Begin a recording session (simulated today — see recorder.rs).
+        /// Begin a recording session (simulated today, see recorder.rs).
         #[qinvokable]
         fn arm(self: Pin<&mut RecorderController>);
 
@@ -144,7 +144,7 @@ impl qobject::RecorderController {
                 RecFrame::StopRequested => {
                     // Esc was pressed in the evdev stream. Trigger
                     // the same stop sequence the GUI Stop button does
-                    // — a fresh task that calls inner.stop() with a
+                    //, a fresh task that calls inner.stop() with a
                     // stop_sink that updates QML state on Stopped.
                     let inner = inner_for_sink.clone();
                     let captured = captured_for_sink.clone();

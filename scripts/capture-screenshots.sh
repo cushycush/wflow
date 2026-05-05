@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture the v1.0 screenshot baseline in one pass — the catalog,
+# Capture the v1.0 screenshot baseline in one pass, the catalog,
 # sign-in, publish, triggers, and the editor surfaces that the
 # README and design docs reference.
 #
@@ -154,14 +154,14 @@ pair() {
 # ---- Nav helpers ----
 # Ctrl+N follows the chrome pill order with Theme.showExplore on:
 #   Ctrl+1 = Library, Ctrl+2 = Explore, Ctrl+3 = Record.
-# Triggers, Favorites, Settings have no shortcuts — click in chrome.
+# Triggers, Favorites, Settings have no shortcuts, click in chrome.
 nav_library() { focus_wflow; wtype -M ctrl -k 1 -m ctrl; sleep 0.4; }
 nav_explore() { focus_wflow; wtype -M ctrl -k 2 -m ctrl; sleep 0.4; }
 nav_record()  { focus_wflow; wtype -M ctrl -k 3 -m ctrl; sleep 0.4; }
 
 # ---- Walk the manifest ----
 
-# Library — the Daily folder + 5 top-level cards layout.
+# Library, the Daily folder + 5 top-level cards layout.
 nav_library
 pair "library-grid" \
     "Library tab. Five workflow cards plus the 'Daily' folder tile, no menus open."
@@ -172,11 +172,11 @@ pair "library-folder-open" \
 pair "library-publish-pill" \
     "Library tab, signed in to wflows.io. Each card should show the '↑ Publish' pill in the top-right corner. Skip if signed out."
 
-# Editor — Resume coding is the demo workflow. Short enough to fit on
+# Editor, Resume coding is the demo workflow. Short enough to fit on
 # screen at a readable zoom, but the when/else block fans the canvas
 # into branches (the v0.6.0 conditional feature) so the layout isn't
 # a boring straight line. Lives at Daily/resume-coding.kdl. Make sure
-# it has saved card positions before running — open it once and let
+# it has saved card positions before running, open it once and let
 # Smart Tidy do its thing.
 nav_library
 pair "editor-canvas" \
@@ -191,7 +191,7 @@ pair "editor-inspector" \
 pair "editor-trigger-card" \
     "Same workflow open. The pinned trigger card at the top-left of the canvas should read the chord 'super+shift+c'."
 
-# Triggers tab — chrome pill, fourth slot. Four workflows ship with
+# Triggers tab, chrome pill, fourth slot. Four workflows ship with
 # chord bindings: resume-coding (super+shift+c), daily-standup
 # (super+shift+d), screenshot-and-share (super+shift+s), loop-tab-thru
 # (super+shift+t).
@@ -199,7 +199,7 @@ nav_library
 pair "triggers-tab" \
     "Click the 'Triggers' tab in the chrome pill. List shows the four bound workflows with their chords."
 
-# Explore tab — Ctrl+2 navigates here when showExplore is on.
+# Explore tab, Ctrl+2 navigates here when showExplore is on.
 nav_explore
 pair "explore-grid" \
     "Explore tab. Featured row + browse grid populated from wflows.io. No drawer open."
@@ -210,12 +210,12 @@ pair "explore-detail" \
 # Record tab.
 nav_record
 pair "record-idle" \
-    "Record tab in idle state — big amber button, no events captured."
+    "Record tab in idle state, big amber button, no events captured."
 
 pair "record-recording" \
     "Click the big button to arm, perform a few keystrokes, leave the recorder running. Capture mid-session."
 
-# Settings — gear icon in the bottom-right of the nav pill.
+# Settings, gear icon in the bottom-right of the nav pill.
 pair "settings" \
     "Click the gear in the bottom-right of the nav pill to open Settings. Capture the top of the page."
 
@@ -225,7 +225,7 @@ pair "settings-account" \
 pair "settings-palette" \
     "Settings open. Scroll to the Palette section showing the Warm Paper / Cool Slate switcher."
 
-# Publish flow — only meaningful when signed in. Skip otherwise.
+# Publish flow, only meaningful when signed in. Skip otherwise.
 nav_library
 pair "publish-dialog" \
     "Library tab. Right-click any workflow → 'Publish to wflows.io', or click the publish pill on a card. Fill in description + a few tags so the form has content. Skip if signed out."

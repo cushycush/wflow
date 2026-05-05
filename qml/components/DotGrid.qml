@@ -6,7 +6,7 @@ import Wflow
 // pages render against the plain Theme.bg.
 //
 // Dots use Theme.text2 at low alpha so they pick up whichever palette
-// is active — light dots on dark surfaces, dark dots on cream paper —
+// is active, light dots on dark surfaces, dark dots on cream paper.
 // without any per-palette branching. 28px spacing, 2.5px dot.
 //
 // Repaints on resize, theme flip, and palette flip; cheap enough that
@@ -43,7 +43,7 @@ Item {
         onHeightChanged: requestPaint()
 
         // Theme flip (light/dark) and palette flip (warm/cool) both
-        // change dotColor's underlying RGB — repaint on either.
+        // change dotColor's underlying RGB, repaint on either.
         Connections {
             target: Theme
             function onModeChanged() { dots.requestPaint() }

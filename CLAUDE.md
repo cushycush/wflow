@@ -6,10 +6,10 @@ shell + delays + notifications into shareable `.kdl` workflow files.
 
 ## Stack
 
-- **Qt 6.11 + Qt Quick (QML)** — UI
-- **Rust** — engine (actions, runner, store, recorder, KDL serde)
-- **cxx-qt 0.8** — Rust ↔ Qt bridge (Rust types become QObjects)
-- **CMake** — build driver
+- **Qt 6.11 + Qt Quick (QML)**, UI
+- **Rust**, engine (actions, runner, store, recorder, KDL serde)
+- **cxx-qt 0.8**, Rust ↔ Qt bridge (Rust types become QObjects)
+- **CMake**, build driver
 
 One binary. No webview, no IPC daemon yet. Engine crate is UI-agnostic
 enough that a future `wflow-engine` daemon could reuse it behind a D-Bus
@@ -70,17 +70,17 @@ cmake --build build
 
 ## Commit attribution
 
-Plain commit messages — no `Co-Authored-By: Claude` trailers (global pref).
+Plain commit messages, no `Co-Authored-By: Claude` trailers (global pref).
 
 ## Design Context
 
 ### Users
 
-General Wayland users — GNOME / KDE / Hyprland — who want a friendly GUI
+General Wayland users, GNOME / KDE / Hyprland, who want a friendly GUI
 alternative to shell scripts. Keyboard-first power users who still expect a
 product that feels at home alongside modern desktop apps.
 
-Primary job-to-be-done: _"I keep doing this sequence of things by hand —
+Primary job-to-be-done: _"I keep doing this sequence of things by hand.
 let me record it once, name it, and replay it."_
 
 ### Brand Personality
@@ -100,7 +100,7 @@ wflows.io (the marketing site). Anti-references: editorial layouts, modular
 synth / rack, glassmorphism, neon-on-dark, purple-blue gradients,
 skeuomorphic hardware, dense SaaS dashboard templates, bouncy animation.
 
-### Palettes — two brand skins, one source of truth
+### Palettes, two brand skins, one source of truth
 
 As of v0.5.0, wflow ships two brand palettes. The active one is set on
 first run via the tutorial and persists in `state.toml`; users can flip
@@ -117,7 +117,7 @@ chroma) with a warm amber accent (hue 60).
 `qml/Theme.qml` is the canonical token registry. Every color resolves
 through `_pl(coolDark, coolLight, warmDark, warmLight)`, which reads
 both `palette` and `isDark` and returns the matching string. When you
-need a token's value, read Theme.qml — don't copy hex into a component.
+need a token's value, read Theme.qml, don't copy hex into a component.
 
 Cat-tint chips also branch by palette so the saturated original set
 rides with cool slate and the muted ink-* register (mirrored from
@@ -126,8 +126,8 @@ holds: tint only on the chip, accent only on the primary affordance.
 
 ### Typography
 
-- **Hanken Grotesk** — body, UI, headings (400 / 500 / 600 / 700)
-- **Geist Mono** — all technical values, commands, key chords, paths
+- **Hanken Grotesk**, body, UI, headings (400 / 500 / 600 / 700)
+- **Geist Mono**, all technical values, commands, key chords, paths
 
 Banned: Inter, Fraunces, Newsreader, Lora, Crimson*, Playfair, Cormorant,
 Syne, IBM Plex*, Space Mono/Grotesk, DM*, Outfit, Plus Jakarta, Instrument*.
@@ -139,7 +139,7 @@ Scale: 11 / 13 / 14 / 16 / 20 / 28 px.
 1. **Surfaces step by lightness.** `bg → surface → surface-2` is brightness
    only. 1px `line` hairlines are the strongest divider we draw; beyond
    that, change the fill.
-2. **Rounded, consistent.** Pick from the radii ladder — `radiusXs` (4,
+2. **Rounded, consistent.** Pick from the radii ladder, `radiusXs` (4,
    tags), `radiusSm` (6, compact buttons / inputs), `radiusMd` (10, cards
    and dialogs), `radiusLg` (16, hero / big cards), `radiusXl` (22, large
    panels), `radiusPill` (999, primary / secondary buttons, triggers).
@@ -153,7 +153,7 @@ Scale: 11 / 13 / 14 / 16 / 20 / 28 px.
 6. **Hover subtle, selection clear.** Hover raises one surface step
    (cards may swap from `line` to `lineStrong` on the border) and is
    instant. Selection uses a coral-washed background plus an `accent`
-   border — sourced through `Theme.accentWash(alpha)` so it tracks the
+   border, sourced through `Theme.accentWash(alpha)` so it tracks the
    active palette. Never hardcode a selection color; an old static
    `accentWash` *property* once collided with the helper of the same
    name and silently desaturated every selected row in dark mode.

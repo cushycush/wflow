@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Triggers tab — bird's-eye view of every chord-bound workflow in the
+// Triggers tab, bird's-eye view of every chord-bound workflow in the
 // library. Each row shows the chord, the workflow's title, and edit
 // / clear affordances. The "+ Bind a chord" button lists every
 // workflow that doesn't have a chord yet so the user can pick one
@@ -11,7 +11,7 @@ import Wflow
 // Source of truth is LibraryController.workflows (already-loaded
 // summaries, chord field per row). Mutations go through
 // libCtrl.set_chord(id, chord); the daemon's file-watcher hot-reload
-// picks the change up automatically — no daemon restart required.
+// picks the change up automatically, no daemon restart required.
 Item {
     id: root
     signal openWorkflow(string id)
@@ -107,7 +107,7 @@ Item {
                 lineHeight: 1.4
             }
 
-            // Filter — visible only when there's enough untriggered
+            // Filter, visible only when there's enough untriggered
             // workflows that scrolling becomes a thing. Substring
             // match against title + subtitle, case-insensitive,
             // updates live.
@@ -167,7 +167,7 @@ Item {
                             // Inner Item gives us a fixed inset rect to
                             // vertical-center the title block in. The
                             // Texts inside the Column lay out top-to-
-                            // bottom with `spacing: 1` — no anchors on
+                            // bottom with `spacing: 1`, no anchors on
                             // them (anchors inside a Column fight the
                             // Column's own positioning, which was the
                             // bug that had every workflow's title
@@ -257,7 +257,7 @@ Item {
                 bottomPadding: 40
                 spacing: 24
 
-                // Action bar at top — Bind a chord button.
+                // Action bar at top, Bind a chord button.
                 Item {
                     x: 24
                     width: parent.width - 48
@@ -288,7 +288,7 @@ Item {
                     }
                 }
 
-                // Empty state — no triggers bound anywhere.
+                // Empty state, no triggers bound anywhere.
                 Item {
                     visible: root.triggered.length === 0
                     width: parent.width
@@ -308,7 +308,7 @@ Item {
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: root.allWorkflows.length === 0
-                                ? "Create a workflow first — Library → + New."
+                                ? "Create a workflow first, Library → + New."
                                 : "Bind a keyboard chord to fire any workflow with a tap."
                             color: Theme.text3
                             font.family: Theme.familyBody
@@ -317,7 +317,7 @@ Item {
                     }
                 }
 
-                // Triggers list — one row per chord-bound workflow.
+                // Triggers list, one row per chord-bound workflow.
                 Column {
                     visible: root.triggered.length > 0
                     x: 24
@@ -336,7 +336,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                             Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                            // Chord pill — left-anchored, mono, accent-tinted.
+                            // Chord pill, left-anchored, mono, accent-tinted.
                             Rectangle {
                                 anchors.left: parent.left
                                 anchors.leftMargin: 16
@@ -456,7 +456,7 @@ Item {
                     visible: root.triggered.length > 0
                     x: 24
                     width: parent.width - 48
-                    text: "The wflow daemon picks up these changes automatically — bind a chord and try it. No restart required on Hyprland or Sway."
+                    text: "The wflow daemon picks up these changes automatically, bind a chord and try it. No restart required on Hyprland or Sway."
                     color: Theme.text3
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontXs

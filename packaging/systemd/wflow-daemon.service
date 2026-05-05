@@ -2,7 +2,7 @@
 Description=wflow trigger daemon (global hotkey dispatch)
 Documentation=https://github.com/cushycush/wflow#auto-start-on-login
 # Tie to the graphical session: start when KDE / GNOME / wlroots come
-# up, stop on logout. Chord triggers are session-scoped — there's no
+# up, stop on logout. Chord triggers are session-scoped, there's no
 # point keeping the daemon alive on a TTY.
 After=graphical-session.target
 PartOf=graphical-session.target

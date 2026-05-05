@@ -1,4 +1,4 @@
-//! WorkflowController — the currently-open workflow.
+//! WorkflowController, the currently-open workflow.
 //!
 //! Loads a workflow by id, exposes its JSON to QML for read + edit,
 //! persists back to disk, and runs the engine on a background tokio
@@ -41,7 +41,7 @@ pub mod qobject {
         /// can render it through the same bindings as a normal
         /// workflow. The synthetic id is `fragment:<abspath>`; the
         /// title is the file's basename. `use` calls inside the
-        /// fragment are not expanded — they render as-is so the
+        /// fragment are not expanded, they render as-is so the
         /// user can click further into them.
         #[qinvokable]
         fn load_fragment(self: Pin<&mut WorkflowController>, path: QString);
@@ -68,7 +68,7 @@ pub mod qobject {
         /// fragment was loaded from, extracts the steps array, and
         /// writes the bare-fragment KDL form back to disk. The
         /// workflow's id / title / subtitle / imports map etc. are
-        /// dropped — they were only synthetic wrapper to feed the
+        /// dropped, they were only synthetic wrapper to feed the
         /// editor; the on-disk fragment is just step nodes. Returns
         /// the path on success, "" on failure (last_error is set).
         #[qinvokable]
@@ -120,7 +120,7 @@ pub mod qobject {
 
         /// Signalled after each step completes.
         /// `status` is one of "ok" | "skipped" | "error". `step_id`
-        /// is the action's stable id — needed by the canvas to attach
+        /// is the action's stable id, needed by the canvas to attach
         /// status dots to inner steps that don't have a corresponding
         /// flat-index card (repeat children).
         #[qsignal]
@@ -134,7 +134,7 @@ pub mod qobject {
 
         /// Signalled when the engine begins a step. Carries the same
         /// id/index the active_step / active_step_id qproperties also
-        /// receive, but as an unconditional signal — `set_active_step_id`
+        /// receive, but as an unconditional signal, `set_active_step_id`
         /// dedupes when the same id is set across iterations of a
         /// `repeat`, which means QML never sees a binding change. This
         /// signal fires every time so the inner-step pulse animation
@@ -153,7 +153,7 @@ pub mod qobject {
         /// Signalled when the user clicks Run on a workflow that
         /// hasn't been trusted on this machine yet. `summary` is a
         /// multi-line human-readable description of what the workflow
-        /// will execute — QML displays it verbatim in a dialog so the
+        /// will execute, QML displays it verbatim in a dialog so the
         /// user can review before confirming. The engine waits for
         /// `confirm_trust` or `cancel_trust` before doing anything.
         #[qsignal]
@@ -279,7 +279,7 @@ impl qobject::WorkflowController {
             }
         };
         // Encode just the steps; the fragment file is a bare list of
-        // step nodes — no workflow wrapper, schema, or imports map.
+        // step nodes, no workflow wrapper, schema, or imports map.
         let body = kdl_format::encode_fragment(&wf.steps);
         let p = std::path::Path::new(&path_s);
         // Atomic write: tmp file + rename so a crash mid-write
@@ -402,7 +402,7 @@ impl qobject::WorkflowController {
 
         // Resolve the on-disk path so the trust check can hash it. If
         // the workflow has never been saved (id with no backing file),
-        // path_of returns an error — treat that as "no file to verify"
+        // path_of returns an error, treat that as "no file to verify"
         // and proceed (matches the in-memory-edit-then-run case the
         // GUI already supports). Anything else hard-errors.
         let path = match store::path_of(&wf.id) {
@@ -465,7 +465,7 @@ impl qobject::WorkflowController {
                 }
             },
             None => {
-                // Unsaved workflow — skip trust check, run directly.
+                // Unsaved workflow, skip trust check, run directly.
                 self.as_mut().rust_mut().pending_debug = false;
                 if debug {
                     self.as_mut()._start_engine_debug(wf);
@@ -486,7 +486,7 @@ impl qobject::WorkflowController {
         };
         if let Err(e) = security::mark_trusted(&pt.path, &pt.hash) {
             tracing::warn!(?e, "mark_trusted after confirm");
-            // Don't block the run — we still got the user's explicit
+            // Don't block the run, we still got the user's explicit
             // ok. Worst case the next run re-prompts.
         }
         // Honour run_debug's pending_debug flag if it's set, then
@@ -559,7 +559,7 @@ impl qobject::WorkflowController {
             if let Err(e) = engine::run_workflow(sink, wf).await {
                 tracing::warn!(?e, "run_workflow failed");
             }
-            // `touch_last_run` on a best-effort basis — the Finished event
+            // `touch_last_run` on a best-effort basis, the Finished event
             // has already fired from inside run_workflow.
             store::touch_last_run(&wf_id);
         });
@@ -576,7 +576,7 @@ impl qobject::WorkflowController {
         self.as_mut().set_active_step(-1);
         self.as_mut().set_last_error(QString::from(""));
 
-        // Bounded channel — a few buffered commands is plenty; the
+        // Bounded channel, a few buffered commands is plenty; the
         // engine consumes each one before requesting the next, so
         // depth 4 is generous.
         let (tx, rx) = tokio::sync::mpsc::channel::<engine::DebugCommand>(4);

@@ -135,13 +135,13 @@ in on the next save (via the GUI editor, `wflow run` writing
 
 Properties that take a boolean use the KDL v2 syntax `#true` / `#false`,
 not bare `true` / `false`. Bare `true` decodes as a *string*, which
-either errors out (type mismatch) or — worse — silently becomes a
+either errors out (type mismatch) or, worse, silently becomes a
 falsy value for a bool. If something isn't taking effect and the prop
 is a bool, double-check you used the `#` prefix.
 
 ```kdl
 key "Return" clear-modifiers=#true    // right
-key "Return" clear-modifiers=true     // wrong — decodes as the string "true"
+key "Return" clear-modifiers=true     // wrong, decodes as the string "true"
 ```
 
 ## Actions
@@ -168,7 +168,7 @@ any order.
 | [`shell`](#shell) | `shell "notify-send done"` | `$SHELL -c "notify-send done"` |
 | [`notify`](#notify) | `notify "title" body="body"` | `notify-send "title" "body"` |
 | [`clipboard`](#clipboard) | `clipboard "text to copy"` | `wl-copy` (pipes stdin) |
-| [`note`](#note) | `note "reminder to self"` | nothing — a comment; always skipped |
+| [`note`](#note) | `note "reminder to self"` | nothing, a comment; always skipped |
 | [`repeat`](#repeat) | `repeat 3 { key "Tab" }` | flattened into 3× `key "Tab"` at run time |
 | [`when`](#when--unless) | `when window="Firefox" { ... }` | runs the block only if the condition holds |
 | [`unless`](#when--unless) | `unless file="/tmp/lock" { ... }` | runs the block only if the condition fails |
@@ -176,13 +176,13 @@ any order.
 
 Every action accepts the common step properties:
 
-- `disabled=#true` — keep the step in the file but skip it at runtime.
-- `comment="..."` — free-form note the UI shows in the margin.
+- `disabled=#true`, keep the step in the file but skip it at runtime.
+- `comment="..."`, free-form note the UI shows in the margin.
 
 ### type
 
 Types a unicode string via wdotool. `delay-ms` puts a per-character
-pause between keystrokes — useful for apps that drop fast input.
+pause between keystrokes, useful for apps that drop fast input.
 
 ```kdl
 type "hello, world"
@@ -220,7 +220,7 @@ trip both show the canonical name:
 | `Ctrl` / `CONTROL` | `ctrl` |
 
 So `key "Cmd+Shift+Enter"` in your source ends up saved and run as
-`key "super+shift+Return"` — no surprises at wdotool dispatch time.
+`key "super+shift+Return"`, no surprises at wdotool dispatch time.
 
 Everything not in the alias table passes through unchanged, so the
 X11 keysym name is always the safe choice.
@@ -281,7 +281,7 @@ compatibility.
 ### mouse-down / mouse-up
 
 Press / release a mouse button without an implicit click. The drag
-primitive — combine with `move` steps to reshape a selection, drag
+primitive, combine with `move` steps to reshape a selection, drag
 a window, or draw.
 
 ```kdl
@@ -307,7 +307,7 @@ move 100 0 relative=#true
 ```
 
 Older prop form `move x=640 y=480` still decodes. You can't mix
-forms — `move 640 480 x=100` is an error.
+forms, `move 640 480 x=100` is an error.
 
 ### scroll
 
@@ -324,7 +324,7 @@ Older prop form `scroll dx=0 dy=3` still decodes.
 ### focus
 
 Activate the first window whose title contains the positional argument.
-Errors immediately if no matching window exists — pair with
+Errors immediately if no matching window exists, pair with
 `wait-window` if the window might not be up yet.
 
 ```kdl
@@ -370,7 +370,7 @@ wait "2m"
 ```
 
 Prefer `await-window` over `wait` whenever you're waiting for
-something specific to appear — `wait` is for deliberate pacing
+something specific to appear, `wait` is for deliberate pacing
 (e.g. letting an animation finish).
 
 ### shell
@@ -418,7 +418,7 @@ shell "curl -fsS https://api.example.com/status" \
     retries=3 backoff="500ms" timeout="5s"
 ```
 
-On final failure, the step's `on-error` policy applies — a retry
+On final failure, the step's `on-error` policy applies, a retry
 step that exhausts all attempts under `on-error="stop"` halts the
 workflow; under `continue`, the workflow moves on to the next step.
 The final error message reads "gave up after N attempts: ...".
@@ -445,7 +445,7 @@ Older verb `clip` still decodes.
 
 ### note
 
-A step that does nothing at runtime — a comment that shows up in the
+A step that does nothing at runtime, a comment that shows up in the
 UI and in `wflow show`. Useful for annotating stretches of a workflow.
 
 ```kdl
@@ -484,13 +484,13 @@ when env="DEBUG" equals="1" {
 
 Condition types:
 
-- **`window="name"`** — a window whose title contains `name` is
+- **`window="name"`**, a window whose title contains `name` is
   currently present. Evaluated via the same `wdotool search` path
   used by `wait-window`.
-- **`file="path"`** — filesystem path exists (file, dir, or symlink
+- **`file="path"`**, filesystem path exists (file, dir, or symlink
   to either). Leading `~/` is expanded against $HOME. Does not
-  interpolate — use `{{var}}` substitution if you need dynamic paths.
-- **`env="NAME"`** — environment variable is set and non-empty.
+  interpolate, use `{{var}}` substitution if you need dynamic paths.
+- **`env="NAME"`**, environment variable is set and non-empty.
   Add `equals="value"` to also require an exact match.
 
 The condition is evaluated **each time** the block is reached, not at
@@ -523,14 +523,14 @@ when window="Slack" {
 The `else` block must come last inside the parent `when` / `unless`;
 steps after it are rejected at parse time. Only one `else` per
 conditional. Inside `else { ... }` you can use anything you'd use at
-the top of a workflow — including nested `when` / `unless` /
+the top of a workflow, including nested `when` / `unless` /
 `repeat` if you need a richer dispatch tree.
 
 ### imports + use
 
 To share the same opening-the-IDE / entering-the-password / whatever
-preamble across multiple workflows, factor it into a **fragment file**
-— a separate `.kdl` file whose contents are a bare list of step nodes
+preamble across multiple workflows, factor it into a **fragment file**:
+a separate `.kdl` file whose contents are a bare list of step nodes
 (no `workflow` wrapper, no `schema` line). Declare the fragment in the
 workflow's top-level `imports { ... }` block and reference it by name
 with `use NAME`:
@@ -560,7 +560,7 @@ workflow "Morning routine" {
 
 **`imports { name "path" ... }`** maps short names to fragment file
 paths. Duplicate names error at decode. The block is evaluated once
-and erased — re-encoding the workflow produces the inlined form.
+and erased, re-encoding the workflow produces the inlined form.
 
 **`use name`** (unquoted) is a step verb. At decode time it looks up
 `name` in the imports table and splices the target fragment in place.
@@ -582,10 +582,10 @@ Unknown names get a helpful error:
 error: unknown import `dev-setpu`. known: dev-setup, standup. did you mean `dev-setup`?
 ```
 
-Either form — `use dev-setup` (bareword) or `use "dev-setup"` (quoted)
-— works; the bareword is the canonical form.
+Either form works: `use dev-setup` (bareword) or `use "dev-setup"`
+(quoted). The bareword is the canonical form.
 
-`use` is expanded at **decode time**, not dispatch time — by the time
+`use` is expanded at **decode time**, not dispatch time, by the time
 the engine sees the workflow, the imported steps have been spliced in
 place. As a consequence: encoding a workflow that was loaded with
 imports produces the inlined form. If you re-save such a workflow
@@ -619,7 +619,7 @@ repeat 3 {
 ```
 
 Variables captured from `shell ... as="name"` inside a repeat iteration
-are visible to later iterations — so you can, for example, number
+are visible to later iterations, so you can, for example, number
 iterations yourself by capturing a counter through an external
 command.
 
@@ -666,15 +666,15 @@ Rules:
   as="today"` gives `2026-04-24` without a trailing newline.
 - To keep a literal `{{...}}` in a string without substitution, escape
   with a backslash: `\{{not a var}}`.
-- `env.*` is a reserved namespace — `vars { env.HOME "..." }` errors.
+- `env.*` is a reserved namespace, `vars { env.HOME "..." }` errors.
 
 ## Step-level properties
 
 Every action accepts these in addition to its own:
 
-- `disabled=#true` — skip at runtime. The step stays in the file and
+- `disabled=#true`, skip at runtime. The step stays in the file and
   keeps its position. Engine emits a "skipped" outcome.
-- `comment="..."` — a handwritten-style note. Shown in the editor's
+- `comment="..."`, a handwritten-style note. Shown in the editor's
   margin and under the step in `wflow show`.
 
 ```kdl
@@ -684,7 +684,7 @@ shell "rm -rf /tmp/scratch" disabled=#true comment="only enable if you really me
 ## A realistic example
 
 Putting variables, window-waits, shell capture, and categorized steps
-together — a workflow that opens today's daily note, with a scratchpad
+together, a workflow that opens today's daily note, with a scratchpad
 ready for the clipboard contents:
 
 ```kdl
@@ -737,17 +737,17 @@ Sample error messages you'll see from `wflow run` / `wflow validate`:
 | `wait "forever"` | ``unknown duration unit `forever` in `forever` (use ms, s, m, or h)`` |
 | `shell "cmd" retries=3` | ``unknown property `retries` on `shell`. valid: shell, with, as, disabled, comment`` |
 | `workflow { ... }` (no title) | ``\`workflow "..."\` needs a title in quotes`` |
-| `workflow "X" { id "y" }` | ``\`id\` doesn't belong inside a \`workflow\` block — the filename is the id in the new format`` |
+| `workflow "X" { id "y" }` | ``\`id\` doesn't belong inside a \`workflow\` block, the filename is the id in the new format`` |
 | Two `workflow` blocks in one file | ``file has 2 \`workflow\` blocks. Multiple workflows per file is reserved for a future release; for now, one workflow per file`` |
 | Mixed legacy + new shapes | ``file mixes the legacy top-level layout … with a \`workflow {}\` block. Pick one format. Run \`wflow migrate\` to convert legacy files in place.`` |
 | `{{nope}}` in a string | `unknown variable `{{nope}}`. known: name, fruit` |
 | `move 640 480 x=0 y=0` | ``move: specify coordinates as `move 640 480` OR `move x=640 y=480`, not both`` |
-| `await-window "X" timeout-ms=5000 timeout="10s"` | ``wait-window: specify the timeout once ... — not both`` |
-| wdotool not installed | `missing required tools: wdotool — run \`wflow doctor\` for details` |
+| `await-window "X" timeout-ms=5000 timeout="10s"` | ``wait-window: specify the timeout once ..., not both`` |
+| wdotool not installed | `missing required tools: wdotool, run \`wflow doctor\` for details` |
 
 All parse errors surface with exit code 1. Runtime step failures surface
 with exit code 2 and halt the workflow. `wflow validate <file>` parses
-without running — use it in CI to check a file before you commit it.
+without running, use it in CI to check a file before you commit it.
 
 ## How wflow actually runs each action
 
@@ -763,7 +763,7 @@ wflow calls three external binaries plus the user's shell:
 Use `wflow doctor` to check which of these are on PATH on the current
 machine.
 
-wflow does not link wdotool in-process — it spawns it as a subprocess
+wflow does not link wdotool in-process, it spawns it as a subprocess
 per step. This keeps wflow compatible with any wdotool install
 (AUR, cargo, nix). If you want a different input backend later,
 replacing the spawn path is the extension point.
@@ -775,7 +775,7 @@ run` exits with code 2. A `disabled` step or a `note` is reported as
 `skipped` and does not halt.
 
 Run-level error handling (retry, continue-on-error, branching) is not
-yet expressible in the format — it lives in the roadmap.
+yet expressible in the format, it lives in the roadmap.
 
 ## Format version
 

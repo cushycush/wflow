@@ -1,4 +1,4 @@
-//! AuthController — wflows.io sign-in via browser handoff.
+//! AuthController, wflows.io sign-in via browser handoff.
 //!
 //! State machine the UI mirrors:
 //!
@@ -24,7 +24,7 @@
 //!      the snapshot from disk and re-verify in the background.
 //!
 //! Token storage lives in `state.toml` under `auth = { token, handle, ... }`.
-//! Same trust model as the workflow library — user's home directory.
+//! Same trust model as the workflow library, user's home directory.
 //! libsecret integration is a follow-up if anyone asks.
 
 use std::pin::Pin;
@@ -58,7 +58,7 @@ pub mod qobject {
 
         /// Begin the sign-in flow. Generates a fresh nonce, opens the
         /// browser at `{site_origin}/auth/desktop?nonce=<nonce>`, and
-        /// flips state to `pending`. Idempotent — a second call while
+        /// flips state to `pending`. Idempotent, a second call while
         /// already pending replaces the in-flight nonce.
         #[qinvokable]
         fn start_sign_in(self: Pin<&mut AuthController>);
@@ -97,7 +97,7 @@ pub mod qobject {
         /// Read the current token (empty string when signed out). Used
         /// by other bridges (ExploreController) to attach an
         /// `Authorization: Bearer <token>` header to authenticated
-        /// calls. Cheap getter — no I/O.
+        /// calls. Cheap getter, no I/O.
         #[qinvokable]
         fn token(self: Pin<&mut AuthController>) -> QString;
 
@@ -128,7 +128,7 @@ pub struct AuthControllerRust {
     pub last_error: QString,
     pub site_origin: QString,
     /// The nonce we minted at the start of the current sign-in flow.
-    /// Empty when not pending. Never persisted — a stale nonce on disk
+    /// Empty when not pending. Never persisted, a stale nonce on disk
     /// after a crash is worse than just asking the user to sign in
     /// again.
     pending_nonce: String,
@@ -252,7 +252,7 @@ impl qobject::AuthController {
             self.as_mut().rust_mut().pending_nonce.clear();
             self.as_mut().set_state(QString::from("failed"));
             self.as_mut().set_last_error(QString::from(
-                "sign-in nonce mismatch — refusing to install token",
+                "sign-in nonce mismatch, refusing to install token",
             ));
             self.as_mut().sign_in_failed(QString::from("nonce mismatch"));
             return;
@@ -266,7 +266,7 @@ impl qobject::AuthController {
             return;
         }
 
-        // Nonce verified — clear it so a second callback would fail.
+        // Nonce verified, clear it so a second callback would fail.
         self.as_mut().rust_mut().pending_nonce.clear();
 
         // Verify the token against /api/v0/me. The bare deeplink-
@@ -345,7 +345,7 @@ impl qobject::AuthController {
         use cxx_qt::CxxQtType;
         // Reload the on-disk snapshot in case another process (a CLI
         // sign-in via `wflow auth login`, future) wrote it. Then
-        // verify against /api/v0/me in the background — a quietly
+        // verify against /api/v0/me in the background, a quietly
         // expired token shouldn't keep the UI in "signed in" forever.
         let inner = crate::state::load();
         self.as_mut().rust_mut().inner = inner;
@@ -402,7 +402,7 @@ impl qobject::AuthController {
                     }
                     Err(reason) => {
                         // 401 / 403 from the server means the token's
-                        // dead — drop it and bounce to signed_out so
+                        // dead, drop it and bounce to signed_out so
                         // the UI reflects reality. Network errors leave
                         // the cached snapshot in place; user is on a
                         // plane, the local cache is fine.
@@ -416,7 +416,7 @@ impl qobject::AuthController {
                             ctrl.as_mut().set_avatar_url(QString::from(""));
                             ctrl.as_mut().set_state(QString::from("signed_out"));
                             ctrl.as_mut().set_last_error(QString::from(
-                                "signed out — token expired or was revoked",
+                                "signed out, token expired or was revoked",
                             ));
                             ctrl.as_mut().signed_out_event();
                         } else {

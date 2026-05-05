@@ -19,12 +19,12 @@ import Wflow
 //
 // `hovered` is the host card's hover state. When it flips true each
 // chip's border briefly flashes to its kind's category color in
-// sequence — a wave from the first chip to the last, like the engine
+// sequence, a wave from the first chip to the last, like the engine
 // invoking each step in order. Same trick wflows.io hero card runs.
 Item {
     id: root
 
-    // [{kind: String, value: String}] — kind drives the dot color and
+    // [{kind: String, value: String}], kind drives the dot color and
     // the placeholder fallback; value is the live label. Empty value
     // falls back to `_placeholderFor(kind)` so mock / pre-network
     // rows still render.
@@ -37,11 +37,11 @@ Item {
     // How long each chip's border holds its kind color before fading
     // back to the resting hairline.
     property int holdMs: 220
-    // Chip geometry — kept here so the layout pass and the rendered
+    // Chip geometry, kept here so the layout pass and the rendered
     // delegates agree on widths without one drifting from the other.
     readonly property int chipHeight: 22
     readonly property int chipSpacing: 4
-    // Hard cap regardless of layout — keeps the +N from claiming a
+    // Hard cap regardless of layout, keeps the +N from claiming a
     // huge number on workflows with thousands of steps.
     property int maxChips: 12
 
@@ -83,7 +83,7 @@ Item {
             // Sequential cascade across the trail. The animation runs
             // every time `root.hovered` flips true, with a per-chip
             // delay (chipIndex × cascadeStep) so chip 0 fires
-            // immediately, chip 1 fires ~110ms later, etc — like the
+            // immediately, chip 1 fires ~110ms later, etc, like the
             // engine stepping through the workflow. Each chip's
             // border tweens to the kind's category color, holds, then
             // fades back to the resting hairline. Stops cleanly on
@@ -335,7 +335,7 @@ Item {
             return value
         }
         if (kind === "shell") {
-            // First two tokens — usually a verb plus a subcommand or
+            // First two tokens, usually a verb plus a subcommand or
             // a path. Keeps the chip narrow without losing the gist.
             const words = value.trim().split(/\s+/)
             if (words.length >= 2) return words[0] + " " + words[1]

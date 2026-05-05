@@ -16,7 +16,7 @@ ApplicationWindow {
     property string currentPage: Theme.showExplore ? "explore" : "library"
     // valid values: "library" | "explore" | "favorites" | "triggers" | "workflow" | "record" | "settings"
 
-    // Open documents — one per tab in the workflow editor. Each
+    // Open documents, one per tab in the workflow editor. Each
     // entry is `{ kind, source }`:
     //   kind   = "workflow" | "fragment"
     //   source = workflow id (kind==workflow) or absolute file path
@@ -67,7 +67,7 @@ ApplicationWindow {
             next.push({ kind: "fragment", source: path })
             openDocs = next
             activeDocIndex = next.length - 1
-            // Seed the title — fragment names come from the parent
+            // Seed the title, fragment names come from the parent
             // workflow's import key, which is more meaningful than
             // the file's basename.
             if (displayName && displayName.length > 0) {
@@ -125,7 +125,7 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+."; onActivated: Theme.cycleMode() }
     // Ctrl+N follows the current nav-pill order. Editor is no longer
     // a top-level page (you drill in from Library), so the shortcut
-    // list mirrors the pill — Library, optional Explore, Record.
+    // list mirrors the pill, Library, optional Explore, Record.
     Shortcut { sequence: "Ctrl+1"; onActivated: root.currentPage = "library" }
     Shortcut { sequence: "Ctrl+2"
         onActivated: root.currentPage = Theme.showExplore ? "explore" : "record"
@@ -179,7 +179,7 @@ ApplicationWindow {
         onImport_failed: (reason) => {
             console.warn("deeplink import failed:", reason)
         }
-        // Preview comes back as a JSON string from the bridge —
+        // Preview comes back as a JSON string from the bridge.
         // {title, handle, slug, description, stepCount, sourceUrl}.
         // Parse, hand off to the dialog, let the user confirm or
         // cancel before any disk write happens.
@@ -212,13 +212,13 @@ ApplicationWindow {
     //   wflow://import?source=<URL>
     //     Workflow import. Fetch a preview without writing to disk,
     //     pop the confirm dialog, install on accept. The dialog is
-    //     the consent gate — without it a malicious page could
+    //     the consent gate, without it a malicious page could
     //     silently land a workflow.
     //
     //   wflow://auth/callback?nonce=<nonce>&token=<token>
     //     Sign-in completion. AuthController verifies the nonce
     //     against the one it minted at start_sign_in and refuses any
-    //     mismatch — same defense against a hostile page firing this
+    //     mismatch, same defense against a hostile page firing this
     //     URL at us with an attacker-controlled token.
     function _resolveDeeplink(deeplinkUrl) {
         const importMatch = /^wflow:\/\/import\?source=([^&]+)/.exec(deeplinkUrl)
@@ -263,7 +263,7 @@ ApplicationWindow {
         activeDocIndex: root.activeDocIndex
         onNavigate: (page) => {
             root.currentPage = page
-            // Don't clobber openDocs on nav — switching to Library
+            // Don't clobber openDocs on nav, switching to Library
             // and back should preserve open tabs. Only the
             // activeDocIndex matters for which tab is rendered.
         }
@@ -277,7 +277,7 @@ ApplicationWindow {
         onShowTutorRequested: tutorial.start()
     }
 
-    // First-launch tutorial. Coach-mark style — overlays the live
+    // First-launch tutorial. Coach-mark style, overlays the live
     // app and animates between targets as the user advances. Each
     // step is a single focused idea anchored to the relevant UI
     // element; auto-navigates to the right page first when needed.
@@ -285,7 +285,7 @@ ApplicationWindow {
     // straight to Library.
     //
     // Editor steps need a populated workflow slot to make any visual
-    // sense — a `currentPage = "workflow"` with `openDocs == []`
+    // sense, a `currentPage = "workflow"` with `openDocs == []`
     // renders just an empty Item with no toolbar, no palette, no
     // canvas. The nav callback below opens a new-draft on entry to
     // the editor page so the chrome shows up; an unedited draft
@@ -308,12 +308,12 @@ ApplicationWindow {
             },
             {
                 title: "Pick your look",
-                body: "Two brand palettes ship with wflow. Tap one to try it on — the rest of this tour will reskin live. You can swap any time from Settings.",
+                body: "Two brand palettes ship with wflow. Tap one to try it on, the rest of this tour will reskin live. You can swap any time from Settings.",
                 paletteChooser: true
             },
             {
                 title: "The nav pill",
-                body: "The main areas live here — Library, the editor, Record, Settings. Click a tab to switch.",
+                body: "The main areas live here, Library, the editor, Record, Settings. Click a tab to switch.",
                 getTarget: () => chrome.pillContainer,
                 placement: "below"
             },
@@ -353,11 +353,11 @@ ApplicationWindow {
             },
             {
                 title: "⏯ Debug walks you through it",
-                body: "Hit Debug instead of Run and the engine pauses between every step — Step advances one action, Continue resumes, Stop bails. Inner steps inside a Repeat each get their own dot, so you can see the loop iterate."
+                body: "Hit Debug instead of Run and the engine pauses between every step, Step advances one action, Continue resumes, Stop bails. Inner steps inside a Repeat each get their own dot, so you can see the loop iterate."
             },
             {
                 title: "Selection + grouping",
-                body: "Shift- or Ctrl-click cards to multi-select; shift- or ctrl-drag empty canvas to lasso. Alt-drag to draw a coloured group rectangle behind cards — purely visual, the engine ignores them.",
+                body: "Shift- or Ctrl-click cards to multi-select; shift- or ctrl-drag empty canvas to lasso. Alt-drag to draw a coloured group rectangle behind cards, purely visual, the engine ignores them.",
                 page: "workflow",
                 getTarget: () => chrome.workflowSlot,
                 placement: "auto",
@@ -400,12 +400,12 @@ ApplicationWindow {
         // version hasn't been marked seen. Bumping the key (intro_tour
         // → intro_tour_v2 → intro_tour_v3) replays the tour once for returning users
         // when major editor features land. The is_first_run flag is no
-        // longer gating this — it's only ever true on the very first
+        // longer gating this, it's only ever true on the very first
         // launch, which would otherwise pin returning users to the
         // first version they happened to see.
         if (!introState.tutorial_seen("intro_tour_v3")) {
             // Defer two ticks so the chrome's first page transition
-            // settles before the coach overlay reads target rects —
+            // settles before the coach overlay reads target rects.
             // anchors aren't valid on the very first frame after
             // boot.
             Qt.callLater(() => Qt.callLater(tutorial.start))

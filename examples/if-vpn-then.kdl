@@ -1,6 +1,6 @@
 // Mount the work fileshare and open the corp wiki, but only if the
 // VPN is connected. The `when env=...` guard means the workflow is
-// safe to run unconditionally — at home it just notifies and exits.
+// safe to run unconditionally, at home it just notifies and exits.
 //
 // Edit before running:
 //   - set `mount-cmd` for your fileshare

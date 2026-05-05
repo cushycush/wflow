@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Record Mode — ambient layout.
+// Record Mode, ambient layout.
 //
 // Wires RecorderController (cxx-qt). arm() flips the state machine from
 // "idle" to "armed" to "recording" as the recorder backend pushes frames
@@ -37,7 +37,7 @@ Item {
     // Mirror recCtrl.events_json into a local property so we can hook
     // a property-change handler that actually fires. Connections +
     // `function onEvents_jsonChanged()` doesn't catch cxx-qt's auto-
-    // generated NOTIFY signal for snake_case Q_PROPERTY names — same
+    // generated NOTIFY signal for snake_case Q_PROPERTY names, same
     // gotcha that broke WorkflowPage's onWorkflow_jsonChanged. The
     // property-binding path here is reliable.
     property string _eventsJsonMirror: recCtrl.events_json
@@ -88,7 +88,7 @@ Item {
 
     // Save-as-workflow prompt. Built bespoke (no standardButtons,
     // custom background, framed TextField) so the visuals match
-    // the rest of the app — Qt's default Dialog chrome picks up
+    // the rest of the app, Qt's default Dialog chrome picks up
     // the system Qt style which doesn't agree with our dark theme
     // and renders the TextField text in a hard-to-read color.
     Dialog {
@@ -222,7 +222,7 @@ Item {
         // set on `last_error` (most often: the user's compositor portal
         // doesn't expose RemoteDesktop, or the consent dialog was
         // cancelled). Same banner shape as the editor's error
-        // banner — tinted bg, !-badge, dismissable ×.
+        // banner, tinted bg, !-badge, dismissable ×.
         Rectangle {
             id: recErrBanner
             property bool _dismissed: false

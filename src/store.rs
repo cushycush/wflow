@@ -133,7 +133,7 @@ fn safe_folder_path_segments(s: &str) -> Vec<String> {
 
 /// Recursively walk the workflows directory and call `visit` for each
 /// .kdl / .json file with its (path, folder-relative-to-root). Folder
-/// names accumulate as forward-slash-joined paths — a workflow at
+/// names accumulate as forward-slash-joined paths, a workflow at
 /// `<root>/a/b/wf.kdl` reports folder `Some("a/b")`. Top-level files
 /// report `None`.
 fn walk_workflow_files<F: FnMut(&Path, Option<String>)>(
@@ -190,7 +190,7 @@ pub fn list() -> Result<Vec<Workflow>> {
     let mut seen_ids: std::collections::HashSet<String> = Default::default();
     walk_workflow_files(&dir, None, &mut |p, folder| {
         // Library list only needs metadata (title, subtitle, step
-        // count, etc.) — skip import expansion. Files with broken
+        // count, etc.), skip import expansion. Files with broken
         // `use` references still appear in the listing; the error
         // surfaces only when the user opens or runs them.
         match load_path(p, false) {
@@ -296,7 +296,7 @@ fn list_folders_walk(dir: &Path, prefix: &str, out: &mut Vec<String>) -> Result<
 
 /// mkdir a folder under the workflows root so it persists in the
 /// library even before any workflow lives in it. Accepts nested
-/// paths like `"a/b"` — each segment is sanitised independently and
+/// paths like `"a/b"`, each segment is sanitised independently and
 /// the full chain is created with `fs::create_dir_all`.
 pub fn create_folder(name: &str) -> Result<()> {
     let segments = safe_folder_path_segments(name);
@@ -417,9 +417,9 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
         .with_context(|| format!("rename {} -> {}", tmp.display(), kdl_path.display()))?;
 
     // Persist the metadata to the sidecar as the canonical record.
-    // Failures here are logged but don't block save — the file write
+    // Failures here are logged but don't block save, the file write
     // above is the durable artifact.
-    // Preserve any existing positions on the entry — those are GUI
+    // Preserve any existing positions on the entry, those are GUI
     // state, not workflow content, so they shouldn't be wiped just
     // because we're saving the workflow body.
     let existing = crate::workflows_meta::get(&wf.id).unwrap_or_default();
@@ -445,7 +445,7 @@ pub fn save(mut wf: Workflow) -> Result<Workflow> {
 
     // Auto-trust workflows wflow itself authored. The first-run prompt
     // is for files brought in from outside (downloaded, cloned, edited
-    // by hand). Failures are best-effort — worst case the user gets an
+    // by hand). Failures are best-effort, worst case the user gets an
     // extra prompt next run.
     crate::security::mark_trusted_from_disk(&kdl_path);
 
@@ -472,7 +472,7 @@ pub fn delete(id: &str) -> Result<()> {
 
 pub fn touch_last_run(id: &str) {
     // Update the sidecar directly. We don't need to round-trip the
-    // entire workflow through load + re-save just to bump a timestamp —
+    // entire workflow through load + re-save just to bump a timestamp.
     // and going through save would also rewrite the .kdl file every
     // run, which is exactly the timestamp-churn the sidecar exists to
     // avoid.
@@ -508,7 +508,7 @@ mod folder_path_tests {
         assert_eq!(safe_folder_path_segments("a/../b"), vec!["a", "b"]);
         // Backslashes / colons collapse to `_` per character; the
         // pair `:\\` therefore becomes `__` mid-segment (we don't
-        // collapse adjacent underscores — only trim them off the
+        // collapse adjacent underscores, only trim them off the
         // ends).
         assert_eq!(
             safe_folder_path_segments("c:\\windows/sneaky"),

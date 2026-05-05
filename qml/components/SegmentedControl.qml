@@ -5,7 +5,7 @@ import Wflow
 // A compact segmented pill. Give it items as `[{ label, value }, …]` and
 // a `selected` value; it fires `activated(value)` when a cell is clicked
 // or Enter/Space-pressed. Focus-ring-ready. (The signal isn't named
-// `selectedChanged` on purpose — that collides with the QML-generated
+// `selectedChanged` on purpose, that collides with the QML-generated
 // change handler for the `selected` property.)
 Rectangle {
     id: root

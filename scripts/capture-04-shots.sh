@@ -4,15 +4,15 @@
 # Run this from the repo root with the screen unlocked. It builds the
 # debug binary if needed, launches it, and walks you through each
 # capture. The editor shots use the bundled "Morning sync" template
-# laid out via Smart Tidy — readable cards at high zoom instead of
+# laid out via Smart Tidy, readable cards at high zoom instead of
 # the everything-zoomed-out result of vertical / horizontal tidy.
 #
 # Output (all under docs/design/screenshots/):
-#   library.04.dark.png        — library, eight cards, four-tab nav
-#   editor-canvas.04.dark.png  — Morning sync, smart-tidied
-#   editor-multiselect.04.dark — three cards lasso'd
-#   editor-debug.04.dark       — paused mid-run, active card pulsing
-#   editor-groups.04.dark      — group rectangles behind the cards
+#   library.04.dark.png       , library, eight cards, four-tab nav
+#   editor-canvas.04.dark.png , Morning sync, smart-tidied
+#   editor-multiselect.04.dark, three cards lasso'd
+#   editor-debug.04.dark      , paused mid-run, active card pulsing
+#   editor-groups.04.dark     , group rectangles behind the cards
 #
 # After the run, copy the ones you want into assets/screenshots/ and
 # update README.md to reference them.

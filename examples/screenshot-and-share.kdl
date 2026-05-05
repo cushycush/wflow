@@ -6,7 +6,7 @@
 //   - slurp (region picker)
 //   - wl-copy (clipboard, already a wflow optional dep)
 //
-// On run, slurp will draw a region picker — click and drag to select.
+// On run, slurp will draw a region picker, click and drag to select.
 // The path lands on your clipboard; cmd-v / ctrl-v in Slack/Discord
 // pastes the file as an attachment in most clients.
 //

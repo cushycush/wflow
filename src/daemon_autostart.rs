@@ -16,7 +16,7 @@
 //!
 //! Failures are logged at info level and treated as fine. Distros
 //! without systemd, Flatpak sandboxes, source installs that haven't
-//! copied the unit yet — all return non-zero from systemctl, and we
+//! copied the unit yet, all return non-zero from systemctl, and we
 //! mark the attempt regardless. The user can still run the daemon
 //! manually via `wflow daemon`; this is a polish, not a hard
 //! requirement.
@@ -26,7 +26,7 @@ use std::process::Command;
 /// Try to enable + start the systemd user unit for the trigger
 /// daemon. Idempotent across launches via the
 /// `daemon_autostart_attempted` flag in `state.toml`. Returns
-/// quickly — no blocking, no error bubbling — so callers can fire
+/// quickly, no blocking, no error bubbling, so callers can fire
 /// it on GUI startup without worrying about latency.
 pub fn ensure_enabled() {
     // Flatpak sandboxes: systemctl --user from inside the sandbox
@@ -73,7 +73,7 @@ pub fn ensure_enabled() {
             );
         }
         Err(e) => {
-            // No systemctl on PATH at all — non-systemd distro, or
+            // No systemctl on PATH at all, non-systemd distro, or
             // a stripped-down container. Same disposition as above:
             // log and move on.
             tracing::info!(
@@ -84,7 +84,7 @@ pub fn ensure_enabled() {
         }
     }
 
-    // Mark the attempt regardless of outcome. We don't retry —
+    // Mark the attempt regardless of outcome. We don't retry.
     // either the user has the unit installed and it worked, or they
     // don't, and we don't want to keep firing systemctl on every
     // launch.

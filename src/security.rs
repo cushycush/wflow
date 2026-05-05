@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 
 /// How the caller wants `check_trust` to behave on untrusted input.
 ///
-/// `check_trust` itself never prompts — it tells the caller what state
+/// `check_trust` itself never prompts, it tells the caller what state
 /// the file is in. CLI prompts via stdin. GUI emits a Qt signal. Yes
 /// short-circuits both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,7 +123,7 @@ pub fn mark_trusted(canonical_path: &Path, hash: &str) -> Result<()> {
 }
 
 /// Convenience: hash + mark trusted in one shot. Used by `store::save`
-/// to auto-trust workflows wflow itself authored. Errors are ignored —
+/// to auto-trust workflows wflow itself authored. Errors are ignored.
 /// failing to mark trusted means an extra prompt next run, not a crash.
 pub fn mark_trusted_from_disk(path: &Path) {
     if let Ok(abs) = path.canonicalize() {
@@ -289,7 +289,7 @@ mod tests {
     fn missing_trust_store_means_untrusted_not_error() {
         let _g = setup();
         let (_d, path) = write_temp_workflow("schema 1");
-        // No mark_trusted call — trust store doesn't exist yet.
+        // No mark_trusted call, trust store doesn't exist yet.
         let decision = check_trust(&path, TrustMode::Cli).unwrap();
         assert!(matches!(decision, TrustDecision::Untrusted { .. }));
     }

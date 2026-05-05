@@ -1,6 +1,6 @@
 // Cycle through the next 5 browser tabs with a brief pause between each.
 //
-// Useful as a "rotate through dashboards" workflow — bind it to a keybind
+// Useful as a "rotate through dashboards" workflow, bind it to a keybind
 // and let it advance through Grafana, Datadog, GitHub Actions, etc., one
 // at a time so you can read each.
 //

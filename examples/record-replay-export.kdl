@@ -1,4 +1,4 @@
-// What Record Mode produces — a faithful replay of a recorded session.
+// What Record Mode produces, a faithful replay of a recorded session.
 //
 // This file is what you get if you arm Record, perform a small drag-
 // and-paste interaction in your browser, and stop the recorder. The

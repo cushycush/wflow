@@ -6,9 +6,9 @@ name: AUR Publish
 # release.published keeps the AUR listing in step with a real artifact.
 #
 # Required repo secrets:
-#   AUR_USERNAME         — AUR account username (commit author)
-#   AUR_EMAIL            — AUR account email (commit author)
-#   AUR_SSH_PRIVATE_KEY  — SSH private key registered at aur.archlinux.org
+#   AUR_USERNAME        , AUR account username (commit author)
+#   AUR_EMAIL           , AUR account email (commit author)
+#   AUR_SSH_PRIVATE_KEY , SSH private key registered at aur.archlinux.org
 
 on:
   release:
@@ -95,7 +95,7 @@ jobs:
             makepkg --printsrcinfo > .SRCINFO
             git add PKGBUILD .SRCINFO
             if git diff --cached --quiet; then
-                echo "no changes — skipping commit"
+                echo "no changes, skipping commit"
                 exit 0
             fi
             VERSION=$(grep -m1 "^pkgver=" PKGBUILD | cut -d= -f2)

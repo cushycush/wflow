@@ -31,7 +31,7 @@
 use anyhow::{bail, Context, Result};
 
 // Re-export actions types so `#[cfg(test)] mod tests { use super::*; }`
-// reaches them — and so future module-level helpers don't have to
+// reaches them, and so future module-level helpers don't have to
 // reach into `crate::actions` themselves.
 #[cfg(test)]
 #[allow(unused_imports)]
@@ -185,7 +185,7 @@ mod tests {
         std::fs::write(&standup, "shell \"standup-step\"").unwrap();
 
         let main = dir.path().join("main.kdl");
-        // Note: unquoted form `use dev-setup` — verifies bare-ident
+        // Note: unquoted form `use dev-setup`, verifies bare-ident
         // parsing, mirrors the syntax users will write.
         std::fs::write(
             &main,
@@ -1183,7 +1183,7 @@ mod fragment_roundtrip {
 
     #[test]
     fn fragment_encode_then_decode_preserves_steps() {
-        // Build a fragment-shaped step list — the "use NAME" import
+        // Build a fragment-shaped step list, the "use NAME" import
         // target form: bare nodes, no workflow wrapper.
         let dir = tempfile::tempdir().unwrap();
         let frag_path = dir.path().join("frag.kdl");
@@ -1219,7 +1219,7 @@ when window="Firefox" {
     #[test]
     fn fragment_encode_omits_workflow_wrapper() {
         // No "workflow" / "schema" / "imports" / "title" tokens in
-        // the fragment output — it must be a bare list of step
+        // the fragment output, it must be a bare list of step
         // nodes, otherwise the fragment file becomes a malformed
         // workflow file that wouldn't decode as a fragment again.
         let mut wf = Workflow::new("title-not-emitted");

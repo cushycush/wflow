@@ -14,7 +14,7 @@ privately, not in this repo). Posting before the daemon ships would
 force a "there's no global hotkey daemon" caveat in every draft, which
 kneecaps the AHK angle.
 
-## v0.4 daemon — shipped
+## v0.4 daemon, shipped
 
 `wflow daemon` is a subcommand. Triggers are declared inside each
 workflow's KDL (one less file than the original spec; same effect).
@@ -24,9 +24,9 @@ with `/proc/$pid` liveness check. Backends:
 - **GlobalShortcuts portal** for KDE Plasma 6 and GNOME 46+. Probed
   first; bind-shortcuts in one batch; per-fire dispatch via
   `wflow run <id> --yes` subprocess.
-- **Hyprland IPC** via `$XDG_RUNTIME_DIR/hypr/$HIS/.socket.sock` —
+- **Hyprland IPC** via `$XDG_RUNTIME_DIR/hypr/$HIS/.socket.sock`.
   `keyword bind = MODS, KEY, exec, wflow run <id> --yes`.
-- **Sway IPC** via `$SWAYSOCK` (i3 protocol RUN_COMMAND) —
+- **Sway IPC** via `$SWAYSOCK` (i3 protocol RUN_COMMAND).
   `bindsym MODS+KEY exec wflow run <id> --yes`.
 
 Hot-reload watches `~/.config/wflow/workflows/` via `notify`; on

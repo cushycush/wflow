@@ -1,4 +1,4 @@
-//! wflow — Qt Quick front-end + CLI over the Rust engine.
+//! wflow, Qt Quick front-end + CLI over the Rust engine.
 //!
 //! `wflow` with no subcommand launches the GUI (QQmlApplicationEngine
 //! loads the Wflow QML module). Everything else (`run`, `list`,
@@ -57,7 +57,7 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
         Ok(o) => o,
         Err(e) => {
             eprintln!("wflow: couldn't acquire single-instance lock: {e:#}");
-            // Fail open — without the lock the worst case is we run
+            // Fail open, without the lock the worst case is we run
             // a second window (today's behaviour). Better than
             // refusing to start.
             return run_gui_with_lock(None, deeplink);
@@ -79,7 +79,7 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
             // browser's redirect after sign-in actually reaches the
             // running app. Without this, source / cargo installs
             // get sign-in flows that complete in the browser but
-            // never deliver the callback URL — the app stays in
+            // never deliver the callback URL, the app stays in
             // "Signing in…" forever.
             scheme_handler::ensure_installed();
             run_gui_with_lock(Some(guard), deeplink)
@@ -88,7 +88,7 @@ fn run_gui(deeplink: Option<String>) -> ExitCode {
             // Another wflow GUI is up. Forward the deeplink we were
             // launched with (if any) and exit clean. If we had no
             // URL to forward, the user just double-launched the
-            // app — print a friendly note and exit.
+            // app, print a friendly note and exit.
             if let Some(url) = deeplink {
                 if let Err(e) = gui_lock::forward_url(&url) {
                     eprintln!(
@@ -109,7 +109,7 @@ fn run_gui_with_lock(
     _guard: Option<gui_lock::LockGuard>,
     deeplink: Option<String>,
 ) -> ExitCode {
-    // Tokio runtime owned by the app — bridge controllers spawn their
+    // Tokio runtime owned by the app, bridge controllers spawn their
     // async work on this. Enter a guard so top-level spawn() works.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

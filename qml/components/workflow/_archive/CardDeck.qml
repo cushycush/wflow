@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 4 — CARDS
+// Variant 4, CARDS
 // Each action as a full-width card. Step number is huge, category icon big,
 // value in a code block. Heavier, more presentational.
 Column {
@@ -109,7 +109,7 @@ Column {
                     }
                 }
 
-                // Right — status pill
+                // Right, status pill
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 72

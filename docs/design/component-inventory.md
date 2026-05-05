@@ -8,7 +8,7 @@ When designing new components for either platform (desktop or
 website), match the visual treatments here so the language stays
 unified.
 
-## Glossary — surfaces and regions
+## Glossary, surfaces and regions
 
 Canonical names for the windows, panels, and regions you'll point at
 in conversation or in screenshot filenames. Use these terms exactly:
@@ -21,7 +21,7 @@ brief refer back to them.
 |-------------------------|---------------------------------------------------------------------------------------|-----------------------------------------------------|
 | **Floating nav pill**   | Top-center capsule with Library / Explore / Editor / Record + a gear for Settings.    | `qml/components/chrome/ChromeFloating.qml`          |
 | **Tab strip**           | IDE-style row of open editor docs above the workflow body.                            | `tabBar` in `ChromeFloating.qml`                    |
-| **Top bar**             | Page-level header — title, subtitle, action buttons on the right.                     | `qml/components/TopBar.qml`                         |
+| **Top bar**             | Page-level header, title, subtitle, action buttons on the right.                     | `qml/components/TopBar.qml`                         |
 | **Dot grid**            | Subtle dotted backdrop behind every page.                                             | `qml/components/DotGrid.qml`                        |
 
 ### Pages (the top-level destinations)
@@ -57,7 +57,7 @@ The surface most people will need to refer to. Quick spatial map:
 | Term                    | What it is                                                                            | Anchor                                              |
 |-------------------------|---------------------------------------------------------------------------------------|-----------------------------------------------------|
 | **Canvas**              | Free-form 2D workspace where step cards and wires live.                               | `qml/components/workflow/WorkflowCanvas.qml`        |
-| **Step palette**        | Vertical icon dock on the **left edge of the canvas** — drag to drop a new step.      | `qml/components/workflow/StepPalette.qml`           |
+| **Step palette**        | Vertical icon dock on the **left edge of the canvas**, drag to drop a new step.      | `qml/components/workflow/StepPalette.qml`           |
 | **Tool dock**           | Vertical icon dock on the **right edge of the canvas** (Tidy / Wires / Zoom).         | `toolDock` in `WorkflowCanvas.qml`                  |
 | **Inspector**           | Right-side panel that slides in when a step is selected. Edits the step's properties. | `qml/components/workflow/StepInspectorPanel.qml`    |
 | **Step list** / **rail**| Numbered list of steps on the **left side** of the editor body.                       | `qml/components/workflow/StepListRail.qml`          |

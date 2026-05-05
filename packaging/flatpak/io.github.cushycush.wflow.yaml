@@ -1,6 +1,6 @@
 # Flatpak manifest for wflow.
 #
-# Builds against KDE Platform 6.9 (Qt 6.9, freedesktop 25.08 base) —
+# Builds against KDE Platform 6.9 (Qt 6.9, freedesktop 25.08 base).
 # cxx-qt 0.8 compatible, and the matching rust-stable extension 25.08
 # ships a Rust toolchain new enough for edition2024 (1.86+), which
 # transitive deps via ashpd → zbus → zvariant_utils require.

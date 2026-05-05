@@ -33,7 +33,7 @@ under-positioned. Goals:
   installs this week). Clean mono numbers, small caps labels above.
   Already present in the SSR query; just needs a real visual.
 - **Featured row**: the editorial picks (up to 6 cards). Match the
-  desktop's `CommunityCard` treatment — same hover step, same shell
+  desktop's `CommunityCard` treatment, same hover step, same shell
   pip, same mini-stack preview.
 - **What is a workflow** explainer: 3 short rows with a category
   glyph + a phrase, all left-aligned. Not a feature grid.
@@ -61,7 +61,7 @@ from a search or shared link. Wants:
 - Trigger summary (chord / hotstring) as a colored chip.
 - Step preview, parsed from the KDL: each step renders as a
   `MiniStep`-style row with category chip + value. This is the
-  emotional core of the page — the user wants to see what the
+  emotional core of the page, the user wants to see what the
   workflow does, fast.
 - A "Show source" disclosure that reveals the raw KDL in a `Geist
   Mono` block.
@@ -91,7 +91,7 @@ Today there's no pricing page. The product split is:
 - **Free** (always): publish, install, remix, browse, search, hotkey
   trigger sync, comments.
 - **Supporter** ($19 one-time, my recommended price): cosmetic
-  unlocks — cover image, profile accent, Discord linked role,
+  unlocks, cover image, profile accent, Discord linked role,
   supporter wall listing. Cosmetic only.
 - **Founding Supporter** ($49 one-time, capped at first 100): all of
   Supporter, plus a "Founding" badge that's no longer purchasable
@@ -122,7 +122,7 @@ locked:
 ## Out of scope for this round
 
 - Marketing illustrations (Claude Design isn't great at pure art).
-- The actual workflow execution UI — already shipped, don't redesign.
+- The actual workflow execution UI, already shipped, don't redesign.
 - Mobile / responsive web. The desktop app is desktop-only and the
   website's primary device is also desktop. Mobile-readable is fine;
   mobile-optimized is not the priority.
@@ -152,4 +152,4 @@ Per page or per surface, produce:
 
 Export targets: PNG mockups + Tailwind / CSS variable suggestions for
 the website handoff. The Tailwind side should mirror the
-`design-system.md` tokens 1:1 — same names, same values.
+`design-system.md` tokens 1:1, same names, same values.

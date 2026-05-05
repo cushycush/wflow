@@ -1,4 +1,4 @@
-//! `wflow daemon` — single-instance trigger dispatcher.
+//! `wflow daemon`, single-instance trigger dispatcher.
 //!
 //! Walks the library, collects every workflow's `trigger { }` blocks,
 //! registers them with the compositor (Hyprland / Sway IPC, or the
@@ -113,7 +113,7 @@ pub(super) fn cmd_daemon() -> Result<ExitCode> {
     }
     println!();
 
-    // Backend selection — IPC first, portal second.
+    // Backend selection, IPC first, portal second.
     //
     // Try the trait-based IPC backends (Hyprland, Sway) before the
     // GlobalShortcuts portal. xdg-desktop-portal-hyprland advertises a
@@ -195,7 +195,7 @@ pub(super) fn cmd_daemon() -> Result<ExitCode> {
     };
 
     // Register every dispatchable binding. Skip hotstrings with a
-    // one-line note — they're forward-compat metadata in the KDL
+    // one-line note, they're forward-compat metadata in the KDL
     // today. when-predicates on chords are now honored by the
     // trigger-fire wrapper, so they aren't called out here anymore.
     let mut registered: Vec<Binding> = Vec::new();
@@ -217,17 +217,17 @@ pub(super) fn cmd_daemon() -> Result<ExitCode> {
 
     println!();
     if registered.is_empty() {
-        // No triggers in the library yet, but stay alive — the file
+        // No triggers in the library yet, but stay alive, the file
         // watcher below will pick up the user's first
         // `trigger { chord "..." }` block when they author it and bind
         // without requiring a daemon restart. Exiting here (the v0.7
         // behaviour) made first-run UX bad: the systemd unit
         // auto-enabled by GUI startup would launch the daemon, find
         // no triggers, exit, and not come back until the next
-        // graphical-session boot — so any trigger added in the
+        // graphical-session boot, so any trigger added in the
         // current session silently didn't fire.
         println!(
-            "  {} no triggers to bind yet. Watching the library — \
+            "  {} no triggers to bind yet. Watching the library, \
              the daemon will pick up the first {} you author.",
             dim("·"),
             "trigger { chord \"…\" }",
@@ -281,7 +281,7 @@ pub(super) fn cmd_daemon() -> Result<ExitCode> {
     };
 
     // Block until SIGINT / SIGTERM. Sync (no tokio) since there's
-    // nothing else to drive — Hyprland and Sway fire the workflow in a
+    // nothing else to drive, Hyprland and Sway fire the workflow in a
     // separate `wflow trigger-fire` subprocess, so the daemon mostly
     // sleeps.
     let term = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -375,7 +375,7 @@ pub(super) fn cmd_daemon() -> Result<ExitCode> {
         }
         registered = new_registered;
         println!(
-            "  {} reloaded — {} active binding{}",
+            "  {} reloaded, {} active binding{}",
             dim("·"),
             registered.len(),
             plural_s(registered.len()),

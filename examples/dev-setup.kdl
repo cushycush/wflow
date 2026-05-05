@@ -26,7 +26,7 @@ workflow "Open dev setup" {
     shell "hyprctl dispatch exec 'firefox {{project-url}}'"
     wait-window "Firefox" timeout="15s"
 
-    // Hyprland-only — split the screen with kitty on the left, Firefox on the right.
+    // Hyprland-only, split the screen with kitty on the left, Firefox on the right.
     shell "hyprctl dispatch layoutmsg preselect r"
     focus "kitty"
 

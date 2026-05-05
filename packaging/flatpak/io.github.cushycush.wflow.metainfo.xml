@@ -3,7 +3,7 @@
   <id>io.github.cushycush.wflow</id>
 
   <name>wflow</name>
-  <summary>Shortcuts for Linux — GUI + KDL workflow files</summary>
+  <summary>Shortcuts for Linux, GUI + KDL workflow files</summary>
 
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
@@ -20,7 +20,7 @@
       both run the same engine.
     </p>
     <p>
-      Workflows are plain text in KDL format — diffable in git,
+      Workflows are plain text in KDL format, diffable in git,
       hand-authorable in your editor, includable into other workflows,
       shareable as a single file. Think macOS Shortcuts, but the
       workflow file is the artifact: no proprietary container, no
@@ -54,19 +54,19 @@
 
   <screenshots>
     <screenshot type="default">
-      <caption>Library — five workflow cards plus a Daily folder, each tagged with its action types</caption>
+      <caption>Library, five workflow cards plus a Daily folder, each tagged with its action types</caption>
       <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/library-grid.dark.png</image>
     </screenshot>
     <screenshot>
-      <caption>Editor canvas — Resume coding workflow with a when/else block fanning into two branches</caption>
+      <caption>Editor canvas, Resume coding workflow with a when/else block fanning into two branches</caption>
       <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/editor-canvas.dark.png</image>
     </screenshot>
     <screenshot>
-      <caption>Explore — community catalog populated from wflows.io</caption>
+      <caption>Explore, community catalog populated from wflows.io</caption>
       <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/explore-grid.dark.png</image>
     </screenshot>
     <screenshot>
-      <caption>Triggers — list of bound chord shortcuts across the library</caption>
+      <caption>Triggers, list of bound chord shortcuts across the library</caption>
       <image>https://raw.githubusercontent.com/cushycush/wflow/main/docs/design/screenshots/claude-design/triggers-tab.dark.png</image>
     </screenshot>
   </screenshots>
@@ -188,14 +188,14 @@
     <release version="0.3.26" date="2026-04-27">
       <description>
         <p>
-          Recorder now consumes wdotool-core 0.4's stream API for input capture. Drops ~800 lines of in-tree portal + evdev pump code that's now upstream. End-user behaviour is unchanged — same Record Mode flow, same captured events, same workflows-on-save shape — but the build pulls the maintained version from crates.io instead of carrying its own copy.
+          Recorder now consumes wdotool-core 0.4's stream API for input capture. Drops ~800 lines of in-tree portal + evdev pump code that's now upstream. End-user behaviour is unchanged, same Record Mode flow, same captured events, same workflows-on-save shape, but the build pulls the maintained version from crates.io instead of carrying its own copy.
         </p>
       </description>
     </release>
     <release version="0.3.25" date="2026-04-26">
       <description>
         <p>
-          Pulls the v0.3.24 Explore-redesign experiment back out of the published build. The new gradient-pill / avatar / mini-step design language was crashing the GUI for some users; the work continues on a local branch (`design/explore-redesign-wip`) and lands again as a single coherent shipped release once the editor's Canvas view is also done. Functionally identical to 0.3.23 — daemon, recorder, library, editor all unchanged.
+          Pulls the v0.3.24 Explore-redesign experiment back out of the published build. The new gradient-pill / avatar / mini-step design language was crashing the GUI for some users; the work continues on a local branch (`design/explore-redesign-wip`) and lands again as a single coherent shipped release once the editor's Canvas view is also done. Functionally identical to 0.3.23, daemon, recorder, library, editor all unchanged.
         </p>
       </description>
     </release>
@@ -212,14 +212,14 @@
     <release version="0.3.22" date="2026-04-26">
       <description>
         <p>
-          New `wflow daemon` subcommand. Walks the library, lists every workflow's `trigger { }` blocks, and prints what would be bound. Today this is dry-run only — the v0.4 release will plug in the GlobalShortcuts portal (KDE / GNOME) and Hyprland IPC fallback to actually subscribe and dispatch. This is the diagnostic that lets users author triggers in v0.3.x and see them collected, before the daemon goes live.
+          New `wflow daemon` subcommand. Walks the library, lists every workflow's `trigger { }` blocks, and prints what would be bound. Today this is dry-run only, the v0.4 release will plug in the GlobalShortcuts portal (KDE / GNOME) and Hyprland IPC fallback to actually subscribe and dispatch. This is the diagnostic that lets users author triggers in v0.3.x and see them collected, before the daemon goes live.
         </p>
       </description>
     </release>
     <release version="0.3.21" date="2026-04-26">
       <description>
         <p>
-          v0.4 groundwork. Workflows can now declare `trigger { chord "..." }` blocks alongside their steps, parsing and round-tripping through KDL. The runner ignores triggers in v0.3.x — they're inert metadata until the v0.4 daemon ships and starts subscribing to them. Files authored today with triggers stay forward-compatible.
+          v0.4 groundwork. Workflows can now declare `trigger { chord "..." }` blocks alongside their steps, parsing and round-tripping through KDL. The runner ignores triggers in v0.3.x, they're inert metadata until the v0.4 daemon ships and starts subscribing to them. Files authored today with triggers stay forward-compatible.
         </p>
         <p>
           Hotstring triggers (`trigger { hotstring "btw" }`) and per-window context (`when window-class="firefox"`) are forward-compatible KDL keys we parse today so future builds don't break old files.
@@ -259,7 +259,7 @@
     <release version="0.3.17" date="2026-04-26">
       <description>
         <p>
-          Chord keys (ctrl+l, super+j, alt+tab, …) now actually hold their modifier when replayed on Hyprland and other wlroots compositors. The previous wdotool-core release pressed modifier keycodes via virtual-keyboard but never called the protocol's modifiers() request — wlroots compositors don't auto-derive seat modifier state from virtual-keyboard key events, so the focused client received a bare letter with no Ctrl/Super held. The fix lives in wdotool-core (cushycush/wdotool@fad906a) and wflow pins to that revision until it ships in a published wdotool-core release. Symptom: a recorded `ctrl+l → type "hello world"` workflow that typed `lhello world` (literal `l` followed by the text) into the wrong field on replay.
+          Chord keys (ctrl+l, super+j, alt+tab, …) now actually hold their modifier when replayed on Hyprland and other wlroots compositors. The previous wdotool-core release pressed modifier keycodes via virtual-keyboard but never called the protocol's modifiers() request, wlroots compositors don't auto-derive seat modifier state from virtual-keyboard key events, so the focused client received a bare letter with no Ctrl/Super held. The fix lives in wdotool-core (cushycush/wdotool@fad906a) and wflow pins to that revision until it ships in a published wdotool-core release. Symptom: a recorded `ctrl+l → type "hello world"` workflow that typed `lhello world` (literal `l` followed by the text) into the wrong field on replay.
         </p>
       </description>
     </release>

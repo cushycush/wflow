@@ -6,7 +6,7 @@ import Wflow
 // subtle accent wash; text uses the body font and Theme.text.
 //
 // Set `destructive: true` to render the entry in the err palette
-// (red) — the convention for "Delete <thing>" entries so they read
+// (red), the convention for "Delete <thing>" entries so they read
 // as dangerous at a glance.
 MenuItem {
     id: root

@@ -4,7 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import Wflow
 
-// Settings page — accessible from the gear icon in the floating nav bar.
+// Settings page, accessible from the gear icon in the floating nav bar.
 // Lays out grouped sections in a single scrollable column. The page owns
 // its own StateController instance; writes go straight to disk via the
 // bridge invokables (apply_*), and the page's properties bind back to
@@ -22,12 +22,12 @@ Item {
     // page can race with its own writes.
     // Reuse Theme's StateController so toggling settings here and
     // toggling them via the chrome (Ctrl+. for theme) stays in lockstep
-    // — separate instances would each read from disk on creation, then
+    //, separate instances would each read from disk on creation, then
     // diverge as the user mutates one or the other.
     readonly property var ctrl: Theme._state
 
     // For triggering a library refresh after the workflows folder
-    // changes. Page-local instance is fine — refresh() reads disk and
+    // changes. Page-local instance is fine, refresh() reads disk and
     // updates its own QObject's state, which the Library page picks up
     // through its own LibraryController on next visible.
     LibraryController { id: libCtrl }
@@ -117,7 +117,7 @@ Item {
 
                 // ---- Account ----
                 // Sign-in flow lives here. Browser-handoff via the
-                // wflow:// scheme handler — clicking Sign in opens a
+                // wflow:// scheme handler, clicking Sign in opens a
                 // tab at wflows.io/auth/desktop, the user signs in
                 // there, the page redirects to wflow://auth/callback
                 // with a nonce-bound token that AuthController
@@ -128,7 +128,7 @@ Item {
                     title: "Account"
                     Layout.fillWidth: true
 
-                    // Signed out — Sign in CTA + a one-line pitch.
+                    // Signed out, Sign in CTA + a one-line pitch.
                     SettingRow {
                         visible: Theme._auth.state === "signed_out"
                         title: "Sign in to wflows.io"
@@ -158,7 +158,7 @@ Item {
                         }
                     }
 
-                    // Pending — browser is open, waiting for callback.
+                    // Pending, browser is open, waiting for callback.
                     SettingRow {
                         visible: Theme._auth.state === "pending"
                         title: "Waiting for browser sign-in…"
@@ -170,7 +170,7 @@ Item {
                         }
                     }
 
-                    // Signed in — handle + sign out.
+                    // Signed in, handle + sign out.
                     SettingRow {
                         visible: Theme._auth.state === "signed_in"
                         title: Theme._auth.handle.length > 0 ? "Signed in as @" + Theme._auth.handle : "Signed in"
@@ -182,7 +182,7 @@ Item {
                         }
                     }
 
-                    // Failed — last-error + retry.
+                    // Failed, last-error + retry.
                     SettingRow {
                         visible: Theme._auth.state === "failed"
                         title: "Sign-in failed"

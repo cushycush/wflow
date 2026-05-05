@@ -14,7 +14,7 @@ Working strategy doc. Phased rollout. Trust before revenue.
 4. **Revenue secondary at launch.** First objective is install base and
    contribution flywheel. Revenue layers on afterward.
 
-## Phase 1 — launch → ~6 months
+## Phase 1, launch → ~6 months
 
 ### Free forever
 
@@ -23,7 +23,7 @@ Working strategy doc. Phased rollout. Trust before revenue.
 - Browsing + importing community workflows (Explore tab)
 - Submitting / rating / discussing on the web
 
-### wflow Supporter — $49 one-time
+### wflow Supporter, $49 one-time
 
 - No features gated
 - Cosmetic "early supporter" badge on the web
@@ -33,9 +33,9 @@ Working strategy doc. Phased rollout. Trust before revenue.
 **Goal for Phase 1:** maximize install base and contributions. Revenue is
 secondary; community trust is the asset we're building.
 
-## Phase 2 — ~6-12 months: wflow Cloud
+## Phase 2, ~6-12 months: wflow Cloud
 
-### wflow Cloud — $4 / month, or $40 / year
+### wflow Cloud, $4 / month, or $40 / year
 
 - End-to-end encrypted library sync across devices
 - Secrets vault (API keys, paths, tokens) encrypted at rest
@@ -43,9 +43,9 @@ secondary; community trust is the asset we're building.
 
 Benchmark: Obsidian Sync is $5/mo for a comparable audience.
 
-## Phase 3 — 12-24 months: Pro & Teams
+## Phase 3, 12-24 months: Pro & Teams
 
-### wflow Pro — $9 / month, or $90 / year (includes Cloud)
+### wflow Pro, $9 / month, or $90 / year (includes Cloud)
 
 - Scheduled workflows (cron-style triggers)
 - Webhook triggers (incoming HTTP starts a workflow)
@@ -53,7 +53,7 @@ Benchmark: Obsidian Sync is $5/mo for a comparable audience.
 - Loop / iteration actions
 - AI: "describe what you want, get a draft workflow" (likely BYOK)
 
-### wflow Teams — $7 / user / month
+### wflow Teams, $7 / user / month
 
 - Shared team library
 - Approval + audit log
@@ -61,7 +61,7 @@ Benchmark: Obsidian Sync is $5/mo for a comparable audience.
 
 Benchmarks: Raycast Pro $8/mo; Linear Standard $8/user/mo.
 
-## Trust anchors — never touch
+## Trust anchors, never touch
 
 - Running your own workflows
 - Offline editing and local file access

@@ -9,7 +9,7 @@
 //!   - Hyprland: `hyprctl activewindow -j` over IPC. Microsecond-fast.
 //!   - Sway: `swaymsg -t get_tree -t -p` walked for the focused leaf.
 //!
-//! KDE Plasma 6 and GNOME 46+ aren't covered yet — they need a
+//! KDE Plasma 6 and GNOME 46+ aren't covered yet, they need a
 //! vendor-specific D-Bus call (`org.kde.KWin` / `org.gnome.Shell`)
 //! that varies by version. When the probe fails (no compositor
 //! match, IPC error, missing socket) the gate falls open: the
@@ -31,7 +31,7 @@ pub struct ActiveWindow {
 }
 
 /// Probe the focused window via whichever compositor is reachable.
-/// Returns `None` if no probe path is available — callers should
+/// Returns `None` if no probe path is available, callers should
 /// treat that as "open the gate" rather than failing closed, since
 /// the alternative (silently dropping the chord) is the worse error.
 pub fn probe() -> Option<ActiveWindow> {

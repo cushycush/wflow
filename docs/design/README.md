@@ -1,7 +1,7 @@
-# wflow — design context for Claude Design
+# wflow, design context for Claude Design
 
 This directory is the canonical context bundle for any tool that needs
-to understand wflow's visual identity — Claude Design, a designer
+to understand wflow's visual identity, Claude Design, a designer
 new to the project, or future-me six months from now. It exists
 because Claude Design's onboarding step is only as good as the inputs
 it sees, and the design language is otherwise scattered across QML
@@ -22,8 +22,8 @@ docs/design/
 
 Plus two siblings that this package references:
 
-- `docs/branding/` — logo concepts (three SVGs + preview.html).
-- `qml/Theme.qml` — the runtime source of truth for tokens. The
+- `docs/branding/`, logo concepts (three SVGs + preview.html).
+- `qml/Theme.qml`, the runtime source of truth for tokens. The
   numbers in `design-system.md` are kept in sync with this file.
 
 ## Recommended order to feed Claude Design
@@ -44,11 +44,11 @@ Plus two siblings that this package references:
 
 When something disagrees, the one higher up wins:
 
-1. `qml/Theme.qml` — runtime tokens. If the doc disagrees with this,
+1. `qml/Theme.qml`, runtime tokens. If the doc disagrees with this,
    the doc is wrong.
-2. `docs/design/design-system.md` — the principles, anti-references,
+2. `docs/design/design-system.md`, the principles, anti-references,
    audience. The "why" behind the tokens.
-3. The deployed app and `docs/design/screenshots/` — what users
+3. The deployed app and `docs/design/screenshots/`, what users
    actually see.
 4. Code comments in `qml/components/`. Useful for the local
    reasoning behind a specific pattern.

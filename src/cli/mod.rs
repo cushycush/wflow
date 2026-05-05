@@ -25,7 +25,7 @@ mod system;
     name = "wflow",
     version,
     about = "A workflow engine for Wayland automation.",
-    long_about = "wflow executes KDL workflow files — sequences of keystrokes, clicks, shell commands, delays, and notifications. Input/window actions go through the in-process wdotool-core engine; shell, notify-send, and wl-copy still subprocess to the host. \
+    long_about = "wflow executes KDL workflow files, sequences of keystrokes, clicks, shell commands, delays, and notifications. Input/window actions go through the in-process wdotool-core engine; shell, notify-send, and wl-copy still subprocess to the host. \
 Run `wflow` with no arguments to launch the GUI."
 )]
 pub struct Cli {
@@ -149,7 +149,7 @@ pub enum Command {
     },
     /// Generate the wflow(1) man page (and one page per subcommand).
     ///
-    /// With no flags, writes the top-level page to stdout — fine for
+    /// With no flags, writes the top-level page to stdout, fine for
     /// `wflow man | gzip > /usr/share/man/man1/wflow.1.gz`. Pass
     /// `--output DIR` to also emit per-subcommand pages
     /// (`wflow-run.1`, `wflow-list.1`, …) into DIR; packagers want this
@@ -172,7 +172,7 @@ pub enum Command {
     /// window, and runs the workflow if the predicate holds (or no
     /// predicate is set). Exits 0 silently when the predicate fails
     /// so the chord registers as a no-op rather than a noisy error.
-    /// Not meant for direct CLI use — `wflow run` is the public path.
+    /// Not meant for direct CLI use, `wflow run` is the public path.
     #[command(hide = true)]
     TriggerFire {
         /// Library id of the workflow to fire.

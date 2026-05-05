@@ -21,7 +21,7 @@ Item {
 
     LibraryController { id: libCtrl }
     // Drives the first-launch welcome card + the New-workflow dialog's
-    // template list. Per-page instance is fine for v0.3 — the only
+    // template list. Per-page instance is fine for v0.3, the only
     // mutating call here is mark_first_run_seen, persisted to disk
     // immediately, and no other page reads is_first_run reactively.
     StateController { id: stateCtrl }
@@ -70,7 +70,7 @@ Item {
     // level so a folder-organised library doesn't dump every nested
     // workflow into one giant page on launch.
     property string currentFolder: "__top__"
-    // "recent" (default — modified desc), "name" (asc), "last_run".
+    // "recent" (default, modified desc), "name" (asc), "last_run".
     property string sortBy: "recent"
     property var folderList: []
 
@@ -199,7 +199,7 @@ Item {
                 return b._lastRun.localeCompare(a._lastRun)
             })
         } else {
-            // recent — modified desc, fall through to created if missing.
+            // recent, modified desc, fall through to created if missing.
             out = out.slice().sort((a, b) => (b._modified || "").localeCompare(a._modified || ""))
         }
         return out
@@ -222,7 +222,7 @@ Item {
     Component.onCompleted: _refreshShaped()
     // Refresh whenever the library page comes back into view, so a
     // workflow saved by the recorder (or hand-dropped into the
-    // library dir) shows up without restarting the app. Cheap —
+    // library dir) shows up without restarting the app. Cheap.
     // libCtrl.refresh() reads ~/.config/wflow/workflows once.
     onVisibleChanged: if (visible) libCtrl.refresh()
     Connections {
@@ -276,7 +276,7 @@ Item {
         }
         onAuth_expired: {
             Theme._auth.sign_out()
-            publishDialog.lastError = "signed out — sign in again to publish"
+            publishDialog.lastError = "signed out, sign in again to publish"
         }
     }
 
@@ -435,7 +435,7 @@ Item {
                 text: "+ New workflow"
                 onClicked: root._openNewDialog()
             }
-            // (Record button removed — the Record tab in the floating
+            // (Record button removed, the Record tab in the floating
             // nav pill is the canonical entry point now.)
         }
 
@@ -502,7 +502,7 @@ Item {
 
                 Item { width: parent.width - 320 - 200 - 12 * 2; height: 1 }
 
-                // Sort dropdown — visual-only Rectangle wrapping a
+                // Sort dropdown, visual-only Rectangle wrapping a
                 // hidden ComboBox so the picker matches the rest of
                 // the chrome. Recent is the default.
                 Rectangle {
@@ -586,7 +586,7 @@ Item {
             height: parent.height - tb.height
                   - (root.workflows.length > 0 && !root.selectMode ? 49 : 0)
 
-            // Empty state — two variants.
+            // Empty state, two variants.
             //
             //   - First run (state.toml absent): full welcome card with
             //     hero glyph, GUI + KDL framing, primary "New" + secondary
@@ -628,7 +628,7 @@ Item {
                 }
             }
 
-            // Right-click on empty canvas — quick way to create a
+            // Right-click on empty canvas, quick way to create a
             // new workflow or folder without trekking up to the
             // topbar action row.
             WfMenu {
@@ -661,10 +661,10 @@ Item {
                 onRecordRequested: root.recordRequested()
             }
 
-            // Folder sidebar — All / Top-level / each named folder.
+            // Folder sidebar, All / Top-level / each named folder.
             // Click a row to filter the grid; '+ New folder' inline-
             // creates an entry by typing into the input. Folders
-            // come from workflows.toml meta — not a separate file —
+            // come from workflows.toml meta, not a separate file.
             // so creating one is a side-effect of moving a workflow
             // into it.
             Rectangle {
@@ -705,7 +705,7 @@ Item {
                     }
 
                     // Hairline separator with breathing room above
-                    // and below — Rectangle has no padding props, so
+                    // and below, Rectangle has no padding props, so
                     // wrap in an Item that owns the spacing.
                     Item {
                         anchors.left: parent.left
@@ -778,7 +778,7 @@ Item {
                 }
             }
 
-            // Folder breadcrumb — only visible when a specific
+            // Folder breadcrumb, only visible when a specific
             // folder is selected. Sits above the grid so the user
             // can see (and click out of) the active folder. Treat
             // the currentFolder name as a "/"-separated path so the
@@ -863,7 +863,7 @@ Item {
                 }
             }
 
-            // "This folder is empty" message — shown when the user
+            // "This folder is empty" message, shown when the user
             // is filtering to a folder (or top-level) that has no
             // workflows, but the overall library is non-empty so the
             // big EmptyState welcome is wrong.
@@ -994,7 +994,7 @@ Item {
     }
 
     // Reusable folder-row component for the sidebar. Delegate
-    // shape: { id, label, glyph } — id is "", "__top__", or any
+    // shape: { id, label, glyph }, id is "", "__top__", or any
     // user folder name. Count is derived from root.workflows so it
     // updates whenever the library refreshes.
     Component {
@@ -1072,7 +1072,7 @@ Item {
                 onClicked: root.currentFolder = folderId
             }
 
-            // Drop target — accepts library card drags. Empty
+            // Drop target, accepts library card drags. Empty
             // string folder = top-level (clears the workflow's
             // folder field); "All workflows" doesn't accept drops
             // (it's a view filter, not a real bucket).
@@ -1080,7 +1080,7 @@ Item {
             // Read the workflow id off drop.source (the dragged
             // Rectangle delegate) directly. Drag.mimeData via
             // Drag.Internal didn't reliably surface in
-            // getDataAsString — drop.source carries the live item
+            // getDataAsString, drop.source carries the live item
             // with its `wf` property attached.
             DropArea {
                 id: dropTarget
@@ -1151,7 +1151,7 @@ Item {
                 anchors.rightMargin: 10
                 spacing: 6
 
-                // Chevron — clickable separately from the row label
+                // Chevron, clickable separately from the row label
                 // so toggling expansion doesn't change the active
                 // folder filter. Spacer of equal width when the
                 // folder has no children, so labels line up across
@@ -1224,7 +1224,7 @@ Item {
     }
 
     // New-folder picker dialog. Asks the user to drop a workflow
-    // into a freshly-named folder via a select-then-name flow —
+    // into a freshly-named folder via a select-then-name flow.
     // folders only exist as long as a workflow references them.
     Dialog {
         id: newFolderDialog
@@ -1250,7 +1250,7 @@ Item {
             // root so the folder survives a restart even with no
             // workflows in it. Name can contain `/` for nested
             // folders ("dev/test" creates workflows/dev/test/).
-            // Don't auto-navigate into the new folder — the user
+            // Don't auto-navigate into the new folder, the user
             // might want to drag a workflow into it next without
             // losing their place.
             libCtrl.create_folder(name)
@@ -1323,7 +1323,7 @@ Item {
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontSm
                         background: Item {}
-                        // Enter / Return submits — TextField fires
+                        // Enter / Return submits, TextField fires
                         // onAccepted when the input is in an
                         // single-line + valid state.
                         onAccepted: newFolderDialog._commit()

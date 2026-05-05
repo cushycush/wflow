@@ -15,7 +15,7 @@ import Wflow
 //
 // The legacy gradient skin shipped before the warm-coral palette landed.
 // On the new tokens the gradients clashed with the flat surface ladder,
-// so this is now a flat ink-tinted chip — same structural footprint as
+// so this is now a flat ink-tinted chip, same structural footprint as
 // CategoryIcon scaled out to a row, sitting on Theme.surface with the
 // kind's tint reserved for the icon square. The component name stays so
 // existing callers continue to work without churn.
@@ -24,7 +24,7 @@ Rectangle {
 
     property string kind: "key"
     property string text: ""
-    // `icon` is now a presence sentinel — pass any non-empty string
+    // `icon` is now a presence sentinel, pass any non-empty string
     // to render the leading CategoryIcon, or "" to drop the slot.
     // The actual glyph comes from CategoryIcon's catGlyph(kind) so
     // overriding the character no longer has effect; existing
@@ -45,7 +45,7 @@ Rectangle {
     border.color: Theme.lineSoft
     border.width: 1
 
-    // Leading icon — delegates to the same CategoryIcon the step
+    // Leading icon, delegates to the same CategoryIcon the step
     // palette uses, so glyph metrics (the chevron's tight optical
     // size, the timer's bigger one, etc.) stay identical between
     // toolbar and canvas. visible=false collapses the slot when the
@@ -63,7 +63,7 @@ Rectangle {
 
     // Value text fills the remaining width and elides on overflow.
     // Mono font because the content is almost always a command, key
-    // chord, or path — same register as wflows.io's .kdl-block
+    // chord, or path, same register as wflows.io's .kdl-block
     // values, just inline.
     Text {
         id: valueText

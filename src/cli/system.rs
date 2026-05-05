@@ -92,7 +92,7 @@ pub(super) fn cmd_doctor() -> Result<ExitCode> {
         Ok(ExitCode::SUCCESS)
     } else {
         eprintln!(
-            "\n{} some tools are missing — workflows using those actions will fail",
+            "\n{} some tools are missing, workflows using those actions will fail",
             cross()
         );
         Ok(ExitCode::from(1))
@@ -104,7 +104,7 @@ pub(super) fn cmd_completions(shell: Shell) -> Result<ExitCode> {
     let mut cmd = Cli::command();
     let bin_name = cmd.get_name().to_string();
 
-    // Capture into a buffer so we can post-process before writing —
+    // Capture into a buffer so we can post-process before writing.
     // zsh's dynamic-completion path needs to swap `_default` for our
     // id completer on a few specific lines.
     let mut buf: Vec<u8> = Vec::new();
@@ -124,7 +124,7 @@ pub(super) fn cmd_completions(shell: Shell) -> Result<ExitCode> {
             // Re-target the `_default` action on `target` args
             // belonging to subcommands that take a workflow id.
             // Generated lines look like
-            // `':target -- Library id, ...:_default'` — exactly one
+            // `':target -- Library id, ...:_default'`, exactly one
             // per affected subcommand, so a literal replace is safe.
             let s = String::from_utf8(buf).context("non-utf8 zsh completion script")?;
             let s = s.replace(
@@ -156,7 +156,7 @@ pub(super) fn cmd_man(output: Option<&Path>) -> Result<ExitCode> {
             // Top-level page only, on stdout. The common
             // `wflow man | gzip > /usr/share/man/man1/wflow.1.gz`
             // flow. EPIPE (downstream `head` / `less` closed early)
-            // is normal for a shell tool — exit 0 instead of an
+            // is normal for a shell tool, exit 0 instead of an
             // "error: Broken pipe".
             let mut out = std::io::stdout().lock();
             if let Err(e) = clap_mangen::Man::new(cmd).render(&mut out) {

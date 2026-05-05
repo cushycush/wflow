@@ -86,7 +86,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
 
-            // Title — plain Text when read-only, TextField when editable.
+            // Title, plain Text when read-only, TextField when editable.
             Text {
                 visible: !root.titleEditable
                 text: root.title
@@ -130,7 +130,7 @@ Rectangle {
                 onEditingFinished: _commit()
             }
 
-            // Crumb row — only shown when the user has descended into
+            // Crumb row, only shown when the user has descended into
             // a container. Replaces the subtitle line so the topbar
             // doesn't grow. Each segment renders as a pill with a
             // surface-step background so it reads as nav state, not

@@ -1,4 +1,4 @@
-// Fragment file for morning-sync.kdl — the standup-message body.
+// Fragment file for morning-sync.kdl, the standup-message body.
 //
 // A wflow fragment is a bare list of step nodes (no workflow / vars
 // wrapper). The parent workflow declares it in its `imports { ... }`
@@ -20,7 +20,7 @@ wait "300ms"
 // sending; the final Return submits the whole message at once.
 type "Yesterday: shipped the canvas redesign + debug runner."
 key "shift+Return"
-type "Today: 0.4.0 release prep — README + screenshots + tag."
+type "Today: 0.4.0 release prep, README + screenshots + tag."
 key "shift+Return"
 type "Blockers: none."
 key "Return"

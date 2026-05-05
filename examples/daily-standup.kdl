@@ -1,6 +1,6 @@
 // Open Slack, focus the standup channel, paste a prepared message.
 //
-// Demonstrates fragment imports — the message body lives in
+// Demonstrates fragment imports, the message body lives in
 // `lib/standup-message.kdl` and is spliced in via `use standup-message`.
 // You can reuse that fragment across multiple workflows (Monday vs Friday,
 // different teams) and only edit the templated values here.

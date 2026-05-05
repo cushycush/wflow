@@ -1,7 +1,7 @@
 # Contributing to wflow
 
 Thanks for your interest. wflow is a small project but contributions
-are welcome — bug reports, fixes, and small features especially.
+are welcome, bug reports, fixes, and small features especially.
 
 ## Before you start
 

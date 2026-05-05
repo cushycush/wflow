@@ -3,8 +3,8 @@
 //! Hyprland speaks two Unix sockets per session under
 //! `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/`:
 //!
-//! - `.socket.sock` — synchronous request / response (what we use).
-//! - `.socket2.sock` — async event stream (the recorder uses this).
+//! - `.socket.sock`, synchronous request / response (what we use).
+//! - `.socket2.sock`, async event stream (the recorder uses this).
 //!
 //! For trigger registration we send `keyword bind = MODS, KEY,
 //! exec, wflow run <id> --yes` to `.socket.sock`. Hyprland holds
@@ -14,7 +14,7 @@
 //! to clean up.
 //!
 //! When the user fires the chord, Hyprland forks `wflow run <id>
-//! --yes` as the dispatcher. The daemon doesn't see the fire — the
+//! --yes` as the dispatcher. The daemon doesn't see the fire, the
 //! workflow runs in its own process. Trade-off: ~50ms fork latency
 //! per fire, but the daemon stays trivial. v0.5 can swap in an IPC
 //! callback path if perf matters.
@@ -41,7 +41,7 @@ pub struct HyprlandBackend {
 impl HyprlandBackend {
     pub fn new() -> Self {
         let socket = socket_path().expect(
-            "HyprlandBackend constructed without HYPRLAND_INSTANCE_SIGNATURE — \
+            "HyprlandBackend constructed without HYPRLAND_INSTANCE_SIGNATURE, \
              check is_available() first",
         );
         let wflow_bin = std::env::current_exe()
@@ -80,7 +80,7 @@ impl Backend for HyprlandBackend {
         let (mods, key) = parse_chord(chord)?;
 
         // Evict any pre-existing bind for this chord first. Hyprland's
-        // `keyword bind` ADDs a binding rather than replacing — without
+        // `keyword bind` ADDs a binding rather than replacing, without
         // this, a chord already bound in the user's hyprland.conf
         // (e.g. `bind = SUPER, T, exec, kitty`) and a wflow bind would
         // both fire on the chord. Pressing `Super+T` would launch kitty
@@ -88,7 +88,7 @@ impl Backend for HyprlandBackend {
         // should supersede all other binds" behaviour the user
         // flagged.
         //
-        // Unbind silently — the response is "ok" on success or an
+        // Unbind silently, the response is "ok" on success or an
         // "Unable to find ..." style message otherwise. Either is
         // fine; the failure just means the chord wasn't bound to
         // anything yet. The user's hyprland.conf bind comes back on
@@ -173,7 +173,7 @@ fn parse_chord(chord: &str) -> Result<(String, String)> {
         .collect::<Result<Vec<_>>>()?;
     let mods_joined = mod_strs.join("&");
     // Hyprland is case-flexible on the leaf key. Pass it through
-    // verbatim — wdotool keysyms like Return, Escape, Page_Up,
+    // verbatim, wdotool keysyms like Return, Escape, Page_Up,
     // F1-F12 round-trip; lowercase letters / digits work as-is.
     Ok((mods_joined, key.to_string()))
 }

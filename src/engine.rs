@@ -141,7 +141,7 @@ fn run_steps<'a>(
 ) -> BoxFuture<'a, Result<Flow>> {
     Box::pin(async move {
         for step in steps {
-            // Flow-control actions get evaluated inline — their inner
+            // Flow-control actions get evaluated inline, their inner
             // steps become the ones that emit events.
             match &step.action {
                 Action::Repeat { count, steps: inner } if step.enabled => {
@@ -181,7 +181,7 @@ fn run_steps<'a>(
             //
             // Skip the gate for steps that will be skipped anyway
             // (notes and disabled steps). Otherwise debug mode would
-            // pause on every annotation, which feels broken — the
+            // pause on every annotation, which feels broken, the
             // debugger should walk only through steps that actually
             // execute.
             let will_run = step.enabled && !matches!(step.action, Action::Note { .. });
@@ -249,7 +249,7 @@ enum Flow {
 }
 
 /// Test a `Condition` against live system state. Errors surface as
-/// `Ok(false)` — we treat "can't tell" as "not true" so `unless
+/// `Ok(false)`, we treat "can't tell" as "not true" so `unless
 /// window="X"` does the right thing when no backend is available.
 async fn evaluate_condition(cond: &Condition, vars: &VarMap, backend: &LazyBackend) -> Result<bool> {
     match cond {
@@ -638,7 +638,7 @@ mod tests {
     }
 
     /// A `repeat { count = 3 }` containing one inner step should fire
-    /// StepStart + StepDone three times — same step_id each iteration,
+    /// StepStart + StepDone three times, same step_id each iteration,
     /// continuous flat indices. The bridge's per-iteration pulse
     /// animation depends on this.
     #[test]
@@ -685,7 +685,7 @@ mod tests {
         for (_, id) in &starts {
             assert_eq!(id, "inner-A", "step_id stays stable across iterations");
         }
-        // Indices are continuous and increasing — the bridge keys
+        // Indices are continuous and increasing, the bridge keys
         // its flat-index status map off these values.
         assert_eq!(starts[0].0, 0);
         assert_eq!(starts[1].0, 1);

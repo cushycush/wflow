@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 0 — STACK
+// Variant 0, STACK
 // The existing vertical ActionRow list. Kept as the baseline.
 Column {
     id: root

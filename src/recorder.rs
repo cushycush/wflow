@@ -47,7 +47,7 @@ pub type FrameSink = Arc<dyn Fn(RecFrame) + Send + Sync>;
 ///
 /// `WindowFocus`, `Text`, and the GUI-only `Gap` rounding live here
 /// because they're produced by wflow code (Hyprland subscriber, the
-/// `events_to_workflow` coalescer) — not by core.
+/// `events_to_workflow` coalescer), not by core.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RecEvent {
@@ -65,7 +65,7 @@ pub enum RecEvent {
     Move { t_ms: u64, x: i32, y: i32 },
     /// Scroll. Positive `dy` scrolls down; positive `dx` scrolls right.
     Scroll { t_ms: u64, dx: i32, dy: i32 },
-    /// Focus landed on a new top-level window. Compositor-specific —
+    /// Focus landed on a new top-level window. Compositor-specific.
     /// today the Hyprland subscriber is the only producer.
     WindowFocus { t_ms: u64, name: String },
     /// Auto-inserted timing gap.
@@ -95,7 +95,7 @@ pub enum RecFrame {
     Event { event: RecEvent },
     /// Internally-generated stop request (e.g. user pressed Super+Esc
     /// in the captured stream). The bridge handles this by calling
-    /// `Recorder::stop` from a fresh task — saves the user from
+    /// `Recorder::stop` from a fresh task, saves the user from
     /// having to switch back to wflow and click the Stop button
     /// (which itself gets recorded as a stray click otherwise).
     StopRequested,
@@ -112,7 +112,7 @@ pub struct Recorder {
 struct Session {
     events: Arc<Mutex<Vec<RecEvent>>>,
     started_at: Instant,
-    /// Owned core session — dropped or `.stop()`'d on teardown so its
+    /// Owned core session, dropped or `.stop()`'d on teardown so its
     /// portal / evdev pump shuts down cleanly.
     core: Option<RecorderSession>,
     /// Tasks that consume the stream + Hyprland focus events.
@@ -126,7 +126,7 @@ impl Recorder {
 
     /// Start a new recording session. Calls `sink` with each `RecFrame`.
     ///
-    /// Backend cascade is delegated to [`wdotool_core::recorder`] —
+    /// Backend cascade is delegated to [`wdotool_core::recorder`].
     /// `Auto` tries portal (libei receiver) then evdev. Set
     /// `WFLOW_SIM_RECORDER=1` to force the simulated source.
     pub async fn start(&self, sink: FrameSink) -> Result<()> {
@@ -142,7 +142,7 @@ impl Recorder {
         let force_sim = std::env::var("WFLOW_SIM_RECORDER").ok().as_deref() == Some("1");
         let mut config = RecorderConfig::default();
         if force_sim {
-            tracing::info!("recorder: WFLOW_SIM_RECORDER=1 — using simulated backend");
+            tracing::info!("recorder: WFLOW_SIM_RECORDER=1, using simulated backend");
             config.backend = BackendChoice::Simulated;
         }
 
@@ -168,7 +168,7 @@ impl Recorder {
         let pump = tokio::spawn(async move {
             while let Some(core_ev) = stream.next().await {
                 // Global stop hotkey. Don't record the press itself
-                // — signal the bridge to stop. Plain Esc stays
+                //, signal the bridge to stop. Plain Esc stays
                 // recordable so workflows that close dialogs / cancel
                 // inputs still capture cleanly.
                 if let core_rec::RecEvent::Key { chord, .. } = &core_ev {
@@ -217,7 +217,7 @@ impl Recorder {
         let mut sess = slot.take().ok_or_else(|| anyhow!("not recording"))?;
 
         // Tear down the core session first so its pump exits and
-        // closes the stream — that lets the wflow pump task drain.
+        // closes the stream, that lets the wflow pump task drain.
         if let Some(core) = sess.core.take() {
             // We took the stream via events() during start(), so
             // core.stop()'s drain returns empty. We still call it
@@ -256,9 +256,9 @@ fn translate_core_event(ev: core_rec::RecEvent) -> Option<RecEvent> {
     Some(match ev {
         core_rec::RecEvent::Key { t_ms, chord } => RecEvent::Key { t_ms, chord },
         core_rec::RecEvent::Click { t_ms, button } => RecEvent::Click { t_ms, button },
-        // Portal path — already absolute. Pass through.
+        // Portal path, already absolute. Pass through.
         core_rec::RecEvent::MoveAbs { t_ms, x, y } => RecEvent::Move { t_ms, x, y },
-        // evdev path — accumulated deltas. wflow's existing UI shows
+        // evdev path, accumulated deltas. wflow's existing UI shows
         // these as Move's x/y and the user fixes them at edit time.
         core_rec::RecEvent::MoveDelta { t_ms, dx, dy } => RecEvent::Move { t_ms, x: dx, y: dy },
         core_rec::RecEvent::Scroll { t_ms, dx, dy } => RecEvent::Scroll { t_ms, dx, dy },
@@ -290,7 +290,7 @@ fn trim_stop_tail(events: &mut Vec<RecEvent>, _total_ms: u64) {
         if let RecEvent::WindowFocus { name, .. } = ev {
             if name.eq_ignore_ascii_case("wflow") {
                 cut = Some(i);
-                // Keep iterating — we want the LAST switch to wflow.
+                // Keep iterating, we want the LAST switch to wflow.
             }
         }
     }
@@ -426,7 +426,7 @@ async fn hyprland_subscribe(
 /// - Window focus events become `focus` steps + a 150ms grace delay.
 pub fn events_to_workflow(events: &[RecEvent], title: &str) -> Workflow {
     let mut wf = Workflow::new(title);
-    wf.subtitle = Some("recorded — cleanup recommended".into());
+    wf.subtitle = Some("recorded, cleanup recommended".into());
 
     let mut prev_t: u64 = 0;
     let mut text_acc: Option<(u64, String)> = None;

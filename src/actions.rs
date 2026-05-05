@@ -24,7 +24,7 @@ fn default_await_timeout_ms() -> u64 {
 ///
 /// Mapping philosophy: only rewrite obvious name confusion (Enter vs
 /// Return) and popular shorthands (Esc, PageUp). Anything that isn't
-/// in the table passes through unchanged — the user can always write
+/// in the table passes through unchanged, the user can always write
 /// the wdotool name literally.
 pub fn normalize_chord(raw: &str) -> String {
     raw.split('+')
@@ -40,7 +40,7 @@ fn normalize_key_segment(part: &str) -> String {
     // the table (e.g. a literal character like "a" or "A").
     let lower = part.to_ascii_lowercase();
     match lower.as_str() {
-        // Modifiers — canonicalize to lower-case spelling wdotool wants.
+        // Modifiers, canonicalize to lower-case spelling wdotool wants.
         "ctrl" | "control" => "ctrl".into(),
         "shift" => "shift".into(),
         "alt" => "alt".into(),
@@ -155,7 +155,7 @@ pub fn substitute(s: &str, vars: &VarMap) -> anyhow::Result<String> {
             }
             let end = end.ok_or_else(|| {
                 anyhow::anyhow!(
-                    "unclosed `{{{{` in `{s}` — use `\\{{{{...}}}}` to keep a literal"
+                    "unclosed `{{{{` in `{s}`, use `\\{{{{...}}}}` to keep a literal"
                 )
             })?;
             let name = s[start..end].trim();
@@ -181,7 +181,7 @@ fn resolve_var(name: &str, vars: &VarMap) -> anyhow::Result<String> {
     let mut known: Vec<&str> = vars.keys().map(|s| s.as_str()).collect();
     known.sort();
     let list = if known.is_empty() {
-        "(no vars defined — add `vars {{ name \"value\" }}` at the top of the file, or use `env.NAME`)".to_string()
+        "(no vars defined, add `vars {{ name \"value\" }}` at the top of the file, or use `env.NAME`)".to_string()
     } else {
         format!("known: {}", known.join(", "))
     };
@@ -281,7 +281,7 @@ pub struct Workflow {
     /// args at run time as `{{name}}`. Also overridable via CLI.
     #[serde(default)]
     pub vars: std::collections::BTreeMap<String, String>,
-    /// Named imports — maps short name → fragment-file path. Resolved
+    /// Named imports, maps short name → fragment-file path. Resolved
     /// at decode time by `kdl_format::expand_imports` when the step
     /// tree contains `Action::Use { name }`. Empty after the file
     /// loader has expanded uses against it, but the GUI re-populates
@@ -291,7 +291,7 @@ pub struct Workflow {
     pub imports: std::collections::BTreeMap<String, String>,
     /// Triggers that fire this workflow. Empty for hand-launched
     /// workflows; populated for ones the daemon should bind. Not yet
-    /// wired into a daemon as of v0.3.x — parsing only.
+    /// wired into a daemon as of v0.3.x, parsing only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub triggers: Vec<Trigger>,
     #[serde(default)]
@@ -301,14 +301,14 @@ pub struct Workflow {
     #[serde(default)]
     pub last_run: Option<chrono::DateTime<chrono::Utc>>,
     /// Visual annotation rectangles drawn behind the step cards on
-    /// the canvas — purely cosmetic, the engine ignores them.
+    /// the canvas, purely cosmetic, the engine ignores them.
     /// Persisted in KDL alongside steps so a workflow's visual
     /// layout survives reopening.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<Group>,
     /// Folder this workflow lives in, derived from the .kdl file's
     /// parent directory relative to the workflows root. None for
-    /// top-level files. Not serialised — it's a filesystem fact,
+    /// top-level files. Not serialised, it's a filesystem fact,
     /// not workflow content.
     #[serde(skip, default)]
     pub folder: Option<String>,
@@ -316,7 +316,7 @@ pub struct Workflow {
 
 /// A coloured rounded-rectangle annotation drawn behind step cards
 /// on the canvas. Used to visually group steps ("the build half",
-/// "the deploy half"). Has no semantics — the engine treats them as
+/// "the deploy half"). Has no semantics, the engine treats them as
 /// decoration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
@@ -404,7 +404,7 @@ pub enum Action {
     /// Activate a window by name substring (wlroots/kde only on wdotool).
     WdoActivateWindow { name: String },
     /// Block until a window matching `name` exists or `timeout_ms` elapses.
-    /// The counterpart to Delay for event-driven waits — the difference
+    /// The counterpart to Delay for event-driven waits, the difference
     /// between a reliable replay and a racy one.
     WdoAwaitWindow {
         name: String,
@@ -559,7 +559,7 @@ impl Action {
             Action::Shell { command, .. } => format!("shell {}", quote_short(command)),
             Action::Notify { title, body } => match body {
                 Some(b) if !b.is_empty() => {
-                    format!("notify {} — {}", quote_short(title), quote_short(b))
+                    format!("notify {}, {}", quote_short(title), quote_short(b))
                 }
                 _ => format!("notify {}", quote_short(title)),
             },
@@ -625,7 +625,7 @@ pub fn step_value_label(action: &Action) -> String {
         Action::Delay { ms } => fmt_duration_ms(*ms),
         Action::Shell { command, .. } => command.clone(),
         Action::Notify { title, body } => match body {
-            Some(b) if !b.is_empty() => format!("{title} — {b}"),
+            Some(b) if !b.is_empty() => format!("{title}, {b}"),
             _ => title.clone(),
         },
         Action::Clipboard { text } => text.clone(),

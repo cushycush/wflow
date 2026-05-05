@@ -5,14 +5,14 @@
 //! Two design choices worth knowing about:
 //!
 //! 1. **Lazy backend.** Building a libei backend triggers an XDG
-//!    portal prompt — we don't want that for a workflow that has no
+//!    portal prompt, we don't want that for a workflow that has no
 //!    input actions. `LazyBackend` defers `detector::build` to the
 //!    first input call and caches the result for the rest of the run.
 //!
 //! 2. **Failure as `None` for window queries.** When a workflow has
 //!    `unless window="X"` and no backend is reachable (no Wayland
 //!    session, no portal, no permissions), the right answer is "the
-//!    window isn't there" — not a hard error that halts the run.
+//!    window isn't there", not a hard error that halts the run.
 //!    `find_window_id` swallows backend errors and reports `None`.
 //!    Input dispatch (type, key, click, …) does propagate errors so
 //!    the user knows why the action didn't run.
@@ -79,7 +79,7 @@ pub async fn wdo_key(
     // `_clear_modifiers` was the xdotool `--clearmodifiers` flag in the
     // subprocess era. wdotool-core doesn't expose it on the Backend
     // trait, and Wayland doesn't let a normal client query the
-    // compositor's current modifier state — so the "save + restore"
+    // compositor's current modifier state, so the "save + restore"
     // semantics xdotool offers can't be replicated here cleanly. Drop
     // silently; if a real workflow needs this we add an explicit
     // wflow-side fallback that releases the standard modifier set.
@@ -209,7 +209,7 @@ pub async fn wdo_await_window(
 /// docs suggest: a kitty terminal running nvim has title="nvim"
 /// and app_id="kitty", so `wait-window "kitty"` would never match
 /// title alone. `Ok(None)` covers both "no matching window" and
-/// "couldn't reach a backend" — see the module-level note on
+/// "couldn't reach a backend", see the module-level note on
 /// failure semantics for `unless window="X"`.
 pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String>> {
     let backend = match b.get().await {
@@ -237,7 +237,7 @@ pub async fn find_window_id(b: &LazyBackend, name: &str) -> Result<Option<String
 // ----------------------------- Internals -----------------------------------
 
 /// Press all modifiers, PressRelease the leaf key, release modifiers
-/// in reverse — the same dance the wdotool CLI does for `key foo+bar`.
+/// in reverse, the same dance the wdotool CLI does for `key foo+bar`.
 async fn press_release_chain(backend: &DynBackend, chord: &str) -> Result<Option<String>> {
     let chain = parse_chain(chord).map_err(|e| anyhow!("parse {chord:?}: {e}"))?;
     for m in &chain.modifiers {
@@ -247,7 +247,7 @@ async fn press_release_chain(backend: &DynBackend, chord: &str) -> Result<Option
             .map_err(|e| anyhow!("key {m}: {e}"))?;
     }
     let key_result = backend.key(&chain.key, KeyDirection::PressRelease).await;
-    // Always release modifiers, even if the leaf key failed — the
+    // Always release modifiers, even if the leaf key failed, the
     // user's compositor is otherwise left with stuck mod keys.
     for m in chain.modifiers.iter().rev() {
         let _ = backend.key(m, KeyDirection::Release).await;

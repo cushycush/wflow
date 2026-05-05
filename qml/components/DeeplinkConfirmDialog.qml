@@ -59,7 +59,7 @@ Dialog {
             anchors.margins: 24
             spacing: 16
 
-            // Source pill — quiet "from wflows.io" tag at the top
+            // Source pill, quiet "from wflows.io" tag at the top
             // so the user knows where this came from before reading
             // anything else.
             Rectangle {
@@ -116,7 +116,7 @@ Dialog {
                 }
             }
 
-            // Step count badge — concrete, scannable. "12 steps" reads
+            // Step count badge, concrete, scannable. "12 steps" reads
             // faster than walking the whole workflow.
             Rectangle {
                 visible: root.preview && root.preview.stepCount !== undefined

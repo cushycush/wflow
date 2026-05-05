@@ -7,7 +7,7 @@ import Wflow
 // workflow trigger panel to bind a hotkey without hand-editing KDL.
 //
 // Format produced: "ctrl+shift+t", "super+1", "Return", "alt+space"
-// — the same shape the KDL `trigger { chord "..." }` block accepts
+//, the same shape the KDL `trigger { chord "..." }` block accepts
 // and `actions::normalize_chord` canonicalises further.
 //
 // Usage:
@@ -24,7 +24,7 @@ Dialog {
     width: 460
     anchors.centerIn: parent
 
-    /// Optional initial chord — when set, the dialog opens with the
+    /// Optional initial chord, when set, the dialog opens with the
     /// existing binding pre-displayed (so the user sees what they're
     /// replacing). Press a new combo to override.
     property string initialChord: ""
@@ -83,7 +83,7 @@ Dialog {
         Text {
             text: root.initialChord.length > 0
                 ? "Currently bound to " + root.initialChord + ". Press a new combination to replace, type one in, or Clear to unbind."
-                : "Press the chord — hold modifiers (Ctrl/Shift/Alt/Super) and tap a key. Or type the chord directly below if your compositor's already bound it (it'll fire the existing binding instead of letting wflow capture). Esc to cancel."
+                : "Press the chord, hold modifiers (Ctrl/Shift/Alt/Super) and tap a key. Or type the chord directly below if your compositor's already bound it (it'll fire the existing binding instead of letting wflow capture). Esc to cancel."
             color: Theme.text2
             font.family: Theme.familyBody
             font.pixelSize: Theme.fontSm
@@ -92,7 +92,7 @@ Dialog {
             lineHeight: 1.4
         }
 
-        // The capture surface — a tall pill that displays the live
+        // The capture surface, a tall pill that displays the live
         // chord. KeyHandler activates when this Item has focus,
         // which happens on Dialog.opened.
         Rectangle {
@@ -124,7 +124,7 @@ Dialog {
                 anchors.fill: parent
                 focus: true
                 Keys.onPressed: (event) => {
-                    // Ignore standalone modifier presses — wait for a
+                    // Ignore standalone modifier presses, wait for a
                     // non-modifier key to commit a chord.
                     if (_isModifierKey(event.key)) {
                         event.accepted = true
@@ -213,7 +213,7 @@ Dialog {
         }
 
         // When-predicate scope. Lets the user constrain the chord
-        // to fire only when a specific window is focused — same
+        // to fire only when a specific window is focused, same
         // shape as KDL's `when window-class "firefox"`. Optional;
         // empty kind = fire unconditionally.
         Column {
@@ -288,7 +288,7 @@ Dialog {
                         width: 8
                         height: 5
                         // Tiny chevron drawn from two thin rectangles
-                        // — same primitive style the nav-tab icons
+                        //, same primitive style the nav-tab icons
                         // use. No Unicode glyph variance.
                         Rectangle {
                             x: 0; y: 0
@@ -408,7 +408,7 @@ Dialog {
                 visible: root.capturedWhenKind.length > 0
                 text: root.capturedWhenKind === "window-class"
                     ? "Wayland app_id (Hyprland: hyprctl activewindow → class). Case-insensitive substring match."
-                    : "Substring of the focused window's title bar text. Useful for in-app context — \"Inbox\" only when Gmail is open."
+                    : "Substring of the focused window's title bar text. Useful for in-app context, \"Inbox\" only when Gmail is open."
                 color: Theme.text3
                 font.family: Theme.familyBody
                 font.pixelSize: Theme.fontXs
@@ -520,7 +520,7 @@ Dialog {
         if (text && text.length > 0) {
             return text.toLowerCase()
         }
-        // Fallback — Qt's key constant name without the prefix.
+        // Fallback, Qt's key constant name without the prefix.
         return key.toString()
     }
 }

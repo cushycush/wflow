@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Shapes
 import Wflow
 
-// Variant 1 — TIMELINE (snaking, no horizontal scroll).
+// Variant 1, TIMELINE (snaking, no horizontal scroll).
 //
 // Nodes lay out left-to-right; when the row fills up the connector line
 // makes a rounded 90° turn down, a short vertical drop, and a rounded 90°
@@ -31,7 +31,7 @@ Item {
 
     implicitHeight: rowCount * rowHeight + topPadding + bottomPadding
 
-    // Per-node geometry — used by both the line path and node layout.
+    // Per-node geometry, used by both the line path and node layout.
     function nodePos(index) {
         const row = Math.floor(index / nodesPerRow)
         const col = index % nodesPerRow

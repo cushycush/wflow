@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 3 — GROUPED
+// Variant 3, GROUPED
 // Actions bucketed into phases based on kind. Phase headers form visual sections.
 // Useful mental model: setup → do → verify.
 Column {

@@ -19,7 +19,7 @@
 //! the URL and hands it to the QML deeplink router via cxx-qt's
 //! Qt-thread queue.
 //!
-//! Mirrors `daemon_lock.rs`'s pidfile shape — same `/proc/$pid`
+//! Mirrors `daemon_lock.rs`'s pidfile shape, same `/proc/$pid`
 //! liveness check, same drop-on-clean-exit behaviour. The socket
 //! file is unlinked alongside.
 
@@ -45,7 +45,7 @@ impl Drop for LockGuard {
 }
 
 pub enum AcquireOutcome {
-    /// First instance — installs the pidfile, binds the socket,
+    /// First instance, installs the pidfile, binds the socket,
     /// returns the guard plus the URL receiver. Caller is expected
     /// to keep the guard alive (drops unlink the files) and pump
     /// URLs out of the receiver into the QML deeplink router.
@@ -55,12 +55,12 @@ pub enum AcquireOutcome {
 
 /// Acquire the GUI lock. Spawns a listener thread on success that
 /// pushes received URLs through the returned `url_rx`. Returns
-/// `AlreadyRunning` when another wflow GUI is alive — caller is
+/// `AlreadyRunning` when another wflow GUI is alive, caller is
 /// expected to forward its deeplink (if any) via `forward_url` and
 /// exit.
 pub fn try_acquire() -> Result<AcquireOutcome> {
-    let pidfile = pidfile_path().context("no XDG_RUNTIME_DIR — can't place gui pidfile")?;
-    let socket = socket_path().context("no XDG_RUNTIME_DIR — can't place gui socket")?;
+    let pidfile = pidfile_path().context("no XDG_RUNTIME_DIR, can't place gui pidfile")?;
+    let socket = socket_path().context("no XDG_RUNTIME_DIR, can't place gui socket")?;
     try_acquire_at(&pidfile, &socket, &|p| process_alive(p))
 }
 
@@ -86,7 +86,7 @@ fn try_acquire_at(
         }
     }
 
-    // Stale or missing pidfile + socket — overwrite both. A stale
+    // Stale or missing pidfile + socket, overwrite both. A stale
     // socket will refuse a `bind` until we unlink it; do that
     // unconditionally now that we've decided the previous owner is
     // gone.
@@ -126,7 +126,7 @@ fn try_acquire_at(
                             continue;
                         }
                         if let Err(e) = url_tx.send(trimmed.to_string()) {
-                            // Receiver gone — main thread shut down.
+                            // Receiver gone, main thread shut down.
                             tracing::info!(?e, "deeplink listener: receiver dropped, exiting");
                             return;
                         }
@@ -152,7 +152,7 @@ fn try_acquire_at(
 /// handful of times with a short backoff so a forwarder racing the
 /// listener-bind on cold start doesn't fail spuriously.
 pub fn forward_url(url: &str) -> Result<()> {
-    let path = socket_path().context("no XDG_RUNTIME_DIR — can't locate gui socket")?;
+    let path = socket_path().context("no XDG_RUNTIME_DIR, can't locate gui socket")?;
 
     let mut last_err: Option<anyhow::Error> = None;
     for attempt in 0..6 {

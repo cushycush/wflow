@@ -25,7 +25,7 @@ PACK_DIR="$REPO_ROOT/packaging/flatpak"
 
 # Two manifest variants. The default (local-dev) uses a `dir` source
 # pointing at the working tree, so it picks up uncommitted changes.
-# The Flathub variant uses a `git` + `tag` source — the same form
+# The Flathub variant uses a `git` + `tag` source, the same form
 # Flathub reviewers will build. Pass --flathub to test that one
 # before opening the submission PR.
 MANIFEST="$PACK_DIR/io.github.cushycush.wflow.yaml"

@@ -24,9 +24,9 @@ pub struct Template {
     /// Stable id, derived from the filename without the `.kdl`
     /// extension. Used to identify the template from QML.
     pub id: String,
-    /// User-visible title — read from the file's `title "..."` field.
+    /// User-visible title, read from the file's `title "..."` field.
     pub title: String,
-    /// One-line description — read from the file's `subtitle "..."`
+    /// One-line description, read from the file's `subtitle "..."`
     /// field. May be empty if the file omitted it.
     pub subtitle: String,
     /// Full KDL source. Copied verbatim into a new workflow file when
@@ -36,7 +36,7 @@ pub struct Template {
 
 /// Templates baked into the binary at compile time. These are the
 /// last-resort fallback when no `$XDG_DATA_DIRS/wflow/examples/`
-/// directory is found. Order matters — it's the order shown in the UI.
+/// directory is found. Order matters, it's the order shown in the UI.
 const BUNDLED: &[(&str, &str)] = &[
     ("morning-sync", include_str!("../examples/morning-sync.kdl")),
     ("dev-setup", include_str!("../examples/dev-setup.kdl")),
@@ -120,7 +120,7 @@ fn bundled() -> Vec<Template> {
         .iter()
         .map(|(id, kdl)| {
             // Bundled templates are checked into our own repo and
-            // validated in CI — a parse failure here is a packaging
+            // validated in CI, a parse failure here is a packaging
             // bug, not a user-data issue.
             parse_template(id, kdl).unwrap_or_else(|e| {
                 panic!("bundled template `{id}` failed to parse: {e}")
@@ -199,7 +199,7 @@ fn xdg_data_dirs() -> Vec<PathBuf> {
         out.push(PathBuf::from("/usr/local/share"));
         out.push(PathBuf::from("/usr/share"));
     }
-    // Test override — same env var pattern used by other modules.
+    // Test override, same env var pattern used by other modules.
     if let Ok(p) = std::env::var("WFLOW_TEMPLATES_DIR_OVERRIDE") {
         out.clear();
         if !p.is_empty() {

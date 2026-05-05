@@ -8,7 +8,7 @@ import Wflow
 // move + displaced transitions so neighbors ease into place.
 //
 // Folder rows render above workflow rows when the parent passes a non-empty
-// `folders` model — same convention as LibraryGrid.
+// `folders` model, same convention as LibraryGrid.
 Item {
     id: root
     property var folders: []
@@ -86,7 +86,7 @@ Item {
                     spacing: 14
 
                     // Same neutral palette as the grid view's folder
-                    // tile — see LibraryGrid for the rationale.
+                    // tile, see LibraryGrid for the rationale.
                     Rectangle {
                         width: 28; height: 28; radius: Theme.radiusSm
                         anchors.verticalCenter: parent.verticalCenter
@@ -148,7 +148,7 @@ Item {
             width: list.width
             height: root.rowHeight
 
-            // Row content — gets detached (drag.target) when the handle is held.
+            // Row content, gets detached (drag.target) when the handle is held.
             Rectangle {
                 id: card
                 readonly property var wf: modelData
@@ -289,7 +289,7 @@ Item {
                         }
                     }
 
-                    // Workflow mark — see LibraryGrid for the
+                    // Workflow mark, see LibraryGrid for the
                     // rationale. The category-icon row to the right
                     // still shows which step kinds appear in the
                     // workflow.

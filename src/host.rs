@@ -32,7 +32,7 @@
 //! always sets on the sandbox process. Outside a sandbox, we use the
 //! program directly.
 //!
-//! This module exposes one function — `host_command` — and a thin
+//! This module exposes one function, `host_command`, and a thin
 //! `in_flatpak` predicate. Every caller in the engine that spawns a
 //! host binary goes through `host_command` so the sandbox detection
 //! lives in exactly one place.
@@ -63,7 +63,7 @@ pub fn in_flatpak() -> bool {
 /// On a non-Flatpak install, this is a plain `Command::new(program)`.
 /// On a Flatpak install, it becomes
 /// `flatpak-spawn --host -- <program>`. Subsequent `.arg()` calls
-/// append to the host program's argv as expected — `flatpak-spawn`
+/// append to the host program's argv as expected, `flatpak-spawn`
 /// passes its tail unchanged.
 pub fn host_command(program: &str) -> Command {
     if in_flatpak() {
@@ -90,7 +90,7 @@ mod tests {
         std::env::remove_var("FLATPAK_ID");
         assert!(!in_flatpak());
         // We can't easily assert what `host_command("ls")` decomposes
-        // into without exposing internals — verify in_flatpak() since
+        // into without exposing internals, verify in_flatpak() since
         // that's what host_command branches on.
     }
 

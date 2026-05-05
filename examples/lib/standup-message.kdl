@@ -1,4 +1,4 @@
-// Fragment file for daily-standup.kdl — the message template steps.
+// Fragment file for daily-standup.kdl, the message template steps.
 //
 // A wflow fragment is a bare list of step nodes (no workflow / schema
 // wrapper). The parent workflow declares it in its `imports { ... }`

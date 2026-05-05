@@ -12,7 +12,7 @@ use crate::actions::{Action, Step, Workflow};
 
 use super::decode::{decode, decode_step, suggest};
 
-/// Parse a KDL file as authored — the imports map and any `use NAME`
+/// Parse a KDL file as authored, the imports map and any `use NAME`
 /// step nodes are preserved exactly as written. Use this for editing
 /// surfaces (the GUI editor) where the user wants to see, edit, and
 /// round-trip the file's structure faithfully. The engine will not
@@ -39,7 +39,7 @@ pub fn decode_from_file(path: &std::path::Path) -> Result<Workflow> {
 /// Expand `use NAME` references in `wf` against its imports map,
 /// inlining the target fragments' steps. Also clears `wf.imports`
 /// so re-encoding doesn't emit a now-redundant `imports {}` block.
-/// `path` is the workflow file's location — used as the base dir
+/// `path` is the workflow file's location, used as the base dir
 /// for resolving relative import paths and for cycle detection.
 pub fn expand_imports_in_place(
     wf: &mut Workflow,
@@ -56,7 +56,7 @@ pub fn expand_imports_in_place(
     Ok(())
 }
 
-/// Decode a fragment file — a bare list of step nodes (no workflow
+/// Decode a fragment file, a bare list of step nodes (no workflow
 /// wrapper, no schema line). Returns the steps as authored, without
 /// recursively expanding any `use` calls inside (a fragment viewed
 /// standalone has no parent imports map to resolve against; the
@@ -102,7 +102,7 @@ pub fn expand_imports(
                         .map(|s| format!(". did you mean `{s}`?"))
                         .unwrap_or_default();
                     let list = if known.is_empty() {
-                        "(no imports declared — add `imports {{ name \"path\" }}` at the top of the file)".to_string()
+                        "(no imports declared, add `imports {{ name \"path\" }}` at the top of the file)".to_string()
                     } else {
                         format!("known: {}", known.join(", "))
                     };
@@ -181,7 +181,7 @@ pub fn resolve_import_path(
     let expanded = if let Some(rest) = path.strip_prefix("~/") {
         match dirs::home_dir() {
             Some(h) => h.join(rest),
-            None => bail!("can't expand `~/` — no home directory"),
+            None => bail!("can't expand `~/`, no home directory"),
         }
     } else if path == "~" {
         dirs::home_dir().ok_or_else(|| anyhow!("no home directory"))?

@@ -2,7 +2,7 @@
 //!
 //! Holds `created` / `modified` / `last_run` timestamps that used to
 //! ride inside each `.kdl` file. Splitting them out keeps the workflow
-//! file a pure spec — git diffs of a `.kdl` show the steps the user
+//! file a pure spec, git diffs of a `.kdl` show the steps the user
 //! changed, not the modified-time the engine bumped on its last run.
 //!
 //! Schema:
@@ -18,7 +18,7 @@
 //!
 //! Resilience: parse errors NEVER crash the app. A broken file is
 //! backed up as `workflows.toml.broken-<unix-ts>` and the in-memory
-//! state resets to defaults — same recovery the state.toml loader
+//! state resets to defaults, same recovery the state.toml loader
 //! does (`crate::state`).
 
 use std::collections::BTreeMap;
@@ -84,7 +84,7 @@ fn path() -> Result<PathBuf> {
         return Ok(PathBuf::from(p));
     }
     let dir = dirs::config_dir()
-        .context("no XDG_CONFIG_HOME or HOME — cannot locate workflows.toml")?
+        .context("no XDG_CONFIG_HOME or HOME, cannot locate workflows.toml")?
         .join("wflow");
     Ok(dir.join("workflows.toml"))
 }

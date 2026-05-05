@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Variant 4 — AMBIENT
+// Variant 4, AMBIENT
 // Large breathing gradient behind everything. Color shifts between amber
 // (idle), dim red (armed), and full red (recording). Central controls
 // feel quiet; the mood does the talking.
@@ -25,7 +25,7 @@ Item {
         return Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.55)
     }
 
-    // Ambient wash layer — large radial tint centered on the button
+    // Ambient wash layer, large radial tint centered on the button
     Rectangle {
         id: wash
         anchors.centerIn: parent
@@ -44,7 +44,7 @@ Item {
         }
     }
 
-    // Second wash — a little offset for depth
+    // Second wash, a little offset for depth
     Rectangle {
         anchors.centerIn: parent
         width: Math.min(parent.width, 600)
@@ -187,7 +187,7 @@ Item {
         }
     }
 
-    // Subtle event drawer at the bottom — opens when there's content
+    // Subtle event drawer at the bottom, opens when there's content
     Rectangle {
         visible: root.events.length > 0
         anchors.bottom: parent.bottom
@@ -220,7 +220,7 @@ Item {
             // mode pins the LAST item at the bottom of the visible
             // area rather than just scrolling roughly there. Wrap
             // the call in Qt.callLater so it runs after the new
-            // delegate is laid out — without it, the position
+            // delegate is laid out, without it, the position
             // change fires before the new row exists and gets
             // clamped to the previous bottom.
             ListView {

@@ -25,7 +25,7 @@ Item {
     property var selectedDetail: null
     property bool detailLoading: false
 
-    // The bridge controller. Single instance per page — the chrome's
+    // The bridge controller. Single instance per page, the chrome's
     // pending-deeplink handoff (see Main.qml) uses its own instance,
     // which is fine because both call into the same store.
     ExploreController {
@@ -40,7 +40,7 @@ Item {
         }
         onImport_failed: (reason) => {
             console.warn("import failed:", reason)
-            // Surface in the detail drawer too — the user already
+            // Surface in the detail drawer too, the user already
             // clicked Install and is waiting for feedback.
             root._lastImportError = reason
             root.detailLoading = false
@@ -203,7 +203,7 @@ Item {
         ? _liveWorkflows
         : communityWorkflows
 
-    // Featured today — the first six rows of the v0 /featured response,
+    // Featured today, the first six rows of the v0 /featured response,
     // or the first six community workflows when offline. wflows.io's
     // featured rotation is six picks per week, so the desktop renders
     // the same six in a curated grid up top.
@@ -248,7 +248,7 @@ Item {
                     width: page.width - 48
                 }
 
-                // Featured today — wflows.io curates six picks a week
+                // Featured today, wflows.io curates six picks a week
                 // and the desktop mirrors that. Two-column layout:
                 // the explainer body on the left frames what the
                 // section is, the six cards sit on the right in a
@@ -322,7 +322,7 @@ Item {
                             }
 
                             Text {
-                                text: "Every week the wflow team picks six community workflows we think you should try. Real recipes from real people — keyboard chords, shell pipelines, window dances — the kinds of things you stumble on in someone's dotfiles and immediately want for yourself."
+                                text: "Every week the wflow team picks six community workflows we think you should try. Real recipes from real people, keyboard chords, shell pipelines, window dances, the kinds of things you stumble on in someone's dotfiles and immediately want for yourself."
                                 color: Theme.text2
                                 font.family: Theme.familyBody
                                 font.pixelSize: Theme.fontSm
@@ -393,7 +393,7 @@ Item {
                     }
                 }
 
-                // Trending row — hidden when a category filter is active so
+                // Trending row, hidden when a category filter is active so
                 // the browse grid gets full focus.
                 Column {
                     x: 24
@@ -420,7 +420,7 @@ Item {
                         }
                     }
 
-                    // Plain Flickable — not ScrollView — because the
+                    // Plain Flickable, not ScrollView, because the
                     // controls' nested Flickable steals vertical wheel
                     // events even when the row only scrolls
                     // horizontally. interactive:false disables the
@@ -470,7 +470,7 @@ Item {
                     }
                 }
 
-                // New submissions row — also hidden under an active filter.
+                // New submissions row, also hidden under an active filter.
                 Column {
                     x: 24
                     width: page.width - 48
@@ -537,7 +537,7 @@ Item {
                     }
                 }
 
-                // Browse grid — filtered
+                // Browse grid, filtered
                 Column {
                     x: 24
                     width: page.width - 48
@@ -561,7 +561,7 @@ Item {
                         }
                     }
 
-                    // Auto-column grid — same proportions as the Library
+                    // Auto-column grid, same proportions as the Library
                     // grid so a workflow on Explore reads at the same
                     // visual cadence as a workflow on Library.
                     Item {

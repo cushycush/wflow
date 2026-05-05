@@ -3,8 +3,8 @@
 //! The model is a pidfile under `$XDG_RUNTIME_DIR/wflow/daemon.pid`.
 //! On acquire we check whether the pid in the existing file is still
 //! alive (via `/proc/$pid`). If it is, we refuse and let the caller
-//! print "already running, pid N". If the pid is dead — crash, kill,
-//! reboot — we treat the file as stale and overwrite it with our own
+//! print "already running, pid N". If the pid is dead, crash, kill,
+//! reboot, we treat the file as stale and overwrite it with our own
 //! pid. On drop we unlink the file so a clean shutdown leaves no
 //! trace.
 //!
@@ -41,7 +41,7 @@ pub enum AcquireOutcome {
 /// existing daemon is alive, otherwise installs our own pidfile and
 /// hands back a guard.
 pub fn try_acquire() -> Result<AcquireOutcome> {
-    let path = pidfile_path().context("no XDG_RUNTIME_DIR — can't place daemon pidfile")?;
+    let path = pidfile_path().context("no XDG_RUNTIME_DIR, can't place daemon pidfile")?;
     try_acquire_at(&path, &|p| process_alive(p))
 }
 

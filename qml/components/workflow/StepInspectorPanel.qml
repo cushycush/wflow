@@ -16,7 +16,7 @@ Item {
     // the linear sequence. Used by the prev/next nav row.
     property var prevAction: null
     property var nextAction: null
-    // Full action list — used to populate the predecessor / successor
+    // Full action list, used to populate the predecessor / successor
     // pickers when the user wants to swap who precedes or follows the
     // selected step.
     property var allActions: []
@@ -31,7 +31,7 @@ Item {
     signal predecessorChosen(int otherIndex)
     signal successorChosen(int otherIndex)
     // Replace the entire condition object on a `when` / `unless`
-    // step. cond is { kind, name?, path?, equals? } — passed whole
+    // step. cond is { kind, name?, path?, equals? }, passed whole
     // because the kind switch can leave fields stale otherwise.
     signal conditionEdited(int stepIndex, var cond)
     // Toggle the `negate` flag on a conditional, flipping it between
@@ -42,7 +42,7 @@ Item {
     signal innerStepAdded(int stepIndex, string kind)
     // Drop an inner step at innerIndex from a container.
     signal innerStepDeleted(int stepIndex, int innerIndex)
-    // Same pair, but for the `else_steps` branch of a conditional —
+    // Same pair, but for the `else_steps` branch of a conditional.
     // the false-side path. Conditional-only; repeat ignores these.
     signal elseStepAdded(int stepIndex, string kind)
     signal elseStepDeleted(int stepIndex, int innerIndex)
@@ -65,7 +65,7 @@ Item {
                 padding: 24
                 spacing: 18
 
-                // Header row — small kind label + close affordance
+                // Header row, small kind label + close affordance
                 Item {
                     width: parent.width - 48
                     height: 24
@@ -145,7 +145,7 @@ Item {
                             font.pixelSize: Theme.fontLg
                             font.weight: Font.DemiBold
                         }
-                        // Kind chip — small category-tinted pill so
+                        // Kind chip, small category-tinted pill so
                         // the action category reads at a glance and
                         // the inspector header carries the same
                         // chip aesthetic as the breadcrumb / tabs.
@@ -173,7 +173,7 @@ Item {
 
                 Rectangle { width: parent.width - 48; height: 1; color: Theme.lineSoft }
 
-                // Sequence navigation — what runs before, what runs
+                // Sequence navigation, what runs before, what runs
                 // after. Click either to jump the inspector + canvas
                 // selection to that step. The arrows track wrap state
                 // (no prev on step 1, no next on the last step).
@@ -248,7 +248,7 @@ Item {
                                 onClicked: root.selectStep(root.selectedIndex - 1)
                             }
 
-                            // Swap chevron — opens picker on click.
+                            // Swap chevron, opens picker on click.
                             Rectangle {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
@@ -292,7 +292,7 @@ Item {
                             }
                         }
 
-                        // Successor tile — mirror of the predecessor.
+                        // Successor tile, mirror of the predecessor.
                         Rectangle {
                             id: nextTile
                             readonly property bool empty: root.nextAction === null
@@ -580,7 +580,7 @@ Item {
                         }
                     }
 
-                    // Predicate value field — label + meaning depend
+                    // Predicate value field, label + meaning depend
                     // on the selected kind. window/env use `name`,
                     // file uses `path`, env can also have `equals`.
                     Rectangle {
@@ -640,7 +640,7 @@ Item {
                         }
                     }
 
-                    // Env-only `equals=` field. Optional — empty
+                    // Env-only `equals=` field. Optional, empty
                     // means "any non-empty value of this var".
                     Rectangle {
                         visible: conditionSection.condKind === "env"
@@ -716,7 +716,7 @@ Item {
                         // Conditionals get "TRUE BRANCH" so the
                         // section reads symmetrically with the
                         // FALSE BRANCH section below. Repeat keeps
-                        // "INNER STEPS" — there's no true/false
+                        // "INNER STEPS", there's no true/false
                         // split there, just a loop body.
                         text: (root.sel && root.sel.rawKind === "conditional"
                             ? "TRUE BRANCH  ("
@@ -800,7 +800,7 @@ Item {
                     }
 
                     // + Add inner step. Opens the same kind picker
-                    // that the rail uses, scoped to non-flow kinds —
+                    // that the rail uses, scoped to non-flow kinds.
                     // inner-of-inner blocks would need a path-based
                     // selection model to edit, which we don't have
                     // yet, so the picker stays leaf-only.
@@ -899,7 +899,7 @@ Item {
                         visible: elseStepsSection.elseSteps.length === 0
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: "Steps that run when the condition is false. Empty by default — add one and the engine treats this `when` as a true/false split."
+                        text: "Steps that run when the condition is false. Empty by default, add one and the engine treats this `when` as a true/false split."
                         color: Theme.text3
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontXs
@@ -1127,7 +1127,7 @@ Item {
                         }
                     }
 
-                    // Comment — per-step note that lives on the Step's
+                    // Comment, per-step note that lives on the Step's
                     // own `note` field, not as a separate Action::Note
                     // step. Renders inline on the canvas card as an
                     // italic subline. Empty clears the field.
@@ -1187,7 +1187,7 @@ Item {
                                 // synced against. Used to tell a
                                 // "user clicked a different card"
                                 // sync apart from a "this card's
-                                // note was updated upstream" sync —
+                                // note was updated upstream" sync.
                                 // the former always pulls the new
                                 // value, the latter respects focus
                                 // so in-progress typing isn't

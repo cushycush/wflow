@@ -82,7 +82,7 @@ Under the hood:
 
 If none of those exist, `grab.sh` tells you which to install.
 
-Window decorations are fine to include or crop — Claude Design only
+Window decorations are fine to include or crop, Claude Design only
 needs the app surface itself, but a little chrome doesn't hurt.
 
 ## What goes in each screenshot

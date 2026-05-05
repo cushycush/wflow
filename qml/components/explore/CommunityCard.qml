@@ -6,7 +6,7 @@ import Wflow
 // (avatar + title-block + open-pill on top, a description block, then
 // the step-trail, then a ruled footer with meta on the left and a
 // category tag on the right) so a workflow on Explore reads like a
-// workflow on Library — same shape, same rhythm. The step trail is
+// workflow on Library, same shape, same rhythm. The step trail is
 // the wflows.io hero-card preview look: a row of CategoryIcons for
 // the first few kinds, plus a `+N` sentinel when there are more.
 Rectangle {
@@ -227,7 +227,7 @@ Rectangle {
             }
 
             // Category tag in the same slot library cards use for the
-            // "imported from @x" badge — right-anchored, hairline pill
+            // "imported from @x" badge, right-anchored, hairline pill
             // so it sits as quiet metadata, not a CTA.
             Rectangle {
                 visible: card.wf && card.wf.category && card.wf.category.length > 0

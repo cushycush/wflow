@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>wflow — Flow Canvas (prototype)</title>
+<title>wflow, Flow Canvas (prototype)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,7 @@
     --wire: oklch(0.80 0.13 215);
     --wire-soft: oklch(0.65 0.10 215);
 
-    /* Gradient pills — one per category. The whole language of the
+    /* Gradient pills, one per category. The whole language of the
        design lives here; these aren't decoration, they're the
        category color used as a fill instead of a chip tint. */
     --grad-blue: linear-gradient(135deg, oklch(0.78 0.15 230), oklch(0.55 0.22 260));
@@ -42,7 +42,7 @@
     --grad-violet: linear-gradient(135deg, oklch(0.70 0.20 295), oklch(0.45 0.25 285));
     --grad-emerald: linear-gradient(135deg, oklch(0.80 0.16 155), oklch(0.55 0.18 165));
 
-    /* Drop shadows — three layers. Dense, slightly bluish, never gray. */
+    /* Drop shadows, three layers. Dense, slightly bluish, never gray. */
     --shadow-card:
         0 1px 2px oklch(0.05 0.01 260 / 0.5),
         0 8px 20px oklch(0.05 0.01 260 / 0.4),
@@ -449,7 +449,7 @@ html, body {
     gap: 10px;
 }
 
-/* Pill — the gradient-filled action chip from the reference image. */
+/* Pill, the gradient-filled action chip from the reference image. */
 .pill {
     display: inline-flex;
     align-items: center;
@@ -486,7 +486,7 @@ html, body {
 .pill.magenta { background: var(--grad-magenta); }
 .pill.emerald { background: var(--grad-emerald); }
 
-/* Inline mono input — the dark recessed field inside cards. */
+/* Inline mono input, the dark recessed field inside cards. */
 .field {
     display: flex;
     align-items: center;
@@ -541,7 +541,7 @@ html, body {
     border-color: oklch(0.55 0.18 50 / 0.5);
 }
 
-/* Node port dots — where wires meet the card. */
+/* Node port dots, where wires meet the card. */
 .port {
     position: absolute;
     width: 10px; height: 10px;
@@ -557,7 +557,7 @@ html, body {
 
 /* ---------------- Specific nodes ---------------- */
 
-/* Trigger card has its own treatment — the "entry point" of the
+/* Trigger card has its own treatment, the "entry point" of the
    graph reads as the most important node. */
 .node.trigger {
     background:
@@ -583,7 +583,7 @@ html, body {
     pointer-events: none;
 }
 
-/* Conditional fork — shorter card, two output ports left/right. */
+/* Conditional fork, shorter card, two output ports left/right. */
 .node.fork {
     width: 220px;
 }
@@ -790,7 +790,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 1 — focus ===== -->
+            <!-- ===== Step 1, focus ===== -->
             <div class="node" style="left: 64px; top: 282px;">
                 <div class="port top"></div>
                 <div class="port bottom"></div>
@@ -814,7 +814,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 2 — wait-window ===== -->
+            <!-- ===== Step 2, wait-window ===== -->
             <div class="node" style="left: 64px; top: 522px;">
                 <div class="port top"></div>
                 <div class="port right"></div>
@@ -839,7 +839,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 3 — key chord (running) ===== -->
+            <!-- ===== Step 3, key chord (running) ===== -->
             <div class="node running" style="left: 472px; top: 482px;">
                 <div class="port left"></div>
                 <div class="port bottom"></div>
@@ -860,7 +860,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 4 — type ===== -->
+            <!-- ===== Step 4, type ===== -->
             <div class="node" style="left: 472px; top: 760px;">
                 <div class="port top"></div>
                 <div class="port bottom"></div>
@@ -881,7 +881,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 5 — fork (when env=DEBUG) ===== -->
+            <!-- ===== Step 5, fork (when env=DEBUG) ===== -->
             <div class="node fork" style="left: 538px; top: 884px;">
                 <div class="port top"></div>
                 <div class="port left"></div>
@@ -903,7 +903,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 6 — shell (yes branch) ===== -->
+            <!-- ===== Step 6, shell (yes branch) ===== -->
             <div class="node" style="left: 64px; top: 962px;">
                 <div class="port top"></div>
                 <div class="port right"></div>
@@ -925,7 +925,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 7 — shell (else branch) ===== -->
+            <!-- ===== Step 7, shell (else branch) ===== -->
             <div class="node" style="left: 880px; top: 800px;">
                 <div class="port left"></div>
                 <div class="port bottom"></div>
@@ -947,7 +947,7 @@ html, body {
                 </div>
             </div>
 
-            <!-- ===== Step 8 — notify (terminal) ===== -->
+            <!-- ===== Step 8, notify (terminal) ===== -->
             <div class="node" style="left: 656px; top: 1078px;">
                 <div class="port top"></div>
                 <div class="port left"></div>

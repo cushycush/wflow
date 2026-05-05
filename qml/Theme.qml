@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 import Wflow
 
-// Design tokens. The runtime carries TWO brand palettes side-by-side —
+// Design tokens. The runtime carries TWO brand palettes side-by-side.
 // "warm" (warm-paper + coral, mirroring wflows.io) and "cool" (slate
 // surfaces + amber, the original wflow brand brief). The active palette
 // is set on first run via the tutorial and can be flipped any time
@@ -15,14 +15,14 @@ import Wflow
 QtObject {
     id: theme
 
-    // Persisted via StateController — _state.theme_mode + _state.palette
+    // Persisted via StateController, _state.theme_mode + _state.palette
     // are the source of truth, the local properties mirror them and
     // write back on cycleMode / applyPalette so the user's choice
     // survives a restart.
     property StateController _state: StateController { }
     // Shared AuthController exposed through Theme so both Main.qml
     // (deeplink handler) and SettingsPage (sign-in UI) hit the same
-    // instance — the pending nonce minted at start_sign_in has to be
+    // instance, the pending nonce minted at start_sign_in has to be
     // visible to the complete_sign_in call coming back through the
     // wflow:// scheme handler.
     property AuthController _auth: AuthController { }
@@ -36,7 +36,7 @@ QtObject {
         theme._state.apply_theme_mode(next)
     }
 
-    // Set the palette explicitly — used by the first-run tutorial card
+    // Set the palette explicitly, used by the first-run tutorial card
     // and by the Settings page segmented control. Accepts "warm" or
     // "cool"; anything else snaps back to "warm" on the Rust side.
     function applyPalette(p) {
@@ -129,7 +129,7 @@ QtObject {
     readonly property color catNotify: _pl("#c0859e", "#9e527a", "#c77e96", "#985070")  // pink
     readonly property color catClip:   _pl("#80a0b0", "#436b7c", "#6fa1b8", "#3d7095")
     readonly property color catNote:   _pl("#807870", "#5e5650", "#807870", "#5e5650")  // neutral
-    // Flow-control tints — visually distinct from action kinds so the
+    // Flow-control tints, visually distinct from action kinds so the
     // structural blocks read as different beasts.
     readonly property color catWhen:   _pl("#b896b0", "#8a5a82", "#b896b0", "#8a5a82")  // mauve
     readonly property color catUnless: _pl("#c08878", "#985d4a", "#c08878", "#985d4a")  // rust
@@ -167,7 +167,7 @@ QtObject {
     readonly property int fontXl:   28
 
     // ============ Fonts ============
-    // Tried Boska + Supreme (the wflows.io brand pair) — they read poorly
+    // Tried Boska + Supreme (the wflows.io brand pair), they read poorly
     // at the dense UI sizes we use here. Back on Hanken Grotesk + Geist
     // Mono. familyDisplay stays as a separate token so titles can grow
     // a heavier weight without affecting body copy.
@@ -248,7 +248,7 @@ QtObject {
 
     // Glyph-specific size tuning. Most icons read at the chip's
     // baseline (13px), but a few glyphs are visually narrower than
-    // letterforms / geometric shapes at the same point size —
+    // letterforms / geometric shapes at the same point size.
     // bumping them keeps the icon row feeling even.
     function catGlyphSize(kind) {
         switch (kind) {
@@ -340,7 +340,7 @@ QtObject {
 
     // ============ Drop shadow recipe ============
     // Three offsets for the layered shadow we use on cards. Apply via
-    // `layer.effect: MultiEffect` (or two stacked DropShadows) — the
+    // `layer.effect: MultiEffect` (or two stacked DropShadows), the
     // tokens themselves are just numbers + colors so the recipe stays
     // consistent across components.
     readonly property color shadowColor: isDark

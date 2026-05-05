@@ -9,12 +9,12 @@ import Wflow
 // Cards live at absolute (x, y) inside the Flickable's contentItem
 // and are persisted in the `positions` map keyed by step.id. Wires
 // auto-route between consecutive steps in the linear sequence,
-// picking exit/entry sides per pair based on geometry — there's no
+// picking exit/entry sides per pair based on geometry, there's no
 // sticky layout mode that fights the user's drags.
 //
 // The three "Organize" buttons in the top-right are one-shot
 // commands: clicking re-arranges every card once into the chosen
-// shape. Otherwise positions are sticky — opening / closing the
+// shape. Otherwise positions are sticky, opening / closing the
 // inspector, adding a step from the rail, or resizing the window
 // will not reflow anything. New steps from the rail are placed at
 // the bottom of the existing layout; new steps from a palette drag
@@ -23,7 +23,7 @@ import Wflow
 // Each card carries four port dots on its edges. Dragging from any
 // dot to another card reorders the sequence so the dragged-from
 // card becomes the immediate predecessor of the dropped-on card.
-// (Wires still represent linear execution order — the dots are a
+// (Wires still represent linear execution order, the dots are a
 // visual rewire, not a graph edge.)
 Item {
     id: root
@@ -36,7 +36,7 @@ Item {
     // map keep working with the legacy single-select semantics.
     property var selectedIndices: ({})
     property int activeStepIndex: -1
-    // Companion to activeStepIndex — if the active step is INNER
+    // Companion to activeStepIndex, if the active step is INNER
     // (an inner step of a conditional), this is the actions index of
     // the parent conditional. Card delegates check both so the
     // conditional card pulses while its inner step is running.
@@ -131,7 +131,7 @@ Item {
     property var cardHeights: ({})  // { [id]: number }
     property var cardWidths: ({})   // { [id]: number }
 
-    // Width a given step should render at — derived from the shaped
+    // Width a given step should render at, derived from the shaped
     // action's rawKind. Repeat is wider because its inner-step drop
     // zone needs a meaningful footprint; conditionals (when/unless)
     // are now narrower decision-card shapes since their inner steps
@@ -231,20 +231,20 @@ Item {
     }
 
     // "curve" (default Bezier) | "ortho" (straight segments, hard
-    // 90° corners). Doesn't affect the marching-dash animation —
+    // 90° corners). Doesn't affect the marching-dash animation.
     // dashes still flow along whichever path shape is active.
     property string wireStyle: "curve"
 
     // ============ Zoom ============
     // Plain wheel zooms around the cursor; Tidy actions auto-fit.
     // Drag empty canvas to pan (Flickable). All card positions stay
-    // in logical (unscaled) world coords — only the world container
+    // in logical (unscaled) world coords, only the world container
     // carries the scale.
     property real zoom: 1.0
     readonly property real minZoom: 0.4
     readonly property real maxZoom: 1.6
 
-    // Fired by the page on every wfCtrl.step_started — used by inner
+    // Fired by the page on every wfCtrl.step_started, used by inner
     // step rows in repeat containers to flash on each iteration even
     // when active_step_id stays unchanged across the loop.
     signal stepStarted(string stepId)
@@ -293,7 +293,7 @@ Item {
     // Option flip from a card's right-click menu (currently:
     // enable/skip toggle). Routed to WorkflowPage's _commitOption.
     signal optionEdited(int stepIndex, string path, var value)
-    // Rewire from a card's overflow menu — `stepIndex` is the card
+    // Rewire from a card's overflow menu, `stepIndex` is the card
     // that's being rewired, `otherIndex` is the chosen counterpart.
     // The page resolves these via _moveStep.
     signal predecessorChosen(int stepIndex, int otherIndex)
@@ -311,7 +311,7 @@ Item {
 
     // Pairs of step indices that should be connected by a wire.
     // Notes are annotations (engine skips them), so wires bridge
-    // over them — the previous operational step connects directly
+    // over them, the previous operational step connects directly
     // to the next operational step. Computed once per actions
     // change; the wire Repeater uses this as its model.
     readonly property var _wirePairs: {
@@ -431,7 +431,7 @@ Item {
                         out.push({ from: lastNo, to: nextTop })
                     }
                 } else {
-                    // Plain top step — wire to next top (notes
+                    // Plain top step, wire to next top (notes
                     // skipped via the helper).
                     const nextTop = nextTopAfter(it._topIdx)
                     if (nextTop >= 0) out.push({ from: i, to: nextTop })
@@ -439,7 +439,7 @@ Item {
             } else if (it._displayKind === "inner") {
                 // Inner step: chain to the next NON-NOTE inner of
                 // the same parent AND same branch side. Notes are
-                // annotations — wires bridge over them just like at
+                // annotations, wires bridge over them just like at
                 // the top level. If this is the last inner, the
                 // parent's `top` branch above already added the
                 // rejoin wire.
@@ -500,7 +500,7 @@ Item {
 
     // Branch-filtered variants. `side` is "yes" (default / repeat) or
     // "no" (conditional else). Inner cards with no `_branchSide`
-    // tag — repeat container inners, anything legacy — count as yes.
+    // tag, repeat container inners, anything legacy, count as yes.
     function _innerOfBranch(list, parentTopIdx, side) {
         return list.filter(it => {
             if (!it || it._displayKind !== "inner") return false
@@ -539,7 +539,7 @@ Item {
 
         // Place a column of cards stacked from `branchTopY`. Each
         // card lays at `colX(iw)` (a function so x adapts to width
-        // — yes column = fixed left edge; no column = fixed right
+        //, yes column = fixed left edge; no column = fixed right
         // edge so cards extend leftward). Returns total span used.
         function placeColumn(inner, branchTopY, colX) {
             let yCur = branchTopY
@@ -584,7 +584,7 @@ Item {
                               (iw) => noColRight - iw)
                         : 0
                     // Whichever column extends further down wins
-                    // next-top placement. nextH is an estimate — the
+                    // next-top placement. nextH is an estimate, the
                     // next top hasn't been laid out yet, so we
                     // assume it matches the current top's height.
                     const longestSpan = Math.max(yesSpan, noSpan)
@@ -853,21 +853,21 @@ Item {
     //
     // Priorities, in order:
     //
-    //   1. Readable flow — cards stay in execution order down each
+    //   1. Readable flow, cards stay in execution order down each
     //      column, columns wrap newspaper-style left → right. A
     //      single column is the most natural shape; two columns is
     //      still easy to follow; three feels busy. Conditional
     //      branches stay glued to their parent regardless of where
     //      the column wraps. Repeat containers keep their inline
     //      strip.
-    //   2. Zoom — the layout is sized to fit the viewport so cards
+    //   2. Zoom, the layout is sized to fit the viewport so cards
     //      stay readable. We pick the FEWEST columns that hit a
     //      readable zoom threshold (~0.8); only if even the widest
     //      allowed shape can't reach that do we fall back to
     //      whichever gives the best zoom.
     //
     // The fixed shapes (Vertical / Horizontal / Grid) stay available
-    // as deliberate overrides — Smart Tidy is the default because it
+    // as deliberate overrides, Smart Tidy is the default because it
     // gets the right answer for almost every workflow without the
     // user having to guess.
     function organizeSmart() {
@@ -936,7 +936,7 @@ Item {
         // Distribute cells across `cols` columns column-major. For
         // each column we pre-compute leftPad (max no-column width
         // across cells in that column) so every cell's parent in
-        // the column lands at the same X — keeps inter-cell
+        // the column lands at the same X, keeps inter-cell
         // top-to-bottom wires running through a single vertical
         // line rather than wandering left and right.
         function simulate(cols) {
@@ -973,7 +973,7 @@ Item {
         // area at 0.78 = ~780×468 logical, comfortably above the
         // pixel-grid threshold for the 13/14px fonts).
         const READABLE_ZOOM = 0.78
-        // Cap at 3 — beyond that the eye loses the reading rhythm
+        // Cap at 3, beyond that the eye loses the reading rhythm
         // and the workflow stops reading like a sequence.
         const MAX_COLS = Math.min(cells.length, 3)
 
@@ -986,7 +986,7 @@ Item {
         }
 
         // Walk column counts in increasing order. The FIRST shape
-        // that hits readable zoom wins — fewer columns is always
+        // that hits readable zoom wins, fewer columns is always
         // preferred for flow legibility. If no shape is readable,
         // fall back to whichever produces the highest zoom.
         let pick = null
@@ -1005,7 +1005,7 @@ Item {
 
         // Apply the layout. xCursor / yCursor walk top-down then
         // wrap to the next column. Within a column, the parent's
-        // X is xCursor + colLeftPad — every parent in the column
+        // X is xCursor + colLeftPad, every parent in the column
         // aligns at the same X so the inter-cell wire runs through
         // a single vertical column. Yes-stack to the right of the
         // parent, no-stack to the left, both starting at the
@@ -1091,7 +1091,7 @@ Item {
 
     // Zoom around a viewport-local anchor so the world coord under
     // the cursor stays under the cursor through the change. Both
-    // wheel and button paths funnel here — Behaviors on zoom +
+    // wheel and button paths funnel here, Behaviors on zoom +
     // contentX/Y do the smoothing, so wheel ticks compose naturally
     // (each new tick interrupts the in-flight animation toward a
     // new target rather than queueing).
@@ -1124,7 +1124,7 @@ Item {
         flick.contentY = newCY
     }
 
-    // Smooth animation on zoom — both wheel and button paths route
+    // Smooth animation on zoom, both wheel and button paths route
     // changes through here, so all zoom transitions feel the same.
     Behavior on zoom {
         enabled: !Theme.reduceMotion
@@ -1133,7 +1133,7 @@ Item {
 
     // True once this canvas has applied an auto-fit on first load.
     // Editing actions that follow (drag, drop, add step) shouldn't
-    // re-zoom — only the initial open of a workflow should snap the
+    // re-zoom, only the initial open of a workflow should snap the
     // viewport to "all cards in view".
     property bool _firstLoadDone: false
 
@@ -1161,7 +1161,7 @@ Item {
     }
 
     // Place any newly-added steps below the existing layout. Existing
-    // positions are left alone — this is the lazy "I added a step,
+    // positions are left alone, this is the lazy "I added a step,
     // don't rearrange the others" path. The first time this fires
     // with at least one card, we auto-fit the viewport so the user
     // lands on the cards rather than at scene origin (which is far
@@ -1245,7 +1245,7 @@ Item {
 
     // Walk the action list and return the index of any container
     // whose card bounds contain the given world point. Only checks
-    // top-level containers — nested containers aren't drop targets
+    // top-level containers, nested containers aren't drop targets
     // yet (single level of nesting on the canvas).
     function _containerAt(worldX, worldY) {
         const list = root.actions || []
@@ -1304,7 +1304,7 @@ Item {
     // ============ Content extent ============
     // Effectively-infinite canvas. A fixed-but-large unscaled span
     // keeps the Flickable from clamping the pan to the card-bounding
-    // box — the user can drag empty space anywhere they like, and
+    // box, the user can drag empty space anywhere they like, and
     // dropping cards far from origin doesn't run into a wall. Span
     // is unscaled; Flickable.contentWidth multiplies by zoom.
     readonly property int canvasSpan: 12000
@@ -1331,7 +1331,7 @@ Item {
         return my
     }
 
-    // Graph-paper backdrop — only the editor wears this. Sits behind
+    // Graph-paper backdrop, only the editor wears this. Sits behind
     // the Flickable so it doesn't pan with the cards (the dots stay
     // anchored to the viewport, like a notebook page underneath the
     // composition). DotGrid paints its own Theme.bg fill, which is
@@ -1350,7 +1350,7 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
         // Explicit DragHandler below owns canvas pan. Flickable's
         // built-in drag fights TapHandler / card MouseAreas in ways
-        // that left the canvas stuck — turning interactive off lets
+        // that left the canvas stuck, turning interactive off lets
         // wheel + scrollbars still scroll the contentItem while pan
         // is unambiguously handled by the DragHandler.
         interactive: false
@@ -1372,7 +1372,7 @@ Item {
 
         // Wheel-only handler: no cursor, no hover claim, just zoom.
         // hoverEnabled: false + acceptedButtons: NoButton means this
-        // area neither claims the cursor nor steals hover events —
+        // area neither claims the cursor nor steals hover events.
         // cards underneath get their containsMouse signals as
         // expected so border-color hovers / rewire-button reveals
         // still work. Wheel events deliver because they're hit-
@@ -1396,7 +1396,7 @@ Item {
         // handler can claim it, so dragging a card moves the card
         // (not the canvas), and pressing on a card and releasing
         // without motion still fires its click. Everywhere else
-        // — the empty grid background between cards — this
+        //, the empty grid background between cards, this
         // handler takes the gesture and pans. acceptedModifiers
         // restricts pan to bare drags so shift+drag is free for
         // marquee selection.
@@ -1450,7 +1450,7 @@ Item {
         }
 
         // Alt+drag on empty canvas draws a NEW group rectangle.
-        // Mirrors the marquee handler — coordinates live in WORLD
+        // Mirrors the marquee handler, coordinates live in WORLD
         // space (already scroll/zoom-corrected) so the visual rect
         // and the commit hit-test agree without further conversion.
         DragHandler {
@@ -1504,7 +1504,7 @@ Item {
             scale: root.zoom
 
             // Marquee + draw-group rectangles. Drawn inside `world`
-            // because their coordinates are stored in world space —
+            // because their coordinates are stored in world space.
             // the scale transform handles zoom for us, and the rects
             // stay glued to the underlying cards as the user pans.
             // Border widths are scaled inversely so the on-screen
@@ -1663,7 +1663,7 @@ Item {
 
                     // ---- Comment label, upper-left ----
                     // Double-click ANYWHERE in the body opens the
-                    // editor (handled in bodyArea above) — no
+                    // editor (handled in bodyArea above), no
                     // separate MouseArea over the label, so the
                     // body's drag isn't blocked when the user clicks
                     // through the label area.
@@ -1698,7 +1698,7 @@ Item {
 
                     // Multi-line editor: TextEdit (not TextInput) so
                     // Enter inserts a newline. Plain Enter no longer
-                    // commits — Esc and focus-loss do — because the
+                    // commits, Esc and focus-loss do, because the
                     // expected mental model for a labelled box is
                     // "type, get out by clicking elsewhere," like the
                     // step inspector's text fields.
@@ -1728,7 +1728,7 @@ Item {
                         // Escape commits the buffer too. Hiding before
                         // calling _commit would bypass the focus-loss
                         // commit hook (the gate `visible &&` is false
-                        // by then), losing the typed text — that was
+                        // by then), losing the typed text, that was
                         // the original bug.
                         Keys.onEscapePressed: _commit()
                     }
@@ -1815,7 +1815,7 @@ Item {
                     visible: fromPos !== undefined && toPos !== undefined
                     anchors.fill: parent
                     smooth: true
-                    // No layer.enabled here — the marching-dash
+                    // No layer.enabled here, the marching-dash
                     // animation re-rasterises the stroke every
                     // frame anyway, so caching it to an offscreen
                     // layer doubles the work for no gain. With
@@ -1823,7 +1823,7 @@ Item {
                     // lag during zoom / drag.
 
                     // Direction is signalled by flowing dashes that
-                    // march from source to target — the same trick
+                    // march from source to target, the same trick
                     // n8n / Blender's node editor use. No arrowheads
                     // means two wires meeting at the same point on a
                     // card stay readable; the marching dashes still
@@ -1833,7 +1833,7 @@ Item {
                     // from 0 to -12 over 1200ms produces one full
                     // cycle per ~1.2s. Negative offset because Qt's
                     // dash convention shifts the pattern away from
-                    // the path origin — negative makes the visual
+                    // the path origin, negative makes the visual
                     // flow agree with the path's direction.
                     ShapePath {
                         // Wire stroke: theme-aware "strong line" tone
@@ -1872,7 +1872,7 @@ Item {
                 }
             }
 
-            // Wire labels — small pills along the wire that carry a
+            // Wire labels, small pills along the wire that carry a
             // label (currently "yes" / "no" on conditional branches).
             // Sibling Repeater so the labels paint above the strokes
             // without participating in the dash animation.
@@ -1905,7 +1905,7 @@ Item {
                         _routeWire(fromPos, toPos, fromH, toH, fromW, toW, toId)
 
                     // Plain coloured text floating above the wire
-                    // midpoint — no pill. The subtle bg (a tinted
+                    // midpoint, no pill. The subtle bg (a tinted
                     // rectangle a hair taller than the text) keeps
                     // the glyph readable against the dot grid
                     // without reading as a chip "sitting" on the
@@ -1959,7 +1959,7 @@ Item {
                 // so inner Repeaters (rewire menu) don't shadow it
                 // with their own model.index.
                 readonly property int stepIdx: model.index
-                // Live preview during a marquee drag — the card lights
+                // Live preview during a marquee drag, the card lights
                 // up as soon as the rect crosses it, before release.
                 // Folded into isSelected so the existing border /
                 // background bindings pick it up without a second path.
@@ -1989,7 +1989,7 @@ Item {
                 readonly property string kind: modelData ? modelData.kind : "wait"
                 readonly property string rawKind: modelData ? (modelData.rawKind || "") : ""
                 // Container = a card that holds an inline inner-step
-                // strip. Repeat is the only one now — conditionals
+                // strip. Repeat is the only one now, conditionals
                 // (when/unless) render as branch decision points
                 // with their inner steps drawn as siblings on the
                 // canvas, not nested inside.
@@ -2005,14 +2005,14 @@ Item {
                 readonly property bool isActive:
                     model.index === root.activeStepIndex
                     || model.index === root.activeParentIndex
-                // Notes are annotations, not workflow steps — the
+                // Notes are annotations, not workflow steps, the
                 // engine skips them at runtime. Render lighter so
                 // they read as canvas comments rather than first-
                 // class operations; wires also skip them (see
                 // _wirePairs at the canvas root).
                 readonly property bool isNote: rawKind === "note"
                 // True when a palette drag is hovering this card and
-                // it's a container — drives the inner-zone highlight
+                // it's a container, drives the inner-zone highlight
                 // so the user sees their drop will land inside.
                 readonly property bool isHoverDropTarget:
                     root.hoveredContainerIndex === model.index && isContainer
@@ -2034,7 +2034,7 @@ Item {
                 // Repeater rebuild (which happens on each workflow
                 // mutation) creates fresh delegates at x=0, y=0 and
                 // the Behavior animates them out to their saved
-                // positions over durSlow — visible as the cards
+                // positions over durSlow, visible as the cards
                 // collapsing toward origin and re-fanning out on
                 // every drop / save.
                 property bool _settled: false
@@ -2098,12 +2098,12 @@ Item {
                     color: cardItem.cardBg
                     // Repeat containers + conditional decision cards
                     // carry a tinted border (their kind colour) so the
-                    // structural / branch nodes read at a glance —
+                    // structural / branch nodes read at a glance.
                     // ordinary action cards keep the neutral hairline.
                     // Notes get the softest border so they recede next
                     // to operations.
                     // Active-running indicator is the pulsing green
-                    // status dot in the header — the card border stays
+                    // status dot in the header, the card border stays
                     // its normal selection / kind colour so a flashing
                     // accent halo doesn't compete with selection.
                     border.color: cardItem.isSelected
@@ -2123,7 +2123,7 @@ Item {
                     Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                     Behavior on height { NumberAnimation { duration: Theme.dur(Theme.durFast); easing.type: Theme.easingStd } }
 
-                    // No drop shadow on canvas cards — see CLAUDE.md
+                    // No drop shadow on canvas cards, see CLAUDE.md
                     // design principle ("Flat, not skeuomorphic. No
                     // drop shadows except for a true overlay"). Per-
                     // card MultiEffect blur was also the dominant
@@ -2138,7 +2138,7 @@ Item {
                         cursorShape: dragArea.drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                         // Don't let the canvas pan DragHandler steal
                         // a card drag once motion crosses its
-                        // threshold — the user would end up panning
+                        // threshold, the user would end up panning
                         // mid-card-drag.
                         preventStealing: true
                         drag.target: cardItem
@@ -2148,7 +2148,7 @@ Item {
                         onPressed: (mouse) => {
                             _wasDragged = false
                             // Right-click pops the context menu but
-                            // does NOT select the step — selection
+                            // does NOT select the step, selection
                             // is the left-click affordance and slides
                             // the inspector in. The context menu
                             // operates on the card under the cursor
@@ -2182,7 +2182,7 @@ Item {
                         onReleased: (mouse) => {
                             // Right-click already opened the context
                             // menu in onPressed. Don't also fire the
-                            // selectStep behaviour below — that would
+                            // selectStep behaviour below, that would
                             // slide the inspector in on every right-
                             // click.
                             if (mouse.button === Qt.RightButton) return
@@ -2220,7 +2220,7 @@ Item {
                         }
                     }
 
-                    // Note-specific render — italic text with a soft
+                    // Note-specific render, italic text with a soft
                     // "note" prefix label. Notes don't get the pill
                     // header, kind badge, status dot, or chip flow
                     // because they aren't workflow operations.
@@ -2314,7 +2314,7 @@ Item {
 
                             // Rewire button. Lives inside the header
                             // row so it always reserves layout space
-                            // — opacity controls visibility (hover or
+                            //, opacity controls visibility (hover or
                             // selected), so the kind label never has
                             // to sit behind the pill.
                             Rectangle {
@@ -2390,7 +2390,7 @@ Item {
                                 // finish the dot stays in its terminal
                                 // colour (ok / err / skipped). Note the
                                 // running pulse fights the per-status
-                                // colour Behavior — that's fine, the
+                                // colour Behavior, that's fine, the
                                 // pulse opacity below masks it.
                                 color: cardItem.isActive             ? Theme.ok
                                     :  cardItem.status === "ok"      ? Theme.ok
@@ -2443,7 +2443,7 @@ Item {
                             // Quick-delete. Hover-revealed × pill at
                             // the right edge of the header row,
                             // mirroring the rewire button on the left.
-                            // Click removes the step immediately —
+                            // Click removes the step immediately.
                             // mirrors the rail's hover-controls × .
                             Rectangle {
                                 id: deleteBtn
@@ -2707,13 +2707,13 @@ Item {
                             anchors.leftMargin: 8
                             anchors.rightMargin: 8
                             // 42px = 6 (innerZone topMargin) + 28
-                            // (Open button height) + 8 (gap) — keeps
+                            // (Open button height) + 8 (gap), keeps
                             // the strip from overlapping the Open
                             // button at the top of the inner zone.
                             anchors.topMargin: 42
                             spacing: 3
 
-                            // Notes are workflow annotations — they don't
+                            // Notes are workflow annotations, they don't
                             // execute and shouldn't show up as inline
                             // rows in a repeat container. They still
                             // round-trip through KDL because
@@ -2813,7 +2813,7 @@ Item {
                                             // Per-iteration flash. The bridge sets
                                             // active_step_id to the same inner-step id on
                                             // every iteration of a repeat, which dedupes at
-                                            // the cxx-qt setter — QML never sees the
+                                            // the cxx-qt setter, QML never sees the
                                             // binding change. The unconditional `stepStarted`
                                             // signal lets us restart the pulse cleanly per
                                             // iteration so the user gets one visible pulse
@@ -2871,7 +2871,7 @@ Item {
                                 }
                             }
 
-                            // Add-inner pill — dashed border so it
+                            // Add-inner pill, dashed border so it
                             // reads as an empty drop zone rather than
                             // an action card. Click opens the kind
                             // picker.
@@ -2960,14 +2960,14 @@ Item {
                         }
                     }
 
-                    // Rewire menu — popup()'d from the ⇄ button now
+                    // Rewire menu, popup()'d from the ⇄ button now
                     // living in the header row above. Kept here as a
                     // child of the card so step.id captures stay
                     // bound to this delegate's stepIdx.
                     WfMenu {
                         id: rewireMenu
 
-                        // Section header — disabled WfMenuItem used as
+                        // Section header, disabled WfMenuItem used as
                         // a non-clickable label.
                         WfMenuItem {
                             text: "↑  PRECEDED BY"
@@ -3016,7 +3016,7 @@ Item {
             }
         }
 
-        // Port dots — small cyan circles at the wire endpoints so
+        // Port dots, small cyan circles at the wire endpoints so
         // each wire visibly attaches to its source / target card
         // instead of disappearing under the card edge. Sits at the
         // world level (sibling of nodeRep) with z higher than every
@@ -3053,7 +3053,7 @@ Item {
                     visible: fromPos !== undefined && toPos !== undefined
 
                     // Port = solid coral disk with a hairline ring.
-                    // Flat, no halo, no white highlight — sits in the
+                    // Flat, no halo, no white highlight, sits in the
                     // same visual register as CategoryIcon and the
                     // step-card hairlines so the canvas reads as one
                     // surface family.
@@ -3086,7 +3086,7 @@ Item {
 
     // ============ Drag preview ghost (palette → canvas) ============
     // Parented to Overlay.overlay (the top-of-window layer Popups use),
-    // so the ghost reliably renders above every card / container —
+    // so the ghost reliably renders above every card / container.
     // a sibling Rectangle at z:200 in the canvas root looked right on
     // paper but practical scene-graph behaviour kept tucking the
     // ghost under cards inside the Flickable. Scene-space coords mean
@@ -3135,8 +3135,8 @@ Item {
     }
 
     // ============ Empty-state hint ============
-    // When no actions exist yet — the editor's first-impression
-    // surface — show a centered prompt pointing at the palette.
+    // When no actions exist yet, the editor's first-impression
+    // surface, show a centered prompt pointing at the palette.
     // Hidden the moment a step lands. The hint lives here (in the
     // canvas, not the page) so it stays correctly positioned even
     // when the inspector slides in or the breadcrumb appears.
@@ -3196,7 +3196,7 @@ Item {
 
     // ============ Floating UI ============
 
-    // Vertical icon dock on the right edge of the canvas — Adobe /
+    // Vertical icon dock on the right edge of the canvas, Adobe /
     // Figma style. Stacks the three control groups (Tidy → Wires →
     // Zoom) as icon-only buttons separated by thin dividers; full
     // labels appear in tooltips on hover. Trades label legibility
@@ -3291,7 +3291,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: if (toolBtn.onActivate) toolBtn.onActivate()
-                    // No tooltip — the dock expands on hover and shows
+                    // No tooltip, the dock expands on hover and shows
                     // the same label inline, so a floating tooltip
                     // would just be the same text twice.
                     onContainsMouseChanged: {
@@ -3350,7 +3350,7 @@ Item {
                 sourceComponent: toolBtnComp
                 onLoaded: {
                     item.glyph = "✦"
-                    item.tip = "Smart tidy — picks the layout that keeps cards readable"
+                    item.tip = "Smart tidy, picks the layout that keeps cards readable"
                     item.label = "Tidy smart"
                     item.onActivate = () => organizeSmart()
                 }
@@ -3596,7 +3596,7 @@ Item {
     // column-wrap wire (target far above source in a different
     // column) it produces a sweeping lobe that exits the bottom of
     // source, sweeps through the column gap, and enters the top of
-    // target — instead of cutting straight up through the cards
+    // target, instead of cutting straight up through the cards
     // above source.
     function _curvePath(route) {
         if (!route) return ""
@@ -3692,7 +3692,7 @@ Item {
     //     is a short straight curve; for a column-wrap (target above
     //     in a different column) the directional Bezier dives below
     //     source, sweeps through the column gap, and rises into
-    //     target's top — visually unambiguous as "next step in flow".
+    //     target's top, visually unambiguous as "next step in flow".
     //   - Horizontal axis: exit right of source, enter left of
     //     target when the target is to the right (the common case);
     //     reversed for back-flows.
@@ -3704,7 +3704,7 @@ Item {
     //     larger centre-to-centre delta, so the curve's long side
     //     tracks along the natural flow direction.
     // Returns true if any other card overlaps the target's X range
-    // and ends above the target's top — i.e., the wire can't enter
+    // and ends above the target's top, i.e., the wire can't enter
     // the target's top edge without crossing that card. Used by the
     // back-flow router to swap to bottom-entry when the natural
     // top-entry would lobe through a stack of cards above the
@@ -3750,7 +3750,7 @@ Item {
         //   2. Same row, back-flow (target left of source) →
         //      HORIZONTAL back-flow regardless of small vertical
         //      offsets. Wire exits the source's LEFT going LEFT
-        //      and enters the target's RIGHT going LEFT — natural
+        //      and enters the target's RIGHT going LEFT, natural
         //      adjacent-edge diagonal. Conditional's no-side
         //      branch (left column in vertical layout) sits here.
         //      A vertical route here would dive out the bottom
@@ -3777,7 +3777,7 @@ Item {
 
         if (useVertical) {
             // Default: exit BOTTOM of source, enter TOP of target.
-            // sd / td both point DOWN — at the source the wire heads
+            // sd / td both point DOWN, at the source the wire heads
             // downstream out of the bottom; at the target the wire
             // arrives from above heading down INTO the top edge.
             //
@@ -3797,8 +3797,8 @@ Item {
             //     the no-branch row sitting above-and-right of a
             //     conditional in horizontal layout). The strict
             //     bottom→top rule would dive below source and
-            //     rise above target for no reason — a pointless
-            //     U-turn under the source — so back-flow without
+            //     rise above target for no reason, a pointless
+            //     U-turn under the source, so back-flow without
             //     a card-above obstruction always uses the natural
             //     up-direction at both endpoints.
             //
@@ -3841,7 +3841,7 @@ Item {
             // of target going LEFT. Mirrors forward but on the
             // opposite edges. The canonical example is a vertical
             // layout's conditional wiring to its no-side branch
-            // column on the left — both source and target sit on
+            // column on the left, both source and target sit on
             // the same row baseline, the wire is a short horizontal
             // diagonal between adjacent edges, no loop-around lobe.
             const isHBackFlow = toCx < fromCx

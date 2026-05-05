@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Vertical icon dock for the canvas — Adobe / Figma style. Stacks
+// Vertical icon dock for the canvas, Adobe / Figma style. Stacks
 // step-kind icons (input → effect → flow) in a thin column on the
 // canvas's left edge. Each icon-only button is a drag source: press
 // + drag to canvas drops a new step at the cursor position.
@@ -13,7 +13,7 @@ import Wflow
 // scene-coordinate points, and the canvas renders the ghost itself.
 //
 // Hovering any icon expands the dock so the label slides in next to
-// the icon — the icon-only collapsed state trades label legibility
+// the icon, the icon-only collapsed state trades label legibility
 // for canvas real estate, and the labels reappear on demand without
 // a bottom strip eating screen.
 Item {
@@ -100,7 +100,7 @@ Item {
                     spacing: 2
 
                     // Thin divider above every category except the
-                    // first — visual separator between Input /
+                    // first, visual separator between Input /
                     // Effect / Flow without spending vertical space
                     // on labels.
                     Item {
@@ -123,7 +123,7 @@ Item {
                         model: modelData.kinds
                         delegate: Rectangle {
                             id: chip
-                            // Chip width tracks the dock — when the
+                            // Chip width tracks the dock, when the
                             // dock is expanded the chip stretches
                             // to leave room for the label.
                             width: dock.width - 14
@@ -181,14 +181,14 @@ Item {
                                 cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                                 property bool dragging: false
 
-                                // No tooltip — the dock expands on hover
+                                // No tooltip, the dock expands on hover
                                 // and shows the same label inline next to
                                 // the icon, so a floating tooltip would
                                 // just duplicate it.
 
                                 // Aggregate chip hover into a count on the
                                 // dock so the dock stays expanded whenever
-                                // the cursor is over any chip — Qt's hover
+                                // the cursor is over any chip, Qt's hover
                                 // delivery hands the QHoverEvent to this
                                 // MouseArea (it's hoverEnabled) and never
                                 // bubbles up to the dock's HoverHandler.

@@ -32,7 +32,7 @@ Rectangle {
         anchors.rightMargin: 10
         spacing: 10
 
-        // Mini step icon — delegates to CategoryIcon so the per-kind
+        // Mini step icon, delegates to CategoryIcon so the per-kind
         // glyph metrics (chevron tighter, timer larger, etc.) stay
         // identical to the toolbar palette and the canvas chips.
         CategoryIcon {

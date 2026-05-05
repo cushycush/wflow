@@ -47,7 +47,7 @@ pub(super) fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
     std::fs::write(&file, &template).with_context(|| format!("write {}", file.display()))?;
     println!("{}", file.display());
     eprintln!(
-        "{} created `{}` — edit the file, then run `wflow run {}`",
+        "{} created `{}`, edit the file, then run `wflow run {}`",
         check(),
         title,
         saved.id
@@ -57,7 +57,7 @@ pub(super) fn cmd_new(title: &str, to_stdout: bool) -> Result<ExitCode> {
 
 pub(super) fn cmd_edit(target: &str) -> Result<ExitCode> {
     // Resolve to an on-disk path. If TARGET points at a real file,
-    // just open that — handy for editing a workflow that isn't in the
+    // just open that, handy for editing a workflow that isn't in the
     // library yet. Otherwise look it up by id.
     let as_path = PathBuf::from(target);
     let path = if as_path.exists() && (target.contains('/') || target.ends_with(".kdl")) {
@@ -111,7 +111,7 @@ pub(super) fn cmd_rm(target: &str, force: bool) -> Result<ExitCode> {
         std::io::stdin().read_line(&mut answer)?;
         let yes = matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes");
         if !yes {
-            eprintln!("{} cancelled", dim("—"));
+            eprintln!("{} cancelled", dim("·"));
             return Ok(ExitCode::SUCCESS);
         }
     }
@@ -124,7 +124,7 @@ pub(super) fn cmd_rm(target: &str, force: bool) -> Result<ExitCode> {
 pub(super) fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
     let workflows = store::list().context("listing workflows")?;
     if workflows.is_empty() {
-        println!("library is empty — nothing to migrate");
+        println!("library is empty, nothing to migrate");
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -136,7 +136,7 @@ pub(super) fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
             Ok(p) => p,
             Err(_) => continue,
         };
-        // Detect by reading the raw text for the legacy shape —
+        // Detect by reading the raw text for the legacy shape.
         // `recipe {` or top-level `id "..."` / `schema 1` / etc. The
         // decoder also works as an oracle but reading the bytes is
         // faster and lets us print the path without re-decoding.
@@ -153,7 +153,7 @@ pub(super) fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
     }
 
     println!(
-        "{} {} workflows total — {} legacy, {} already in the new format",
+        "{} {} workflows total, {} legacy, {} already in the new format",
         arrow(),
         workflows.len(),
         to_migrate.len(),
@@ -171,7 +171,7 @@ pub(super) fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
 
     if dry_run {
         println!();
-        println!("{} dry run — pass without --dry-run to actually convert", arrow());
+        println!("{} dry run, pass without --dry-run to actually convert", arrow());
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -192,7 +192,7 @@ pub(super) fn cmd_migrate(dry_run: bool) -> Result<ExitCode> {
     if !errors.is_empty() {
         println!("{} {} failures:", cross(), errors.len());
         for (id, msg) in &errors {
-            println!("  {} {} — {}", cross(), id, msg);
+            println!("  {} {}, {}", cross(), id, msg);
         }
         return Ok(ExitCode::from(1));
     }

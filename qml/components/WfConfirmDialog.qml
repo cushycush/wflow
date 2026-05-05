@@ -31,7 +31,7 @@ Dialog {
 
     signal confirmed()
 
-    // Suppress Dialog's default system-styled header bar — we render
+    // Suppress Dialog's default system-styled header bar, we render
     // our own inside contentItem and don't want the light bar
     // sitting above it.
     header: Item { width: 0; height: 0 }
@@ -84,7 +84,7 @@ Dialog {
             spacing: 8
             layoutDirection: Qt.RightToLeft
 
-            // Inline destructive button — red instead of accent
+            // Inline destructive button, red instead of accent
             // when destructive is true. Falls back to the same
             // accent fill PrimaryButton uses otherwise.
             Button {

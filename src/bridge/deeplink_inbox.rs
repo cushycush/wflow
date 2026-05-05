@@ -1,4 +1,4 @@
-//! DeeplinkInbox — receives forwarded `wflow://` URLs from second-
+//! DeeplinkInbox, receives forwarded `wflow://` URLs from second-
 //! launch wflow processes and surfaces them to QML's deeplink router.
 //!
 //! Pairs with `gui_lock.rs`. The first wflow GUI binds the Unix
@@ -18,7 +18,7 @@ use cxx_qt_lib::QString;
 /// Slot for the URL receiver. main.rs writes here once after
 /// acquiring the GUI lock; DeeplinkInbox.start reads it once when QML
 /// instantiates the singleton. The Mutex<Option<...>> is the
-/// canonical "single-shot ownership transfer" shape — `take()`
+/// canonical "single-shot ownership transfer" shape, `take()`
 /// returns None on a second call so a misconfigured QML couldn't
 /// double-spawn the pump thread.
 static URL_RECEIVER: OnceLock<Mutex<Option<std::sync::mpsc::Receiver<String>>>> = OnceLock::new();
@@ -84,7 +84,7 @@ impl qobject::DeeplinkInbox {
 
         let Some(rx) = rx else {
             tracing::debug!(
-                "DeeplinkInbox.start: no URL receiver — running without forward inbox"
+                "DeeplinkInbox.start: no URL receiver, running without forward inbox"
             );
             return;
         };

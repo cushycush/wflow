@@ -4,8 +4,8 @@ import Wflow
 
 // Modal that posts a local workflow to wflows.io via
 // ExploreController.publish_workflow. The dialog is the only
-// surface that captures publish metadata — description, readme,
-// tags, visibility — so the user gets one focused screen instead
+// surface that captures publish metadata, description, readme,
+// tags, visibility, so the user gets one focused screen instead
 // of a multi-step flow.
 //
 // Caller wires it like:
@@ -32,7 +32,7 @@ Dialog {
 
     /// Local workflow id (uuid). Required.
     property string workflowId: ""
-    /// Workflow's display title. Read-only here — the published
+    /// Workflow's display title. Read-only here, the published
     /// workflow's title comes from the KDL itself, this is just for
     /// the dialog header.
     property string workflowTitle: ""
@@ -41,7 +41,7 @@ Dialog {
     /// host should bind this to ExploreController.loading. Disables
     /// the Publish button + shows a status line.
     property bool busy: false
-    /// Published successfully — flips the dialog into a success
+    /// Published successfully, flips the dialog into a success
     /// state with the new URL + a Done button. Host sets this in
     /// onPublish_succeeded.
     property bool succeeded: false
@@ -71,7 +71,7 @@ Dialog {
 
     onOpened: {
         // Reset to a clean form on every open. The success state
-        // is one-shot — closing + reopening starts fresh.
+        // is one-shot, closing + reopening starts fresh.
         succeeded = false
         lastError = ""
         publishedHandle = ""
@@ -289,7 +289,7 @@ Dialog {
                 }
             }
 
-            // Readme — multiline. Folded by default so the form
+            // Readme, multiline. Folded by default so the form
             // stays short for the common case (no readme); click
             // the "+ Add a readme" link to expand.
             Column {
@@ -352,7 +352,7 @@ Dialog {
                             clip: true
                             TextArea {
                                 id: readmeArea
-                                placeholderText: "Setup notes, prerequisites, screenshots — anything someone reading the catalog should know before they install."
+                                placeholderText: "Setup notes, prerequisites, screenshots, anything someone reading the catalog should know before they install."
                                 text: root.readme
                                 wrapMode: TextArea.Wrap
                                 font.family: Theme.familyBody
@@ -371,7 +371,7 @@ Dialog {
                 }
             }
 
-            // Visibility — radio-style two-segment toggle.
+            // Visibility, radio-style two-segment toggle.
             Column {
                 width: parent.width
                 spacing: 4
@@ -433,7 +433,7 @@ Dialog {
                 }
             }
 
-            // Error banner — shows the most recent failure inline
+            // Error banner, shows the most recent failure inline
             // so the user can read + fix without dismissing the
             // dialog.
             Rectangle {

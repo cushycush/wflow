@@ -29,13 +29,13 @@ kdl = "6"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 clap_mangen = "0.2"
-# Cross-platform Ctrl+C / SIGTERM handler — used by `wflow daemon`
+# Cross-platform Ctrl+C / SIGTERM handler, used by `wflow daemon`
 # to clean up Hyprland bindings before exit.
 ctrlc = "3"
 # File-system watcher for `wflow daemon` hot-reload. When workflow
 # files change on disk, the daemon re-reads them and diffs the
 # trigger set against what's currently bound (compositor IPC path
-# only — the GlobalShortcuts portal's BindShortcuts is once-per-
+# only, the GlobalShortcuts portal's BindShortcuts is once-per-
 # session by design, so portal mode requires a daemon restart).
 notify = "8"
 sha2 = "0.10"
@@ -48,7 +48,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 url = "2"
 
 # Engine: notify uses ashpd (notification portal). Recording's portal +
-# libei pumps now live in wdotool-core's `recorder` module — no direct
+# libei pumps now live in wdotool-core's `recorder` module, no direct
 # reis / evdev dep here anymore.
 ashpd = { version = "0.13", default-features = false, features = ["tokio", "tracing", "notification", "global_shortcuts"] }
 # Stream consumer for wdotool_core::recorder::RecorderSession::events().
@@ -59,7 +59,7 @@ futures-util = "0.3"
 # matrix; `recorder` adds the capture-side stream API (XDG portal +
 # evdev) that the Record Mode UI consumes.
 #
-# v0.4.0 absorbed wflow's recorder code — we now consume it as a
+# v0.4.0 absorbed wflow's recorder code, we now consume it as a
 # `Stream<Item = RecEvent>` from `wdotool_core::recorder` instead of
 # maintaining parallel portal / evdev pumps in this crate.
 wdotool-core = { version = "0.5", features = ["libei", "wlroots", "kde", "gnome", "uinput", "recorder"] }

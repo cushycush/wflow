@@ -10,7 +10,7 @@ use kdl::{KdlDocument, KdlEntry, KdlIdentifier, KdlNode, KdlValue};
 use crate::actions::{Action, Condition, OnError, Step, Workflow};
 
 /// Emit a workflow as KDL. Always uses the v0.4 `workflow "title" { ... }`
-/// shape — legacy files round-trip into this form on first save.
+/// shape, legacy files round-trip into this form on first save.
 ///
 /// `id` is no longer in the file; the filename is the id. Timestamps
 /// (`created` / `modified` / `last-run`) still ride along inside the
@@ -35,7 +35,7 @@ pub fn encode(wf: &Workflow) -> String {
     // Decoder still reads them from legacy / pre-migration files so
     // those keep parsing.
 
-    // Variables block — emitted only when present so empty files stay tidy.
+    // Variables block, emitted only when present so empty files stay tidy.
     if !wf.vars.is_empty() {
         let mut vars_node = KdlNode::new("vars");
         let mut vars_inner = KdlDocument::new();
@@ -46,7 +46,7 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(vars_node);
     }
 
-    // Imports block — same emit-only-if-present rule.
+    // Imports block, same emit-only-if-present rule.
     if !wf.imports.is_empty() {
         let mut imports_node = KdlNode::new("imports");
         let mut imports_inner = KdlDocument::new();
@@ -57,7 +57,7 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(imports_node);
     }
 
-    // Triggers — emitted before steps so the binding is the first
+    // Triggers, emitted before steps so the binding is the first
     // thing a reader sees when scanning a workflow file.
     for trigger in &wf.triggers {
         inner.nodes_mut().push(encode_trigger(trigger));
@@ -69,8 +69,8 @@ pub fn encode(wf: &Workflow) -> String {
         inner.nodes_mut().push(encode_step(step));
     }
 
-    // Visual-grouping rectangles. Decorative — engine ignores them
-    // — but they live alongside steps in the file so the canvas
+    // Visual-grouping rectangles. Decorative, engine ignores them
+    //, but they live alongside steps in the file so the canvas
     // layout survives a reload.
     if !wf.groups.is_empty() {
         let mut groups_node = KdlNode::new("groups");
@@ -131,7 +131,7 @@ fn encode_trigger(trigger: &crate::actions::Trigger) -> KdlNode {
     node
 }
 
-/// Encode a list of steps as a bare KDL fragment — the format used
+/// Encode a list of steps as a bare KDL fragment, the format used
 /// by the `use NAME` import targets. No `workflow` wrapper, no
 /// schema, no title or imports map; just the step nodes one after
 /// another. Mirrors the parser side (`decode_fragment_file`).

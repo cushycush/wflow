@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 
-// Runtime visual-style switcher. Cycle with Ctrl+. — three modes to compare.
+// Runtime visual-style switcher. Cycle with Ctrl+., three modes to compare.
 QtObject {
     // "bold" | "cinematic" | "maximalist"
     property string mode: "cinematic"
@@ -11,7 +11,7 @@ QtObject {
     readonly property bool isCinematic: mode === "cinematic" || mode === "maximalist"
     readonly property bool isMaximalist: mode === "maximalist"
 
-    // Feature flags — components query these rather than `mode` directly.
+    // Feature flags, components query these rather than `mode` directly.
     readonly property bool ambientGradient: isCinematic     // background glow tied to workflow
     readonly property bool categoryTintedRow: isCinematic    // row gets a tinted fill by category
     readonly property bool animatedEntry: isCinematic        // staggered fade+slide on load

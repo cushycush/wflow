@@ -5,7 +5,7 @@ import Wflow
 // cards so workflows are recognizable at a glance without inheriting
 // the visual character of whichever step happens to be first. Same
 // rounded-square treatment as CategoryIcon so the two read as part
-// of the same family — workflow icon is the parent label, step
+// of the same family, workflow icon is the parent label, step
 // category icons are the children.
 //
 // Glyph: three small squares stepping diagonally down-right, an
@@ -17,7 +17,7 @@ Rectangle {
     id: root
     property real size: 36
     property bool hovered: false
-    // The accent palette anchors this — the workflow icon is a
+    // The accent palette anchors this, the workflow icon is a
     // brand-color marker, not a category tint. Library cards get a
     // calmly recognizable "wflow" beat in their leading icon.
     readonly property color _c: Theme.accent

@@ -10,7 +10,7 @@
 //!
 //! The response uses the same header shape; we read it back to
 //! confirm `success: true` came through. We avoid shelling out to
-//! `swaymsg` so a missing CLI doesn't trip the daemon — the socket
+//! `swaymsg` so a missing CLI doesn't trip the daemon, the socket
 //! is what's actually authoritative.
 //!
 //! Bind: `bindsym MODS+KEY exec wflow run <id> --yes`. Sway holds
@@ -43,7 +43,7 @@ pub struct SwayBackend {
 impl SwayBackend {
     pub fn new() -> Self {
         let socket = socket_path().expect(
-            "SwayBackend constructed without SWAYSOCK — check is_available() first",
+            "SwayBackend constructed without SWAYSOCK, check is_available() first",
         );
         let wflow_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("wflow"));
         Self { socket, wflow_bin }
@@ -116,7 +116,7 @@ impl Backend for SwayBackend {
         // `bindsym` rejects a duplicate binding outright (the
         // `success: false` reply we'd otherwise propagate as an
         // error), so we always unbind speculatively. Failure means
-        // the chord wasn't bound — fine. Same "wflow binds
+        // the chord wasn't bound, fine. Same "wflow binds
         // supersede" model Hyprland uses; user's sway config bind
         // comes back on `swaymsg reload` after the daemon stops.
         let unbind_cmd = format!("unbindsym {sway_chord}");

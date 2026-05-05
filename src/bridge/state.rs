@@ -1,14 +1,14 @@
-//! StateController — UX onboarding state exposed to QML.
+//! StateController, UX onboarding state exposed to QML.
 //!
 //! Owns:
 //!
-//!   - `is_first_run`     — true until `mark_first_run_seen()` is called
-//!   - `templates_json`   — JSON list of available workflow templates
+//!   - `is_first_run`    , true until `mark_first_run_seen()` is called
+//!   - `templates_json`  , JSON list of available workflow templates
 //!     (from `crate::templates::discover()`)
 //!   - tutorial-seen flags accessed via invokable methods
 //!
 //! Persistence is delegated to `crate::state` (the `state.toml` reader/
-//! writer). All saves are best-effort — a write failure logs and
+//! writer). All saves are best-effort, a write failure logs and
 //! continues; the in-memory state remains the truth for the running
 //! session.
 
@@ -45,7 +45,7 @@ pub mod qobject {
         type StateController = super::StateControllerRust;
 
         /// Persist that the user has seen the welcome card. Idempotent
-        /// — calling more than once leaves the original timestamp.
+        ///, calling more than once leaves the original timestamp.
         #[qinvokable]
         fn mark_first_run_seen(self: Pin<&mut StateController>);
 
@@ -199,7 +199,7 @@ impl qobject::StateController {
         use cxx_qt::CxxQtType;
         let already_seen = !self.as_mut().rust().inner.is_first_run();
         self.as_mut().rust_mut().inner.mark_first_run_seen();
-        // Persist whether or not we actually changed the timestamp —
+        // Persist whether or not we actually changed the timestamp.
         // mark_first_run_seen is idempotent on the in-memory state.
         let snapshot = self.as_ref().rust().inner.clone();
         state::save(&snapshot);
@@ -250,7 +250,7 @@ impl qobject::StateController {
         let snapshot = self.as_ref().rust().inner.clone();
         state::save(&snapshot);
         // Always push the coerced value back to QML when the caller
-        // sent something different from what we ended up storing —
+        // sent something different from what we ended up storing.
         // even if the on-disk value didn't change. Otherwise QML's
         // local mirror keeps the bogus input it eagerly assigned in
         // applyPalette() and the UI desyncs from the persisted state.
@@ -286,7 +286,7 @@ impl qobject::StateController {
     }
 
     fn reveal_store_dir(self: Pin<&mut Self>) {
-        // Best-effort — open the folder in the user's file manager via
+        // Best-effort, open the folder in the user's file manager via
         // xdg-open. Errors are logged, never bubbled up; failing to
         // launch a file manager isn't an app-fatal condition.
         let dir = match crate::store::workflows_dir() {

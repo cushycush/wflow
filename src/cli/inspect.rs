@@ -58,7 +58,7 @@ pub(super) fn cmd_list(as_json: bool) -> Result<ExitCode> {
     }
 
     if workflows.is_empty() {
-        println!("no workflows — create one with `wflow run <file.kdl>` or launch the GUI");
+        println!("no workflows, create one with `wflow run <file.kdl>` or launch the GUI");
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -109,7 +109,7 @@ pub(super) fn cmd_validate(target: &str) -> Result<ExitCode> {
     let steps = wf.steps.len();
     let steps_word = if steps == 1 { "step" } else { "steps" };
     println!(
-        "{} ok — {} {} (schema 1)",
+        "{} ok, {} {} (schema 1)",
         wf.title, steps, steps_word
     );
     Ok(ExitCode::SUCCESS)

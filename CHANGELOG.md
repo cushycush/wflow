@@ -11,7 +11,7 @@ breaks.
 
 ---
 
-## [1.0.1] — 2026-05-04
+## [1.0.1] - 2026-05-04
 
 [Full release notes](docs/release-notes/v1.0.1.md)
 
@@ -38,7 +38,7 @@ Triggers do what they say.
 
 ---
 
-## [1.0.0] — 2026-05-04
+## [1.0.0] - 2026-05-04
 
 [Full release notes](docs/release-notes/v1.0.0.md)
 
@@ -101,7 +101,7 @@ can publish your own straight from the library card.
 
 ---
 
-## [0.7.0] — 2026-05-03
+## [0.7.0] - 2026-05-03
 
 [Full release notes](docs/release-notes/v0.7.0.md)
 
@@ -143,7 +143,7 @@ Sway.
 
 ---
 
-## [0.6.0] — 2026-05-02
+## [0.6.0] - 2026-05-02
 
 [Full release notes](docs/release-notes/v0.6.0.md)
 
@@ -161,7 +161,7 @@ BRANCH section so authoring matches the engine.
 - **Inspector FALSE BRANCH section** for conditionals. Add / delete
   steps from either side; the existing INNER STEPS section renames
   to TRUE BRANCH on conditionals so the labels read symmetrically.
-  Repeat keeps INNER STEPS — there's no true / false split there.
+  Repeat keeps INNER STEPS, there's no true / false split there.
 - **Canvas else-column rendering** in every layout. Vertical layout
   fans yes-cards right, no-cards left, both at the conditional's
   vertical mid. Horizontal does yes-below, no-above; conditional
@@ -189,7 +189,7 @@ BRANCH section so authoring matches the engine.
 
 ---
 
-## [0.5.0] — 2026-05-01
+## [0.5.0] - 2026-05-01
 
 [Full release notes](docs/release-notes/v0.5.0.md)
 
@@ -253,14 +253,14 @@ you pick one on first run.
 
 ---
 
-## [0.4.1] — 2026-04-29
+## [0.4.1] - 2026-04-29
 
 The left-rail selection in the editor follows the canvas marquee in
 real time as the rect moves, instead of catching up only on release.
 
 ---
 
-## [0.4.0] — 2026-04-29
+## [0.4.0] - 2026-04-29
 
 [Full release notes](docs/release-notes/v0.4.0.md)
 
@@ -300,7 +300,7 @@ list with an inspector and becomes a real node-graph workspace.
 
 ---
 
-## [0.3.26] — earlier
+## [0.3.26], earlier
 
 The Recorder consumes the wdotool-core 0.4 stream API instead of
 maintaining its own portal + evdev pumps in the wflow tree. Same
@@ -308,7 +308,7 @@ behavior, less duplicated code.
 
 ---
 
-## [0.3.0 — 0.3.25]
+## [0.3.0, 0.3.25]
 
 The 0.3.x line covered the engine fundamentals (every action category,
 KDL on disk, the templated library, the trust prompt for unfamiliar

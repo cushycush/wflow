@@ -5,7 +5,7 @@
 //! tracks (AUR, Flatpak, tarball) install one to /usr/share or the
 //! Flatpak export, but a developer running `cargo build && ./target/
 //! debug/wflow` has no scheme handler at all. The browser's redirect
-//! to `wflow://auth/callback?...` after sign-in goes nowhere — the
+//! to `wflow://auth/callback?...` after sign-in goes nowhere, the
 //! sign-in flow looks broken.
 //!
 //! On the first GUI launch this routine writes a per-user .desktop
@@ -20,7 +20,7 @@
 //! `target/debug` → `target/release` transition + the migration from
 //! cargo to a system install.
 //!
-//! Skips on Flatpak — the manifest exports its own .desktop file.
+//! Skips on Flatpak, the manifest exports its own .desktop file.
 //! Failures are logged at info and treated as fine; the user can
 //! still type `xdg-mime default ... x-scheme-handler/wflow` by hand.
 
@@ -53,7 +53,7 @@ pub fn ensure_installed() {
         Some(d) => d,
         None => {
             tracing::info!(
-                "scheme-handler: no XDG_DATA_HOME / HOME — can't locate user applications dir"
+                "scheme-handler: no XDG_DATA_HOME / HOME, can't locate user applications dir"
             );
             return;
         }
@@ -94,7 +94,7 @@ pub fn ensure_installed() {
     );
 
     // Refresh xdg-mime / xdg-open so the new handler is picked up
-    // without a logout. Best-effort — distros without
+    // without a logout. Best-effort, distros without
     // update-desktop-database still work, the file just takes
     // effect on next session start.
     let _ = std::process::Command::new("update-desktop-database")
@@ -122,7 +122,7 @@ fn existing_exec_matches(target: &Path, exe: &Path) -> Option<bool> {
     let body = std::fs::read_to_string(target).ok()?;
     for line in body.lines() {
         if let Some(rest) = line.strip_prefix("Exec=") {
-            // Exec line is `<binary> %u` — split off the %u so the
+            // Exec line is `<binary> %u`, split off the %u so the
             // comparison is binary-vs-binary.
             let bin = rest.split_whitespace().next().unwrap_or("");
             return Some(bin == exe.to_string_lossy());

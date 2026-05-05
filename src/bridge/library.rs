@@ -1,4 +1,4 @@
-//! LibraryController — the workflow library surface exposed to QML.
+//! LibraryController, the workflow library surface exposed to QML.
 //!
 //! Design choice: we serialize the list to JSON and ship it across as a
 //! single QString property. cxx-qt has reasonable QVariantMap support but
@@ -84,7 +84,7 @@ pub mod qobject {
 
         /// Bind a keyboard chord to a workflow. Replaces any existing
         /// chord trigger on the workflow (one-chord-per-workflow is
-        /// the v1 model — additional chord shapes can land later).
+        /// the v1 model, additional chord shapes can land later).
         /// Empty `chord` clears the trigger entirely.
         ///
         /// `when_kind` and `when_value` add an optional context
@@ -115,7 +115,7 @@ pub mod qobject {
     }
 }
 
-/// Shape sent to QML — a compact summary, not the full step list. Step
+/// Shape sent to QML, a compact summary, not the full step list. Step
 /// detail is loaded lazily via `WorkflowController.load(id)`.
 #[derive(Serialize)]
 struct WorkflowSummary {
@@ -127,7 +127,7 @@ struct WorkflowSummary {
     modified: Option<String>,
     kinds: Vec<String>,
     /// Per-step `{kind, value}` for the chip trail on the library
-    /// card — same shape as the Explore catalog row's `actionTypes`.
+    /// card, same shape as the Explore catalog row's `actionTypes`.
     /// Capped to 12 entries so the JSON payload stays small for
     /// large libraries; the card only renders the first six anyway,
     /// the cap leaves headroom for the +N sentinel without
@@ -138,10 +138,10 @@ struct WorkflowSummary {
     folder: String,
     /// Bound keyboard chord (e.g. "ctrl+shift+t"), or empty string
     /// when no chord trigger is configured. v1 surfaces only the
-    /// first chord trigger — multi-chord workflows are rare, the
+    /// first chord trigger, multi-chord workflows are rare, the
     /// model accepts them but the GUI binds one-at-a-time.
     chord: String,
-    /// Optional context predicate for the chord — "window-class" or
+    /// Optional context predicate for the chord, "window-class" or
     /// "window-title". Empty when the chord fires unconditionally.
     /// Same vocabulary the QML side passes back through `set_chord`.
     chord_when_kind: String,
@@ -299,7 +299,7 @@ impl qobject::LibraryController {
             tracing::warn!(?e, "set_folder: move failed");
             return;
         }
-        // Re-render the library — workflow's folder column changes.
+        // Re-render the library, workflow's folder column changes.
         self.as_mut().set_workflows(load_as_json());
     }
 
@@ -318,7 +318,7 @@ impl qobject::LibraryController {
             tracing::warn!(?e, "create_folder failed");
             return;
         }
-        // Refresh — folder count badge in the sidebar updates.
+        // Refresh, folder count badge in the sidebar updates.
         self.as_mut().set_workflows(load_as_json());
     }
 
@@ -335,7 +335,7 @@ impl qobject::LibraryController {
         let when_value_s: String = when_value.to_string();
 
         // Empty chord = clear all chord triggers on this workflow.
-        // Per-window predicates and hotstrings (v0.5+) survive — we
+        // Per-window predicates and hotstrings (v0.5+) survive, we
         // only touch chord-shaped triggers so the v0.4 "Chord"
         // variant is the one we manage.
         let mut wf = match crate::store::load(&id_s) {
@@ -348,7 +348,7 @@ impl qobject::LibraryController {
 
         // Drop any existing chord triggers so the new one (if any)
         // doesn't end up as a duplicate. v1 binds one chord per
-        // workflow — the daemon would warn on duplicates anyway.
+        // workflow, the daemon would warn on duplicates anyway.
         wf.triggers.retain(|t| !matches!(
             t.kind,
             crate::actions::TriggerKind::Chord { .. }

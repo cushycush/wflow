@@ -25,7 +25,7 @@ Item {
     readonly property bool fragmentMode: fragmentPath.length > 0
 
     // Exposed so the first-run TutorialCoach can point at specific
-    // editor regions — canvas, palette, inspector, run button —
+    // editor regions, canvas, palette, inspector, run button.
     // when the editor section of the tour fires.
     property alias canvasArea: canvasView
     property alias paletteDock: paletteDockInst
@@ -45,7 +45,7 @@ Item {
     // future tutorials map). Shared across pages but always reads
     // state.toml on construction, so per-page instantiation is safe.
     StateController { id: stateCtrl }
-    // Per-page LibraryController instance is fine — store::delete is
+    // Per-page LibraryController instance is fine, store::delete is
     // a filesystem op, no shared state to race on. Used by the
     // editor's Delete-workflow flow.
     LibraryController { id: libCtrl }
@@ -64,7 +64,7 @@ Item {
     // "saved" (briefly, then back to idle) or "error" on save failure.
     property string saveState: "idle"
 
-    // Per-step outcomes from the last run — { [stepIndex]: "ok"|"skipped"|"error" }.
+    // Per-step outcomes from the last run, { [stepIndex]: "ok"|"skipped"|"error" }.
     // Populated by the bridge's step_done signal; cleared when a new run starts.
     property var stepStatuses: ({})
     // Same outcomes keyed by the engine's stable step_id, used to
@@ -93,7 +93,7 @@ Item {
     readonly property string title:    workflow.title || "Untitled workflow"
     readonly property string subtitle: workflow.subtitle || ""
     // The runner reports StepStart/StepDone with a flat leaf-only
-    // index — containers (repeat) and branches (conditional) don't
+    // index, containers (repeat) and branches (conditional) don't
     // emit events themselves; only the leaves inside do. Translate
     // that flat index back to a position in the canvas `actions`
     // array so the active-step pulse and status dots land on the
@@ -119,7 +119,7 @@ Item {
     }
     // When an inner step of a conditional is running, also light up
     // the parent conditional card. Engine doesn't emit StepStart for
-    // the conditional itself — it just descends into inner steps —
+    // the conditional itself, it just descends into inner steps.
     // so without this the conditional card sits dark while its
     // contents fire.
     readonly property int activeParentIndex: {
@@ -208,7 +208,7 @@ Item {
 
     // Walk the workflow according to crumb. Returns the steps array
     // at that depth, or null if any index is out of range or the
-    // step at that index isn't a container. Pure read helper —
+    // step at that index isn't a container. Pure read helper.
     // mutators take `wf` and walk it themselves so the result is a
     // live reference into their own clone.
     function _stepsAtCrumb(wf) {
@@ -224,11 +224,11 @@ Item {
     }
 
     // The step list currently being shown in the canvas. Empty array
-    // when the crumb points into a non-container (defensive — should
+    // when the crumb points into a non-container (defensive, should
     // never happen if crumb mutators only push container indices).
     readonly property var _currentSteps: _stepsAtCrumb(workflow) || []
 
-    // Breadcrumb chip labels — workflow title plus a short summary
+    // Breadcrumb chip labels, workflow title plus a short summary
     // for each container we've descended into. Bound reactively so
     // editing a condition in the inspector updates the crumb chip.
     readonly property var crumbLabels: {
@@ -286,7 +286,7 @@ Item {
         // a container, it's the inner step list at that depth.
         //
         // Conditionals (when/unless) are NOT containers in the visual
-        // model — they're branch decision points. Their inner steps
+        // model, they're branch decision points. Their inner steps
         // surface as additional cards alongside the conditional, with
         // the canvas drawing fork/rejoin wires. Each shaped action
         // carries display metadata (_displayKind, _topIdx, _innerIdx,
@@ -299,8 +299,8 @@ Item {
             // soft annotation cards on the canvas. Group rectangles
             // do that job better now, so notes are filtered out of
             // the visual model entirely. The data round-trips
-            // through KDL unchanged — old workflows with notes load
-            // and re-save without losing them — but the canvas, the
+            // through KDL unchanged, old workflows with notes load
+            // and re-save without losing them, but the canvas, the
             // rail, the engine pause, and indices skip past them.
             if (step.action && step.action.kind === "note") continue
             const shaped = root._stepToAction(step)
@@ -311,7 +311,7 @@ Item {
             out.push(shaped)
             // Conditionals additionally surface their inner steps as
             // siblings on the canvas. Repeat keeps the container
-            // model — it's a loop, not a branch.
+            // model, it's a loop, not a branch.
             //
             // Yes-side cards (the `steps` block) tag with
             // `_branchSide: "yes"`; no-side cards (the `else_steps`
@@ -396,7 +396,7 @@ Item {
         shaped.onError = step.on_error || "stop"
         shaped.rawAction = act
         // Per-step comment (separate from the action's primary value
-        // — see `Step.note` in actions.rs). Surfaced in the inspector
+        //, see `Step.note` in actions.rs). Surfaced in the inspector
         // as the Comment field, rendered as an italic subline on
         // each canvas card when non-empty.
         shaped.note = step.note || ""
@@ -455,9 +455,9 @@ Item {
     }
 
     // Apply a per-step option edit. `path` is one of:
-    //   "enabled"           — bool
-    //   "on_error"          — "stop" | "continue"
-    //   "action.<field>"    — kind-specific action field (delay_ms,
+    //   "enabled"          , bool
+    //   "on_error"         , "stop" | "continue"
+    //   "action.<field>"   , kind-specific action field (delay_ms,
     //                         clear_modifiers, retries, backoff_ms, timeout_ms)
     // A null / empty value on an Option<T> action field deletes the key so
     // the serde default kicks in on round-trip.
@@ -581,7 +581,7 @@ Item {
         const next = Object.assign({}, canvasView.positions)
         next[id] = { x: Math.max(0, x), y: Math.max(0, y) }
         canvasView.positions = next
-        // Intentionally NO selectedIndex change — the user dropped
+        // Intentionally NO selectedIndex change, the user dropped
         // the card to place it, not to immediately edit it.
         root.workflow = wf
         _scheduleSave()
@@ -591,7 +591,7 @@ Item {
         // The canvas emits a flat-actions index (its Repeater's model
         // is root.actions, where a conditional's inner steps surface
         // as siblings). Pick the right tree-array branch off the
-        // metadata before splicing — using stepIndex directly against
+        // metadata before splicing, using stepIndex directly against
         // _stepsAtCrumb would delete the wrong step the moment a
         // conditional appears in the workflow.
         const acts = root.actions || []
@@ -637,7 +637,7 @@ Item {
 
     // ---- Group rectangles ----
     //
-    // Groups are decorative annotations on the canvas — coloured
+    // Groups are decorative annotations on the canvas, coloured
     // rounded rects with a comment label, drawn behind the step
     // cards. They live on root.workflow.groups and round-trip through
     // the KDL `groups { ... }` block. The engine ignores them
@@ -661,7 +661,7 @@ Item {
         // default-sized group near the viewport center.
         const selected = Object.keys(editorContent.selectedIndices).map(Number)
         if (selected.length === 0) {
-            // Fallback — center on the viewport. canvasView's
+            // Fallback, center on the viewport. canvasView's
             // contentX / contentY aren't exposed; use a fixed offset.
             _addGroup(160, 160, 320, 200)
             return
@@ -798,7 +798,7 @@ Item {
     // Resolve an editor selection (index into the shaped `actions`
     // list) to the underlying raw Step in `steps`. The shaped list
     // filters notes out and surfaces conditional inner steps as
-    // siblings, so its indices don't line up with raw steps.length —
+    // siblings, so its indices don't line up with raw steps.length.
     // we have to read the actions metadata (_topIdx, _displayKind,
     // _parentTopIdx, _innerIdx) to translate.
     //
@@ -813,7 +813,7 @@ Item {
         const meta = list[stepIndex]
         if (!meta) return null
 
-        // Conditional inner step (when / unless) — surfaced as its
+        // Conditional inner step (when / unless), surfaced as its
         // own card in the shaped list. Pick the branch list by side.
         if (meta._displayKind === "inner") {
             const parentIdx = meta._parentTopIdx
@@ -828,7 +828,7 @@ Item {
         }
 
         // Top-level step. If selectedInnerIndex >= 0 we're looking at
-        // a repeat container's inline inner row — drill in.
+        // a repeat container's inline inner row, drill in.
         const topIdx = meta._topIdx
         if (topIdx < 0 || topIdx >= steps.length) return null
         const inner = editorContent.selectedInnerIndex
@@ -905,7 +905,7 @@ Item {
         // since the conditional-as-branch refactor includes both
         // top-level and inner-of-conditional cards. Reading from
         // _currentSteps (the data tree at crumb depth) skipped the
-        // inner steps — opening "→ open import" on a `use` card
+        // inner steps, opening "→ open import" on a `use` card
         // inside a conditional did nothing. Use the shaped action's
         // rawAction directly.
         const acts = root.actions || []
@@ -982,7 +982,7 @@ Item {
 
         root.workflow = wf
 
-        // Drop the now-orphan canvas position entry — the step is
+        // Drop the now-orphan canvas position entry, the step is
         // no longer a top-level cardItem and won't render as one.
         if (canvasView.positions[moved.id]) {
             const next = Object.assign({}, canvasView.positions)
@@ -1015,7 +1015,7 @@ Item {
 
     // The else_steps siblings of _addInnerStep / _deleteInnerStep.
     // Operate on the conditional's `else_steps` array (the false
-    // branch). Conditional-only — repeat doesn't have a false side.
+    // branch). Conditional-only, repeat doesn't have a false side.
     function _addElseStep(stepIndex, kind) {
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = _stepsAtCrumb(wf)
@@ -1115,7 +1115,7 @@ Item {
             // open. Surface a clear error here so the current open
             // dialog explains why nothing happened.
             Theme._auth.sign_out()
-            publishDialog.lastError = "signed out — sign in again to publish"
+            publishDialog.lastError = "signed out, sign in again to publish"
         }
     }
 
@@ -1139,7 +1139,7 @@ Item {
         let ok
         if (root.fragmentMode) {
             // Fragments save just their step list back to the file
-            // they were loaded from — no workflow wrapper, no
+            // they were loaded from, no workflow wrapper, no
             // imports map. The bridge handles the encode + atomic
             // rename.
             const savedPath = wfCtrl.save_fragment(root.fragmentPath, json)
@@ -1169,7 +1169,7 @@ Item {
     // snapshot onto the undo stack. _undoSkipNext lets the undo /
     // redo helpers themselves apply a workflow without
     // re-recording the change as a fresh edit (which would corrupt
-    // the stack). Stack caps at 80 entries — past that we drop the
+    // the stack). Stack caps at 80 entries, past that we drop the
     // oldest.
     //
     // Coalesces rapid edits (typing in the inspector) into a single
@@ -1286,7 +1286,7 @@ Item {
     // and the handler re-queues _ensureStableIds + _loadPositions
     // via Qt.callLater. Without these flags, _loadPositions could
     // run mid-drag and overwrite the user's in-memory drag with
-    // stale disk values — the card would snap back to where it
+    // stale disk values, the card would snap back to where it
     // started. Both reset on workflowId changes (new workflow load).
     property bool _stableIdsEnsured: false
     property bool _positionsLoaded: false
@@ -1305,7 +1305,7 @@ Item {
             // Merge saved positions over the canvas's default
             // placements. Without the merge, cards without a saved
             // entry would lose their default position too, ending up
-            // at (0, 0) — which also wipes wires whose source or
+            // at (0, 0), which also wipes wires whose source or
             // target lookup misses.
             const merged = Object.assign({}, canvasView.positions, parsed)
             canvasView.positions = merged
@@ -1314,7 +1314,7 @@ Item {
 
     // Silent resave so the .kdl file picks up `_id` properties for
     // every step. Bypasses _saveNow so saveState / the saved-toast
-    // don't fire — this is a load-time upgrade, not a user save.
+    // don't fire, this is a load-time upgrade, not a user save.
     function _ensureStableIds() {
         if (_stableIdsEnsured) return
         // Two valid load sources: a workflow id (real workflow) or
@@ -1363,7 +1363,7 @@ Item {
     }
     Component.onCompleted: _reload()
 
-    // Run on Ctrl+Enter — the editor is the only page where this is active,
+    // Run on Ctrl+Enter, the editor is the only page where this is active,
     // and the enabled guard matches the Run button.
     Shortcut {
         sequence: "Ctrl+Return"
@@ -1385,7 +1385,7 @@ Item {
     // hasn't visited yet.
     //
     // Stays enabled even with nothing selected so Delete is silently
-    // CLAIMED by the editor — otherwise it falls through to the
+    // CLAIMED by the editor, otherwise it falls through to the
     // global key chain and a focused control or system handler fires
     // its own Delete action. The 'delete this workflow' button is in
     // the top bar (clearly labelled); the Delete key only ever
@@ -1397,7 +1397,7 @@ Item {
             if (editorContent.selectedCount > 0) root._bulkDeleteSelected()
         }
     }
-    // Backspace as the second key for the same action — folks coming
+    // Backspace as the second key for the same action, folks coming
     // from macOS hit Backspace, folks on tiling Linux setups hit
     // Delete. Both work.
     Shortcut {
@@ -1428,7 +1428,7 @@ Item {
 
     function _reload() {
         // Loading a different document always returns to the top of
-        // the tree — the previous workflow's container path is
+        // the tree, the previous workflow's container path is
         // meaningless against the new step list.
         root.crumb = []
         if (root.fragmentMode) {
@@ -1458,7 +1458,7 @@ Item {
     // Set true by _saveNow before it calls wfCtrl.save(...). The
     // bridge's save() re-emits workflow_json with the round-tripped
     // serialization, which lands here as a no-op echo of the same
-    // workflow we just saved — but if we let it through, root.workflow
+    // workflow we just saved, but if we let it through, root.workflow
     // gets reassigned, workflowChanged fires, and the undo tracker
     // pushes a phantom snapshot for an edit that was already
     // recorded. Skipping the next mirror update breaks that loop.
@@ -1494,14 +1494,14 @@ Item {
         }
         function onStep_done(index, step_id, status, message) {
             // Translate the flat leaf index to the actions array
-            // index — for conditional inner steps that's the inner
+            // index, for conditional inner steps that's the inner
             // card; for repeat leaves it's the repeat container; for
             // plain top-level leaves it's the top card.
             const idx = root._flatToActionsIdx(index)
             if (idx >= 0) {
                 const next = Object.assign({}, root.stepStatuses)
                 // Don't downgrade an existing "error" on a repeat
-                // container — if any leaf inside errored, the container
+                // container, if any leaf inside errored, the container
                 // shows error regardless of what later leaves did.
                 if (!(next[idx] === "error" && status !== "error")) {
                     next[idx] = status
@@ -1531,7 +1531,7 @@ Item {
             width: parent.width
             title: root.title
             subtitle: root.subtitle
-            // Title stays editable at any depth — it always names the
+            // Title stays editable at any depth, it always names the
             // outermost workflow. Subtitle becomes a no-op while we're
             // inside a container; the breadcrumb takes the same row.
             // Fragment view is read-only; title and subtitle are the
@@ -1592,7 +1592,7 @@ Item {
             // back into a menu.
             SecondaryButton {
                 // Stick to a thin Unicode glyph instead of the 🗑
-                // emoji — emoji glyphs render at full color-glyph
+                // emoji, emoji glyphs render at full color-glyph
                 // height and made the Delete button visibly taller
                 // than its peers.
                 visible: !root.fragmentMode
@@ -1618,7 +1618,7 @@ Item {
                     ? "Delete the selected step(s). Same as the Delete key."
                     : "Delete this workflow from your library."
             }
-            // Workflow-level imports — name → path mapping that
+            // Workflow-level imports, name → path mapping that
             // `use` steps reference. Opens a dialog with the table.
             // Imports are a workflow-level concept; fragments don't
             // own their own imports map (they inherit the parent's
@@ -1637,11 +1637,11 @@ Item {
                 visible: !root.fragmentMode
                 text: "↗ Share"
             }
-            // Fragments aren't standalone runnables — they're step
+            // Fragments aren't standalone runnables, they're step
             // snippets meant to be spliced into a parent workflow.
             // Hide Run in fragment view so the user opens the parent
             // workflow to run.
-            // Group selection — wraps the bounding box of the
+            // Group selection, wraps the bounding box of the
             // currently-selected cards in an annotation rectangle.
             // Hidden until the user actually has something selected
             // so the toolbar stays quiet by default.
@@ -1687,7 +1687,7 @@ Item {
                 ToolTip.text: "Redo (Ctrl+Shift+Z)"
             }
 
-            // Publish — only available when signed in to wflows.io,
+            // Publish, only available when signed in to wflows.io,
             // since the API needs a Bearer token. The dialog itself
             // has a "not signed in" guard but hiding the button
             // entirely keeps the toolbar quiet for anonymous users.
@@ -1769,7 +1769,7 @@ Item {
                 font.weight: Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
-            // Fragment-mode badge — sits in place of the workflow-only
+            // Fragment-mode badge, sits in place of the workflow-only
             // action buttons (Run / Imports / Share / Delete) so the
             // user always knows they're editing a fragment, not a
             // standalone workflow. Tinted with the violet `use`
@@ -1796,7 +1796,7 @@ Item {
             }
         }
 
-        // Error banner — surface the last run / save error from the
+        // Error banner, surface the last run / save error from the
         // engine. Soft-tinted background, accent-bordered, with a
         // dismissable × so a stale error doesn't haunt the editor.
         Rectangle {
@@ -1878,7 +1878,7 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         // Clear by setting last_error="" through the
-                        // bridge — the property is read-only from QML
+                        // bridge, the property is read-only from QML
                         // by default but we own a setter via cxx-qt.
                         // Workaround: trigger another action that
                         // resets it. For now, hide the banner client-
@@ -1901,7 +1901,7 @@ Item {
             // user clicked an inner mini-row of a flow-control
             // container, and the inspector edits the inner step.
             //
-            // selectedIndex is the "anchor" — the most recent click,
+            // selectedIndex is the "anchor", the most recent click,
             // used by the inspector and by shift-click range
             // expansion. selectedIndices is the full set of currently
             // selected indices (object keyed by stringified index, so
@@ -1996,7 +1996,7 @@ Item {
             // Keep selectedIndex valid as the action list changes; do
             // NOT auto-select when it's -1. Auto-selecting was popping
             // the inspector open every time a step landed from a
-            // palette drop — combined with the deselect TapHandler
+            // palette drop, combined with the deselect TapHandler
             // firing in the same release, you'd see the menu flash
             // in / out / in. The user opens the inspector by clicking
             // a card; reconcile only clamps when needed.
@@ -2029,7 +2029,7 @@ Item {
             EmptyState {
                 anchors.fill: parent
                 // A fragment tab has fragmentPath set but no
-                // workflowId — still a "loaded" state.
+                // workflowId, still a "loaded" state.
                 visible: !root.workflowId && !root.fragmentMode
                 title: "No workflow loaded"
                 description: "Pick one from the library, or create a new one."
@@ -2077,13 +2077,13 @@ Item {
                 onMoveStepRequested: (from, to) => root._moveStep(from, to)
             }
 
-            // Inspector container — animates width from 0 → 360 so
+            // Inspector container, animates width from 0 → 360 so
             // the slide-in feels driven by the panel's own arrival
             // rather than a separate translation. Canvas anchors to
             // this container's left edge, so it reflows in sync.
             Item {
                 id: inspectorContainer
-                // Fragments have fragmentPath but no workflowId —
+                // Fragments have fragmentPath but no workflowId.
                 // both are valid loaded states for the editor.
                 visible: root.workflowId.length > 0 || root.fragmentMode
                 anchors.right: parent.right
@@ -2210,7 +2210,7 @@ Item {
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
             }
 
-            // Pinned trigger card — floats over the canvas at the
+            // Pinned trigger card, floats over the canvas at the
             // top-left, anchored to canvasView (NOT inside its
             // Flickable) so canvas pan / zoom don't move it. Reads
             // the current chord trigger from root.workflow.triggers
@@ -2233,7 +2233,7 @@ Item {
                 // triggers array. wfCtrl serialises a full Workflow
                 // struct, so each Trigger is shaped:
                 //   { kind: { kind: "chord", chord: "..." }, when: ... }
-                // — the outer field NAMED "kind" holds a TriggerKind
+                //, the outer field NAMED "kind" holds a TriggerKind
                 // serialised with a tag-named "kind" too. Hence the
                 // double dereference. The when block's nested kind
                 // uses kebab-case ("window-class", "window-title")
@@ -2321,7 +2321,7 @@ Item {
                             }
                         }
 
-                        // Chord display — the bound chord in mono,
+                        // Chord display, the bound chord in mono,
                         // or a "Bind a chord" CTA when none.
                         Text {
                             text: triggerPinned.chord.length > 0
@@ -2399,11 +2399,11 @@ Item {
             }
 
             // Floating step palette. Drag a chip onto the canvas to
-            // add a step at the drop point — palette uses the canvas
+            // add a step at the drop point, palette uses the canvas
             // ref to drive an in-canvas card-shaped preview ghost.
             StepPalette {
                 id: paletteDockInst
-                // Visible whenever a doc is loaded — both real
+                // Visible whenever a doc is loaded, both real
                 // workflows (workflowId set) and fragment files
                 // (fragmentPath set). Fragment edits save through
                 // wfCtrl.save_fragment instead of wfCtrl.save.
@@ -2423,7 +2423,7 @@ Item {
     // Workflow-level imports manager. Maps a short name to a
     // fragment-file path; `use name` steps splice that fragment in
     // at decode time. The dialog is the only GUI surface for the
-    // imports block — other than that, the .kdl `imports { name
+    // imports block, other than that, the .kdl `imports { name
     // "path" }` is hand-edited.
     Dialog {
         id: importsDialog
@@ -2710,7 +2710,7 @@ Item {
                     }
                 }
 
-                // Step summary — scrollable in case the workflow has
+                // Step summary, scrollable in case the workflow has
                 // more than ~12 enabled steps.
                 ScrollView {
                     width: parent.width

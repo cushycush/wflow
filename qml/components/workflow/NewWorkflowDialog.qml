@@ -11,7 +11,7 @@ import Wflow
 //   - Record:   navigate to the Record page so the recorder builds the
 //               workflow from real input.
 //
-// The dialog is kept stateless — it emits one of three signals when
+// The dialog is kept stateless, it emits one of three signals when
 // the user confirms, and the caller (LibraryPage) owns the side
 // effect (controller calls + page navigation).
 Dialog {
@@ -29,7 +29,7 @@ Dialog {
     anchors.centerIn: parent
 
     // Templates list comes from the StateController on demand. The
-    // caller sets this when opening — keeps the dialog itself free of
+    // caller sets this when opening, keeps the dialog itself free of
     // singleton lookups.
     property var templates: []
 
@@ -37,7 +37,7 @@ Dialog {
     signal createFromTemplateRequested(string templateId)
     signal recordRequested()
 
-    // Bespoke chrome — Dialog's default header doesn't fit the brand.
+    // Bespoke chrome, Dialog's default header doesn't fit the brand.
     header: Item { width: 0; height: 0 }
     footer: Item { width: 0; height: 0 }
     background: Rectangle {
@@ -94,7 +94,7 @@ Dialog {
                 onActivated: (v) => tabs.selected = v
             }
 
-            // Tab body — stays at a fixed height so the dialog doesn't
+            // Tab body, stays at a fixed height so the dialog doesn't
             // jump as the user switches between tabs.
             Item {
                 width: parent.width

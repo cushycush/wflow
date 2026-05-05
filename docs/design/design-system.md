@@ -158,7 +158,7 @@ add intermediate steps.
 - Body: 400.
 - UI label / chip / button: 500 (Medium).
 - Active/selected: 600.
-- Code / mono: 400. Never bold mono — looks goofy.
+- Code / mono: 400. Never bold mono, looks goofy.
 
 ## Spacing
 
@@ -220,7 +220,7 @@ of these is wrong, not creative.
    The amber accent itself is a flat fill.
 
 4. **Category color is functional.** Tint the chip. Accent amber is
-   orthogonal — it means "active / selected," not "this kind."
+   orthogonal, it means "active / selected," not "this kind."
 
 5. **Type hierarchy beats visual weight.** Title 20/600, body 14/400,
    mono values 13. These three sizes do most of the work.
@@ -264,11 +264,11 @@ of these is wrong, not creative.
 
 Three concept SVGs live at `docs/branding/`:
 
-- `concept-a-stepped-icon.svg` — straight strokes with descending
+- `concept-a-stepped-icon.svg`, straight strokes with descending
   valleys. Currently the recommended primary mark.
-- `concept-b-nodes-icon.svg` — step cards connected by wires
+- `concept-b-nodes-icon.svg`, step cards connected by wires
   (most literal workflow metaphor).
-- `concept-c-flowing-icon.svg` — single curved stroke with a
+- `concept-c-flowing-icon.svg`, single curved stroke with a
   direction chevron.
 
 Wordmark variants in the same directory append a "flow" sans-serif

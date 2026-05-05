@@ -1,10 +1,10 @@
-//! ExploreController — talks to the wflows.io /api/v0 catalog.
+//! ExploreController, talks to the wflows.io /api/v0 catalog.
 //!
 //! Owns:
-//!   - `featured_json` — the latest /api/v0/featured response, JSON-stringified
-//!   - `browse_json`   — the latest /api/v0/browse response, JSON-stringified
-//!   - `loading`       — true while a fetch is in flight
-//!   - `last_error`    — empty string on success, human-readable on failure
+//!   - `featured_json`, the latest /api/v0/featured response, JSON-stringified
+//!   - `browse_json`  , the latest /api/v0/browse response, JSON-stringified
+//!   - `loading`      , true while a fetch is in flight
+//!   - `last_error`   , empty string on success, human-readable on failure
 //!
 //! All work runs on the shared tokio runtime. Results land back on the Qt
 //! thread via `qt_thread.queue(...)`. The site URL is read from
@@ -42,12 +42,12 @@ pub mod qobject {
 
         /// Fire a GET against /api/v0/featured. Result lands in
         /// `featured_json` on success; `last_error` is set on failure.
-        /// Re-entrant — calls while a fetch is in flight cancel the
+        /// Re-entrant, calls while a fetch is in flight cancel the
         /// in-flight task and start fresh.
         #[qinvokable]
         fn fetch_featured(self: Pin<&mut ExploreController>);
 
-        /// Fire a GET against /api/v0/favorites. Authenticated — uses
+        /// Fire a GET against /api/v0/favorites. Authenticated, uses
         /// the AuthController's persisted token via state.toml.
         /// Result lands in `favorites_json`. On 401 emits
         /// `auth_expired` so the QML shell can flip the auth state
@@ -85,7 +85,7 @@ pub mod qobject {
             slug: QString,
         );
 
-        /// Import from a raw URL — the wflow:// deeplink path. The URL
+        /// Import from a raw URL, the wflow:// deeplink path. The URL
         /// must point at /api/v0/workflow/:handle/:slug or a /raw KDL
         /// endpoint on the configured site_origin (cross-origin URLs
         /// are refused for security).
@@ -184,7 +184,7 @@ pub mod qobject {
             url: QString,
         );
 
-        /// Emitted on any non-success publish path — auth failure,
+        /// Emitted on any non-success publish path, auth failure,
         /// validation error, network blip. Reason is human-readable
         /// and goes into the publish dialog's error slot. 401s also
         /// fire `auth_expired` so the global auth state flips.
@@ -211,7 +211,7 @@ impl Default for ExploreControllerRust {
     fn default() -> Self {
         // Production catalog lives at wflows.io (the brand domain
         // points at the Vercel deployment). `WFLOW_SITE_ORIGIN`
-        // overrides for staging / local-dev — set to
+        // overrides for staging / local-dev, set to
         // `http://localhost:3000` against a `bun dev` of the
         // wflows.io repo, or to `https://wflows.vercel.app` to
         // hit the deploy preview directly.
@@ -400,10 +400,10 @@ impl qobject::ExploreController {
                         ctrl.as_mut().set_last_error(QString::from(""));
                     }
                     Err(FetchError::Unauthorized) => {
-                        tracing::info!("favorites: 401 — token rejected");
+                        tracing::info!("favorites: 401, token rejected");
                         ctrl.as_mut().set_favorites_json(QString::from("{\"data\":[]}"));
                         ctrl.as_mut().set_last_error(QString::from(
-                            "signed out — token expired or was revoked",
+                            "signed out, token expired or was revoked",
                         ));
                         ctrl.as_mut().auth_expired();
                     }
@@ -467,7 +467,7 @@ impl qobject::ExploreController {
             }
         };
 
-        // Encode the workflow to KDL on this thread — the store API
+        // Encode the workflow to KDL on this thread, the store API
         // is sync and we want the error to surface before we commit
         // a tokio task. If the workflow doesn't exist locally
         // there's no point posting anything.
@@ -509,9 +509,9 @@ impl qobject::ExploreController {
                         );
                     }
                     Err(PublishError::Unauthorized) => {
-                        tracing::info!("publish: 401 — token rejected");
+                        tracing::info!("publish: 401, token rejected");
                         ctrl.as_mut().set_last_error(QString::from(
-                            "signed out — token expired or was revoked",
+                            "signed out, token expired or was revoked",
                         ));
                         ctrl.as_mut().auth_expired();
                         ctrl.as_mut().publish_failed(QString::from(
@@ -531,7 +531,7 @@ impl qobject::ExploreController {
     fn take_pending_deeplink(self: Pin<&mut Self>) -> QString {
         // Look for the deeplink in two places, in order of recency:
         //   1. The env var we set in main.rs from the CLI arg.
-        //   2. (Future) a D-Bus single-instance handoff slot — the
+        //   2. (Future) a D-Bus single-instance handoff slot, the
         //      multi-launch path will plug in here without changing
         //      the QML side.
         // We CLEAR the env var after reading so a re-poll returns
@@ -554,7 +554,7 @@ impl qobject::ExploreController {
 
         // Refuse cross-origin imports outright. The deeplink path is a
         // browser handing us a URL, so we want a hard fence around the
-        // configured site origin — otherwise a malicious page could
+        // configured site origin, otherwise a malicious page could
         // pop the desktop app to a hostile KDL.
         match url::Url::parse(&url_s) {
             Ok(u) => {

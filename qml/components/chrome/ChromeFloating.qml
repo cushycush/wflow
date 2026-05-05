@@ -3,14 +3,14 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Wflow
 
-// Chrome variant 4 — FLOATING
+// Chrome variant 4, FLOATING
 // No chrome. Content fills the window. A floating pill in the top-center
 // handles navigation. Each page carries its own "+ New workflow" /
-// "Save" / run-style affordances in its header — no global FAB.
+// "Save" / run-style affordances in its header, no global FAB.
 Item {
     id: root
     property string currentPage: "library"
-    // Multi-tab editor state — owned by Main.qml. Empty array means
+    // Multi-tab editor state, owned by Main.qml. Empty array means
     // no editor tabs open; the workflow page area then renders an
     // empty-state placeholder. `docTitles` is a parallel { source:
     // title } map kept out of openDocs so resolving a workflow's
@@ -117,7 +117,7 @@ Item {
             // editor area. Each tab has rounded top corners, flat
             // bottom, and the active tab fills with the page surface
             // colour so it visually merges with the document below
-            // — IDE / browser tab convention. A 1px hairline along
+            //, IDE / browser tab convention. A 1px hairline along
             // the bottom of the strip + the tab itself sit at the
             // same y so the active tab "punches through" the line.
             Rectangle {
@@ -158,14 +158,14 @@ Item {
                             // Tab body shape: rounded top corners,
                             // flat bottom. The Rectangle's `radius`
                             // applies to all corners, so we layer two
-                            // rectangles — a rounded one on top + a
+                            // rectangles, a rounded one on top + a
                             // square one anchored to the bottom half
-                            // — to get only the top corners curved.
+                            //, to get only the top corners curved.
                             width: chipRow.implicitWidth + 28
                             height: 32
                             color: "transparent"
 
-                            // Outer rounded rectangle — the visible
+                            // Outer rounded rectangle, the visible
                             // surface. We give it a height taller
                             // than the tab + clip the bottom with
                             // the inner square so only the top
@@ -191,7 +191,7 @@ Item {
                                 // current doc reads from across the
                                 // window. Color-coded by kind
                                 // (amber for workflow, violet for
-                                // fragment) — same idea as VS Code's
+                                // fragment), same idea as VS Code's
                                 // dirty / git-decoration tints.
                                 Rectangle {
                                     visible: tabChip.isActive
@@ -341,7 +341,7 @@ Item {
     property alias workflowSlot: workflowSlot
     property alias recordPage: recordPageInst
 
-    // Floating nav bar — rounded-rect style matching the editor's
+    // Floating nav bar, rounded-rect style matching the editor's
     // Tidy / Wires / Zoom pills (radius:Theme.radiusMd container,
     // radius:Theme.radiusSm tabs). Replaced the all-circle pill +
     // round logo + circle theme button with squared-off shapes so
@@ -363,7 +363,7 @@ Item {
             anchors.centerIn: parent
             spacing: 4
 
-            // Logo block — rounded square, not a circle.
+            // Logo block, rounded square, not a circle.
             Rectangle {
                 width: 28; height: 28; radius: Theme.radiusSm
                 color: Theme.accent
@@ -381,14 +381,14 @@ Item {
             Item { width: 6; height: 1 }
 
             // Editor entry only appears when at least one doc is
-            // open — gives the user a way back to the editor from
+            // open, gives the user a way back to the editor from
             // any page without having to re-pick a workflow from
             // the library. The label carries the open-doc count so
             // it reads as a stateful tab, not just nav.
             Repeater {
                 model: {
                     const out = []
-                    // Explore leads now — the catalog of community
+                    // Explore leads now, the catalog of community
                     // workflows is what most users want to see first.
                     if (Theme.showExplore) out.push({ id: "explore", label: "Explore" })
                     out.push({ id: "library", label: "Library" })
@@ -490,7 +490,7 @@ Item {
                                 }
                             }
 
-                            // Editor: two connected dots — the canvas's
+                            // Editor: two connected dots, the canvas's
                             // node-wire-node motif at icon scale.
                             Item {
                                 visible: modelData.id === "workflow"
@@ -524,7 +524,7 @@ Item {
 
                             // Triggers: keyboard key cap. Outlined
                             // rounded rectangle with a small horizontal
-                            // mark inside — reads as a key with a
+                            // mark inside, reads as a key with a
                             // shortcut etched on it. Mirrors the chord
                             // pill style on TriggersPage so the visual
                             // language stays consistent: "this tab is
@@ -558,8 +558,8 @@ Item {
                             Item {
                                 visible: modelData.id === "favorites"
                                 anchors.fill: parent
-                                // Three crossing strokes — vertical,
-                                // diagonal-down, diagonal-up — give the
+                                // Three crossing strokes, vertical,
+                                // diagonal-down, diagonal-up, give the
                                 // 6-spoke asterisk look.
                                 Repeater {
                                     model: 3
@@ -595,7 +595,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        // Don't forceActiveFocus on click — that triggers
+                        // Don't forceActiveFocus on click, that triggers
                         // FocusRing's coral outline on the active tab,
                         // which competes with the accent-wash fill for
                         // selection signal. Keyboard Tab still focuses
@@ -607,12 +607,12 @@ Item {
 
             Item { width: 2; height: 1 }
 
-            // Auth pill — shows "Sign in" when signed_out, the user's
+            // Auth pill, shows "Sign in" when signed_out, the user's
             // handle when signed_in, "…" while a sign-in is pending.
             // Click routes to Settings → Account so the action surface
             // (Sign in / Sign out / try again) lives in one place;
             // discoverability lives here so the user doesn't have to
-            // hunt for it. Hidden during failed-state for now —
+            // hunt for it. Hidden during failed-state for now.
             // Settings shows the error and the Try-again button.
             Rectangle {
                 id: authPill
@@ -635,7 +635,7 @@ Item {
                 border.width: 1
                 Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                // Tiny accent dot when signed in — visual confirmation
+                // Tiny accent dot when signed in, visual confirmation
                 // separate from the handle text. Doubles as a "you're
                 // online" indicator.
                 Rectangle {
@@ -677,11 +677,11 @@ Item {
 
             Item { width: 4; height: 1 }
 
-            // (Theme cycle button moved to Settings — Ctrl+. still cycles
+            // (Theme cycle button moved to Settings, Ctrl+. still cycles
             // for keyboard users; the chrome no longer carries it now
             // that there's a real Settings page.)
 
-            // Settings — gear icon. Highlights when on the Settings
+            // Settings, gear icon. Highlights when on the Settings
             // page so the user has a clear "you are here" without
             // adding a fifth tab to the pill. Sized to read at the
             // same visual weight as the nav-tab icons.
@@ -764,7 +764,7 @@ Item {
         }
     }
 
-    // (Top-center floating tab strip removed — tabs now live in
+    // (Top-center floating tab strip removed, tabs now live in
     // their natural top-left position inside the workflow slot,
     // just above the page body.)
 }

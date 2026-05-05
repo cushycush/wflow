@@ -230,7 +230,7 @@ Dialog {
                 }
             }
 
-            // Nav row — Back / Next / Finish
+            // Nav row, Back / Next / Finish
             Row {
                 width: parent.width
                 spacing: 8

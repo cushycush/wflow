@@ -1,6 +1,6 @@
 //! GlobalShortcuts portal backend (KDE Plasma 6, GNOME 46+).
 //!
-//! Doesn't fit the sync `Backend` trait the IPC backends share —
+//! Doesn't fit the sync `Backend` trait the IPC backends share.
 //! the portal is async-only, batch-binds shortcuts in one call, and
 //! delivers activations as a D-Bus signal stream. So this module
 //! exposes its own entry point and `cmd_daemon` picks it up before
@@ -8,16 +8,16 @@
 //!
 //! Flow:
 //!
-//! 1. `GlobalShortcuts::new()` — creates the proxy, fails fast when
+//! 1. `GlobalShortcuts::new()`, creates the proxy, fails fast when
 //!    the portal interface isn't reachable. Used as the availability
 //!    probe.
-//! 2. `create_session(...)` — opens a session. The portal binds the
+//! 2. `create_session(...)`, opens a session. The portal binds the
 //!    shortcuts to that session; when the daemon exits and the
 //!    session drops, the portal unbinds for us.
-//! 3. `bind_shortcuts(...)` — one batch call with every chord. KDE
+//! 3. `bind_shortcuts(...)`, one batch call with every chord. KDE
 //!    and GNOME both pop a consent dialog the first time so the user
 //!    sees what we're asking for.
-//! 4. `receive_activated()` — Stream of `Activated` events. Per fire
+//! 4. `receive_activated()`, Stream of `Activated` events. Per fire
 //!    we spawn a `wflow run <id> --yes` subprocess, same pattern the
 //!    Hyprland and Sway backends use.
 //!

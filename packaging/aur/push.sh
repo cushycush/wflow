@@ -23,7 +23,7 @@ echo "==> Verifying AUR connectivity"
 # AUR refuses interactive shells, so `ssh -T` always exits 1 even on
 # successful auth. The reliable signal is the "Welcome to AUR" banner.
 # Capture the output (with `|| true` to defang ssh's nonzero exit
-# inside `set -euo pipefail`) and pattern-match — no pipeline involved,
+# inside `set -euo pipefail`) and pattern-match, no pipeline involved,
 # so pipefail doesn't fire on the ssh side.
 ssh_output=$(ssh -T -o ConnectTimeout=10 aur@aur.archlinux.org 2>&1 || true)
 case "$ssh_output" in
@@ -52,7 +52,7 @@ cp "$REPO_ROOT/packaging/aur/wflow/PKGBUILD" "$WORK/wflow/"
     makepkg --printsrcinfo > .SRCINFO
     git add PKGBUILD .SRCINFO
     if git diff --cached --quiet; then
-        echo "    no changes — skipping commit"
+        echo "    no changes, skipping commit"
     else
         git commit -m "wflow $PKGVER"
         git push origin master
@@ -71,7 +71,7 @@ cp "$REPO_ROOT/packaging/aur/wflow-bin/PKGBUILD" "$WORK/wflow-bin/"
     makepkg --printsrcinfo > .SRCINFO
     git add PKGBUILD .SRCINFO
     if git diff --cached --quiet; then
-        echo "    no changes — skipping commit"
+        echo "    no changes, skipping commit"
     else
         git commit -m "wflow-bin $PKGVER"
         git push origin master
@@ -83,13 +83,13 @@ git clone "ssh://aur@aur.archlinux.org/wflow-git.git" "$WORK/wflow-git"
 cp "$REPO_ROOT/packaging/aur/wflow-git/PKGBUILD" "$WORK/wflow-git/"
 (
     cd "$WORK/wflow-git"
-    # See note above — force master.
+    # See note above, force master.
     git symbolic-ref HEAD refs/heads/master
-    # wflow-git uses sha256sums=('SKIP') — no updpkgsums needed.
+    # wflow-git uses sha256sums=('SKIP'), no updpkgsums needed.
     makepkg --printsrcinfo > .SRCINFO
     git add PKGBUILD .SRCINFO
     if git diff --cached --quiet; then
-        echo "    no changes — skipping commit"
+        echo "    no changes, skipping commit"
     else
         git commit -m "wflow-git $PKGVER snapshot"
         git push origin master

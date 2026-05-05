@@ -31,7 +31,7 @@ pub fn http_client() -> reqwest::Client {
         .expect("reqwest client build")
 }
 
-/// Snapshot the persisted auth token from state.toml. Cheap — TOML
+/// Snapshot the persisted auth token from state.toml. Cheap, TOML
 /// parse on a small file. Called at the start of each authenticated
 /// fetch so an in-flight task uses whatever token was current when it
 /// started, even if the user signs out mid-flight.
@@ -196,7 +196,7 @@ pub struct WorkflowDetail {
 
 #[derive(serde::Serialize)]
 pub struct StepPreview {
-    /// Action category — drives the icon and the QML kindSummary
+    /// Action category, drives the icon and the QML kindSummary
     /// lookup. Same vocabulary as `Action::category()`.
     pub kind: &'static str,
     /// One-line value for the step (chord, command, window name,
@@ -206,7 +206,7 @@ pub struct StepPreview {
     pub value: String,
     /// Optional handwritten note. Renders dimmer below the value.
     pub note: Option<String>,
-    /// Per-step option key-values that aren't the headline value —
+    /// Per-step option key-values that aren't the headline value.
     /// shell timeout / retries / capture-as, key clear-modifiers,
     /// wait-window timeout, on-error policy, etc. The drawer hides
     /// these by default and reveals them under a "Show details"
@@ -245,7 +245,7 @@ pub async fn fetch_preview(url: &str) -> Result<DeeplinkPreview> {
         .await
         .context("read body")?;
 
-    // Preview only meaningful for the v0 detail JSON shape — the /raw
+    // Preview only meaningful for the v0 detail JSON shape, the /raw
     // KDL endpoint has no metadata to preview. If we got plain KDL,
     // fall back to a minimal preview using the workflow's own title
     // and a step count from the parsed tree, leaving handle / slug /

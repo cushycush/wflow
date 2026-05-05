@@ -7,10 +7,10 @@ import Wflow
 // Discussion. Closes on Esc or on the scrim.
 //
 // Two data props feed the drawer:
-//   wf      — card-shape data the catalog already has (title, handle,
+//   wf     , card-shape data the catalog already has (title, handle,
 //             slug, description, kinds). Always available once a card
 //             is open; hydrates the drawer chrome immediately.
-//   detail  — rich JSON populated asynchronously by ExploreController
+//   detail , rich JSON populated asynchronously by ExploreController
 //             once /api/v0/workflow/:handle/:slug resolves. Carries
 //             the parsed step list, install / comment / remix counts,
 //             and timestamps. Null until the fetch completes; we fall
@@ -53,7 +53,7 @@ FocusScope {
     // in, fall back to the kind-list placeholder for offline / mock
     // rows so the drawer still renders something meaningful before
     // the network resolves.
-    // Fallback samples per kind — used by the offline / mock path
+    // Fallback samples per kind, used by the offline / mock path
     // so the drawer always renders believable values instead of
     // empty strings. A workflow card with [shell, type, notify] no
     // longer renders nine duplicate rows just because the mock
@@ -89,7 +89,7 @@ FocusScope {
             }))
         }
         if (!root.wf || !root.wf.kinds) return []
-        // No live detail — render one row per unique kind in the
+        // No live detail, render one row per unique kind in the
         // catalog summary, with a per-kind sample value so the
         // drawer reads as a preview instead of nine duplicates.
         // The full step list lives behind the v0 detail fetch;
@@ -122,7 +122,7 @@ FocusScope {
     readonly property bool _isPreviewFallback:
         !(root.detail && root.detail.steps && root.detail.steps.length > 0)
 
-    // Format an ISO timestamp as a short relative line — "updated 3
+    // Format an ISO timestamp as a short relative line, "updated 3
     // days ago", "published Apr 22". Live detail carries them; the
     // mock rows leave them blank.
     function _formatStamp(prefix, iso) {
@@ -179,7 +179,7 @@ FocusScope {
 
     Keys.onEscapePressed: if (root.open) root.closed()
 
-    // Scrim — backed by a dimmed near-black tint so it reads as a real
+    // Scrim, backed by a dimmed near-black tint so it reads as a real
     // overlay rather than an empty layer. Pure #000 is banned per the
     // design rules; pull the bg tone instead so the scrim picks up
     // whatever subtle hue the active theme uses.
@@ -313,7 +313,7 @@ FocusScope {
                     visible: text.length > 0
                 }
 
-                // Timestamp line — published / updated, both relative.
+                // Timestamp line, published / updated, both relative.
                 // Hidden until the live detail lands so we don't print
                 // "published just now" against an empty string.
                 Row {
@@ -451,7 +451,7 @@ FocusScope {
                         }
                     }
 
-                    // Preview banner — visible only when the drawer
+                    // Preview banner, visible only when the drawer
                     // is rendering the mock kind list instead of
                     // live v0 detail. Tells the user they're looking
                     // at a sketch rather than the actual KDL so the
@@ -472,7 +472,7 @@ FocusScope {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 12
                             anchors.rightMargin: 12
-                            text: "Preview only — sample values shown. Install the workflow to see the actual KDL."
+                            text: "Preview only, sample values shown. Install the workflow to see the actual KDL."
                             color: Theme.text3
                             font.family: Theme.familyBody
                             font.pixelSize: Theme.fontXs
@@ -485,7 +485,7 @@ FocusScope {
                     // sits on the rail and "lights up" the same way
                     // the chip cascade does on the cards. Reads as
                     // a sequence rather than a list of separate rows
-                    // — same visual language as the chips, scaled up
+                    //, same visual language as the chips, scaled up
                     // for the drawer where there's room to breathe.
                     Item {
                         id: timeline
@@ -495,7 +495,7 @@ FocusScope {
                         readonly property var steps: root._resolvedSteps()
                         height: stepsCol.implicitHeight
 
-                        // The rail itself — a 1px hairline behind the
+                        // The rail itself, a 1px hairline behind the
                         // dots. Sized to span the full step list, with
                         // a 4px tuck top and bottom so the line doesn't
                         // overshoot the first / last dot.
@@ -573,7 +573,7 @@ FocusScope {
                                             // without having to scroll
                                             // horizontally or open the
                                             // file. The drawer is the
-                                            // detailed view by design —
+                                            // detailed view by design.
                                             // the cards' chip trail is
                                             // where eliding happens.
                                             text: modelData.value
@@ -644,7 +644,7 @@ FocusScope {
                                         // hierarchy reads as "this is
                                         // inside that step." Renders
                                         // as a slim Column of mini-
-                                        // rows — kind dot + value —
+                                        // rows, kind dot + value.
                                         // not a full sub-timeline.
                                         Column {
                                             visible: modelData.nested && modelData.nested.length > 0

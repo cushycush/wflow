@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Plain card grid for the local library. No featured hero — that concept
+// Plain card grid for the local library. No featured hero, that concept
 // belongs to Explore, not to a personal workspace.
 Item {
     id: root
@@ -29,7 +29,7 @@ Item {
     signal publishRequested(string id)
     signal toggleSelected(string id)
 
-    // Auto-column — each column wants ~300px minimum.
+    // Auto-column, each column wants ~300px minimum.
     readonly property int cols: Math.max(2, Math.floor(root.width / 300))
     readonly property real gap: 12
     readonly property real cardW: (root.width - gap * (cols - 1)) / cols
@@ -93,7 +93,7 @@ Item {
                 return n
             }
 
-            // Drop target — accepts workflow drags. Drops set the
+            // Drop target, accepts workflow drags. Drops set the
             // workflow's folder to this tile's full path so the
             // .kdl file moves on disk. Fragments / non-workflow
             // drags are filtered by `keys`.
@@ -289,14 +289,14 @@ Item {
 
             // Drag payload: workflow id + a "Workflow" key so folder-
             // row DropAreas can filter for it specifically. dragType
-            // Internal keeps the drag inside the app — the LibraryPage
+            // Internal keeps the drag inside the app, the LibraryPage
             // folder rail picks it up.
             //
             // Drag.hotSpot is the point on the dragged tile that
             // the cursor is "holding." DropAreas use the hotSpot to
             // decide whether the drag is over them, so a centered
             // hotSpot means clicks at the bottom of the card register
-            // as drags from the card's middle — folders highlight by
+            // as drags from the card's middle, folders highlight by
             // card-center, not cursor. We update the hotSpot on press
             // (below, in the MouseArea) so it tracks the actual click
             // point. Initial values still have to be valid for the
@@ -349,7 +349,7 @@ Item {
                 }
                 onReleased: {
                     // Drag.dragType: Drag.Internal needs an explicit
-                    // Drag.drop() to fire the DropArea's onDropped —
+                    // Drag.drop() to fire the DropArea's onDropped.
                     // mouse-release on its own only flips
                     // Drag.active back to false and the drop is lost.
                     // Call drop() before restoring the grid bindings
@@ -398,7 +398,7 @@ Item {
             WfMenu {
                 id: cardMenu
                 WfMenuItem {
-                    // Visible only when signed in to wflows.io — the
+                    // Visible only when signed in to wflows.io, the
                     // publish API needs a Bearer token. Hidden for
                     // anonymous users so the menu doesn't tease an
                     // affordance they can't act on. Theme._auth.state
@@ -419,7 +419,7 @@ Item {
             }
 
             // EXPERIMENT: layout mirrors the wflows.io hero-card
-            // rhythm — avatar + title-block + open-pill on top, a
+            // rhythm, avatar + title-block + open-pill on top, a
             // description block, then the step-trail, then a ruled
             // footer with meta on the left and an imported badge on
             // the right. Replaces the prior icon + title / kinds row
@@ -443,7 +443,7 @@ Item {
                         id: monoAvatar
                         // Title drives both the monogram letter and the
                         // gradient hash. The letter being the workflow's
-                        // first character is the meaningful signal — the
+                        // first character is the meaningful signal, the
                         // gradient drifting on rename is a fair trade.
                         handle: card.wf.title
                         size: 32
@@ -451,7 +451,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
-                    // Publish pill — sits where the Open pill used to,
+                    // Publish pill, sits where the Open pill used to,
                     // anchored to the top-right of the card. Visible
                     // only when signed in to wflows.io so anonymous
                     // users don't see an affordance they can't use.

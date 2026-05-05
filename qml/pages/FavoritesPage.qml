@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// "My favorites" — workflows the signed-in user has starred on
+// "My favorites", workflows the signed-in user has starred on
 // wflows.io. Mirrors ExplorePage's grid + drawer composition but
 // without the Featured / Trending / New sections that don't make
 // sense for a personal collection. The page is hidden in the nav
@@ -51,7 +51,7 @@ Item {
 
     // Refresh on every visibility flip so a user who signs in, lands
     // on Library, then clicks Favorites doesn't see stale data. Cheap
-    // — the bridge collapses re-entrant fetches.
+    //, the bridge collapses re-entrant fetches.
     onVisibleChanged: {
         if (visible && Theme._auth.state === "signed_in") {
             catalog.fetch_favorites()
@@ -142,7 +142,7 @@ Item {
             contentWidth: availableWidth
             clip: true
 
-            // Empty state — signed in but nothing favorited yet, or
+            // Empty state, signed in but nothing favorited yet, or
             // the fetch hasn't resolved on first paint.
             Item {
                 anchors.fill: parent
@@ -182,7 +182,7 @@ Item {
                 bottomPadding: 40
                 visible: root.workflows.length > 0
 
-                // Grid — same proportions as Explore's browse grid so
+                // Grid, same proportions as Explore's browse grid so
                 // a workflow card on Favorites reads at the same
                 // cadence as a card on Explore. No filter chips, no
                 // sub-sections; this is a personal list.
@@ -218,7 +218,7 @@ Item {
         }
     }
 
-    // Detail drawer — same component as Explore so the visual
+    // Detail drawer, same component as Explore so the visual
     // language (timeline + chip dots) is consistent across the
     // surfaces a workflow can be opened from.
     ExploreDetail {

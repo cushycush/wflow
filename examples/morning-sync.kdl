@@ -1,5 +1,5 @@
 // Daily dev ritual: pull latest, run tests, post a standup message.
-// Designed as the showcase workflow — exercises every action category
+// Designed as the showcase workflow, exercises every action category
 // the engine supports plus the canvas-only group rectangles, so the
 // editor canvas reads as a "tour of the GUI" in a single screenshot.
 //
@@ -18,7 +18,7 @@
 //   - groups        (coloured rectangles behind the cards)
 
 workflow "Morning sync" {
-    subtitle "pull latest, run tests, post status — one keystroke to start the day"
+    subtitle "pull latest, run tests, post status, one keystroke to start the day"
 
     vars {
         repo          "~/projects/wflow"
@@ -57,7 +57,7 @@ workflow "Morning sync" {
     notify "morning sync done" body="ready to start the day"
 
     // Visual annotations on the canvas. The engine ignores them.
-    // Coordinates are picked for the default vertical stack — once
+    // Coordinates are picked for the default vertical stack, once
     // the workflow loads you can drag/resize to taste, the new
     // positions round-trip through KDL on save.
     groups {
