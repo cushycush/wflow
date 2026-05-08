@@ -9,6 +9,11 @@ Dialog {
     modal: true
     closePolicy: Popup.CloseOnEscape
     width: 460
+    // Centre on the window overlay rather than whatever Item the
+    // dialog is declared inside. Without this, instantiating inside
+    // a small pinned card (like the editor's trigger pin) makes the
+    // dialog centre on the card and spill off-screen.
+    parent: Overlay.overlay
     anchors.centerIn: parent
 
     property string initialChord: ""
