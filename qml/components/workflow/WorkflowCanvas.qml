@@ -3078,13 +3078,21 @@ Item {
         const xOverlap = !(fromPos.x + fromW <= toPos.x || toPos.x + toW <= fromPos.x)
         const yOverlap = !(fromPos.y + fromH <= toPos.y || toPos.y + toH <= fromPos.y)
 
-        // Same row → horizontal (forward or back). Different rows →
-        // vertical. Both overlap → larger centre-delta wins.
+        // Same row (y overlap, no x overlap) → horizontal.
+        // Same column (x overlap, no y overlap) → vertical.
+        // Diagonal (no overlap on either axis) → horizontal, so column-
+        //   wrap wires arc out the side edges. Choosing vertical here
+        //   tunnels the wire over the top of intermediate cards in the
+        //   source column (the tidy-smart 2-column case where the last
+        //   card of column 1's wire flew up over all cards above it).
+        // Cards overlap on both axes (stacked) → larger centre-delta wins.
         let useVertical
         if (yOverlap && !xOverlap) {
             useVertical = false
-        } else if (!yOverlap) {
+        } else if (!yOverlap && xOverlap) {
             useVertical = true
+        } else if (!yOverlap && !xOverlap) {
+            useVertical = false
         } else {
             const dx = toCx - fromCx
             const dy = toCy - fromCy
