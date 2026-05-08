@@ -11,6 +11,76 @@ breaks.
 
 ---
 
+## [1.1.0] - 2026-05-08
+
+GUI hot-reload, an inline unbind, and a unified chip system across the editor.
+
+### Added
+
+- **The library and editor stay in sync with the workflows folder.** Until
+  now the daemon was the only thing that watched
+  `~/.config/wflow/workflows/` for KDL changes; the GUI loaded once at
+  startup and went stale. Bind a chord on the Triggers page and the
+  editor's pinned trigger card kept showing "+ Bind a chord" until you
+  restarted. Each `LibraryController` now starts its own `notify`
+  watcher on the workflows directory and refreshes its summary on FS
+  events, so chord edits, hand-edits to the KDL, and renames all
+  propagate without a restart. The editor also listens for
+  `LibraryController` changes and reloads the open workflow when its
+  chord actually changed (only its chord, not every save in the
+  library, so typing into one workflow doesn't force a rebuild of
+  another tab's editor).
+- **Inline unbind on the editor's pinned trigger card.** Previously the
+  only way to clear an editor-bound chord was to click the card, wait
+  for the chord-capture dialog, and click "Clear binding" inside it.
+  There's now a small × button on the card itself, visible whenever a
+  chord is bound, with a "Unbind chord" tooltip. One click clears it.
+- **Shared step-chip primitive across the editor.** wflows.io's library
+  cards summarise step trails using a pill with a category-color dot
+  and an abbreviated label (chord glyphs ⌃⇧⌘, shell first-token, type
+  with quotes stripped). The same chip now drives the canvas card's
+  hero pill, the step list rail rows, the drag preview when a card is
+  dropping onto the canvas, and the left toolbar items. The toolbar's
+  collapsed state shows a 3-letter code (`key`, `txt`, `clk`, `mov`,
+  `scr`, `fcs`, `wt`, `sh`, `ntf`, `clp`, `if`, `if!`, `rep`, `use`)
+  and expands to the friendly label on hover.
+
+### Fixed
+
+- **Row-wrap wires now exit the bottom of the source and enter the top
+  of the target.** Tidy-smart with a 2-row layout placed the rightmost
+  card of row 1 to the right of, and above, the leftmost card of row
+  2; the wire between them is a true diagonal (no x or y overlap). The
+  axis picker fell through to its catch-all and chose horizontal,
+  which routed back across the entire source row as a horizontal
+  back-flow. The diagonal branch now splits by direction: target right
+  (column-wrap, end of col 1 → start of col 2) keeps horizontal so
+  wires arc out the side edges; target left (row-wrap, end of row 1 →
+  start of row 2) takes vertical so the wire exits source-bottom and
+  U-bends down into target-top.
+- **Two QML "Unable to assign [undefined]" warnings.** The community
+  card's star pill bound `visible: card.wf && card.wf.stars` which
+  evaluates to `undefined` (not `false`) when stars is missing, and
+  the canvas's wire labels bound `text: modelData.label` for a
+  potentially undefined label. Wrapping the first in `!!()` and
+  defaulting the second with `|| ""` keeps QML's binding engine happy.
+
+### Changed
+
+- **Wire dash animation pauses while the canvas is moving.** Each wire
+  is a `Shape` sized to the entire world Item, and the marching-ants
+  dash effect re-rasterises that whole bounding rect every animation
+  tick. The animation now skips frames while `panHandler.active`,
+  `flick.moving`, or `root.visible` is false; a stationary canvas (or
+  one on a background tab) costs nothing.
+- **Library hot-reload log demoted from info to debug.** Three
+  `library hot-reload armed` lines per launch was noise at default
+  log level. Visible with `RUST_LOG=debug` if you actually want it.
+
+[Full release notes](docs/release-notes/v1.1.0.md)
+
+---
+
 ## [1.0.3] - 2026-05-07
 
 [Full release notes](docs/release-notes/v1.0.3.md)
