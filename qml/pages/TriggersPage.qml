@@ -8,7 +8,12 @@ Item {
     id: root
     signal openWorkflow(string id)
 
-    LibraryController { id: libCtrl }
+    LibraryController {
+        id: libCtrl
+        // Without this, a chord bound on the editor's pinned card or
+        // edited externally never refreshes this page's snapshot.
+        Component.onCompleted: libCtrl.start_watching()
+    }
 
     readonly property var allWorkflows: {
         try {

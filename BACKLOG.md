@@ -175,18 +175,6 @@ Pre-req: land the full coral sweep first (canvas, inspector, settings,
 chrome) so "amber / coral" is a real brand-wide swap and not just half
 the surfaces.
 
-## GUI doesn't hot-reload chord bindings from disk
-
-The daemon watches `~/.config/wflow/workflows/` and hot-reloads
-chord bindings when a workflow's KDL changes on disk. The GUI
-library and editor views don't. If the user (or another tool)
-writes a `trigger { chord ... }` block into a workflow file, the
-daemon registers the new chord but the GUI keeps showing "+ Bind a
-chord" on the trigger pin until the GUI is restarted. The same
-notify-rs watcher the daemon uses could feed the library
-controller; on file change, re-parse and re-emit the affected
-workflow rows.
-
 ## Shell-exit conditional for `when` / `unless`
 
 The current conditional set covers `window=`, `file=`, `env=`. None of

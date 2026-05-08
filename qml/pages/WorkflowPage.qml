@@ -23,7 +23,56 @@ Item {
 
     WorkflowController { id: wfCtrl }
     StateController { id: stateCtrl }
-    LibraryController { id: libCtrl }
+    LibraryController {
+        id: libCtrl
+        Component.onCompleted: libCtrl.start_watching()
+    }
+
+    // Last chord we saw in libCtrl for this workflow; lets us reload
+    // only when the chord actually changed externally instead of every
+    // time any workflow in the library is touched.
+    property string _lastSeenChord: ""
+    property string _lastSeenWhenKind: ""
+    property string _lastSeenWhenValue: ""
+
+    function _libSummaryFor(id) {
+        if (!id || id.length === 0) return null
+        let arr = []
+        try {
+            arr = JSON.parse(libCtrl.workflows) || []
+        } catch (e) { return null }
+        for (let i = 0; i < arr.length; ++i) {
+            if (arr[i] && arr[i].id === id) return arr[i]
+        }
+        return null
+    }
+
+    // libCtrl's notify watcher fires on any workflows-dir change.
+    // Only reload when THIS workflow's chord actually changed: any
+    // other library mutation (a sibling workflow getting saved, an
+    // unrelated chord rebind) shouldn't force a full editor rebuild.
+    // Skip while the editor is mid-save: the FS event from our own
+    // write would clobber unsaved keystrokes mid-flight.
+    Connections {
+        target: libCtrl
+        function onWorkflowsChanged() {
+            if (root.fragmentMode) return
+            if (root.workflowId.length === 0) return
+            if (root.saveState !== "idle") return
+            const summary = root._libSummaryFor(root.workflowId)
+            if (!summary) return
+            const chord = summary.chord || ""
+            const whenKind = summary.chord_when_kind || ""
+            const whenValue = summary.chord_when_value || ""
+            if (chord === root._lastSeenChord
+                && whenKind === root._lastSeenWhenKind
+                && whenValue === root._lastSeenWhenValue) return
+            root._lastSeenChord = chord
+            root._lastSeenWhenKind = whenKind
+            root._lastSeenWhenValue = whenValue
+            wfCtrl.load(root.workflowId)
+        }
+    }
 
     // Held locally so the editor has a live target to mutate before
     // load() returns and during in-flight edits.
@@ -1867,14 +1916,16 @@ Item {
             }
 
             // Anchored to canvasView (not inside its Flickable) so
-            // canvas pan/zoom don't move it. Pinned top-right so the
-            // left-edge StepPalette (which expands on hover) can't overlap.
+            // canvas pan/zoom don't move it. Centered along the top
+            // edge so neither the StepPalette (left, expands on hover)
+            // nor the StepInspectorPanel (right, slides in on select)
+            // covers the card. Right-anchored placement got clobbered
+            // by the inspector; left-anchored looked off-balance.
             Item {
                 id: triggerPinned
                 visible: canvasView.visible && !root.fragmentMode
-                anchors.right: canvasView.right
+                anchors.horizontalCenter: canvasView.horizontalCenter
                 anchors.top: canvasView.top
-                anchors.rightMargin: 16
                 anchors.topMargin: 16
                 width: triggerCard.width
                 height: triggerCard.height
@@ -2005,6 +2056,51 @@ Item {
                             triggerCardChordDialog.initialWhenKind = triggerPinned.whenKind
                             triggerCardChordDialog.initialWhenValue = triggerPinned.whenValue
                             triggerCardChordDialog.open()
+                        }
+                    }
+
+                    // Inline unbind so it isn't buried two clicks deep
+                    // inside the chord dialog. z above triggerArea so
+                    // hover and click don't fall through to the card.
+                    Rectangle {
+                        id: triggerUnbindBtn
+                        visible: triggerPinned.chord.length > 0
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.topMargin: 8
+                        anchors.rightMargin: 8
+                        width: 18
+                        height: 18
+                        radius: 9
+                        z: 1
+                        color: triggerUnbindArea.containsMouse
+                            ? Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                            : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "×"
+                            color: triggerUnbindArea.containsMouse ? Theme.err : Theme.text3
+                            font.family: Theme.familyBody
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                        }
+
+                        MouseArea {
+                            id: triggerUnbindArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            ToolTip.visible: containsMouse
+                            ToolTip.delay: 400
+                            ToolTip.text: "Unbind chord"
+                            onClicked: {
+                                if (root.workflowId.length > 0) {
+                                    libCtrl.set_chord(root.workflowId, "", "", "")
+                                    wfCtrl.load(root.workflowId)
+                                }
+                            }
                         }
                     }
                 }

@@ -14,7 +14,10 @@ Item {
     // mutate one shared controller. Separate instances diverge.
     readonly property var ctrl: Theme._state
 
-    LibraryController { id: libCtrl }
+    LibraryController {
+        id: libCtrl
+        Component.onCompleted: libCtrl.start_watching()
+    }
 
     FolderDialog {
         id: folderDialog
