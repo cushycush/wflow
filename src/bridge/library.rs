@@ -4,6 +4,7 @@
 
 use std::pin::Pin;
 
+use cxx_qt::Threading;
 use cxx_qt_lib::QString;
 use serde::Serialize;
 
@@ -73,7 +74,18 @@ pub mod qobject {
             when_kind: QString,
             when_value: QString,
         ) -> QString;
+
+        /// Spawn a notify watcher on the workflows dir so chord edits
+        /// from another page (or external KDL edits) refresh this
+        /// controller's `workflows`. Idempotent; QML calls from
+        /// `Component.onCompleted`. Without this, sibling pages keep
+        /// stale snapshots and the daemon's hot-reload story is a
+        /// daemon-only feature.
+        #[qinvokable]
+        fn start_watching(self: Pin<&mut LibraryController>);
     }
+
+    impl cxx_qt::Threading for LibraryController {}
 }
 
 /// Compact summary for QML; step detail loads lazily via
@@ -105,12 +117,17 @@ struct TrailEntry {
 
 pub struct LibraryControllerRust {
     pub workflows: QString,
+    /// Held to keep the inotify FD open. Notify cancels its watch when
+    /// the watcher drops, so anything less than ownership-by-the-controller
+    /// would silently stop firing the moment start_watching returned.
+    watcher: Option<notify::RecommendedWatcher>,
 }
 
 impl Default for LibraryControllerRust {
     fn default() -> Self {
         Self {
             workflows: load_as_json(),
+            watcher: None,
         }
     }
 }
@@ -305,6 +322,67 @@ impl qobject::LibraryController {
 
         self.as_mut().set_workflows(load_as_json());
         QString::from(&canonical)
+    }
+
+    fn start_watching(mut self: Pin<&mut Self>) {
+        use cxx_qt::CxxQtType;
+        use notify::Watcher;
+
+        if self.as_ref().rust().watcher.is_some() {
+            return;
+        }
+
+        let dir = match crate::store::workflows_dir() {
+            Ok(d) => d,
+            Err(e) => {
+                tracing::warn!(?e, "library hot-reload disabled: no workflows dir");
+                return;
+            }
+        };
+
+        // Editor saves emit 2-4 fsops in a burst (tmp write, rename,
+        // mtime touch); the daemon settles them with a 250ms tick and
+        // we mirror that here.
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let mut watcher = match notify::recommended_watcher(
+            move |res: notify::Result<notify::Event>| {
+                if res.is_ok() {
+                    let _ = tx.send(());
+                }
+            },
+        ) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::warn!(?e, "library hot-reload: couldn't create watcher");
+                return;
+            }
+        };
+
+        // Recursive so chords inside subfolders are still picked up.
+        if let Err(e) = watcher.watch(&dir, notify::RecursiveMode::Recursive) {
+            tracing::warn!(?e, "library hot-reload: couldn't watch {}", dir.display());
+            return;
+        }
+
+        let qt_thread = self.qt_thread();
+        std::thread::Builder::new()
+            .name("wflow-library-watch".into())
+            .spawn(move || {
+                while rx.recv().is_ok() {
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    while rx.try_recv().is_ok() {}
+                    let _ = qt_thread.queue(
+                        |mut ctrl: Pin<&mut qobject::LibraryController>| {
+                            ctrl.as_mut().refresh();
+                        },
+                    );
+                }
+                tracing::debug!("library watch thread: channel closed, exiting");
+            })
+            .expect("spawn library watch thread");
+
+        self.as_mut().rust_mut().watcher = Some(watcher);
+        tracing::debug!(path = %dir.display(), "library hot-reload armed");
     }
 }
 

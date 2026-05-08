@@ -13,7 +13,10 @@ Item {
     property alias topBar: tb
     property alias folderRail: folderRail
 
-    LibraryController { id: libCtrl }
+    LibraryController {
+        id: libCtrl
+        Component.onCompleted: libCtrl.start_watching()
+    }
     StateController { id: stateCtrl }
 
     function _humanizeTs(iso) {

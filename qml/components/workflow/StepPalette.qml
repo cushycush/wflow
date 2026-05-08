@@ -32,8 +32,31 @@ Item {
         ]}
     ]
 
-    readonly property int collapsedW: 56
-    readonly property int expandedW: 200
+    readonly property int collapsedW: 80
+    readonly property int expandedW: 220
+
+    // Three-letter codes that read at the rail's narrow width. Default
+    // to the kind itself when no abbreviation is registered so a new
+    // step kind still renders something legible without code changes.
+    function _shortFor(kind) {
+        switch (kind) {
+        case "key":       return "key"
+        case "type":      return "txt"
+        case "click":     return "clk"
+        case "move":      return "mov"
+        case "scroll":    return "scr"
+        case "focus":     return "fcs"
+        case "wait":      return "wt"
+        case "shell":     return "sh"
+        case "notify":    return "ntf"
+        case "clipboard": return "clp"
+        case "when":      return "if"
+        case "unless":    return "if!"
+        case "repeat":    return "rep"
+        case "use":       return "use"
+        }
+        return kind
+    }
 
     implicitWidth: dock.width
     implicitHeight: dock.height
@@ -45,8 +68,29 @@ Item {
         // HoverHandler. Each chip bumps chipHoverCount instead.
         property int chipHoverCount: 0
         property bool anyChipDragging: false
+        // Mouse moving from one chip to the next briefly drops
+        // chipHoverCount to 0; without this latch the dock's width
+        // animation flips collapsed-then-expanded mid-traversal and
+        // chips visibly judder. Latch holds the expanded state for
+        // one animation duration after every "left a chip" event.
+        property bool _hoverLatch: false
+        Timer {
+            id: hoverLatchTimer
+            interval: Theme.dur(Theme.durBase) + 80
+            repeat: false
+            onTriggered: dock._hoverLatch = false
+        }
+        onChipHoverCountChanged: {
+            if (chipHoverCount === 0) {
+                _hoverLatch = true
+                hoverLatchTimer.restart()
+            } else {
+                _hoverLatch = false
+                hoverLatchTimer.stop()
+            }
+        }
         readonly property bool isHovered:
-            dockHover.hovered || chipHoverCount > 0 || anyChipDragging
+            dockHover.hovered || chipHoverCount > 0 || anyChipDragging || _hoverLatch
         width: isHovered ? root.expandedW : root.collapsedW
         height: stack.implicitHeight + 16
         radius: Theme.radiusMd
@@ -90,47 +134,50 @@ Item {
 
                     Repeater {
                         model: modelData.kinds
-                        delegate: Rectangle {
+                        delegate: Item {
                             id: chip
                             width: dock.width - 14
-                            height: 42
+                            height: 38
                             anchors.horizontalCenter: parent.horizontalCenter
-                            radius: Theme.radiusSm
                             readonly property color catColor: Theme.catFor(modelData.kind)
-                            readonly property bool expanded: dock.isHovered
-                            color: chipArea.dragging
-                                ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.30)
-                                : (chipArea.containsMouse
-                                    ? Qt.rgba(catColor.r, catColor.g, catColor.b, 0.15)
-                                    : "transparent")
-                            border.color: chipArea.dragging
-                                ? catColor
-                                : "transparent"
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
 
-                            CategoryIcon {
-                                id: chipIcon
-                                x: 9  // fixed so labels align across chips
-                                anchors.verticalCenter: parent.verticalCenter
+                            // Chip stretches with the dock, no per-chip
+                            // width animation: the dock's width Behavior
+                            // is already animating, and chaining a second
+                            // animation here was what made hover judder.
+                            // Collapsed shows a 3-letter code; expanded
+                            // swaps in the friendly label.
+                            StepChip {
+                                id: chipPill
                                 kind: modelData.kind
-                                size: 24
-                                hovered: chipArea.containsMouse || chipArea.dragging
+                                overrideLabel: dock.isHovered
+                                    ? modelData.label
+                                    : root._shortFor(modelData.kind)
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 4
+                                anchors.rightMargin: 4
+                                height: 28
+                                fontSize: 11
+                                opacity: chipArea.dragging ? 0.85 : 1.0
                             }
 
-                            Text {
-                                anchors.left: chipIcon.right
-                                anchors.leftMargin: 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: chip.expanded
-                                opacity: chip.expanded ? 1.0 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: Theme.dur(Theme.durFast) } }
-                                text: modelData.label
-                                color: chip.catColor
-                                font.family: Theme.familyBody
-                                font.pixelSize: Theme.fontSm
-                                font.weight: Font.Medium
+                            // Tinted halo on hover / drag; sits underneath
+                            // the chip so the chip's own border still wins.
+                            Rectangle {
+                                anchors.fill: chipPill
+                                radius: chipPill.radius
+                                z: -1
+                                color: chipArea.dragging
+                                    ? Qt.rgba(chip.catColor.r, chip.catColor.g, chip.catColor.b, 0.30)
+                                    : (chipArea.containsMouse
+                                        ? Qt.rgba(chip.catColor.r, chip.catColor.g, chip.catColor.b, 0.15)
+                                        : "transparent")
+                                border.color: chipArea.dragging ? chip.catColor : "transparent"
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
+                                Behavior on border.color { ColorAnimation { duration: Theme.dur(Theme.durFast) } }
                             }
 
                             MouseArea {
