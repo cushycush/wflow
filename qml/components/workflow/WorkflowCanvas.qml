@@ -1458,12 +1458,22 @@ Item {
                                 : _curvePath(route)
                         }
 
+                        // Pause while the viewport is moving. Each wire's
+                        // Shape spans the full world rect and a 60fps
+                        // dashOffset tick re-rasterises that whole bbox;
+                        // running it during pan/zoom is what made panning
+                        // stutter on dense graphs. Also gate on root.visible
+                        // so background editor tabs don't burn cycles
+                        // animating wires nobody can see.
                         NumberAnimation on dashOffset {
                             from: 0
                             to: -12
                             duration: 1200
                             loops: Animation.Infinite
                             running: !Theme.reduceMotion
+                                && root.visible
+                                && !panHandler.active
+                                && !flick.moving
                         }
                     }
                 }
@@ -1519,7 +1529,7 @@ Item {
                         Text {
                             id: labelText
                             anchors.centerIn: parent
-                            text: modelData.label
+                            text: modelData.label || ""
                             color: parent.labelColor
                             font.family: Theme.familyBody
                             font.pixelSize: 11
@@ -3094,11 +3104,14 @@ Item {
 
         // Same row (y overlap, no x overlap) → horizontal.
         // Same column (x overlap, no y overlap) → vertical.
-        // Diagonal (no overlap on either axis) → horizontal, so column-
-        //   wrap wires arc out the side edges. Choosing vertical here
-        //   tunnels the wire over the top of intermediate cards in the
-        //   source column (the tidy-smart 2-column case where the last
-        //   card of column 1's wire flew up over all cards above it).
+        // Diagonal (no overlap on either axis) → split by direction.
+        //   target right (column-wrap, last card of col 1 → first card
+        //   of col 2): horizontal so the wire arcs out the side edges
+        //   instead of tunneling over the source column.
+        //   target left (row-wrap, last card of row 1 → first card of
+        //   row 2): vertical so the wire exits the source's bottom and
+        //   U-bends down into the target's top, instead of flying back
+        //   across the source row as a horizontal back-flow.
         // Cards overlap on both axes (stacked) → larger centre-delta wins.
         let useVertical
         if (yOverlap && !xOverlap) {
@@ -3106,7 +3119,7 @@ Item {
         } else if (!yOverlap && xOverlap) {
             useVertical = true
         } else if (!yOverlap && !xOverlap) {
-            useVertical = false
+            useVertical = toCx < fromCx
         } else {
             const dx = toCx - fromCx
             const dy = toCy - fromCy

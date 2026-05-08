@@ -199,7 +199,7 @@ Rectangle {
                     color: Theme.text3
                     font.family: Theme.familyMono
                     font.pixelSize: 9
-                    visible: card.wf && card.wf.stars
+                    visible: !!(card.wf && card.wf.stars)
                 }
                 Text {
                     text: card.wf ? "★ " + _formatCount(card.wf.stars) : ""
@@ -207,7 +207,7 @@ Rectangle {
                     font.family: Theme.familyMono
                     font.pixelSize: 9
                     font.letterSpacing: 0.4
-                    visible: card.wf && card.wf.stars
+                    visible: !!(card.wf && card.wf.stars)
                 }
             }
 
