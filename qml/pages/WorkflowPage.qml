@@ -1867,13 +1867,14 @@ Item {
             }
 
             // Anchored to canvasView (not inside its Flickable) so
-            // canvas pan/zoom don't move it.
+            // canvas pan/zoom don't move it. Pinned top-right so the
+            // left-edge StepPalette (which expands on hover) can't overlap.
             Item {
                 id: triggerPinned
                 visible: canvasView.visible && !root.fragmentMode
-                anchors.left: canvasView.left
+                anchors.right: canvasView.right
                 anchors.top: canvasView.top
-                anchors.leftMargin: 16
+                anchors.rightMargin: 16
                 anchors.topMargin: 16
                 width: triggerCard.width
                 height: triggerCard.height
