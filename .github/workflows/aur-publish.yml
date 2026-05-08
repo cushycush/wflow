@@ -66,6 +66,7 @@ jobs:
       - name: Push ${{ matrix.package }} to AUR
         env:
           PKG: ${{ matrix.package }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
         run: |
@@ -74,6 +75,17 @@ jobs:
           install -d -o builder -g builder "$WORK"
           install -m644 -o builder -g builder \
               "packaging/aur/$PKG/PKGBUILD" "$WORK/PKGBUILD"
+
+          # Belt and braces: rewrite pkgver from the release tag so a
+          # forgotten manual bump in packaging/aur/$PKG/PKGBUILD can't
+          # strand the AUR at an old version (which is exactly how
+          # 0.5.0 through 1.0.2 all republished pkgver=0.4.0).
+          # wflow-git's pkgver is an auto-derived placeholder; leave it.
+          if [ "$PKG" != "wflow-git" ]; then
+              VERSION="${TAG#v}"
+              sed -i "s/^pkgver=.*/pkgver=$VERSION/" "$WORK/PKGBUILD"
+              sed -i "s/^pkgrel=.*/pkgrel=1/" "$WORK/PKGBUILD"
+          fi
 
           # -H sets HOME to builder's actual home; without it sudo
           # inherits HOME=/github/home (owned by root in the GHA
