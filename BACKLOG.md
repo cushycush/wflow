@@ -175,6 +175,20 @@ Pre-req: land the full coral sweep first (canvas, inspector, settings,
 chrome) so "amber / coral" is a real brand-wide swap and not just half
 the surfaces.
 
+## Shell-exit conditional for `when` / `unless`
+
+The current conditional set covers `window=`, `file=`, `env=`. None of
+them answer "is this process running" or "did this command succeed",
+which is the natural way to write toggles. Recording control is the
+canonical example: one chord that starts gpu-screen-recorder if it
+isn't running and stops it if it is. Today that takes two chords
+because there's no way to branch on `pgrep -x gpu-screen-recorder`
+exit. A `shell="..."` condition that runs the command and branches on
+exit-zero would close the gap. Short timeout (a few seconds), exit
+code is the only signal, stdout / stderr ignored. Same security shape
+as the existing `shell` action so it doesn't open a new attack
+surface.
+
 ## Smaller polish
 
 - Settings page: an "Advanced" disclosure for motion durations
