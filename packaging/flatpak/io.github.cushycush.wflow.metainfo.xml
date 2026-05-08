@@ -76,6 +76,22 @@
   </provides>
 
   <releases>
+    <release version="1.0.3" date="2026-05-07">
+      <description>
+        <p>
+          Editor canvas polish. Three fixes spotted while recording demo footage.
+        </p>
+        <p>
+          Trigger bind moved to the top-right of the canvas. It used to share the left edge with the StepPalette, and at short canvas heights the palette climbed under the card; on hover the palette expanded from 56 to 200 pixels wide and overlapped the card entirely. Anchoring to the top-right gives the left edge to the palette and the right edge to the trigger.
+        </p>
+        <p>
+          Bind-a-chord dialog now centers on the window overlay rather than whichever item it was declared inside, so it no longer spills off the right edge when opened from the top-right trigger card.
+        </p>
+        <p>
+          Tidy-smart column-wrap wires are visible again. The wire from the last card of one column to the first of the next was being routed vertically and ran underneath intermediate cards. The axis picker now treats true diagonals (no overlap on either axis) as horizontal so the bezier arcs cleanly across the column gap.
+        </p>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-05-05">
       <description>
         <p>

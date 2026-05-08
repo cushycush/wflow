@@ -11,6 +11,43 @@ breaks.
 
 ---
 
+## [1.0.3] - 2026-05-07
+
+[Full release notes](docs/release-notes/v1.0.3.md)
+
+Editor canvas polish.
+
+### Fixed
+
+- **Trigger bind moved to the top-right of the canvas.** The pinned
+  chord-bind card was anchored top-left, sharing the left edge with
+  the StepPalette. At short canvas heights the palette (vertically
+  centered) climbed under the card, and on hover the palette
+  expanded from 56 to 200 pixels wide and overlapped the card
+  entirely. Anchoring the card to the top-right gives the left edge
+  to the palette and the right edge to the trigger, so they never
+  collide.
+- **Bind-a-chord dialog centers on the window.** When the trigger
+  card moved to the top-right, clicking it opened the
+  `ChordCaptureDialog` roughly centered on that small card and the
+  dialog spilled off the window's right edge. The dialog used
+  `anchors.centerIn: parent` and inherited whichever item it was
+  declared inside. Setting `parent: Overlay.overlay` on the
+  component makes it center on the window's overlay layer regardless
+  of where it's instantiated.
+- **Tidy-smart column-wrap wires are visible again.** The wire from
+  the last card of column N to the first card of column N+1 was
+  being routed vertically, out the top of the source and into the
+  bottom of the target. The wire ran underneath the column's other
+  cards and was barely visible. The axis picker had three cases
+  (same-row, different-rows, overlapping) and the "different-rows"
+  branch fired for any target not in the same row, lumping diagonals
+  in with same-column targets. Splitting the branch so true
+  diagonals (no overlap on either axis) pick horizontal lets the
+  bezier arc cleanly across the column gap.
+
+---
+
 ## [1.0.2] - 2026-05-05
 
 [Full release notes](docs/release-notes/v1.0.2.md)
