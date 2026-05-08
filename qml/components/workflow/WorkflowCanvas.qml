@@ -1964,11 +1964,22 @@ Item {
                             }
                         }
 
-                        GradientPill {
+                        // Library-style chip: pill + category dot + the
+                        // same abbreviation rules wflows.io uses for trail
+                        // summaries. Replaces the older 36px GradientPill
+                        // so the editor and library read as one product.
+                        // Stretched + bumped slightly so it reads as the
+                        // card's hero, not a tiny inline tag.
+                        StepChip {
                             kind: cardItem.kind
-                            text: _pillText(cardItem.act)
-                            icon: Theme.catGlyph(cardItem.kind)
+                            value: cardItem.act
+                                ? (cardItem.act.editable
+                                    ? (cardItem.act.rawPrimary || "")
+                                    : (cardItem.act.value || ""))
+                                : ""
                             width: parent.width
+                            height: 28
+                            fontSize: 12
                         }
 
                         Text {
@@ -2530,11 +2541,14 @@ Item {
                     font.letterSpacing: 1.4
                 }
             }
-            GradientPill {
+            // Match the canvas card's hero chip so the drag preview
+            // resolves visually into a real card on drop.
+            StepChip {
                 kind: root.ghostKind
-                text: "(new step)"
-                icon: Theme.catGlyph(root.ghostKind)
+                overrideLabel: "(new step)"
                 width: parent.width
+                height: 28
+                fontSize: 12
             }
         }
     }
