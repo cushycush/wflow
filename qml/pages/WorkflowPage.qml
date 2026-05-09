@@ -720,16 +720,34 @@ Item {
         _moveStep(otherIdx, target)
     }
 
+    // `from` / `to` are shaped-actions indices (the form the rail and
+    // the inspector pickers use). The raw KDL step list filters out
+    // notes and surfaces conditional inners as siblings, so a shaped
+    // index can sit past the end of the raw list whenever the
+    // workflow has either. Translate via _topIdx before splicing into
+    // the raw list, and reject moves whose endpoints aren't top-level
+    // (inner-conditional cards aren't reorderable through this path).
     function _moveStep(from, to) {
         if (from === to) return
+        const arr = root.actions || []
+        const fromMeta = arr[from]
+        const toMeta = arr[to]
+        if (!fromMeta || fromMeta._displayKind !== "top") return
+        if (!toMeta || toMeta._displayKind !== "top") return
+        const fromRaw = fromMeta._topIdx
+        const toRaw = toMeta._topIdx
+        if (fromRaw === toRaw) return
         const wf = JSON.parse(JSON.stringify(root.workflow))
         const steps = _stepsAtCrumb(wf)
         if (!steps) return
-        if (from < 0 || from >= steps.length) return
-        if (to < 0 || to >= steps.length) return
-        const [moved] = steps.splice(from, 1)
-        steps.splice(to, 0, moved)
+        if (fromRaw < 0 || fromRaw >= steps.length) return
+        if (toRaw < 0 || toRaw >= steps.length) return
+        const [moved] = steps.splice(fromRaw, 1)
+        steps.splice(toRaw, 0, moved)
         root.workflow = wf
+        // Selection update stays in shaped space: after the shaped list
+        // recomputes from the new workflow, the moved card lands at
+        // shaped index `to`.
         const sel = editorContent.selectedIndex
         if (sel === from) {
             editorContent._setSingleSelection(to)
