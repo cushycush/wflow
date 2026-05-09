@@ -1975,22 +1975,17 @@ Item {
                             }
                         }
 
-                        // Library-style chip: pill + category dot + the
-                        // same abbreviation rules wflows.io uses for trail
-                        // summaries. Replaces the older 36px GradientPill
-                        // so the editor and library read as one product.
-                        // Stretched + bumped slightly so it reads as the
-                        // card's hero, not a tiny inline tag.
-                        StepChip {
+                        // Canvas card hero: 36px pill with the kind
+                        // glyph on the left and the primary value on
+                        // the right. Library cards still use the
+                        // smaller dot-only StepChip; the editor wants
+                        // the icon to read at a glance while you're
+                        // navigating cards on a 2D surface.
+                        GradientPill {
                             kind: cardItem.kind
-                            value: cardItem.act
-                                ? (cardItem.act.editable
-                                    ? (cardItem.act.rawPrimary || "")
-                                    : (cardItem.act.value || ""))
-                                : ""
+                            text: _pillText(cardItem.act)
+                            icon: Theme.catGlyph(cardItem.kind)
                             width: parent.width
-                            height: 28
-                            fontSize: 12
                         }
 
                         Text {
@@ -2687,14 +2682,13 @@ Item {
                     font.letterSpacing: 1.4
                 }
             }
-            // Match the canvas card's hero chip so the drag preview
+            // Match the canvas card's hero pill so the drag preview
             // resolves visually into a real card on drop.
-            StepChip {
+            GradientPill {
                 kind: root.ghostKind
-                overrideLabel: "(new step)"
+                text: "(new step)"
+                icon: Theme.catGlyph(root.ghostKind)
                 width: parent.width
-                height: 28
-                fontSize: 12
             }
         }
     }
