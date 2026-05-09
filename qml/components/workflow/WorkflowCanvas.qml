@@ -196,6 +196,7 @@ Item {
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
     signal addInnerStepRequested(int stepIndex, string kind)
+    signal addElseStepRequested(int stepIndex, string kind)
     signal deleteInnerStepRequested(int stepIndex, int innerIndex)
     signal moveStepToContainerRequested(int fromIndex, int containerIndex)
     signal selectInnerStep(int parentIndex, int innerIndex)
@@ -289,10 +290,10 @@ Item {
                     const nextTop  = nextTopAfter(it._topIdx)
 
                     if (firstYes >= 0) {
-                        out.push({ from: i, to: firstYes, label: "yes" })
+                        out.push({ from: i, to: firstYes, label: "true" })
                     }
                     if (firstNo >= 0) {
-                        out.push({ from: i, to: firstNo, label: "no" })
+                        out.push({ from: i, to: firstNo, label: "else" })
                     }
                     if (nextTop >= 0) {
                         // Direct cond → next-top only when an empty
@@ -301,9 +302,9 @@ Item {
                         if (firstYes < 0 && firstNo < 0) {
                             out.push({ from: i, to: nextTop })
                         } else if (firstYes < 0) {
-                            out.push({ from: i, to: nextTop, label: "yes" })
+                            out.push({ from: i, to: nextTop, label: "true" })
                         } else if (firstNo < 0) {
-                            out.push({ from: i, to: nextTop, label: "no" })
+                            out.push({ from: i, to: nextTop, label: "else" })
                         }
                     }
                     if (lastYes >= 0 && nextTop >= 0) {
@@ -1480,7 +1481,7 @@ Item {
             }
 
             // Wire labels, small pills along the wire that carry a
-            // label (currently "yes" / "no" on conditional branches).
+            // label ("true" / "else" on conditional branches today).
             // Sibling Repeater so the labels paint above the strokes
             // without participating in the dash animation.
             Repeater {
@@ -1513,8 +1514,8 @@ Item {
 
                     Rectangle {
                         readonly property color labelColor: {
-                            if (modelData.label === "yes") return Theme.ok
-                            if (modelData.label === "no") return Theme.err
+                            if (modelData.label === "true") return Theme.ok
+                            if (modelData.label === "else") return Theme.err
                             return Theme.text2
                         }
                         x: route.sx + (route.tx - route.sx) / 2 - width / 2
@@ -1974,22 +1975,17 @@ Item {
                             }
                         }
 
-                        // Library-style chip: pill + category dot + the
-                        // same abbreviation rules wflows.io uses for trail
-                        // summaries. Replaces the older 36px GradientPill
-                        // so the editor and library read as one product.
-                        // Stretched + bumped slightly so it reads as the
-                        // card's hero, not a tiny inline tag.
-                        StepChip {
+                        // Canvas card hero: 36px pill with the kind
+                        // glyph on the left and the primary value on
+                        // the right. Library cards still use the
+                        // smaller dot-only StepChip; the editor wants
+                        // the icon to read at a glance while you're
+                        // navigating cards on a 2D surface.
+                        GradientPill {
                             kind: cardItem.kind
-                            value: cardItem.act
-                                ? (cardItem.act.editable
-                                    ? (cardItem.act.rawPrimary || "")
-                                    : (cardItem.act.value || ""))
-                                : ""
+                            text: _pillText(cardItem.act)
+                            icon: Theme.catGlyph(cardItem.kind)
                             width: parent.width
-                            height: 28
-                            fontSize: 12
                         }
 
                         Text {
@@ -2076,6 +2072,141 @@ Item {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.openUseRequested(cardItem.stepIdx)
+                            }
+                        }
+
+                        // Conditional cards lay their inner steps out as
+                        // separate canvas cards (one column per branch),
+                        // so the parent doesn't need an inner-zone drop
+                        // target. It does need a way to grow either
+                        // branch from the canvas alone, hence these two
+                        // buttons. Symmetric so the user reads them as
+                        // peers, the wire labels say true / else, and
+                        // the buttons mirror that.
+                        Row {
+                            visible: cardItem.isConditional
+                            width: parent.width
+                            height: 24
+                            spacing: 6
+
+                            Rectangle {
+                                width: (parent.width - parent.spacing) / 2
+                                height: parent.height
+                                radius: 5
+                                color: addTrueArea.containsMouse ? Theme.surface3 : "transparent"
+                                border.color: Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "+"
+                                        color: Theme.ok
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "true"
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.5
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: addTrueArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: addTrueCanvasMenu.popup()
+                                }
+
+                                WfMenu {
+                                    id: addTrueCanvasMenu
+                                    Repeater {
+                                        model: [
+                                            { kind: "key",       label: "Key chord"    },
+                                            { kind: "type",      label: "Type text"    },
+                                            { kind: "click",     label: "Click"        },
+                                            { kind: "focus",     label: "Focus window" },
+                                            { kind: "wait",      label: "Wait"         },
+                                            { kind: "shell",     label: "Shell"        },
+                                            { kind: "notify",    label: "Notify"       },
+                                            { kind: "clipboard", label: "Clipboard"    },
+                                            { kind: "note",      label: "Note"         }
+                                        ]
+                                        delegate: WfMenuItem {
+                                            text: modelData.label
+                                            onTriggered: root.addInnerStepRequested(cardItem.stepIdx, modelData.kind)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: (parent.width - parent.spacing) / 2
+                                height: parent.height
+                                radius: 5
+                                color: addElseArea.containsMouse ? Theme.surface3 : "transparent"
+                                border.color: Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "+"
+                                        color: Theme.err
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "else"
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.5
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: addElseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: addElseCanvasMenu.popup()
+                                }
+
+                                WfMenu {
+                                    id: addElseCanvasMenu
+                                    Repeater {
+                                        model: [
+                                            { kind: "key",       label: "Key chord"    },
+                                            { kind: "type",      label: "Type text"    },
+                                            { kind: "click",     label: "Click"        },
+                                            { kind: "focus",     label: "Focus window" },
+                                            { kind: "wait",      label: "Wait"         },
+                                            { kind: "shell",     label: "Shell"        },
+                                            { kind: "notify",    label: "Notify"       },
+                                            { kind: "clipboard", label: "Clipboard"    },
+                                            { kind: "note",      label: "Note"         }
+                                        ]
+                                        delegate: WfMenuItem {
+                                            text: modelData.label
+                                            onTriggered: root.addElseStepRequested(cardItem.stepIdx, modelData.kind)
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -2551,14 +2682,13 @@ Item {
                     font.letterSpacing: 1.4
                 }
             }
-            // Match the canvas card's hero chip so the drag preview
+            // Match the canvas card's hero pill so the drag preview
             // resolves visually into a real card on drop.
-            StepChip {
+            GradientPill {
                 kind: root.ghostKind
-                overrideLabel: "(new step)"
+                text: "(new step)"
+                icon: Theme.catGlyph(root.ghostKind)
                 width: parent.width
-                height: 28
-                fontSize: 12
             }
         }
     }

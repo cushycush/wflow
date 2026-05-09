@@ -809,8 +809,10 @@ Item {
                     color: Theme.lineSoft
                 }
 
-                // Authoritative else-branch editor for now; canvas
-                // doesn't render else cards as their own column yet.
+                // Mirrors the canvas's else column. Editing here adds
+                // a card to the left side of the conditional with an
+                // `else` wire from the parent; the canvas's add-inner
+                // affordance handles the yes side.
                 Column {
                     id: elseStepsSection
                     width: parent.width - 48
@@ -821,7 +823,7 @@ Item {
                     readonly property var elseSteps: act && act.else_steps ? act.else_steps : []
 
                     Text {
-                        text: "FALSE BRANCH  (" + elseStepsSection.elseSteps.length + ")"
+                        text: "ELSE BRANCH  (" + elseStepsSection.elseSteps.length + ")"
                         color: Theme.text3
                         font.family: Theme.familyBody
                         font.pixelSize: 10
@@ -833,7 +835,7 @@ Item {
                         visible: elseStepsSection.elseSteps.length === 0
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: "Steps that run when the condition is false. Empty by default, add one and the engine treats this `when` as a true/false split."
+                        text: "Steps that run when the condition is false. Empty by default; add one and the canvas grows an `else` branch from this card."
                         color: Theme.text3
                         font.family: Theme.familyBody
                         font.pixelSize: Theme.fontXs

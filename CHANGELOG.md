@@ -11,6 +11,90 @@ breaks.
 
 ---
 
+## [1.2.0] - 2026-05-09
+
+Editor hot-reload for full workflow content, an `else` branch with first-class
+canvas affordances, and a walk-back of the unified-chip experiment in the editor.
+
+### Added
+
+- **The editor now hot-reloads when the `.kdl` changes on disk.**
+  v1.1.0 wired the library's notify watcher into the GUI but the
+  editor only reloaded when this workflow's chord (or its
+  when-condition) changed. Hand-edits to the file body, saves from
+  the Library page, and renames sat as stale state in the canvas
+  until you flipped pages. `WorkflowSummary` now carries a
+  `disk_mtime` field (file-system mtime, not the in-file `modified`
+  timestamp, which hand-edits don't bump on their own); the editor
+  diffs that against its last-seen value and reissues `wfCtrl.load`
+  when the file actually changed. The first snapshot for a workflow
+  is adopted without firing a reload, and FS events fired during
+  mid-save states (saving / saved / dirty / error) silently update
+  the cached mtime so the post-save tail event from our own write
+  doesn't re-render the canvas over what you just authored.
+- **Else branches show up on the canvas, not just in the inspector.**
+  The data model (`else_steps`) was already there but you had to
+  open the inspector to grow one. The conditional card now carries
+  two side-by-side stub buttons in its body, **+ true** and
+  **+ else**, each opening the same step-kind menu the inspector
+  uses; wire labels read **true** / **else** instead of yes / no,
+  with green for the positive branch and red for the negative; the
+  inspector's section heading flips from **FALSE BRANCH** to
+  **ELSE BRANCH** to match. The new `addElseStepRequested` canvas
+  signal hops through the same `_addElseStep` path the inspector
+  already used, so the data model touches one code path regardless
+  of where the click came from.
+- **Conditional steps' primary value is editable from the top bar.**
+  Editing the window name (or file path, or env name) for a `when`
+  block no longer requires opening the inspector's condition
+  section; the primary `TextField` every other step uses now drives
+  cond.name / cond.path. Mode (when vs unless), predicate kind, and
+  env's `equals=` stay in the inspector's condition section. The
+  redundant "1 yes / 1 else" tag that used to render in the value
+  pill (and overflow it on narrow widths) is gone, since the canvas
+  paints both branches as wires.
+
+### Fixed
+
+- **Step move works when the workflow has notes or conditionals.**
+  The rail's up/down arrows and the inspector's preceded-by /
+  followed-by pickers all funnel into `_moveStep`, which spliced
+  into `_stepsAtCrumb` (the raw KDL list) using indices from
+  `root.actions` (the shaped list with notes filtered and
+  conditional inners expanded as siblings). With either present the
+  shaped index could sit past the end of the raw list, the bounds
+  check caught the overrun, and the function silently returned. The
+  reading from the user's seat was "the buttons just don't do
+  anything." `_moveStep` now translates shaped to raw through
+  `_topIdx` before splicing and rejects moves whose endpoints aren't
+  top-level (inner-conditional cards belong to a parent's `steps` /
+  `else_steps` array, not the top-level sequence).
+- **`+` glyph alignment on the new when-card buttons.** The 12px
+  glyph and the 9px label hugged the top of their Row, so the `+`
+  floated above the text instead of reading as one chip. Same fix
+  the open-import button next to it already used: anchor each Text's
+  `verticalCenter` to the Row.
+
+### Changed
+
+- **Walked back the unified step-chip across the editor.** v1.1.0
+  routed the canvas card hero, the step list rail rows, the drag
+  preview, and the left toolbar through a single `StepChip` so the
+  editor and the library would read as one product. Side by side
+  they did, but the editor needs the kind glyph more than the
+  library does: scanning a 2D field of cards on the canvas leans on
+  silhouette, and the rail and toolbar both read better with a 22px
+  icon than a 12px category-color dot. Reverted the canvas card
+  hero (and drag-preview ghost) to `GradientPill`, the toolbar to
+  its 56px / 200px icon-and-label rows, and the rail to its 44px
+  status-badge + icon + title/value layout. Library trail pills
+  keep `StepChip`, the surface it was designed for. The three-
+  letter codes in the toolbar (`txt`, `clk`, `fcs`, `ntf`, …) and
+  the hover-latch timer that came with the chip's width-stretch
+  behaviour go with the revert.
+
+---
+
 ## [1.1.0] - 2026-05-08
 
 GUI hot-reload, an inline unbind, and a unified chip system across the editor.

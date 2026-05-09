@@ -189,6 +189,34 @@ code is the only signal, stdout / stderr ignored. Same security shape
 as the existing `shell` action so it doesn't open a new attack
 surface.
 
+## Spawn-and-track action
+
+The current pattern for "open a terminal then type into it" takes
+three steps: `Shell` to launch the terminal, `WaitWindow` to block
+until it maps, `ActivateWindow` to focus it. That works but has a
+foot-gun: if you already have five `foot` windows open, the
+title/class match in WaitWindow / ActivateWindow can land on the
+wrong one. The escape valve today is to pass `--title=wflow-spawn`
+when launching, which gets you back to one card per concern but
+shifts the brittleness onto the title string.
+
+A `Spawn { command, await_class, then: ... }` action variant would
+collapse those three cards into one. Run the command, capture the
+spawned PID, poll until a window with that PID maps, and expose it
+as the focus target for the following steps so the user doesn't
+need to re-name it in WaitWindow / ActivateWindow. Hyprland already
+takes `pid:NNNN` as a window selector through `hyprctl dispatch`;
+Sway accepts `[pid="NNNN"] focus`; KWin needs `kdotool` or a
+scripting-API call. wdotool gains a matching `await-window-pid` so
+the engine isn't doing per-compositor probing itself, and the
+existing `WdoActivateWindow` learns a `pid:` prefix.
+
+The win is mostly about the failure mode: today the wrong window
+gets focused silently and the user discovers it when keystrokes
+land in their already-open editor. Spawn-and-track makes "the
+window I just opened" addressable as a real concept instead of a
+title-string convention.
+
 ## Smaller polish
 
 - Settings page: an "Advanced" disclosure for motion durations

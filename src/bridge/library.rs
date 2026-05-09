@@ -99,6 +99,10 @@ struct WorkflowSummary {
     steps: usize,
     last_run: Option<String>,
     modified: Option<String>,
+    /// Source `.kdl` mtime (millis since the epoch). The editor's
+    /// hot-reload watcher diffs this to detect hand-edits that don't
+    /// touch the in-file `modified` field.
+    disk_mtime: Option<u128>,
     kinds: Vec<String>,
     trail: Vec<TrailEntry>,
     folder: String,
@@ -418,10 +422,10 @@ fn build_trigger_condition(
 }
 
 fn load_as_json() -> QString {
-    let summaries: Vec<WorkflowSummary> = match store::list() {
+    let summaries: Vec<WorkflowSummary> = match store::list_with_mtimes() {
         Ok(list) => list
             .into_iter()
-            .map(|wf| {
+            .map(|(wf, disk_mtime)| {
                 let kinds: Vec<String> = wf
                     .steps
                     .iter()
@@ -465,6 +469,7 @@ fn load_as_json() -> QString {
                     steps: wf.steps.len(),
                     last_run: wf.last_run.map(|t| t.to_rfc3339()),
                     modified: wf.modified.map(|t| t.to_rfc3339()),
+                    disk_mtime,
                     kinds,
                     trail,
                     folder,
@@ -475,7 +480,7 @@ fn load_as_json() -> QString {
             })
             .collect(),
         Err(e) => {
-            tracing::warn!(?e, "store::list failed");
+            tracing::warn!(?e, "store::list_with_mtimes failed");
             Vec::new()
         }
     };
