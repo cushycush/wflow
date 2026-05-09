@@ -2107,6 +2107,7 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 4
                                     Text {
+                                        anchors.verticalCenter: parent.verticalCenter
                                         text: "+"
                                         color: Theme.ok
                                         font.family: Theme.familyBody
@@ -2114,6 +2115,7 @@ Item {
                                         font.weight: Font.Bold
                                     }
                                     Text {
+                                        anchors.verticalCenter: parent.verticalCenter
                                         text: "true"
                                         color: Theme.text3
                                         font.family: Theme.familyBody
@@ -2165,6 +2167,7 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 4
                                     Text {
+                                        anchors.verticalCenter: parent.verticalCenter
                                         text: "+"
                                         color: Theme.err
                                         font.family: Theme.familyBody
@@ -2172,6 +2175,7 @@ Item {
                                         font.weight: Font.Bold
                                     }
                                     Text {
+                                        anchors.verticalCenter: parent.verticalCenter
                                         text: "else"
                                         color: Theme.text3
                                         font.family: Theme.familyBody
