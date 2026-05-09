@@ -28,12 +28,12 @@ Item {
         Component.onCompleted: libCtrl.start_watching()
     }
 
-    // Last chord we saw in libCtrl for this workflow; lets us reload
-    // only when the chord actually changed externally instead of every
-    // time any workflow in the library is touched.
-    property string _lastSeenChord: ""
-    property string _lastSeenWhenKind: ""
-    property string _lastSeenWhenValue: ""
+    // Source-file mtime we last saw for this workflow. Lets the
+    // watcher distinguish "this workflow's .kdl actually changed on
+    // disk" from "some sibling workflow got saved on the Library page
+    // and our libCtrl re-emitted." Chord rebinds and hand-edits both
+    // bump the file mtime, so this one signal covers both.
+    property double _lastSeenDiskMtime: 0
 
     function _libSummaryFor(id) {
         if (!id || id.length === 0) return null
@@ -48,28 +48,36 @@ Item {
     }
 
     // libCtrl's notify watcher fires on any workflows-dir change.
-    // Only reload when THIS workflow's chord actually changed: any
-    // other library mutation (a sibling workflow getting saved, an
-    // unrelated chord rebind) shouldn't force a full editor rebuild.
-    // Skip while the editor is mid-save: the FS event from our own
-    // write would clobber unsaved keystrokes mid-flight.
+    // Reload only when THIS workflow's source file changed: a sibling
+    // workflow getting saved on the Library page shouldn't force a
+    // full editor rebuild. The FS event from our own write also lands
+    // here, so we adopt the new mtime in mid-save states without
+    // reloading; that keeps the post-save tail event from re-rendering
+    // the canvas over content we just authored.
     Connections {
         target: libCtrl
         function onWorkflowsChanged() {
             if (root.fragmentMode) return
             if (root.workflowId.length === 0) return
-            if (root.saveState !== "idle") return
             const summary = root._libSummaryFor(root.workflowId)
             if (!summary) return
-            const chord = summary.chord || ""
-            const whenKind = summary.chord_when_kind || ""
-            const whenValue = summary.chord_when_value || ""
-            if (chord === root._lastSeenChord
-                && whenKind === root._lastSeenWhenKind
-                && whenValue === root._lastSeenWhenValue) return
-            root._lastSeenChord = chord
-            root._lastSeenWhenKind = whenKind
-            root._lastSeenWhenValue = whenValue
+            const mtime = Number(summary.disk_mtime || 0)
+            if (mtime === 0) return
+            const prev = root._lastSeenDiskMtime
+            if (prev === 0) {
+                // First snapshot for this workflow: adopt without reloading.
+                root._lastSeenDiskMtime = mtime
+                return
+            }
+            if (mtime === prev) return
+            if (root.saveState !== "idle") {
+                // Our own write (or an in-flight edit). Skip the reload,
+                // but adopt the new mtime so we don't re-fire after we
+                // settle back to idle.
+                root._lastSeenDiskMtime = mtime
+                return
+            }
+            root._lastSeenDiskMtime = mtime
             wfCtrl.load(root.workflowId)
         }
     }
@@ -335,16 +343,26 @@ Item {
         case "notify":              shaped = { kind: "notify",   summary: "Notify",            value: act.title,                             rawPrimary: act.title,       editable: true }; break
         case "clipboard":           shaped = { kind: "clipboard",summary: "Copy to clipboard", value: act.text,                              rawPrimary: act.text,        editable: true }; break
         case "note":                shaped = { kind: "note",     summary: "Note",              value: act.text,                              rawPrimary: act.text,        editable: true }; break
-        // Conditionals need a richer editor (cond.kind + name/path/equals);
-        // primary stays read-only and the summary falls back to cond text.
+        // Conditionals: the primary edits the cond's main field
+        // (window name / file path / env name). Mode (when vs unless),
+        // predicate kind, and equals= live in the inspector's
+        // condition section. Branch counts are deliberately absent
+        // here — the canvas renders both branches as wires, so a
+        // textual "1 yes / 1 else" tag was duplicate noise that ran
+        // off the right edge of the inspector's value pill.
         case "repeat":      shaped = { kind: "repeat",  summary: "Repeat", value: act.count + "×, " + (act.steps || []).length + " inner step(s)", rawPrimary: String(act.count), editable: true, intOnly: true, unit: "×" }; break
         case "conditional": {
-            const yesN = (act.steps || []).length
-            const noN = (act.else_steps || []).length
-            const branchSummary = noN > 0
-                ? yesN + " yes / " + noN + " else"
-                : yesN + " inner step(s)"
-            shaped = { kind: act.negate ? "unless" : "when", summary: act.negate ? "Unless" : "When", value: _condSummary(act.cond) + ", " + branchSummary, rawPrimary: "", editable: false }
+            const cond = act.cond || { kind: "window", name: "" }
+            const primary = cond.kind === "file"
+                ? (cond.path || "")
+                : (cond.name || "")
+            shaped = {
+                kind: act.negate ? "unless" : "when",
+                summary: act.negate ? "Unless" : "When",
+                value: _condSummary(cond),
+                rawPrimary: primary,
+                editable: true
+            }
             break
         }
         case "use":         shaped = { kind: "use",     summary: "Use import", value: act.name, rawPrimary: act.name, editable: true }; break
@@ -402,6 +420,26 @@ Item {
             const n = parseInt(newPrimary, 10)
             if (isNaN(n) || n < 1) return oldAction
             out.count = n; break
+        }
+        case "conditional": {
+            // Same field set as the inspector's condition section, but
+            // editable from the top value pill: window/env reuse the
+            // cond's `name`, file routes through `path`. Kind,
+            // negate, and env's `equals` are preserved verbatim so a
+            // top-bar edit doesn't blow them away.
+            const oldCond = oldAction.cond || { kind: "window", name: "" }
+            const k = oldCond.kind || "window"
+            const nextCond = { kind: k }
+            if (k === "file") {
+                nextCond.path = newPrimary
+            } else {
+                nextCond.name = newPrimary
+                if (k === "env" && oldCond.equals !== undefined && oldCond.equals !== null && oldCond.equals !== "") {
+                    nextCond.equals = oldCond.equals
+                }
+            }
+            out.cond = nextCond
+            break
         }
         default: return oldAction
         }
@@ -1180,11 +1218,13 @@ Item {
     onWorkflowIdChanged: {
         _stableIdsEnsured = false
         _positionsLoaded = false
+        _lastSeenDiskMtime = 0
         _reload()
     }
     onFragmentPathChanged: {
         _stableIdsEnsured = false
         _positionsLoaded = false
+        _lastSeenDiskMtime = 0
         _reload()
     }
     Component.onCompleted: _reload()

@@ -167,6 +167,40 @@ pub fn list() -> Result<Vec<Workflow>> {
     Ok(wfs)
 }
 
+/// list() with each workflow's source-file mtime as millis since the
+/// epoch. Hand-edits to a .kdl don't bump the in-file `modified` field
+/// on their own, so callers that want to detect any on-disk change
+/// (the GUI's hot-reload watcher, mostly) compare against the OS mtime
+/// instead. Filesystems without mtime support report None.
+pub fn list_with_mtimes() -> Result<Vec<(Workflow, Option<u128>)>> {
+    let dir = workflows_dir()?;
+    let mut out: Vec<(Workflow, Option<u128>)> = Vec::new();
+    let mut seen_ids: std::collections::HashSet<String> = Default::default();
+    walk_workflow_files(&dir, None, &mut |p, folder| {
+        match load_path(p, false) {
+            Ok(mut wf) => {
+                wf.folder = folder;
+                if !seen_ids.insert(wf.id.clone()) {
+                    return;
+                }
+                let mtime = fs::metadata(p)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| {
+                        t.duration_since(std::time::UNIX_EPOCH).ok()
+                    })
+                    .map(|d| d.as_millis());
+                out.push((wf, mtime));
+            }
+            Err(e) => tracing::warn!(?e, "skipping unreadable workflow {}", p.display()),
+        }
+    })?;
+    out.sort_by(|(a, _), (b, _)| {
+        b.modified.unwrap_or_default().cmp(&a.modified.unwrap_or_default())
+    });
+    Ok(out)
+}
+
 /// Find the .kdl (or legacy .json) path for a workflow id by walking
 /// the workflows tree. Returns None if not found.
 fn find_path(id: &str) -> Result<Option<(PathBuf, Option<String>)>> {

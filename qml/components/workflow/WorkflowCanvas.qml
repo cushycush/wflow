@@ -292,7 +292,7 @@ Item {
                         out.push({ from: i, to: firstYes, label: "yes" })
                     }
                     if (firstNo >= 0) {
-                        out.push({ from: i, to: firstNo, label: "no" })
+                        out.push({ from: i, to: firstNo, label: "else" })
                     }
                     if (nextTop >= 0) {
                         // Direct cond → next-top only when an empty
@@ -303,7 +303,7 @@ Item {
                         } else if (firstYes < 0) {
                             out.push({ from: i, to: nextTop, label: "yes" })
                         } else if (firstNo < 0) {
-                            out.push({ from: i, to: nextTop, label: "no" })
+                            out.push({ from: i, to: nextTop, label: "else" })
                         }
                     }
                     if (lastYes >= 0 && nextTop >= 0) {
@@ -1514,7 +1514,7 @@ Item {
                     Rectangle {
                         readonly property color labelColor: {
                             if (modelData.label === "yes") return Theme.ok
-                            if (modelData.label === "no") return Theme.err
+                            if (modelData.label === "else") return Theme.err
                             return Theme.text2
                         }
                         x: route.sx + (route.tx - route.sx) / 2 - width / 2
