@@ -1946,6 +1946,7 @@ Item {
                 onAddStepAtRequested: (kind, x, y) => root._addStepAt(kind, x, y)
                 onDeleteStepRequested: (i) => root._deleteStep(i)
                 onAddInnerStepRequested: (stepIdx, kind) => root._addInnerStep(stepIdx, kind)
+                onAddElseStepRequested: (stepIdx, kind) => root._addElseStep(stepIdx, kind)
                 onDeleteInnerStepRequested: (stepIdx, innerIdx) => root._deleteInnerStep(stepIdx, innerIdx)
                 onMoveStepToContainerRequested: (fromIdx, toIdx) => root._moveStepToContainer(fromIdx, toIdx)
                 onOpenContainerRequested: (stepIdx) => root.pushCrumb(stepIdx)

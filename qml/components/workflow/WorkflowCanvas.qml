@@ -196,6 +196,7 @@ Item {
     signal addStepAtRequested(string kind, real x, real y)
     signal deleteStepRequested(int index)
     signal addInnerStepRequested(int stepIndex, string kind)
+    signal addElseStepRequested(int stepIndex, string kind)
     signal deleteInnerStepRequested(int stepIndex, int innerIndex)
     signal moveStepToContainerRequested(int fromIndex, int containerIndex)
     signal selectInnerStep(int parentIndex, int innerIndex)
@@ -289,7 +290,7 @@ Item {
                     const nextTop  = nextTopAfter(it._topIdx)
 
                     if (firstYes >= 0) {
-                        out.push({ from: i, to: firstYes, label: "yes" })
+                        out.push({ from: i, to: firstYes, label: "true" })
                     }
                     if (firstNo >= 0) {
                         out.push({ from: i, to: firstNo, label: "else" })
@@ -301,7 +302,7 @@ Item {
                         if (firstYes < 0 && firstNo < 0) {
                             out.push({ from: i, to: nextTop })
                         } else if (firstYes < 0) {
-                            out.push({ from: i, to: nextTop, label: "yes" })
+                            out.push({ from: i, to: nextTop, label: "true" })
                         } else if (firstNo < 0) {
                             out.push({ from: i, to: nextTop, label: "else" })
                         }
@@ -1480,7 +1481,7 @@ Item {
             }
 
             // Wire labels, small pills along the wire that carry a
-            // label (currently "yes" / "no" on conditional branches).
+            // label ("true" / "else" on conditional branches today).
             // Sibling Repeater so the labels paint above the strokes
             // without participating in the dash animation.
             Repeater {
@@ -1513,7 +1514,7 @@ Item {
 
                     Rectangle {
                         readonly property color labelColor: {
-                            if (modelData.label === "yes") return Theme.ok
+                            if (modelData.label === "true") return Theme.ok
                             if (modelData.label === "else") return Theme.err
                             return Theme.text2
                         }
@@ -2076,6 +2077,137 @@ Item {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.openUseRequested(cardItem.stepIdx)
+                            }
+                        }
+
+                        // Conditional cards lay their inner steps out as
+                        // separate canvas cards (one column per branch),
+                        // so the parent doesn't need an inner-zone drop
+                        // target. It does need a way to grow either
+                        // branch from the canvas alone, hence these two
+                        // buttons. Symmetric so the user reads them as
+                        // peers, the wire labels say true / else, and
+                        // the buttons mirror that.
+                        Row {
+                            visible: cardItem.isConditional
+                            width: parent.width
+                            height: 24
+                            spacing: 6
+
+                            Rectangle {
+                                width: (parent.width - parent.spacing) / 2
+                                height: parent.height
+                                radius: 5
+                                color: addTrueArea.containsMouse ? Theme.surface3 : "transparent"
+                                border.color: Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        text: "+"
+                                        color: Theme.ok
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        text: "true"
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.5
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: addTrueArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: addTrueCanvasMenu.popup()
+                                }
+
+                                WfMenu {
+                                    id: addTrueCanvasMenu
+                                    Repeater {
+                                        model: [
+                                            { kind: "key",       label: "Key chord"    },
+                                            { kind: "type",      label: "Type text"    },
+                                            { kind: "click",     label: "Click"        },
+                                            { kind: "focus",     label: "Focus window" },
+                                            { kind: "wait",      label: "Wait"         },
+                                            { kind: "shell",     label: "Shell"        },
+                                            { kind: "notify",    label: "Notify"       },
+                                            { kind: "clipboard", label: "Clipboard"    },
+                                            { kind: "note",      label: "Note"         }
+                                        ]
+                                        delegate: WfMenuItem {
+                                            text: modelData.label
+                                            onTriggered: root.addInnerStepRequested(cardItem.stepIdx, modelData.kind)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: (parent.width - parent.spacing) / 2
+                                height: parent.height
+                                radius: 5
+                                color: addElseArea.containsMouse ? Theme.surface3 : "transparent"
+                                border.color: Theme.lineSoft
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        text: "+"
+                                        color: Theme.err
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        text: "else"
+                                        color: Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 9
+                                        font.letterSpacing: 0.5
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: addElseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: addElseCanvasMenu.popup()
+                                }
+
+                                WfMenu {
+                                    id: addElseCanvasMenu
+                                    Repeater {
+                                        model: [
+                                            { kind: "key",       label: "Key chord"    },
+                                            { kind: "type",      label: "Type text"    },
+                                            { kind: "click",     label: "Click"        },
+                                            { kind: "focus",     label: "Focus window" },
+                                            { kind: "wait",      label: "Wait"         },
+                                            { kind: "shell",     label: "Shell"        },
+                                            { kind: "notify",    label: "Notify"       },
+                                            { kind: "clipboard", label: "Clipboard"    },
+                                            { kind: "note",      label: "Note"         }
+                                        ]
+                                        delegate: WfMenuItem {
+                                            text: modelData.label
+                                            onTriggered: root.addElseStepRequested(cardItem.stepIdx, modelData.kind)
+                                        }
+                                    }
+                                }
                             }
                         }
 
