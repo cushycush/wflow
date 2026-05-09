@@ -91,7 +91,7 @@ Item {
                             readonly property color catColor: Theme.catFor(modelData.kind)
 
                             width: parent.width
-                            height: 34
+                            height: 44
                             // Accent wash on multi-row selection so the range
                             // reads as one band instead of varied catColors.
                             color: {
@@ -126,58 +126,68 @@ Item {
                                 }
                             }
 
-                            // Row geometry: status badge on the left,
-                            // chip filling the middle, action affordances
-                            // pinned to the right (rendered separately
-                            // below, so the chip can stretch under them).
-                            Item {
-                                id: statusBadge
-                                width: 18
-                                height: parent.height
-                                anchors.left: parent.left
+                            Row {
+                                anchors.fill: parent
                                 anchors.leftMargin: 14
-                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.rightMargin: 8
+                                spacing: 10
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: stepRow.status === ""
-                                    text: String(model.index + 1).padStart(2, "0")
-                                    color: stepRow.isActive ? stepRow.catColor : Theme.text3
-                                    font.family: Theme.familyMono
-                                    font.pixelSize: 10
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: stepRow.status !== ""
-                                    text: stepRow.status === "ok"      ? "✓"
-                                        : stepRow.status === "error"   ? "✗"
-                                        : stepRow.status === "skipped" ? "·"
-                                        : ""
-                                    color: stepRow.status === "ok"      ? Theme.ok
-                                         : stepRow.status === "error"   ? Theme.err
-                                         : Theme.text3
-                                    font.family: Theme.familyBody
-                                    font.pixelSize: 13
-                                    font.weight: Font.Bold
-                                }
-                            }
+                                Item {
+                                    width: 18
+                                    height: parent.height
+                                    anchors.verticalCenter: parent.verticalCenter
 
-                            // Library-style chip; same pill + dot +
-                            // abbreviation rules as the canvas hero and
-                            // the library trail. Action affordances are
-                            // rendered as a sibling Row anchored right.
-                            StepChip {
-                                anchors.left: statusBadge.right
-                                anchors.leftMargin: 10
-                                anchors.right: parent.right
-                                anchors.rightMargin: 78
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: modelData.kind
-                                value: modelData.editable
-                                    ? (modelData.rawPrimary || modelData.value || "")
-                                    : (modelData.value || "")
-                                height: 24
-                                fontSize: 10
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: stepRow.status === ""
+                                        text: String(model.index + 1).padStart(2, "0")
+                                        color: stepRow.isActive ? stepRow.catColor : Theme.text3
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: 10
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: stepRow.status !== ""
+                                        text: stepRow.status === "ok"      ? "✓"
+                                            : stepRow.status === "error"   ? "✗"
+                                            : stepRow.status === "skipped" ? "·"
+                                            : ""
+                                        color: stepRow.status === "ok"      ? Theme.ok
+                                             : stepRow.status === "error"   ? Theme.err
+                                             : Theme.text3
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: 13
+                                        font.weight: Font.Bold
+                                    }
+                                }
+                                CategoryIcon {
+                                    kind: modelData.kind
+                                    size: 22
+                                    hovered: rowArea.containsMouse
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Column {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 18 - 10 - 22 - 10 - 70
+                                    spacing: 1
+                                    Text {
+                                        text: modelData.summary
+                                        color: Theme.text
+                                        font.family: Theme.familyBody
+                                        font.pixelSize: Theme.fontSm
+                                        font.weight: stepRow.isSelected ? Font.DemiBold : Font.Medium
+                                        elide: Text.ElideRight
+                                        width: parent.width
+                                    }
+                                    Text {
+                                        text: modelData.value
+                                        color: Theme.text3
+                                        font.family: Theme.familyMono
+                                        font.pixelSize: 10
+                                        elide: Text.ElideRight
+                                        width: parent.width
+                                    }
+                                }
                             }
 
                             Rectangle {
