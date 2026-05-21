@@ -205,6 +205,8 @@ Item {
     signal optionEdited(int stepIndex, string path, var value)
     signal predecessorChosen(int stepIndex, int otherIndex)
     signal successorChosen(int stepIndex, int otherIndex)
+    signal copyStepAsKdlRequested(int stepIndex)
+    signal pasteKdlRequested()
 
     readonly property int nodeW: 260
     readonly property int containerW: 360
@@ -2531,6 +2533,15 @@ Item {
                         WfMenuItem {
                             text: "Set predecessor / successor…"
                             onTriggered: rewireMenu.popup()
+                        }
+                        MenuSeparator {}
+                        WfMenuItem {
+                            text: "Copy as KDL"
+                            onTriggered: root.copyStepAsKdlRequested(cardItem.stepIdx)
+                        }
+                        WfMenuItem {
+                            text: "Paste KDL"
+                            onTriggered: root.pasteKdlRequested()
                         }
                         MenuSeparator {}
                         WfMenuItem {

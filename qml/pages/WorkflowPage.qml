@@ -708,6 +708,132 @@ Item {
         editorContent._clearSelection()
     }
 
+    // ---- Copy / Paste as KDL ----
+    //
+    // Selection → KDL fragment → system clipboard, and back. The same
+    // text is what `wflow daemon` parses on disk and what wflows.io
+    // exchanges, so a snippet copied from the canvas pastes cleanly
+    // into a chat / README / GitHub issue and back.
+
+    function _withFreshIds(step) {
+        const out = JSON.parse(JSON.stringify(step))
+        out.id = _uuid()
+        if (out.action) {
+            if (Array.isArray(out.action.steps)) {
+                out.action.steps = out.action.steps.map(_withFreshIds)
+            }
+            if (Array.isArray(out.action.else_steps)) {
+                out.action.else_steps = out.action.else_steps.map(_withFreshIds)
+            }
+        }
+        return out
+    }
+
+    function _stepsForIndices(indices) {
+        const acts = root.actions || []
+        const steps = root._currentSteps
+        // First pass: which top-level conditionals are themselves
+        // selected? Their inner cards are already part of the parent's
+        // step tree, so a duplicate selection of an inner would copy
+        // it twice.
+        const selectedTopIdxs = new Set()
+        for (const i of indices) {
+            const meta = acts[i]
+            if (meta && meta._displayKind === "top") selectedTopIdxs.add(meta._topIdx)
+        }
+        const collected = []
+        const seen = new Set()
+        for (const i of indices) {
+            if (i >= acts.length) continue
+            const meta = acts[i]
+            if (!meta) continue
+            let key, step
+            if (meta._displayKind === "inner") {
+                if (selectedTopIdxs.has(meta._parentTopIdx)) continue
+                const parent = steps[meta._parentTopIdx]
+                const branchKey = meta._branchSide === "no" ? "else_steps" : "steps"
+                const innerSteps = parent && parent.action ? parent.action[branchKey] : null
+                if (!Array.isArray(innerSteps)) continue
+                step = innerSteps[meta._innerIdx]
+                key = "inner:" + meta._parentTopIdx + ":" + meta._branchSide + ":" + meta._innerIdx
+            } else {
+                step = steps[meta._topIdx]
+                key = "top:" + meta._topIdx
+            }
+            if (!step || seen.has(key)) continue
+            seen.add(key)
+            collected.push(step)
+        }
+        return collected
+    }
+
+    function _collectSelectedSteps() {
+        const indices = Object.keys(editorContent.selectedIndices)
+            .map(Number)
+            .filter(n => Number.isInteger(n) && n >= 0)
+            .sort((a, b) => a - b)
+        return _stepsForIndices(indices)
+    }
+
+    function _copyStepsByIndicesAsKdl(indices) {
+        const collected = _stepsForIndices(indices)
+        if (collected.length === 0) return false
+        return wfCtrl.copy_steps_to_clipboard(JSON.stringify(collected))
+    }
+
+    function _copySelectionAsKdl() {
+        const collected = _collectSelectedSteps()
+        if (collected.length === 0) return false
+        return wfCtrl.copy_steps_to_clipboard(JSON.stringify(collected))
+    }
+
+    // Right-click on a card. Mirror VS Code: if the right-clicked card
+    // is part of the current selection, copy the whole selection;
+    // otherwise treat the right-click as the selection.
+    function _copyMenuTarget(stepIndex) {
+        const sel = editorContent.selectedIndices || {}
+        if (sel[stepIndex]) return _copySelectionAsKdl()
+        return _copyStepsByIndicesAsKdl([stepIndex])
+    }
+
+    function _pasteKdlIntoCurrent() {
+        const json = wfCtrl.paste_steps_from_clipboard()
+        // Empty return = empty clipboard or parse failed; bridge sets
+        // last_error on the parse-failed path.
+        if (!json || json.length === 0) return false
+        let pasted
+        try { pasted = JSON.parse(json) } catch (e) { return false }
+        if (!Array.isArray(pasted) || pasted.length === 0) return false
+        const wf = JSON.parse(JSON.stringify(root.workflow))
+        const target = _stepsAtCrumb(wf)
+        if (!target) return false
+        const newIds = []
+        for (const step of pasted) {
+            const fresh = _withFreshIds(step)
+            target.push(fresh)
+            newIds.push(fresh.id)
+        }
+        root.workflow = wf
+        // Reselect the freshly inserted top-level cards so the user
+        // sees what landed.
+        Qt.callLater(() => {
+            const acts = root.actions || []
+            const next = {}
+            let lastIdx = -1
+            for (let i = 0; i < acts.length; i++) {
+                const a = acts[i]
+                if (a && a._displayKind === "top" && newIds.indexOf(a.id) >= 0) {
+                    next[i] = true
+                    lastIdx = i
+                }
+            }
+            editorContent.selectedIndices = next
+            editorContent.selectedIndex = lastIdx
+        })
+        _scheduleSave()
+        return true
+    }
+
     function _makePredecessorOf(stepIdx, otherIdx) {
         if (stepIdx < 0 || otherIdx < 0 || otherIdx === stepIdx) return
         const target = otherIdx < stepIdx ? stepIdx - 1 : stepIdx
@@ -1290,6 +1416,21 @@ Item {
             editorContent.selectedIndices = next
             editorContent.selectedIndex = n > 0 ? n - 1 : -1
         }
+    }
+
+    // Focused TextFields claim the StandardKey first, so these only
+    // fire when the canvas / step rail has focus, exactly when the
+    // user means "copy this step" rather than "copy the text I'm
+    // editing."
+    Shortcut {
+        sequence: StandardKey.Copy
+        enabled: root.visible && editorContent.selectedCount > 0
+        onActivated: root._copySelectionAsKdl()
+    }
+    Shortcut {
+        sequence: StandardKey.Paste
+        enabled: root.visible
+        onActivated: root._pasteKdlIntoCurrent()
     }
 
     function _reload() {
@@ -1972,6 +2113,8 @@ Item {
                 onOptionEdited: (stepIdx, path, value) => root._commitOption(stepIdx, path, value)
                 onPredecessorChosen: (stepIdx, otherIdx) => root._makePredecessorOf(stepIdx, otherIdx)
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
+                onCopyStepAsKdlRequested: (stepIdx) => root._copyMenuTarget(stepIdx)
+                onPasteKdlRequested: () => root._pasteKdlIntoCurrent()
             }
 
             // Anchored to canvasView (not inside its Flickable) so

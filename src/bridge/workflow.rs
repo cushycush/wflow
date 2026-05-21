@@ -51,6 +51,31 @@ pub mod qobject {
         #[qinvokable]
         fn save(self: Pin<&mut WorkflowController>, json: QString) -> QString;
 
+        /// Encode a JSON array of steps as a KDL fragment string.
+        /// Strips editor-only `_id`s. "" on bad json.
+        #[qinvokable]
+        fn steps_to_kdl(self: Pin<&mut WorkflowController>, steps_json: QString) -> QString;
+
+        /// Parse a KDL fragment string into a JSON array of steps.
+        /// "" on parse failure (sets `last_error`).
+        #[qinvokable]
+        fn steps_from_kdl(self: Pin<&mut WorkflowController>, kdl: QString) -> QString;
+
+        /// Encode a step list and write it to the system clipboard
+        /// (arboard, wlr-data-control with X11 fallback). Returns true
+        /// on success. Lets QML do copy without the hidden-TextEdit
+        /// kludge that grabs focus.
+        #[qinvokable]
+        fn copy_steps_to_clipboard(
+            self: Pin<&mut WorkflowController>,
+            steps_json: QString,
+        ) -> bool;
+
+        /// Read the system clipboard and parse as a KDL fragment.
+        /// Returns step JSON on success, "" otherwise.
+        #[qinvokable]
+        fn paste_steps_from_clipboard(self: Pin<&mut WorkflowController>) -> QString;
+
         /// Writes the steps array from the synthetic-workflow JSON back
         /// to the fragment file. Drops id / title / imports etc.
         /// Returns the path on success, "" on failure.
@@ -134,6 +159,13 @@ pub struct WorkflowControllerRust {
     pending_trust: Option<PendingTrust>,
     pending_debug: bool,
     debug_tx: Option<tokio::sync::mpsc::Sender<engine::DebugCommand>>,
+    /// Long-lived clipboard handle. On X11 the process owns the
+    /// selection only while a `Clipboard` is alive; opening a fresh
+    /// one per copy and dropping it immediately races the clipboard
+    /// manager and trips arboard's "request timed out" warning.
+    /// Lazy so a clipboard-less env (CI, headless build) doesn't
+    /// fail to construct the controller.
+    clipboard: Option<arboard::Clipboard>,
 }
 
 struct PendingTrust {
@@ -154,6 +186,7 @@ impl Default for WorkflowControllerRust {
             pending_trust: None,
             pending_debug: false,
             debug_tx: None,
+            clipboard: None,
         }
     }
 }
@@ -322,6 +355,93 @@ impl qobject::WorkflowController {
                 QString::from("")
             }
         }
+    }
+
+    fn steps_to_kdl(mut self: Pin<&mut Self>, steps_json: QString) -> QString {
+        let text: String = steps_json.to_string();
+        let mut steps: Vec<crate::actions::Step> = match serde_json::from_str(&text) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(?e, "steps_to_kdl: bad json");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("copy as kdl: bad steps json: {e}")));
+                return QString::from("");
+            }
+        };
+        // _id keys into the per-workflow positions sidecar; meaningless
+        // outside this editor's local state, and noise in a snippet
+        // shared via chat / a README.
+        for step in &mut steps {
+            strip_editor_ids(step);
+        }
+        let body = kdl_format::encode_fragment(&steps);
+        self.as_mut().set_last_error(QString::from(""));
+        QString::from(&body)
+    }
+
+    fn steps_from_kdl(mut self: Pin<&mut Self>, kdl: QString) -> QString {
+        let text: String = kdl.to_string();
+        match kdl_format::decode_fragment_str(&text) {
+            Ok(steps) => {
+                let json = serde_json::to_string(&steps).unwrap_or_else(|_| "[]".into());
+                self.as_mut().set_last_error(QString::from(""));
+                QString::from(&json)
+            }
+            Err(e) => {
+                tracing::warn!(?e, "steps_from_kdl: parse failed");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("paste kdl: {e:#}")));
+                QString::from("")
+            }
+        }
+    }
+
+    fn copy_steps_to_clipboard(mut self: Pin<&mut Self>, steps_json: QString) -> bool {
+        use cxx_qt::CxxQtType;
+        let kdl = self.as_mut().steps_to_kdl(steps_json);
+        let text: String = kdl.to_string();
+        if text.is_empty() {
+            return false;
+        }
+        let result = clipboard_handle(self.as_mut().rust_mut().get_mut())
+            .and_then(|cb| cb.set_text(text).map_err(anyhow::Error::from));
+        match result {
+            Ok(()) => {
+                self.as_mut().set_last_error(QString::from(""));
+                true
+            }
+            Err(e) => {
+                tracing::warn!(?e, "copy_steps_to_clipboard failed");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("copy as kdl: {e:#}")));
+                false
+            }
+        }
+    }
+
+    fn paste_steps_from_clipboard(mut self: Pin<&mut Self>) -> QString {
+        use cxx_qt::CxxQtType;
+        let text_result: anyhow::Result<String> =
+            clipboard_handle(self.as_mut().rust_mut().get_mut()).and_then(|cb| {
+                match cb.get_text() {
+                    Ok(s) => Ok(s),
+                    Err(arboard::Error::ContentNotAvailable) => Ok(String::new()),
+                    Err(e) => Err(anyhow::Error::from(e)),
+                }
+            });
+        let text = match text_result {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(?e, "paste_steps_from_clipboard failed");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("paste kdl: {e:#}")));
+                return QString::from("");
+            }
+        };
+        if text.trim().is_empty() {
+            return QString::from("");
+        }
+        self.as_mut().steps_from_kdl(QString::from(&text))
     }
 
     fn run(mut self: Pin<&mut Self>) {
@@ -554,6 +674,101 @@ impl qobject::WorkflowController {
                 }
             });
         })
+    }
+}
+
+#[cfg(test)]
+mod strip_ids_tests {
+    use super::strip_editor_ids;
+    use crate::actions::{Action, Condition, Step};
+
+    #[test]
+    fn clears_top_and_nested_ids() {
+        let mut s = Step {
+            id: "top-id".into(),
+            enabled: true,
+            on_error: Default::default(),
+            note: None,
+            action: Action::Conditional {
+                cond: Condition::Window { name: "Firefox".into() },
+                negate: false,
+                steps: vec![Step {
+                    id: "yes-id".into(),
+                    enabled: true,
+                    on_error: Default::default(),
+                    note: None,
+                    action: Action::Note { text: "in yes".into() },
+                }],
+                else_steps: vec![Step {
+                    id: "no-id".into(),
+                    enabled: true,
+                    on_error: Default::default(),
+                    note: None,
+                    action: Action::Repeat {
+                        count: 2,
+                        steps: vec![Step {
+                            id: "deep-id".into(),
+                            enabled: true,
+                            on_error: Default::default(),
+                            note: None,
+                            action: Action::Note { text: "deep".into() },
+                        }],
+                    },
+                }],
+            },
+        };
+        strip_editor_ids(&mut s);
+        assert!(s.id.is_empty());
+        if let Action::Conditional { steps, else_steps, .. } = &s.action {
+            assert!(steps[0].id.is_empty());
+            assert!(else_steps[0].id.is_empty());
+            if let Action::Repeat { steps: inner, .. } = &else_steps[0].action {
+                assert!(inner[0].id.is_empty());
+            } else {
+                panic!("expected Repeat in else");
+            }
+        } else {
+            panic!("expected Conditional");
+        }
+    }
+}
+
+/// Lazy accessor for the controller's persistent `arboard::Clipboard`.
+/// On X11 the Clipboard owns the selection, so dropping it between
+/// calls hands ownership back before a clipboard manager has a chance
+/// to mirror the contents (the symptom is arboard's "request timed
+/// out" warning). Holding one for the controller's lifetime fixes it
+/// without needing the SetLinuxExt/wait dance.
+fn clipboard_handle(rust: &mut WorkflowControllerRust) -> anyhow::Result<&mut arboard::Clipboard> {
+    use anyhow::Context;
+    if rust.clipboard.is_none() {
+        rust.clipboard =
+            Some(arboard::Clipboard::new().context("open system clipboard")?);
+    }
+    Ok(rust.clipboard.as_mut().unwrap())
+}
+
+/// Recursively clear `step.id` so a clipboard/snippet copy carries no
+/// editor-local state. Inner steps of `repeat` and `when`/`unless` get
+/// the same treatment.
+fn strip_editor_ids(step: &mut crate::actions::Step) {
+    use crate::actions::Action;
+    step.id.clear();
+    match &mut step.action {
+        Action::Repeat { steps, .. } => {
+            for s in steps {
+                strip_editor_ids(s);
+            }
+        }
+        Action::Conditional { steps, else_steps, .. } => {
+            for s in steps {
+                strip_editor_ids(s);
+            }
+            for s in else_steps {
+                strip_editor_ids(s);
+            }
+        }
+        _ => {}
     }
 }
 

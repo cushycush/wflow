@@ -40,6 +40,15 @@ ctrlc = "3"
 notify = "8"
 sha2 = "0.10"
 toml = "0.9"
+# Cross-platform system clipboard (X11, Wayland, macOS, Windows) for
+# the editor's Copy-as-KDL / Paste-as-KDL. Image features off, text
+# only. `wayland-data-control` is Linux-only and pulls in
+# wl-clipboard-rs so we prefer wlr-data-control with X11 fallback;
+# without it arboard ends up X11-only and silently no-ops on
+# Wayland-native sessions. The engine's Clipboard action still
+# shells to `wl-copy` from its tokio context; consolidating those is
+# its own follow-up.
+arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 
 # HTTP client for the wflows.io v0 catalog API. rustls so we don't
 # pull a system OpenSSL into a Qt app's runtime; gzip so the public
