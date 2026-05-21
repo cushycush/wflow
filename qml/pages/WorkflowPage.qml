@@ -796,10 +796,9 @@ Item {
         return _copyStepsByIndicesAsKdl([stepIndex])
     }
 
-    function _pasteKdlIntoCurrent() {
-        const json = wfCtrl.paste_steps_from_clipboard()
-        // Empty return = empty clipboard or parse failed; bridge sets
-        // last_error on the parse-failed path.
+    function _insertKdlJsonIntoCurrent(json) {
+        // Empty / non-array / empty-array all mean "nothing to insert,"
+        // bridge has already set last_error if it was a parse failure.
         if (!json || json.length === 0) return false
         let pasted
         try { pasted = JSON.parse(json) } catch (e) { return false }
@@ -832,6 +831,25 @@ Item {
         })
         _scheduleSave()
         return true
+    }
+
+    function _pasteKdlIntoCurrent() {
+        return _insertKdlJsonIntoCurrent(wfCtrl.paste_steps_from_clipboard())
+    }
+
+    function _importKdlFileIntoCurrent(localPath) {
+        return _insertKdlJsonIntoCurrent(wfCtrl.steps_from_kdl_path(localPath))
+    }
+
+    // Qt's DropArea hands URLs over as `file://...` with percent-encoded
+    // path bytes. Strip the scheme, decodeURIComponent the rest, hand
+    // a plain path to the bridge.
+    function _localPathFromDropUrl(url) {
+        const s = (url + "").trim()
+        if (!s) return ""
+        const stripped = s.replace(/^file:\/\//, "")
+        try { return decodeURIComponent(stripped) }
+        catch (e) { return stripped }
     }
 
     function _makePredecessorOf(stepIdx, otherIdx) {
@@ -2115,6 +2133,52 @@ Item {
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
                 onCopyStepAsKdlRequested: (stepIdx) => root._copyMenuTarget(stepIdx)
                 onPasteKdlRequested: () => root._pasteKdlIntoCurrent()
+            }
+
+            // External file drop, scoped to the canvas. A `.kdl` dropped
+            // from a file manager parses through the same path the
+            // clipboard paste uses and lands at the current crumb.
+            // Disabled in fragmentMode (read-only `use` view).
+            DropArea {
+                id: canvasKdlDrop
+                anchors.fill: canvasView
+                visible: canvasView.visible && !root.fragmentMode
+                enabled: visible
+                z: canvasView.z + 1
+                onEntered: (drag) => {
+                    const urls = drag.urls || []
+                    let any = false
+                    for (let i = 0; i < urls.length; i++) {
+                        if ((urls[i] + "").toLowerCase().endsWith(".kdl")) {
+                            any = true
+                            break
+                        }
+                    }
+                    if (!any) drag.accepted = false
+                }
+                onDropped: (drop) => {
+                    const urls = drop.urls || []
+                    let imported = 0
+                    for (let i = 0; i < urls.length; i++) {
+                        const url = urls[i] + ""
+                        if (!url.toLowerCase().endsWith(".kdl")) continue
+                        const local = root._localPathFromDropUrl(url)
+                        if (root._importKdlFileIntoCurrent(local)) imported++
+                    }
+                    if (imported > 0) drop.accept()
+                }
+
+                // Coral wash + accent border while a valid drag hovers,
+                // same shape as a selected card so the affordance reads
+                // as part of the existing visual language.
+                Rectangle {
+                    anchors.fill: parent
+                    color: parent.containsDrag ? Theme.accentWash(0.18) : "transparent"
+                    border.color: parent.containsDrag ? Theme.accent : "transparent"
+                    border.width: parent.containsDrag ? 2 : 0
+                    radius: Theme.radiusMd
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                }
             }
 
             // Anchored to canvasView (not inside its Flickable) so

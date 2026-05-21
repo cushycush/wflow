@@ -76,6 +76,14 @@ pub mod qobject {
         #[qinvokable]
         fn paste_steps_from_clipboard(self: Pin<&mut WorkflowController>) -> QString;
 
+        /// Read a `.kdl` file from disk and parse it as a KDL fragment.
+        /// Accepts a plain path or a `file://` URL. Returns step JSON
+        /// on success, "" otherwise. Used by the canvas's drag-and-drop
+        /// import path so a `.kdl` dropped from a file manager lands
+        /// in the current workflow the same way a paste does.
+        #[qinvokable]
+        fn steps_from_kdl_path(self: Pin<&mut WorkflowController>, path: QString) -> QString;
+
         /// Writes the steps array from the synthetic-workflow JSON back
         /// to the fragment file. Drops id / title / imports etc.
         /// Returns the path on success, "" on failure.
@@ -435,6 +443,33 @@ impl qobject::WorkflowController {
                 tracing::warn!(?e, "paste_steps_from_clipboard failed");
                 self.as_mut()
                     .set_last_error(QString::from(&format!("paste kdl: {e:#}")));
+                return QString::from("");
+            }
+        };
+        if text.trim().is_empty() {
+            return QString::from("");
+        }
+        self.as_mut().steps_from_kdl(QString::from(&text))
+    }
+
+    fn steps_from_kdl_path(mut self: Pin<&mut Self>, path: QString) -> QString {
+        let raw: String = path.to_string();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            self.as_mut()
+                .set_last_error(QString::from("import kdl: empty path"));
+            return QString::from("");
+        }
+        // Caller (QML DropArea) is expected to hand over a plain path,
+        // not a `file://` URL. URL-to-path decoding lives in the QML
+        // side so we don't have to drag a percent-decoder into the
+        // bridge for one use.
+        let text = match std::fs::read_to_string(trimmed) {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(?e, path = %trimmed, "steps_from_kdl_path: read failed");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("import kdl: {e}")));
                 return QString::from("");
             }
         };
