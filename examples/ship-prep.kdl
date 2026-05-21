@@ -1,0 +1,27 @@
+// "ship prep", the quick once-over before you push a branch.
+//
+// Runs git status and a diff-stat so you can eyeball what's about to
+// ship, warns if you're still mid-merge, drops "Closes #" onto the
+// clipboard so you can paste it into the PR body, and pops Firefox
+// to the front. The reddit-demo version: add a notify at the end and
+// bind it to a chord (super+shift+p) so the whole thing is one
+// keystroke.
+//
+// Showcases: note, shell, when file=, clipboard, focus.
+
+workflow "ship prep" {
+    subtitle "the quick once-over before you push"
+
+    note "before you push"
+
+    shell "git status --short"
+    shell "git diff --stat origin/main...HEAD"
+
+    when file=".git/MERGE_MSG" {
+        notify "still mid-merge" body="resolve before you push"
+    }
+
+    clipboard "Closes #"
+
+    focus "firefox"
+}
