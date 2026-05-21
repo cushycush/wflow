@@ -17,8 +17,8 @@ mod imports;
 pub use decode::decode;
 pub use encode::{encode, encode_fragment};
 pub use imports::{
-    decode_fragment_file, decode_from_file, decode_from_file_authored, expand_imports_in_place,
-    resolve_import_path,
+    decode_fragment_file, decode_fragment_str, decode_from_file, decode_from_file_authored,
+    expand_imports_in_place, resolve_import_path,
 };
 
 /// "250ms" / "1.5s" / "2m" / "1h". A bare number is milliseconds.
@@ -1182,6 +1182,38 @@ when window="Firefox" {
             }
             _ => panic!("expected Conditional at index 3"),
         }
+    }
+
+    #[test]
+    fn fragment_decode_str_parses_chat_snippet() {
+        // A snippet someone pasted from chat / a README / a wflows.io
+        // page. No file involved.
+        let snippet = r#"note "first"
+shell "echo hi"
+when window="Firefox" {
+    key "ctrl+l"
+}
+"#;
+        let steps = decode_fragment_str(snippet).unwrap();
+        assert_eq!(steps.len(), 3);
+        // Re-encode and re-parse to confirm the same shape rides back
+        // through the string API.
+        let re = encode_fragment(&steps);
+        let steps2 = decode_fragment_str(&re).unwrap();
+        assert_eq!(steps2.len(), 3);
+        match &steps2[2].action {
+            Action::Conditional { steps: inner, .. } => {
+                assert_eq!(inner.len(), 1);
+            }
+            _ => panic!("expected Conditional at index 2"),
+        }
+    }
+
+    #[test]
+    fn fragment_decode_str_rejects_garbage_with_context() {
+        let err = decode_fragment_str("not actually kdl {{{").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("parse kdl fragment"), "got: {msg}");
     }
 
     #[test]

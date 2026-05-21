@@ -49,15 +49,18 @@ pub fn expand_imports_in_place(
 pub fn decode_fragment_file(path: &std::path::Path) -> Result<Vec<Step>> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("read {}", path.display()))?;
-    let doc: KdlDocument = text
-        .parse()
-        .with_context(|| format!("parse {}", path.display()))?;
+    decode_fragment_str(&text)
+        .with_context(|| format!("parse {}", path.display()))
+}
+
+/// String form of `decode_fragment_file`. Used by the editor for
+/// clipboard paste so a chat snippet of bare step nodes round-trips
+/// back into the canvas.
+pub fn decode_fragment_str(text: &str) -> Result<Vec<Step>> {
+    let doc: KdlDocument = text.parse().context("parse kdl fragment")?;
     let mut steps = Vec::new();
     for node in doc.nodes() {
-        steps.push(
-            decode_step(node)
-                .with_context(|| format!("in fragment {}", path.display()))?,
-        );
+        steps.push(decode_step(node).context("in kdl fragment")?);
     }
     Ok(steps)
 }
