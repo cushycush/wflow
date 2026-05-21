@@ -72,6 +72,39 @@ cmake --build build
 
 Plain commit messages, no `Co-Authored-By: Claude` trailers (global pref).
 
+## Jira is the live planning layer
+
+Project tracking lives in Jira (WFLOW project at cushycush.atlassian.net),
+alongside Drift's DRIFT project on the same site. `BACKLOG.md` and
+`README.md`'s roadmap section are the design-doc layer; Jira holds the
+live status. Three tiers: Epic > Task (umbrella) > Subtask.
+
+The agent loop:
+
+1. Run `python3 scripts/jira/seed.py lookup <path>` before starting work
+   on a file. First matching glob in `scripts/jira/area-map.json` is the
+   canonical ticket.
+2. Transition to In Progress when work starts: `seed.py start WFLOW-XX
+   --comment "what you're about to do"`.
+3. Comment as you go via `seed.py comment WFLOW-XX "..."` when scope
+   changes or follow-ups surface.
+4. Transition to Done when the leaf is finished: `seed.py done WFLOW-XX
+   --comment "shipped in <commit>"`.
+5. Carry the key on each commit as a `Refs: WFLOW-XX` or `Closes:
+   WFLOW-XX` trailer. The post-commit hook posts the commit subject as
+   a comment and transitions `Closes:` tickets to Done. Cross-project
+   refs (`Refs: DRIFT-72`) also land on the right ticket.
+
+Full reference at `scripts/jira/README.md`. Credentials live at
+`~/.config/jira/env` (chmod 600), shared with drift's tooling.
+
+## Active session state
+
+`ACTIVE.md` at the repo root is the session-handoff doc, updated at every
+smoke-test point or anywhere we might lose the session. Pair it with
+`BACKLOG.md` for longer-lived planning. Fresh sessions should read it
+before doing anything that might step on in-flight work.
+
 ## Design Context
 
 ### Users

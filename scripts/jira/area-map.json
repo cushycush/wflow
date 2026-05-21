@@ -1,0 +1,157 @@
+[
+  {
+    "glob": "src/kdl_format/**",
+    "key": "WFLOW-11",
+    "label": "KDL serialization"
+  },
+  {
+    "glob": "src/engine.rs",
+    "key": "WFLOW-10",
+    "label": "Engine runner & flow control"
+  },
+  {
+    "glob": "src/actions.rs",
+    "key": "WFLOW-9",
+    "label": "Actions"
+  },
+  {
+    "glob": "src/recorder.rs",
+    "key": "WFLOW-12",
+    "label": "Recorder"
+  },
+  {
+    "glob": "src/security.rs",
+    "key": "WFLOW-13",
+    "label": "Trust & sandbox"
+  },
+  {
+    "glob": "src/store.rs",
+    "key": "WFLOW-16",
+    "label": "Library & folders"
+  },
+  {
+    "glob": "src/bridge/library.rs",
+    "key": "WFLOW-16",
+    "label": "Library & folders"
+  },
+  {
+    "glob": "src/daemon_*.rs",
+    "key": "WFLOW-3",
+    "label": "Daemon epic (fallback)"
+  },
+  {
+    "glob": "src/catalog.rs",
+    "key": "WFLOW-4",
+    "label": "Catalog & Explore epic (fallback)"
+  },
+  {
+    "glob": "src/bridge/explore.rs",
+    "key": "WFLOW-4",
+    "label": "Catalog & Explore epic (fallback)"
+  },
+  {
+    "glob": "src/scheme_handler.rs",
+    "key": "WFLOW-33",
+    "label": "Scheme handler"
+  },
+  {
+    "glob": "src/cli/**",
+    "key": "WFLOW-31",
+    "label": "Subcommands"
+  },
+  {
+    "glob": "src/bridge/workflow.rs",
+    "key": "WFLOW-2",
+    "label": "Editor epic (bridge fallback)"
+  },
+  {
+    "glob": "qml/components/workflow/WorkflowCanvas.qml",
+    "key": "WFLOW-14",
+    "label": "Canvas"
+  },
+  {
+    "glob": "qml/components/workflow/**",
+    "key": "WFLOW-14",
+    "label": "Canvas (fallback)"
+  },
+  {
+    "glob": "qml/components/library/**",
+    "key": "WFLOW-16",
+    "label": "Library & folders"
+  },
+  {
+    "glob": "qml/components/inspector/**",
+    "key": "WFLOW-15",
+    "label": "Inspector & step palette"
+  },
+  {
+    "glob": "qml/components/explore/**",
+    "key": "WFLOW-26",
+    "label": "Detail drawer"
+  },
+  {
+    "glob": "qml/components/tutorial/**",
+    "key": "WFLOW-17",
+    "label": "Tutorial & first-run"
+  },
+  {
+    "glob": "qml/pages/WorkflowPage.qml",
+    "key": "WFLOW-2",
+    "label": "Editor epic (page-level fallback)"
+  },
+  {
+    "glob": "qml/pages/LibraryPage.qml",
+    "key": "WFLOW-16",
+    "label": "Library & folders"
+  },
+  {
+    "glob": "qml/pages/ExplorePage.qml",
+    "key": "WFLOW-4",
+    "label": "Catalog & Explore epic (fallback)"
+  },
+  {
+    "glob": "qml/pages/SettingsPage.qml",
+    "key": "WFLOW-2",
+    "label": "Editor epic (settings fallback)"
+  },
+  {
+    "glob": "qml/Theme.qml",
+    "key": "WFLOW-36",
+    "label": "Tokens & design system"
+  },
+  {
+    "glob": "qml/**",
+    "key": "WFLOW-2",
+    "label": "Editor epic (qml fallback)"
+  },
+  {
+    "glob": "packaging/aur/**",
+    "key": "WFLOW-32",
+    "label": "Packaging"
+  },
+  {
+    "glob": "packaging/flatpak/**",
+    "key": "WFLOW-32",
+    "label": "Packaging"
+  },
+  {
+    "glob": "packaging/**",
+    "key": "WFLOW-32",
+    "label": "Packaging (fallback)"
+  },
+  {
+    "glob": "examples/**",
+    "key": "WFLOW-19",
+    "label": "KDL clipboard / examples"
+  },
+  {
+    "glob": "scripts/jira/**",
+    "key": "WFLOW-8",
+    "label": "Drift integration (jira tooling)"
+  },
+  {
+    "glob": "src/**",
+    "key": "WFLOW-1",
+    "label": "Engine epic (src fallback)"
+  }
+]
