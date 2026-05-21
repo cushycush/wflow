@@ -258,7 +258,7 @@ full man page is `wflow man` (one page per subcommand if you pass
   GitHub Actions release flow.
 - **v0.5.0**: Two brand skins (Warm Paper / Cool Slate), full light +
   dark coverage, first-run picker, switcher in Settings.
-- **v0.6.0**: Conditionals get a real false branch. `when` / `unless`
+- **v0.6.0**: Conditionals get a false branch. `when` / `unless`
   accept an `else { ... }` block; canvas draws the no-side as a
   parallel column or row across every layout.
 - **v0.7.0**: Trigger daemon. `wflow daemon` binds keyboard chords
