@@ -57,6 +57,8 @@ FocusScope {
     })
 
     function _resolvedSteps() {
+        // Live detail: full kdlSource-parsed shape, what the engine
+        // would run on import.
         if (root.detail && root.detail.steps && root.detail.steps.length > 0) {
             return root.detail.steps.map((s, i) => ({
                 kind: s.kind,
@@ -68,6 +70,25 @@ FocusScope {
                 nestedElse: s.nestedElse || []
             }))
         }
+        // Catalog row's per-step `trail` ([{kind, value}, ...]). Carries
+        // the values the API server pre-shaped for the list view, so
+        // the drawer's loading-window render matches what the user
+        // already saw on the card instead of swapping to fabricated
+        // strings and back.
+        if (root.wf && root.wf.trail && root.wf.trail.length > 0) {
+            return root.wf.trail.map(t => ({
+                kind: t.kind,
+                summary: root.kindSummary[t.kind] || t.kind,
+                value: t.value || "",
+                note: "",
+                details: [],
+                nested: [],
+                nestedElse: []
+            }))
+        }
+        // No live detail, no trail: synthesize one row per unique kind
+        // off `_kindSamples`. Hit by mock fixture rows and by live rows
+        // whose API response is missing actionTypes entirely.
         if (!root.wf || !root.wf.kinds) return []
         const seen = ({})
         const out = []
@@ -88,9 +109,15 @@ FocusScope {
         return out
     }
 
-    // Drives the "preview" banner above the step list.
+    // Live detail has full fidelity; trail still has per-step values
+    // from the catalog. Only the all-mock kindSamples fallback is what
+    // the "Preview only" banner is warning about.
+    readonly property bool _hasLiveSteps:
+        root.detail && root.detail.steps && root.detail.steps.length > 0
+    readonly property bool _hasTrail:
+        root.wf && root.wf.trail && root.wf.trail.length > 0
     readonly property bool _isPreviewFallback:
-        !(root.detail && root.detail.steps && root.detail.steps.length > 0)
+        !root._hasLiveSteps && !root._hasTrail
 
     function _formatStamp(prefix, iso) {
         if (!iso || iso.length === 0) return ""
@@ -423,7 +450,7 @@ FocusScope {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 12
                             anchors.rightMargin: 12
-                            text: "Preview only, sample values shown. Install the workflow to see the actual KDL."
+                            text: "Preview only, sample values shown. Install the workflow to see its full kdl."
                             color: Theme.text3
                             font.family: Theme.familyBody
                             font.pixelSize: Theme.fontXs
