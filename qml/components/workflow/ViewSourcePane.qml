@@ -30,22 +30,29 @@ Item {
     // the upstream rebind so each keystroke doesn't snap the cursor
     // back to position 0. Flips false on focus-loss; the binding then
     // re-applies with the canonical, fully-highlighted source. The
-    // pane also flips the body's textFormat to PlainText while editing
-    // — live re-tokenizing under RichText fights Qt's cursor model,
-    // so highlighting only renders on the canonical re-bind.
+    // pane also strips the color spans on edit-start so new chars
+    // inherit the default text color instead of whatever span the
+    // cursor was sitting inside.
     property bool _editing: false
 
-    // Stage the body for an edit burst: copy the rendered plain text
-    // back over the HTML so the imminent textFormat flip to PlainText
-    // doesn't render the markup literally. Cursor position is in plain
-    // characters in both modes, so preserving it across the swap keeps
-    // the caret where the user was about to type.
+    // On edit-start, swap the colored HTML for a no-spans <pre>
+    // wrapping. Same plain text, same RichText format, but every
+    // character is the default color — so the cursor doesn't sit
+    // inside an enclosing colored span and new keystrokes don't
+    // inherit a stale token color. The Binding on text releases
+    // during _editing, so this stays until focus-loss when the
+    // canonical HTML snaps back with full highlighting. Keeping
+    // textFormat fixed at RichText avoids Qt's HTML round-trip:
+    // setting body.text=plain in RichText mode causes Qt to wrap
+    // it in default <p>/style boilerplate, and then a switch to
+    // PlainText renders that full HTML serialization literally.
     on_EditingChanged: {
-        if (_editing) {
+        if (_editing && root.hasText) {
             body._applyingHighlight = true
             const plain = body.getText(0, body.length)
             const cursor = body.cursorPosition
-            body.text = plain
+            body.text = root._buildHtml(plain, "[]",
+                Theme.palette, Theme.isDark)
             body.cursorPosition = Math.min(cursor, body.length)
             body._applyingHighlight = false
         }
@@ -266,14 +273,15 @@ Item {
                 id: body
                 width: scroll.contentWidth
                 height: scroll.contentHeight
-                // Highlighted HTML when we have a workflow and the user
-                // isn't actively typing; PlainText during an edit burst
-                // so the cursor doesn't fight RichText's document model,
-                // and PlainText for the empty-state placeholder so
-                // Theme.text3 still tracks.
-                textFormat: (root.hasText && !root._editing)
-                    ? TextEdit.RichText
-                    : TextEdit.PlainText
+                // RichText for the highlighted body; PlainText for the
+                // empty-state placeholder so Theme.text3 still tracks.
+                // We stay in RichText during an edit burst too — the
+                // on_EditingChanged handler strips the color spans
+                // instead of flipping textFormat, because flipping
+                // textFormat after Qt has wrapped the document in its
+                // default HTML serialization renders that markup
+                // literally.
+                textFormat: root.hasText ? TextEdit.RichText : TextEdit.PlainText
                 readOnly: !root.editable
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
