@@ -29,34 +29,11 @@ Item {
     // True while the user is actively typing in the pane. Suppresses
     // the upstream rebind so each keystroke doesn't snap the cursor
     // back to position 0. Flips false on focus-loss; the binding then
-    // re-applies with the canonical, fully-highlighted source. The
-    // pane also strips the color spans on edit-start so new chars
-    // inherit the default text color instead of whatever span the
-    // cursor was sitting inside.
+    // re-applies with the canonical, fully-highlighted source.
+    // Interim behavior: existing colored spans stay put during edit;
+    // new chars inherit whatever cursor format Qt picks. The proper
+    // QSyntaxHighlighter-based live re-highlight is still on the way.
     property bool _editing: false
-
-    // On edit-start, swap the colored HTML for a no-spans <pre>
-    // wrapping. Same plain text, same RichText format, but every
-    // character is the default color — so the cursor doesn't sit
-    // inside an enclosing colored span and new keystrokes don't
-    // inherit a stale token color. The Binding on text releases
-    // during _editing, so this stays until focus-loss when the
-    // canonical HTML snaps back with full highlighting. Keeping
-    // textFormat fixed at RichText avoids Qt's HTML round-trip:
-    // setting body.text=plain in RichText mode causes Qt to wrap
-    // it in default <p>/style boilerplate, and then a switch to
-    // PlainText renders that full HTML serialization literally.
-    on_EditingChanged: {
-        if (_editing && root.hasText) {
-            body._applyingHighlight = true
-            const plain = body.getText(0, body.length)
-            const cursor = body.cursorPosition
-            body.text = root._buildHtml(plain, "[]",
-                Theme.palette, Theme.isDark)
-            body.cursorPosition = Math.min(cursor, body.length)
-            body._applyingHighlight = false
-        }
-    }
 
     signal closeRequested()
     signal copyRequested()
