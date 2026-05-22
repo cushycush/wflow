@@ -29,8 +29,27 @@ Item {
     // True while the user is actively typing in the pane. Suppresses
     // the upstream rebind so each keystroke doesn't snap the cursor
     // back to position 0. Flips false on focus-loss; the binding then
-    // re-applies with the canonical, fully-highlighted source.
+    // re-applies with the canonical, fully-highlighted source. The
+    // pane also flips the body's textFormat to PlainText while editing
+    // — live re-tokenizing under RichText fights Qt's cursor model,
+    // so highlighting only renders on the canonical re-bind.
     property bool _editing: false
+
+    // Stage the body for an edit burst: copy the rendered plain text
+    // back over the HTML so the imminent textFormat flip to PlainText
+    // doesn't render the markup literally. Cursor position is in plain
+    // characters in both modes, so preserving it across the swap keeps
+    // the caret where the user was about to type.
+    on_EditingChanged: {
+        if (_editing) {
+            body._applyingHighlight = true
+            const plain = body.getText(0, body.length)
+            const cursor = body.cursorPosition
+            body.text = plain
+            body.cursorPosition = Math.min(cursor, body.length)
+            body._applyingHighlight = false
+        }
+    }
 
     signal closeRequested()
     signal copyRequested()
@@ -247,10 +266,14 @@ Item {
                 id: body
                 width: scroll.contentWidth
                 height: scroll.contentHeight
-                // Highlighted HTML when we have a workflow; plain
-                // text placeholder otherwise so the empty state still
-                // tracks Theme.text3.
-                textFormat: root.hasText ? TextEdit.RichText : TextEdit.PlainText
+                // Highlighted HTML when we have a workflow and the user
+                // isn't actively typing; PlainText during an edit burst
+                // so the cursor doesn't fight RichText's document model,
+                // and PlainText for the empty-state placeholder so
+                // Theme.text3 still tracks.
+                textFormat: (root.hasText && !root._editing)
+                    ? TextEdit.RichText
+                    : TextEdit.PlainText
                 readOnly: !root.editable
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
@@ -287,6 +310,10 @@ Item {
                     when: !root._editing
                 }
 
+                // BeforeItem so our Tab handler runs ahead of Qt's
+                // default focus-traversal, which otherwise eats the key
+                // and stops `body.insert` from ever firing.
+                Keys.priority: Keys.BeforeItem
                 Keys.onPressed: (event) => {
                     if (!root.editable) return
                     // Tab inserts 4 spaces (one KDL indent level,
@@ -295,7 +322,7 @@ Item {
                     // saved KDL stays space-indented without any \t.
                     if (event.key === Qt.Key_Tab
                             && (event.modifiers & ~Qt.ShiftModifier) === 0) {
-                        root._editing = true
+                        if (!root._editing) root._editing = true
                         event.accepted = true
                         body.insert(body.cursorPosition, "    ")
                         return
@@ -305,51 +332,19 @@ Item {
                     // stops fighting the user's cursor.
                     if (event.text && event.text.length > 0
                             && (event.modifiers & ~Qt.ShiftModifier) === 0) {
-                        root._editing = true
+                        if (!root._editing) root._editing = true
                     }
                 }
                 onActiveFocusChanged: if (!activeFocus) root._editing = false
 
-                // Tracks the last plain text we've already highlighted,
-                // so the recursive textChanged from our own re-set
-                // bails out instead of looping.
-                property string _lastPlain: ""
+                // Guard against the textChanged feedback loop from our
+                // own snapshot-on-edit-start assignment.
                 property bool _applyingHighlight: false
 
                 onTextChanged: {
                     if (!root.editable || !root._editing) return
                     if (body._applyingHighlight) return
-                    const plain = body.getText(0, body.length)
-                    if (plain === body._lastPlain) return
-                    body._lastPlain = plain
-                    // Re-highlight is debounced (per-keystroke fights
-                    // the cursor in RichText mode); apply is debounced
-                    // longer so a long edit only hits the parser once
-                    // the user pauses.
-                    rehighlightTimer.restart()
                     applyTimer.restart()
-                }
-            }
-
-            // Re-tokenize after a short pause in typing. Short enough
-            // (~150ms) that highlighting feels live, long enough that
-            // the cursor doesn't fight the rebuild on every keystroke.
-            Timer {
-                id: rehighlightTimer
-                interval: 150
-                repeat: false
-                onTriggered: {
-                    if (!root.editable || !root._editing) return
-                    if (!root.workflowController || !root.hasText) return
-                    const plain = body.getText(0, body.length)
-                    const savedCursor = body.cursorPosition
-                    const spansJson = root.workflowController.tokenize_kdl(plain)
-                    const html = root._buildHtml(plain, spansJson,
-                        Theme.palette, Theme.isDark)
-                    body._applyingHighlight = true
-                    body.text = html
-                    body.cursorPosition = Math.min(savedCursor, body.length)
-                    body._applyingHighlight = false
                 }
             }
 
