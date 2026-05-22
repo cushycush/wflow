@@ -1542,16 +1542,11 @@ Item {
         }
     }
 
-    // The global ChromeFloating navPill sits at top:18 height:44, so
-    // the editor's TopBar needs to start below y=62 to avoid the
-    // pill overlapping the right-side action cluster (Source / Run /
-    // Publish / ...). 70px gives 8px of breathing room.
     Column {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: 70
         spacing: 0
 
         TopBar {

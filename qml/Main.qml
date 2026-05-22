@@ -256,7 +256,7 @@ ApplicationWindow {
                 paletteChooser: true
             },
             {
-                title: "The nav pill",
+                title: "The top nav",
                 body: "The main areas live here, Library, the editor, Record, Settings. Click a tab to switch.",
                 getTarget: () => chrome.pillContainer,
                 placement: "below"
@@ -278,7 +278,7 @@ ApplicationWindow {
             },
             {
                 title: "Start a workflow",
-                body: "Hit + New to start blank or pick a template. The Record tab in the floating pill captures real input if you'd rather transcribe one.",
+                body: "Hit + New to start blank or pick a template. The Record tab in the top nav captures real input if you'd rather transcribe one.",
                 page: "library",
                 getTarget: () => chrome.libraryPage.topBar,
                 placement: "below"

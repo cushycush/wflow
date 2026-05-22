@@ -8,14 +8,24 @@ and the WFLOW Jira project for issue-level status.
 
 ## last session ended
 
-matthew is mid-session, thinking about a new design for the top
-wflow navigation. while that thinking happens, WFLOW-64 (KDL syntax
-highlighting in the view-source pane) just landed: tokenizer in
+new top-nav landed. matthew and claude mocked up four directions in
+/tmp/wflow-nav-mockups.html (top app bar, left-docked nav, bottom
+HUD pill, spotlight palette) and matthew picked the flat top app
+bar. ChromeFloating.qml now renders a 48px strip at top:0 with the
+brand mark + nav docked left and @cush + cog docked right;
+StackLayout anchors below it instead of behind it. WorkflowPage and
+SettingsPage dropped the `topMargin: 70` / `topMargin: 80`
+workarounds that existed only to dodge the old floating pill. The
+editor's doc-tab strip and toolbar now sit cleanly under the app
+bar with no orphan-tab gap. cargo build clean, smoke-tested in the
+GUI, matthew confirmed it reads right.
+
+WFLOW-64 (KDL syntax highlighting in the view-source pane) is also
+sitting on disk uncommitted from the prior session: tokenizer in
 `src/kdl_format/highlight.rs`, qinvokable `tokenize_kdl` on the
-workflow controller, HTML-with-spans rendering in ViewSourcePane, a
-`Theme.kdlColor(kind)` mapper so all four palette skins read right.
-cargo build + 137 tests green. GUI eyeball still pending; matthew
-will smoke test on next relaunch.
+workflow controller, HTML-with-spans rendering in ViewSourcePane,
+a `Theme.kdlColor(kind)` mapper so all four palette skins read
+right. cargo build + 137 tests green. GUI eyeball still pending.
 
 ## where the work stands
 
@@ -54,23 +64,6 @@ Until then it sits as a Task in To Do.
 
 ## up next when matthew returns
 
-One review follow-up still queued, plus the bigger nav-design
-thread matthew is thinking through:
-
-- **WFLOW-65** Floating navpill leaves a gap above the workflow
-  tabs. Pushing WorkflowPage's Column down 70px in 0a8536b cleared
-  the toolbar overlap, but the per-doc tab strip that hangs below
-  the pill no longer butts cleanly against the pill the way it did
-  before. Right fix is probably to reserve a fixed nav-region
-  height in ChromeFloating and have each page anchor below it,
-  instead of every page hard-coding its own topMargin. May get
-  superseded by the new nav design matthew is sketching.
-
-- **Top nav redesign** (no ticket yet). Matthew is thinking
-  through this; nothing claude-side until there's a direction.
-
-Older threads still queued:
-
 - **WFLOW-34** xdg-mime + .kdl association so `.kdl` files in a
   file manager open in wflow. Pairs with WFLOW-55 (already done) to
   close the file-manager round-trip.
@@ -107,6 +100,8 @@ toolbar buttons clear the floating navpill.
 
 ## recently landed (since 9dffb8e)
 
+- (this commit) top app bar replaces the floating navpill; drop the
+  topMargin workarounds in WorkflowPage / SettingsPage (WFLOW-65)
 - (unc'd) kdl syntax highlighting in the view-source pane (WFLOW-64)
 - 0a8536b view-source pane: render on first open, fix Copy overlap,
   dodge the navpill (WFLOW-54)
@@ -140,10 +135,15 @@ the Canvas task (work item 14) for the WFLOW-64 / WFLOW-65 tickets
 created above. Tracked + ready to commit alongside the next change
 that touches the catalog.
 
-`target/debug/wflow` is built off 0a8536b and includes the
-view-source pane. Already replaced on disk so any running instance
+`target/debug/wflow` is freshly built off this commit and includes
+the new top app bar + the view-source pane. Any running instance
 needs a relaunch to pick it up (the running proc maps a deleted
 inode).
+
+`.impeccable.md` is modified locally (synced to the current CLAUDE.md
+Design Context: two palettes, six-step radii ladder, Theme.accentWash
+selection). uncommitted; ship when convenient, separate concern from
+the chrome change.
 
 ## environment
 

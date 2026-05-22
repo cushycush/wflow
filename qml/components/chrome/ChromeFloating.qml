@@ -26,7 +26,10 @@ Item {
 
     StackLayout {
         id: pageStack
-        anchors.fill: parent
+        anchors.top: appBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         currentIndex: root.currentPage === "library" ? 0 :
                       root.currentPage === "explore" ? 1 :
                       root.currentPage === "favorites" ? 2 :
@@ -269,29 +272,38 @@ Item {
     }
 
     // Exported for the first-run TutorialCoach so it can point at
-    // the floating pill as a single coach-mark target.
-    property alias pillContainer: navPill
+    // the global nav as a single coach-mark target.
+    property alias pillContainer: appBar
     property alias settingsButton: settingsBtn
     property alias libraryPage: libraryPageInst
     property alias workflowSlot: workflowSlot
     property alias recordPage: recordPageInst
 
-    // Floating nav bar, rounded-rect style matching the editor's
+    // Flat top app bar. Full-width, sits flush at the top of the
+    // window. Pages start below it (StackLayout is anchored to
+    // appBar.bottom), so no overlay, no collision with per-page
+    // chrome like the editor's doc-tab strip + toolbar.
     Rectangle {
-        id: navPill
+        id: appBar
         anchors.top: parent.top
-        anchors.topMargin: 18
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: pillRow.implicitWidth + 20
-        height: 44
-        radius: Theme.radiusMd
-        color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.95)
-        border.color: Theme.line
-        border.width: 1
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 48
+        color: Theme.surface
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Theme.line
+        }
 
         Row {
             id: pillRow
-            anchors.centerIn: parent
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 16
             spacing: 4
 
             Rectangle {
@@ -308,7 +320,7 @@ Item {
                 }
             }
 
-            Item { width: 6; height: 1 }
+            Item { width: 10; height: 1 }
 
             Repeater {
                 model: {
@@ -492,7 +504,15 @@ Item {
                 }
             }
 
-            Item { width: 2; height: 1 }
+        }
+
+        // Account + settings dock to the far right of the app bar.
+        Row {
+            id: rightCluster
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            spacing: 6
 
             // Click routes to Settings → Account; this pill is just a
             // discoverable handle for the auth state.
@@ -553,8 +573,6 @@ Item {
                         : "Sign in to wflows.io"
                 }
             }
-
-            Item { width: 4; height: 1 }
 
             // (Theme cycle button moved to Settings, Ctrl+. still cycles
             // for keyboard users; the chrome no longer carries it now

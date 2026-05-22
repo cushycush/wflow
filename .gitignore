@@ -20,3 +20,4 @@
 # Keep them out of the public repo so we can iterate without
 # committing pre-launch positioning.
 /docs/launch-drafts.md
+.gstack/

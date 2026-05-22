@@ -46,7 +46,7 @@ Item {
 
     Item {
         anchors.fill: parent
-        anchors.topMargin: 80      // clear the floating nav pill
+        anchors.topMargin: 24
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         anchors.bottomMargin: 24
