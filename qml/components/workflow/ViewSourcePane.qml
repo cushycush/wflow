@@ -2,82 +2,76 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Read-only KDL view of the current workflow. Slides in from the right
-// of the canvas. The text re-encodes as the user edits, so the source
-// you see always matches what would hit disk on the next save.
+// Editable KDL view of the current workflow. Slides in from the right
+// of the canvas. The text re-encodes as the canvas mutates; edits in
+// here parse + apply back to the canvas on a debounce. Syntax
+// highlighting runs through a Rust-fed C++ KdlSyntaxHighlighter
+// (cpp/kdl_syntax_highlighter.h) attached to the body's text document.
+// setFormat() applies char-format ranges to the existing QTextDocument
+// without rebuilding it, so the cursor stays put across keystrokes.
 Item {
     id: root
 
     property string kdlText: ""
     // JSON `[[start, len, "kind"], ...]` from
     // `wfCtrl.tokenize_kdl(kdlText)`. Empty / "[]" renders unstyled.
+    // Drives the highlighter while the user isn't editing; during
+    // edit, the pane re-tokenizes the local buffer per-keystroke and
+    // feeds the highlighter directly.
     property string kdlSpansJson: "[]"
     property string copyHint: ""
+    // False for fragment view (read-only by design); true on a real
+    // workflow.
+    property bool editable: false
+    // WorkflowController, passed in so the pane can re-tokenize the
+    // local buffer per-keystroke and keep new text highlighted in
+    // the same way the canonical source is.
+    property var workflowController: null
+    // Last parse error from an apply attempt. Empty when the pane
+    // text either matches the canvas or parses cleanly.
+    property string parseError: ""
     readonly property bool hasText: kdlText.length > 0
+    readonly property bool _isUnparsed: parseError.length > 0
+
+    // True while the user is actively typing in the pane. Suppresses
+    // the upstream rebind so each keystroke doesn't snap the cursor
+    // back to position 0. Flips false on focus-loss; the binding
+    // then re-applies with the canonical source. With the
+    // QSyntaxHighlighter doing live re-coloring via setFormat on
+    // the existing QTextDocument, the document itself isn't rebuilt
+    // per keystroke and the cursor stays put.
+    property bool _editing: false
+
+    // Highlight spans the pane is currently rendering. Tracks
+    // `kdlSpansJson` when not editing; tracks the local buffer's
+    // tokenization while editing. Set imperatively on textChanged
+    // so the binding to `kdlSpansJson` doesn't keep snapping it
+    // back during a keystroke burst.
+    property string _liveSpansJson: "[]"
 
     signal closeRequested()
     signal copyRequested()
+    // Emitted on the debounced timer after a textChanged burst.
+    // Parent calls apply_kdl_source on the WorkflowController and
+    // sets parseError from the result.
+    signal applyRequested(string kdl)
 
-    // Pre-computed HTML for the body. Rebuilds when the source text,
-    // the span list, or the active palette changes. Falls back to
-    // plain text on any parse failure.
-    readonly property string _kdlHtml: _buildHtml(kdlText, kdlSpansJson,
-        Theme.palette, Theme.isDark)
+    Component.onCompleted: _liveSpansJson = kdlSpansJson
 
-    function _escape(s) {
-        return s
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
+    // Track upstream spans when the canvas re-encodes outside an
+    // edit burst. During edit we own the property and ignore
+    // upstream churn (the apply path will re-fire this once the
+    // edit lands).
+    onKdlSpansJsonChanged: {
+        if (!_editing) _liveSpansJson = kdlSpansJson
     }
 
-    // Builds a `<pre>`-wrapped HTML body where each highlighted span
-    // is wrapped in `<span style="color: ...">`. Anything between
-    // spans renders in the default text color. `palette` and `isDark`
-    // are unused in the body of the function; they exist as
-    // arguments so the property binding re-fires when the user
-    // switches palette or light/dark, since Theme.kdlColor reads both.
-    function _buildHtml(text, spansJson, palette, isDark) {
-        if (!text || text.length === 0) return ""
-        let spans = []
-        try { spans = JSON.parse(spansJson) } catch (e) { spans = [] }
-        if (!Array.isArray(spans)) spans = []
-
-        const family = Theme.familyMono
-        const size = Theme.fontSm
-        // QML color objects render as `#aarrggbb` when concatenated,
-        // which Qt's RichText subset accepts as-is. Cast through
-        // `String()` for explicitness — same effective output.
-        const baseColor = String(Theme.text)
-        const headerOpen = "<pre style=\"font-family: '" + family
-            + "'; font-size: " + size + "px; margin: 0; "
-            + "white-space: pre; color: " + baseColor + ";\">"
-        const headerClose = "</pre>"
-
-        if (spans.length === 0) return headerOpen + root._escape(text) + headerClose
-
-        let buf = headerOpen
-        let cursor = 0
-        for (let i = 0; i < spans.length; ++i) {
-            const s = spans[i]
-            const start = s[0] | 0
-            const len = s[1] | 0
-            const kind = s[2]
-            if (start < cursor || start + len > text.length) continue
-            if (start > cursor) {
-                buf += root._escape(text.substring(cursor, start))
-            }
-            const color = String(Theme.kdlColor(kind))
-            const piece = root._escape(text.substring(start, start + len))
-            const style = (kind === "comment")
-                ? "color: " + color + "; font-style: italic;"
-                : "color: " + color + ";"
-            buf += "<span style=\"" + style + "\">" + piece + "</span>"
-            cursor = start + len
-        }
-        if (cursor < text.length) buf += root._escape(text.substring(cursor))
-        buf += headerClose
-        return buf
+    // Snap spans back to canonical on focus-loss. The Binding on
+    // body.text fires in the same change and replaces the local
+    // draft with kdlText; QSyntaxHighlighter re-applies formats
+    // automatically as the document content changes.
+    on_EditingChanged: {
+        if (!_editing) _liveSpansJson = kdlSpansJson
     }
 
     Rectangle {
@@ -117,12 +111,39 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: "read-only"
+                    text: root.editable ? "editable" : "read-only"
                     color: Theme.text3
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontXs
                     font.weight: Font.Medium
                     anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Unparsed chip. Same chip register as the save-state
+                // chip in WorkflowPage's TopBar; live ToolTip carries
+                // the parse error so the chip itself stays compact.
+                Rectangle {
+                    visible: root._isUnparsed
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: unparsedLbl.implicitWidth + 16
+                    height: 22
+                    radius: Theme.radiusSm
+                    color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                    border.color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.45)
+                    border.width: 1
+                    Text {
+                        id: unparsedLbl
+                        anchors.centerIn: parent
+                        text: "● unparsed"
+                        color: Theme.err
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                        font.weight: Font.DemiBold
+                    }
+                    HoverHandler { id: unparsedHover }
+                    ToolTip.visible: unparsedHover.hovered
+                    ToolTip.delay: 200
+                    ToolTip.text: root.parseError
                 }
             }
 
@@ -199,12 +220,11 @@ Item {
                 id: body
                 width: scroll.contentWidth
                 height: scroll.contentHeight
-                // Highlighted HTML when we have a workflow; plain
-                // text placeholder otherwise so the empty state still
-                // tracks Theme.text3.
-                textFormat: root.hasText ? TextEdit.RichText : TextEdit.PlainText
-                text: root.hasText ? root._kdlHtml : "(no workflow loaded)"
-                readOnly: true
+                // Plain text throughout. Highlighting comes from the
+                // KdlSyntaxHighlighter below, which applies char-format
+                // ranges to the QTextDocument without rebuilding it.
+                textFormat: TextEdit.PlainText
+                readOnly: !root.editable
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 selectByKeyboard: true
@@ -218,6 +238,121 @@ Item {
                 rightPadding: 16
                 topPadding: 12
                 bottomPadding: 16
+                // KDL encoder emits 4-space indent (kdl crate default);
+                // any literal \t that sneaks in via paste renders the
+                // same visual width instead of the default 8-char Qt
+                // tab stop.
+                tabStopDistance: 4 * Math.ceil(fontMetrics.advanceWidth(" "))
+
+                FontMetrics {
+                    id: fontMetrics
+                    font.family: body.font.family
+                    font.pixelSize: body.font.pixelSize
+                }
+
+                // Upstream rebind. Disabled while the user is typing
+                // so each keystroke doesn't snap the cursor back to
+                // the canonical source. Re-enables on focus-loss; the
+                // canonical text snaps in and the highlighter
+                // re-applies formats from `_liveSpansJson`, which has
+                // already been snapped back to canonical by
+                // `on_EditingChanged` above.
+                //
+                // restoreMode: RestoreNone is load-bearing. Qt's
+                // default (RestoreBindingOrValue) snaps the property
+                // back to its pre-binding value when `when` goes
+                // false — for TextEdit.text that pre-value is the
+                // empty string, so the whole document wipes the
+                // moment the user types and the typed char ends up
+                // alone in an empty buffer. RestoreNone keeps the
+                // last binding-driven value (the canonical KDL) so
+                // the keystroke inserts into the document the user
+                // was reading.
+                Binding on text {
+                    value: root.hasText ? root.kdlText : "(no workflow loaded)"
+                    when: !root._editing
+                    restoreMode: Binding.RestoreNone
+                }
+
+                // BeforeItem so our Tab handler runs ahead of Qt's
+                // default focus-traversal, which otherwise eats the
+                // key and stops `body.insert` from ever firing.
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: (event) => {
+                    if (!root.editable) return
+                    // Tab inserts 4 spaces (one KDL indent level,
+                    // matching what the encoder writes). Done here
+                    // instead of relying on tabStopDistance so the
+                    // saved KDL stays space-indented without any \t.
+                    if (event.key === Qt.Key_Tab
+                            && (event.modifiers & ~Qt.ShiftModifier) === 0) {
+                        if (!root._editing) root._editing = true
+                        event.accepted = true
+                        body.insert(body.cursorPosition, "    ")
+                        return
+                    }
+                    // Any other printable key (with no Ctrl/Meta/Alt)
+                    // signals start of edit so the upstream rebind
+                    // stops fighting the user's cursor.
+                    if (event.text && event.text.length > 0
+                            && (event.modifiers & ~Qt.ShiftModifier) === 0) {
+                        if (!root._editing) root._editing = true
+                    }
+                }
+                onActiveFocusChanged: if (!activeFocus) root._editing = false
+
+                onTextChanged: {
+                    if (!root.editable || !root._editing) return
+                    if (!root.workflowController) return
+                    // Live re-tokenize: keep the highlighter's spans
+                    // tracking the local buffer. The tokenizer is
+                    // mid-edit tolerant, so partial input still
+                    // returns sensible spans (malformed bytes fall
+                    // through as plain).
+                    const plain = body.getText(0, body.length)
+                    root._liveSpansJson =
+                        root.workflowController.tokenize_kdl(plain)
+                    applyTimer.restart()
+                }
+            }
+
+            // Hand-written C++ subclass registered from main.rs via
+            // bridge::kdl_highlight::qobject::register_kdl_qml_types.
+            // Attaches to body's QTextDocument and applies
+            // QTextCharFormat ranges via setFormat(); the document
+            // itself isn't rebuilt, so the cursor stays where the
+            // user left it.
+            KdlSyntaxHighlighter {
+                id: highlighter
+                textDocument: body.textDocument
+                spansJson: root._liveSpansJson
+                // Primes every block so unformatted chars stay
+                // readable; per-token colors layer on top.
+                defaultColor: Theme.text
+                colors: ({
+                    "keyword": Theme.kdlColor("keyword"),
+                    "node":    Theme.kdlColor("node"),
+                    "prop":    Theme.kdlColor("prop"),
+                    "string":  Theme.kdlColor("string"),
+                    "number":  Theme.kdlColor("number"),
+                    "bool":    Theme.kdlColor("bool"),
+                    "ident":   Theme.kdlColor("ident"),
+                    "punct":   Theme.kdlColor("punct"),
+                    "comment": Theme.kdlColor("comment")
+                })
+            }
+
+            // Debounced parse + apply. Same 600ms cadence as the
+            // workflow save timer in WorkflowPage so the two land on
+            // a similar rhythm.
+            Timer {
+                id: applyTimer
+                interval: 600
+                repeat: false
+                onTriggered: {
+                    const plain = body.getText(0, body.length)
+                    root.applyRequested(plain)
+                }
             }
         }
     }

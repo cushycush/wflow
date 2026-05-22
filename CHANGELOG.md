@@ -11,6 +11,62 @@ breaks.
 
 ---
 
+## [1.3.0] - 2026-05-22
+
+The view-source pane lands in the workflow editor, showing the current
+workflow as KDL alongside the canvas and accepting edits that round-trip
+back to the canvas. Plus the flat top app bar that walked back the
+floating navpill, KDL copy/paste through the system clipboard, and
+drag-a-`.kdl`-on-the-canvas import.
+
+### Added
+
+- **View-source pane in the workflow editor.** `</> Source` in the
+  editor toolbar slides a panel in from the right of the canvas
+  showing the current workflow as KDL, syntax-highlighted, re-encoded
+  live as you change the canvas. The pane is editable: typing parses
+  on a 600ms debounce and round-trips through `apply_kdl_source`,
+  which swaps the in-memory workflow on success. Existing card
+  positions survive the round-trip via a `preserve_step_ids` helper
+  that walks old and new step lists by `std::mem::discriminant` of
+  the action variant, so adding or removing a line doesn't relayout
+  the unchanged cards. Tab inserts 4 spaces. Broken KDL surfaces a
+  coral "● unparsed" chip in the header (parse error in a tooltip)
+  and the canvas holds at last-good state until you click out or fix
+  the source. Last-edit-wins on focus-loss; a broken draft gets
+  discarded. Highlighting uses a hand-written C++ `QSyntaxHighlighter`
+  (`cpp/kdl_syntax_highlighter.h`) attached to the body TextEdit's
+  `QTextDocument`, re-tokenizing the local buffer per keystroke
+  through `wfCtrl.tokenize_kdl` and applying `QTextCharFormat` ranges
+  via `setFormat`. The document itself isn't rebuilt on each
+  keystroke, so the cursor stays where the user left it.
+- **Flat top app bar in place of the floating navpill.** The pill that
+  floated over the canvas was forcing the editor toolbar to dodge it.
+  The new app bar sits flush at the top of the window; the doc-tab
+  strip and editor toolbar align underneath with no orphan-tab gap.
+- **Copy and paste workflow steps as KDL through the system clipboard.**
+  Right-click a card and Copy as KDL writes the kdl fragment to the
+  clipboard via arboard (wlr-data-control with X11 fallback); paste on
+  the canvas inserts at the current crumb. Multi-selection copies all
+  selected top cards as one fragment; paste dedupes inner cards of any
+  selected top.
+- **Drop a `.kdl` file on the canvas to import it as steps.**
+  Single-file drop lands the steps at the current crumb; multi-file
+  drop loops over the dropped URLs. Pairs with the deeplink import
+  path so a `.kdl` file reaches the editor by any route a file
+  manager gives you.
+
+### Changed
+
+- **Explore drawer prefers the catalog trail over `kindSamples` while
+  detail loads.** The drawer used to render the `kindSamples` preview
+  during the loading window, then swap to the `kdlSource`-parsed shape
+  once detail arrived; the swap was visible. Trail values match the
+  final shape closely enough that reading from them first keeps the
+  drawer steady from open through fully-loaded.
+
+---
+
 ## [1.2.0] - 2026-05-09
 
 Editor hot-reload for full workflow content, an `else` branch with first-class

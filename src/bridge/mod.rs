@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod deeplink_inbox;
 pub mod explore;
+pub mod kdl_highlight;
 pub mod library;
 pub mod recorder;
 pub mod state;
