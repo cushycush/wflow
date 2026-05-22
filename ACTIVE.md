@@ -8,11 +8,14 @@ and the WFLOW Jira project for issue-level status.
 
 ## last session ended
 
-matthew is closing the session for a relogin. WFLOW-54 (view-source
-toggle on the canvas) shipped and smoke-tested green; two follow-ups
-fell out of the review and are filed as WFLOW-64 + WFLOW-65 below.
-drift's post-commit-jira hook bug got the one-line fix. WDOTOOL Jira
-setup is done (matthew noted in chat, no claude-side action needed).
+matthew is mid-session, thinking about a new design for the top
+wflow navigation. while that thinking happens, WFLOW-64 (KDL syntax
+highlighting in the view-source pane) just landed: tokenizer in
+`src/kdl_format/highlight.rs`, qinvokable `tokenize_kdl` on the
+workflow controller, HTML-with-spans rendering in ViewSourcePane, a
+`Theme.kdlColor(kind)` mapper so all four palette skins read right.
+cargo build + 137 tests green. GUI eyeball still pending; matthew
+will smoke test on next relaunch.
 
 ## where the work stands
 
@@ -51,17 +54,8 @@ Until then it sits as a Task in To Do.
 
 ## up next when matthew returns
 
-Two follow-ups from the view-source review are queued and waiting:
-
-- **WFLOW-64** KDL syntax highlighting in the view-source pane. The
-  pane currently renders as a single block of monochrome Geist Mono.
-  KDL's grammar is small enough (node names, string args,
-  name=value props, durations, identifiers, `//` comments) that a
-  Qt QSyntaxHighlighter pass would give it real structure. Colors
-  should resolve through Theme so the four palettes all read right.
-  Highlighter rules belong next to encode/decode in
-  `src/kdl_format` so node names and reserved words stay in lockstep
-  with the parser.
+One review follow-up still queued, plus the bigger nav-design
+thread matthew is thinking through:
 
 - **WFLOW-65** Floating navpill leaves a gap above the workflow
   tabs. Pushing WorkflowPage's Column down 70px in 0a8536b cleared
@@ -69,7 +63,11 @@ Two follow-ups from the view-source review are queued and waiting:
   the pill no longer butts cleanly against the pill the way it did
   before. Right fix is probably to reserve a fixed nav-region
   height in ChromeFloating and have each page anchor below it,
-  instead of every page hard-coding its own topMargin.
+  instead of every page hard-coding its own topMargin. May get
+  superseded by the new nav design matthew is sketching.
+
+- **Top nav redesign** (no ticket yet). Matthew is thinking
+  through this; nothing claude-side until there's a direction.
 
 Older threads still queued:
 
@@ -83,6 +81,15 @@ Older threads still queued:
 
 ## to smoke test
 
+WFLOW-64 (just shipped): open the source pane on a workflow with a
+mix of nodes / strings / props / numbers / booleans / a `//`
+comment. Eyeball that keywords (workflow/vars/imports/when/repeat/
+use/etc) read accent-coloured, action verbs read blue-ish, strings
+green-ish, numbers olive, `#true`/`#false` purple. Flip Theme
+palette (warm ↔ cool) and Theme mode (dark ↔ light) and confirm
+the highlight re-renders cleanly. Copy button should still paste
+plain KDL (no HTML).
+
 The older catalog / clipboard smoke tests are still outstanding from
 before the relogin: drop a fragment-style .kdl on the canvas (coral
 wash flashes, cards land at current crumb); multi-file drop loops
@@ -94,12 +101,13 @@ with inner-cards-of-a-selected-top deduped; open a live wflows.io
 card in Explore and confirm the drawer renders trail values during
 the loading window before the kdlSource-parsed shape lands.
 
-The view-source pane itself was smoke-tested green: pane renders on
-first open (used to be empty until clicked), copy + close buttons no
-longer overlap, toolbar buttons clear the floating navpill.
+The view-source pane itself was smoke-tested green at 0a8536b: pane
+renders on first open, copy + close buttons no longer overlap,
+toolbar buttons clear the floating navpill.
 
 ## recently landed (since 9dffb8e)
 
+- (unc'd) kdl syntax highlighting in the view-source pane (WFLOW-64)
 - 0a8536b view-source pane: render on first open, fix Copy overlap,
   dodge the navpill (WFLOW-54)
 - 44f5910 view-source pane on the canvas mirrors the live workflow

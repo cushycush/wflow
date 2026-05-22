@@ -71,6 +71,16 @@ pub mod qobject {
             workflow_json: QString,
         ) -> QString;
 
+        /// Tokenize a KDL source string into highlight spans for the
+        /// view-source pane. Returns a JSON array
+        /// `[[start, len, "kind"], ...]` covering only the colored
+        /// regions; anything between spans renders in the default
+        /// text color. Empty input returns `"[]"`. The tokenizer is
+        /// tolerant — it runs on mid-edit / malformed input without
+        /// surfacing errors.
+        #[qinvokable]
+        fn tokenize_kdl(self: Pin<&mut WorkflowController>, kdl: QString) -> QString;
+
         /// Encode a step list and write it to the system clipboard
         /// (arboard, wlr-data-control with X11 fallback). Returns true
         /// on success. Lets QML do copy without the hidden-TextEdit
@@ -414,6 +424,11 @@ impl qobject::WorkflowController {
         let body = kdl_format::encode(&wf);
         self.as_mut().set_last_error(QString::from(""));
         QString::from(&body)
+    }
+
+    fn tokenize_kdl(self: Pin<&mut Self>, kdl: QString) -> QString {
+        let text: String = kdl.to_string();
+        QString::from(&kdl_format::tokenize_to_json(&text))
     }
 
     fn steps_from_kdl(mut self: Pin<&mut Self>, kdl: QString) -> QString {

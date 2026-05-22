@@ -172,6 +172,26 @@ QtObject {
         }
         return catWait
     }
+    // KDL syntax-highlight palette. Token kinds come from
+    // `kdl_format::highlight::tokenize`. The keyword color tracks
+    // `accent` so structural words read in the active brand tone;
+    // everything else picks a distinct hue from the category set so
+    // the four palette skins stay distinguishable on the source pane.
+    function kdlColor(kind) {
+        switch (kind) {
+        case "keyword": return accent
+        case "node":    return catType
+        case "prop":    return catMove
+        case "string":  return catClick
+        case "number":  return catRepeat
+        case "bool":    return catKey
+        case "ident":   return text2
+        case "punct":   return text3
+        case "comment": return text3
+        }
+        return text
+    }
+
     function catGlyph(kind) {
         switch (kind) {
         case "key":       return "⌘"

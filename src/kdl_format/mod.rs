@@ -12,10 +12,12 @@ use crate::actions::{
 
 mod decode;
 mod encode;
+mod highlight;
 mod imports;
 
 pub use decode::decode;
 pub use encode::{encode, encode_fragment};
+pub use highlight::tokenize_to_json;
 pub use imports::{
     decode_fragment_file, decode_fragment_str, decode_from_file, decode_from_file_authored,
     expand_imports_in_place, resolve_import_path,

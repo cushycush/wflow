@@ -209,6 +209,12 @@ Item {
     readonly property string sourceKdl: sourcePaneOpen
         ? wfCtrl.workflow_to_kdl(JSON.stringify(root.workflow))
         : ""
+    // Highlight spans for the source pane. Tokenized in Rust so the
+    // keyword set stays in lockstep with the parser; QML only paints.
+    // `[]` when the pane is closed so the empty state is dirt-cheap.
+    readonly property string sourceSpansJson: sourcePaneOpen && sourceKdl.length > 0
+        ? wfCtrl.tokenize_kdl(sourceKdl)
+        : "[]"
 
     // Pure read helper. Mutators clone wf and walk it themselves.
     function _stepsAtCrumb(wf) {
@@ -2183,6 +2189,7 @@ Item {
                 clip: true
 
                 kdlText: root.sourceKdl
+                kdlSpansJson: root.sourceSpansJson
                 copyHint: root.sourcePaneCopyHint
 
                 onCloseRequested: root.sourcePaneOpen = false
