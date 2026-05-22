@@ -31,6 +31,16 @@ know what fires it. Multi-select with shift- or ctrl-click; lasso a
 region with shift- or ctrl-drag; alt-drag to draw a coloured group
 rectangle behind cards as a visual annotation.
 
+`</> Source` toggles a syntax-highlighted KDL view of the workflow on
+the right side of the canvas. Two-way: canvas edits re-encode into the
+pane on the fly, and edits typed into the pane parse on a 600ms
+debounce and re-apply to the canvas. Tab inserts 4 spaces. Broken KDL
+surfaces a coral "● unparsed" chip in the pane's header (parse error
+in a tooltip) and the canvas holds at last-good state until you fix
+the source or click out.
+
+![Editor canvas with the source pane open on the right, showing the same workflow as syntax-highlighted KDL alongside the visual graph](docs/design/screenshots/editor-source-pane.dark.png)
+
 Step-by-step debugger. ⏯ Debug pauses the engine between every action;
 Step / Continue / Stop are the controls. The active card pulses; each
 step's status dot settles to green / red / grey on outcome. Repeat
