@@ -206,9 +206,18 @@ Item {
     // on the right of the canvas. Reset on workflow switch.
     property bool sourcePaneOpen: false
     property string sourcePaneCopyHint: ""
+    // Last parse error from an apply_kdl_source attempt; rendered as
+    // the "● unparsed" chip in the source pane's header. Cleared when
+    // an apply succeeds or the canvas updates (mirror cascade resets
+    // it via the binding below).
+    property string sourceParseError: ""
     readonly property string sourceKdl: sourcePaneOpen
         ? wfCtrl.workflow_to_kdl(JSON.stringify(root.workflow))
         : ""
+    // Whenever the canonical source moves (canvas edit, or our own
+    // successful apply re-emitting through the mirror cascade), the
+    // pane is in sync again, so clear any stale "● unparsed" chip.
+    onSourceKdlChanged: root.sourceParseError = ""
     // Highlight spans for the source pane. Tokenized in Rust so the
     // keyword set stays in lockstep with the parser; QML only paints.
     // `[]` when the pane is closed so the empty state is dirt-cheap.
@@ -2186,6 +2195,9 @@ Item {
                 kdlText: root.sourceKdl
                 kdlSpansJson: root.sourceSpansJson
                 copyHint: root.sourcePaneCopyHint
+                editable: !root.fragmentMode
+                parseError: root.sourceParseError
+                workflowController: wfCtrl
 
                 onCloseRequested: root.sourcePaneOpen = false
                 onCopyRequested: {
@@ -2195,6 +2207,27 @@ Item {
                     sourceClipboard.deselect()
                     root.sourcePaneCopyHint = "✓ copied"
                     sourceCopyResetTimer.restart()
+                }
+                onApplyRequested: (text) => {
+                    const result = wfCtrl.apply_kdl_source(
+                        JSON.stringify(root.workflow), text)
+                    if (result.length === 0) {
+                        root.sourceParseError = ""
+                        // apply_kdl_source set workflow_json which fires
+                        // _workflowJsonMirror → root.workflow. Save flow
+                        // doesn't auto-trigger on a mirror update, so
+                        // kick it here the same way canvas mutations do.
+                        _scheduleSave()
+                        // Cards keep their positions (preserve_step_ids
+                        // in the controller carries existing ids across
+                        // the round-trip), but inserted steps land at
+                        // the canvas's default spot which may be off-
+                        // screen. Frame everything once the cards have
+                        // a layout pass.
+                        Qt.callLater(() => canvasView._zoomToFit())
+                    } else {
+                        root.sourceParseError = result
+                    }
                 }
 
                 Behavior on width {

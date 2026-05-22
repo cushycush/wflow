@@ -81,6 +81,20 @@ pub mod qobject {
         #[qinvokable]
         fn tokenize_kdl(self: Pin<&mut WorkflowController>, kdl: QString) -> QString;
 
+        /// Parse a full KDL workflow source string and, on success,
+        /// replace the in-memory workflow with the parsed result. The
+        /// id (which KDL doesn't carry, since it comes from the
+        /// filename) is preserved from the supplied current_workflow_json.
+        /// Returns "" on success. Returns the parse error message on
+        /// failure, in which case workflow_json is left untouched so
+        /// the canvas stays at the last-good state.
+        #[qinvokable]
+        fn apply_kdl_source(
+            self: Pin<&mut WorkflowController>,
+            current_workflow_json: QString,
+            kdl: QString,
+        ) -> QString;
+
         /// Encode a step list and write it to the system clipboard
         /// (arboard, wlr-data-control with X11 fallback). Returns true
         /// on success. Lets QML do copy without the hidden-TextEdit
@@ -429,6 +443,46 @@ impl qobject::WorkflowController {
     fn tokenize_kdl(self: Pin<&mut Self>, kdl: QString) -> QString {
         let text: String = kdl.to_string();
         QString::from(&kdl_format::tokenize_to_json(&text))
+    }
+
+    fn apply_kdl_source(
+        mut self: Pin<&mut Self>,
+        current_workflow_json: QString,
+        kdl: QString,
+    ) -> QString {
+        let cur_text: String = current_workflow_json.to_string();
+        let cur: Workflow = match serde_json::from_str(&cur_text) {
+            Ok(w) => w,
+            Err(e) => {
+                tracing::warn!(?e, "apply_kdl_source: bad current json");
+                return QString::from(&format!("internal: bad current workflow json: {e}"));
+            }
+        };
+        let kdl_text: String = kdl.to_string();
+        let mut new_wf: Workflow = match kdl_format::decode(&kdl_text) {
+            Ok(w) => w,
+            Err(e) => {
+                let msg = format!("{e:#}");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("view source edit: {msg}")));
+                return QString::from(&msg);
+            }
+        };
+        // KDL doesn't carry the workflow id (derived from filename on
+        // disk); preserve it from the current state so save still
+        // round-trips to the same file.
+        new_wf.id = cur.id;
+        // KDL also doesn't carry per-step editor ids (stripped on
+        // encode). Without preserving them, every step looks new on
+        // re-parse and the canvas re-layouts the whole graph. Match
+        // old → new by structural position + kind so existing cards
+        // keep their saved positions; inserted steps get fresh ids
+        // from _ensureStableIds on the next tick.
+        preserve_step_ids(&cur.steps, &mut new_wf.steps);
+        let json = serde_json::to_string(&new_wf).unwrap_or_else(|_| "{}".into());
+        self.as_mut().set_workflow_json(QString::from(&json));
+        self.as_mut().set_last_error(QString::from(""));
+        QString::from("")
     }
 
     fn steps_from_kdl(mut self: Pin<&mut Self>, kdl: QString) -> QString {
@@ -858,6 +912,41 @@ fn clipboard_handle(rust: &mut WorkflowControllerRust) -> anyhow::Result<&mut ar
             Some(arboard::Clipboard::new().context("open system clipboard")?);
     }
     Ok(rust.clipboard.as_mut().unwrap())
+}
+
+/// Walk old + new step lists in order and copy old.id onto new.id
+/// where the action variants match. Recurses into `repeat` /
+/// `when` / `unless` inner step lists so a position survives an edit
+/// to a nested step. Inserted steps keep their empty id; the editor's
+/// `_ensureStableIds` assigns a fresh UUID + saves on the next tick.
+/// `std::mem::discriminant` keeps this variant-agnostic, so adding a
+/// new Action kind doesn't require an edit here.
+fn preserve_step_ids(
+    old: &[crate::actions::Step],
+    new: &mut [crate::actions::Step],
+) {
+    use crate::actions::Action;
+    let n = std::cmp::min(old.len(), new.len());
+    for i in 0..n {
+        if std::mem::discriminant(&old[i].action)
+            == std::mem::discriminant(&new[i].action)
+        {
+            new[i].id = old[i].id.clone();
+        }
+        match (&old[i].action, &mut new[i].action) {
+            (Action::Repeat { steps: o, .. }, Action::Repeat { steps: nw, .. }) => {
+                preserve_step_ids(o, nw);
+            }
+            (
+                Action::Conditional { steps: o_s, else_steps: o_e, .. },
+                Action::Conditional { steps: n_s, else_steps: n_e, .. },
+            ) => {
+                preserve_step_ids(o_s, n_s);
+                preserve_step_ids(o_e, n_e);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Recursively clear `step.id` so a clipboard/snippet copy carries no

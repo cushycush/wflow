@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import Wflow
 
-// Read-only KDL view of the current workflow. Slides in from the right
-// of the canvas. The text re-encodes as the user edits, so the source
-// you see always matches what would hit disk on the next save.
+// Editable KDL view of the current workflow. Slides in from the right
+// of the canvas. The text re-encodes as the canvas mutates; edits in
+// here parse + apply back to the canvas on a debounce.
 Item {
     id: root
 
@@ -13,10 +13,31 @@ Item {
     // `wfCtrl.tokenize_kdl(kdlText)`. Empty / "[]" renders unstyled.
     property string kdlSpansJson: "[]"
     property string copyHint: ""
+    // False for fragment view (read-only by design); true on a real
+    // workflow.
+    property bool editable: false
+    // WorkflowController, passed in so the pane can re-tokenize the
+    // local buffer per-keystroke and keep new text highlighted in the
+    // same way the canonical source is.
+    property var workflowController: null
+    // Last parse error from an apply attempt. Empty when the pane
+    // text either matches the canvas or parses cleanly.
+    property string parseError: ""
     readonly property bool hasText: kdlText.length > 0
+    readonly property bool _isUnparsed: parseError.length > 0
+
+    // True while the user is actively typing in the pane. Suppresses
+    // the upstream rebind so each keystroke doesn't snap the cursor
+    // back to position 0. Flips false on focus-loss; the binding then
+    // re-applies with the canonical, fully-highlighted source.
+    property bool _editing: false
 
     signal closeRequested()
     signal copyRequested()
+    // Emitted on the debounced timer after a textChanged burst. Parent
+    // calls apply_kdl_source on the WorkflowController and sets
+    // parseError from the result.
+    signal applyRequested(string kdl)
 
     // Pre-computed HTML for the body. Rebuilds when the source text,
     // the span list, or the active palette changes. Falls back to
@@ -117,12 +138,39 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: "read-only"
+                    text: root.editable ? "editable" : "read-only"
                     color: Theme.text3
                     font.family: Theme.familyBody
                     font.pixelSize: Theme.fontXs
                     font.weight: Font.Medium
                     anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Unparsed chip. Same chip register as the save-state
+                // chip in WorkflowPage's TopBar; live ToolTip carries
+                // the parse error so the chip itself stays compact.
+                Rectangle {
+                    visible: root._isUnparsed
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: unparsedLbl.implicitWidth + 16
+                    height: 22
+                    radius: Theme.radiusSm
+                    color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.18)
+                    border.color: Qt.rgba(Theme.err.r, Theme.err.g, Theme.err.b, 0.45)
+                    border.width: 1
+                    Text {
+                        id: unparsedLbl
+                        anchors.centerIn: parent
+                        text: "● unparsed"
+                        color: Theme.err
+                        font.family: Theme.familyBody
+                        font.pixelSize: Theme.fontXs
+                        font.weight: Font.DemiBold
+                    }
+                    HoverHandler { id: unparsedHover }
+                    ToolTip.visible: unparsedHover.hovered
+                    ToolTip.delay: 200
+                    ToolTip.text: root.parseError
                 }
             }
 
@@ -203,8 +251,7 @@ Item {
                 // text placeholder otherwise so the empty state still
                 // tracks Theme.text3.
                 textFormat: root.hasText ? TextEdit.RichText : TextEdit.PlainText
-                text: root.hasText ? root._kdlHtml : "(no workflow loaded)"
-                readOnly: true
+                readOnly: !root.editable
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 selectByKeyboard: true
@@ -218,6 +265,107 @@ Item {
                 rightPadding: 16
                 topPadding: 12
                 bottomPadding: 16
+                // KDL encoder emits 4-space indent (kdl crate default);
+                // any literal \t that sneaks in via paste renders the
+                // same visual width instead of the default 8-char Qt
+                // tab stop.
+                tabStopDistance: 4 * Math.ceil(fontMetrics.advanceWidth(" "))
+
+                FontMetrics {
+                    id: fontMetrics
+                    font.family: body.font.family
+                    font.pixelSize: body.font.pixelSize
+                }
+
+                // Upstream rebind. Disabled while the user is typing so
+                // each keystroke doesn't snap the cursor to position 0.
+                // Re-enables on focus-loss; the canonical source then
+                // snaps back in with full highlighting (any unparsed
+                // local draft is discarded — last-edit-wins).
+                Binding on text {
+                    value: root.hasText ? root._kdlHtml : "(no workflow loaded)"
+                    when: !root._editing
+                }
+
+                Keys.onPressed: (event) => {
+                    if (!root.editable) return
+                    // Tab inserts 4 spaces (one KDL indent level,
+                    // matching what the encoder writes). Done here
+                    // instead of relying on tabStopDistance so the
+                    // saved KDL stays space-indented without any \t.
+                    if (event.key === Qt.Key_Tab
+                            && (event.modifiers & ~Qt.ShiftModifier) === 0) {
+                        root._editing = true
+                        event.accepted = true
+                        body.insert(body.cursorPosition, "    ")
+                        return
+                    }
+                    // Any other printable key (with no Ctrl/Meta/Alt)
+                    // signals start of edit so the upstream rebind
+                    // stops fighting the user's cursor.
+                    if (event.text && event.text.length > 0
+                            && (event.modifiers & ~Qt.ShiftModifier) === 0) {
+                        root._editing = true
+                    }
+                }
+                onActiveFocusChanged: if (!activeFocus) root._editing = false
+
+                // Tracks the last plain text we've already highlighted,
+                // so the recursive textChanged from our own re-set
+                // bails out instead of looping.
+                property string _lastPlain: ""
+                property bool _applyingHighlight: false
+
+                onTextChanged: {
+                    if (!root.editable || !root._editing) return
+                    if (body._applyingHighlight) return
+                    const plain = body.getText(0, body.length)
+                    if (plain === body._lastPlain) return
+                    body._lastPlain = plain
+                    // Re-highlight is debounced (per-keystroke fights
+                    // the cursor in RichText mode); apply is debounced
+                    // longer so a long edit only hits the parser once
+                    // the user pauses.
+                    rehighlightTimer.restart()
+                    applyTimer.restart()
+                }
+            }
+
+            // Re-tokenize after a short pause in typing. Short enough
+            // (~150ms) that highlighting feels live, long enough that
+            // the cursor doesn't fight the rebuild on every keystroke.
+            Timer {
+                id: rehighlightTimer
+                interval: 150
+                repeat: false
+                onTriggered: {
+                    if (!root.editable || !root._editing) return
+                    if (!root.workflowController || !root.hasText) return
+                    const plain = body.getText(0, body.length)
+                    const savedCursor = body.cursorPosition
+                    const spansJson = root.workflowController.tokenize_kdl(plain)
+                    const html = root._buildHtml(plain, spansJson,
+                        Theme.palette, Theme.isDark)
+                    body._applyingHighlight = true
+                    body.text = html
+                    body.cursorPosition = Math.min(savedCursor, body.length)
+                    body._applyingHighlight = false
+                }
+            }
+
+            // Debounced parse + apply. Same 600ms cadence as the
+            // workflow save timer in WorkflowPage so the two land on
+            // a similar rhythm.
+            Timer {
+                id: applyTimer
+                interval: 600
+                repeat: false
+                onTriggered: {
+                    // RichText `body.text` is the HTML; getText returns
+                    // the raw KDL the user actually typed.
+                    const plain = body.getText(0, body.length)
+                    root.applyRequested(plain)
+                }
             }
         }
     }
