@@ -15,16 +15,15 @@ editor's toolbar to dodge it; doc-tab strip and toolbar now sit
 flush under the app bar with no orphan-tab gap. (2) WFLOW-64 (kdl
 syntax highlighting in the view-source pane) turned out to be
 already committed at 29d0a70 from a prior session, pushed it in
-the same run. (3) Editable view-source pane (WFLOW-66) is partway
-in, committed but not pushed; details below. (4) Late-night fix
-pass at 2f9d6ab landed the v1 fallback for the two known WFLOW-66
-bugs (tab insertion + live-highlight drift); applied but not
-dogfooded yet.
+the same run. (3) Editable view-source pane (WFLOW-66) shipped
+end-to-end across d0003a8 → 1a21651 in a single long iteration:
+parse-and-apply scaffolding, tab insertion fix, four attempts at
+live highlighting before landing on a hand-written C++
+QSyntaxHighlighter. Smoke-tested green at 1a21651. Unpushed.
 
-## WFLOW-66 in-flight: editable view-source pane
+## WFLOW-66 shipped: editable view-source pane
 
-State: scaffolding is in, structural plumbing works, the live
-highlighting story isn't holding together yet.
+State: end-to-end working. Smoke-tested at 1a21651.
 
 What's built:
 - `WorkflowController::apply_kdl_source(current_workflow_json, kdl)`
@@ -62,46 +61,57 @@ What works:
   (preserve_step_ids), new card lands at the canvas default spot,
   camera zooms to fit the union. Matthew confirmed this reads right.
 
-What shipped (2f9d6ab + ef9ad9b, v1 fallback for the two known bugs):
-- **Tab** (2f9d6ab). Added `Keys.priority: Keys.BeforeItem` to the
-  TextEdit so our handler beats Qt's default focus traversal. Tab
-  now inserts 4 spaces.
-- **Live highlight drift** (2f9d6ab + ef9ad9b). Dropped the
-  per-keystroke re-tokenize + HTML-rebuild loop entirely. First
-  attempt flipped `textFormat` from RichText to PlainText during
-  the edit burst; that backfired because setting body.text=plain
-  in RichText causes Qt to round-trip the input through its
-  default HTML serialization (DOCTYPE/head/style/p), and the
-  subsequent switch to PlainText renders that markup literally.
-  ef9ad9b reverted: textFormat stays RichText, and
-  `on_EditingChanged` swaps the colored HTML for a no-spans
-  `<pre>` wrapping on edit-start (same plain text, default color,
-  no enclosing colored span at the cursor). The Binding on text
-  still releases during `_editing`, so the no-spans render holds
-  until focus-loss when the canonical highlighted HTML snaps back.
-  The `rehighlightTimer` is gone; only the 600ms `applyTimer`
-  remains on textChanged.
+How the highlighting works now:
+- The body TextEdit is plain text. No HTML pipeline.
+- `cpp/kdl_syntax_highlighter.h` is a hand-written
+  `QSyntaxHighlighter` subclass, registered with QML at
+  `import Wflow 1.0; KdlSyntaxHighlighter {}` via a tiny bridge
+  in `src/bridge/kdl_highlight.rs` whose
+  `register_kdl_qml_types()` function `main.rs` calls before
+  `QQmlApplicationEngine::load`.
+- ViewSourcePane attaches the highlighter to `body.textDocument`,
+  feeds it a `colors` map (Theme.kdlColor for every kind), and
+  drives `spansJson` from `wfCtrl.tokenize_kdl(plain)` on every
+  textChanged during edit, falling back to the parent's
+  `kdlSpansJson` outside an edit burst.
+- `setFormat()` applies QTextCharFormat ranges to the existing
+  QTextDocument without rebuilding it, so the cursor stays put
+  and the live re-tokenize doesn't fight Qt the way the old
+  RichText/HTML rebuild did.
 
-What's still open (the long-term fix):
-- **Proper live highlight.** v1 freezes the colors during the edit
-  burst. The long-term answer is a Rust-side `QSyntaxHighlighter`
-  subclass exposed via cxx-qt, attached to `body`'s
-  `QQuickTextDocument`. That moves tokenization off the QML hot
-  path and into Qt's own per-block highlight infrastructure, so
-  the cursor doesn't fight a document rebuild on every keystroke.
-  Separate piece of work; not blocking ship of WFLOW-66 if the
-  v1 visual change reads acceptably.
+Two non-obvious things load-bearing on this working:
+- **`defaultColor` on the highlighter**, primed via
+  `setFormat(0, len, baseFmt)` at the top of `highlightBlock`.
+  Once any QTextCharFormat is on the document, the QML TextEdit's
+  `color` property stops acting as a render-time fallback for
+  unformatted ranges, so chars not covered by a span end up with
+  an unset foreground and effectively invisible. The default-color
+  sweep keeps them on `Theme.text`; per-token formats layer on top.
+- **`restoreMode: Binding.RestoreNone`** on the `Binding on text`.
+  Qt's default (`RestoreBindingOrValue`) actively restores the
+  property to its pre-binding value when `when` flips false. For
+  `TextEdit.text` that pre-value is `""`, so the document wiped
+  the moment the user typed and the typed char landed alone in an
+  empty buffer (`apply_kdl_source` then surfaced "unknown
+  top-level node `ff`" in the chip). `RestoreNone` keeps the last
+  binding-driven value when the binding releases.
 
-To dogfood when you pick this back up:
-- Open a workflow, hit `</> Source`, click into the pane, type. New
-  text should appear in default color, existing colored tokens
-  should stay frozen, applyTimer should fire ~600ms later and the
-  canvas should update. Tab key should drop in 4 spaces.
-- Click out of the pane. Text should snap back to fully-coloured
-  HTML in RichText mode.
-- Type something that doesn't parse. Coral "● unparsed" chip in the
-  header; click a canvas step and the pane should snap back to
-  canonical (last-edit-wins).
+The four attempts that didn't survive, for context if any of this
+needs to be rethought:
+- 2f9d6ab tried flipping `textFormat` to PlainText during the
+  edit burst. Backfired because setting body.text=plain in
+  RichText round-trips through Qt's default HTML serialization
+  (DOCTYPE/head/style/p), and the format switch then renders
+  that markup literally.
+- ef9ad9b reverted to RichText and swapped the colored HTML for
+  a no-spans `<pre>` on edit-start. Worked but decolored the
+  entire pane the moment you typed.
+- 33ce134 removed the swap entirely, leaving existing colored
+  spans in place during edit. Visually OK but didn't actually
+  re-highlight new text.
+- 7a2eb6f introduced the C++ `QSyntaxHighlighter`. Highlighting
+  worked; the document-wipe and invisible-default-color bugs
+  surfaced and got fixed in 1a21651.
 
 Plus a small bookkeeping item: `scripts/jira/issues.csv` has WFLOW-66
 appended; the row is already on the Jira side (created via
@@ -182,15 +192,21 @@ toolbar buttons clear the floating navpill.
 
 ## recently landed (since 9dffb8e)
 
-- (unpushed) ef9ad9b followup: stay in RichText during the edit
-  burst and swap the colored HTML for a no-spans `<pre>` instead.
-  The textFormat flip in 2f9d6ab was rendering Qt's HTML wrapper
-  literally on first keystroke.
-- (unpushed) 2f9d6ab v1 fallback for the WFLOW-66 tab + live-highlight
-  bugs. Keys.priority for tab, plus the textFormat flip that ef9ad9b
-  walks back. See the WFLOW-66 in-flight section above.
-- (unpushed) d0003a8 editable view-source pane scaffolding, WIP
-  (WFLOW-66). Working: parse + apply, position preservation,
+- (unpushed) 1a21651 follow-up fixes on top of the C++
+  highlighter: defaultColor priming + Binding.RestoreNone. See
+  the WFLOW-66 shipped section above.
+- (unpushed) 7a2eb6f live KDL highlighting via a C++
+  `QSyntaxHighlighter` attached to body.textDocument. Replaces
+  the holding patterns from 2f9d6ab/ef9ad9b/33ce134.
+- (unpushed) 33ce134 interim "leave colors alone" fallback while
+  the proper highlighter was being built. Replaced by 7a2eb6f.
+- (unpushed) ef9ad9b followup that walked back the textFormat
+  flip from 2f9d6ab. Replaced by 7a2eb6f.
+- (unpushed) 2f9d6ab tab insertion + first stab at the live
+  highlight fix. Tab still ships; live-highlight piece is
+  superseded by 7a2eb6f.
+- (unpushed) d0003a8 editable view-source pane scaffolding,
+  WIP (WFLOW-66). Working: parse + apply, position preservation,
   zoom-to-fit.
 - 17daaca top app bar replaces the floating navpill; drop the
   topMargin workarounds in WorkflowPage / SettingsPage (WFLOW-65)
