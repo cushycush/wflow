@@ -61,6 +61,16 @@ pub mod qobject {
         #[qinvokable]
         fn steps_from_kdl(self: Pin<&mut WorkflowController>, kdl: QString) -> QString;
 
+        /// Encode a full workflow JSON document as canonical KDL
+        /// (title + vars + imports + triggers + steps + groups). Strips
+        /// editor-only `_id`s so the source matches what hits disk.
+        /// Used by the canvas view-source pane.
+        #[qinvokable]
+        fn workflow_to_kdl(
+            self: Pin<&mut WorkflowController>,
+            workflow_json: QString,
+        ) -> QString;
+
         /// Encode a step list and write it to the system clipboard
         /// (arboard, wlr-data-control with X11 fallback). Returns true
         /// on success. Lets QML do copy without the hidden-TextEdit
@@ -383,6 +393,25 @@ impl qobject::WorkflowController {
             strip_editor_ids(step);
         }
         let body = kdl_format::encode_fragment(&steps);
+        self.as_mut().set_last_error(QString::from(""));
+        QString::from(&body)
+    }
+
+    fn workflow_to_kdl(mut self: Pin<&mut Self>, workflow_json: QString) -> QString {
+        let text: String = workflow_json.to_string();
+        let mut wf: Workflow = match serde_json::from_str(&text) {
+            Ok(wf) => wf,
+            Err(e) => {
+                tracing::warn!(?e, "workflow_to_kdl: bad json");
+                self.as_mut()
+                    .set_last_error(QString::from(&format!("view source: bad json: {e}")));
+                return QString::from("");
+            }
+        };
+        for step in &mut wf.steps {
+            strip_editor_ids(step);
+        }
+        let body = kdl_format::encode(&wf);
         self.as_mut().set_last_error(QString::from(""));
         QString::from(&body)
     }
@@ -766,6 +795,39 @@ mod strip_ids_tests {
             panic!("expected Conditional");
         }
     }
+}
+
+#[cfg(test)]
+mod workflow_to_kdl_tests {
+    use crate::actions::Workflow;
+    use crate::kdl_format;
+
+    #[test]
+    fn json_round_trip_encodes_back_to_runnable_kdl() {
+        let src = r#"workflow "test" {
+    subtitle "view-source round trip"
+    vars {
+        repo "/tmp/repo"
+    }
+    trigger {
+        chord "ctrl+alt+t"
+    }
+    note "kickoff"
+    type "echo hi"
+    key "Return"
+    shell "git status"
+}
+"#;
+        let parsed = kdl_format::decode(src).expect("decode sample");
+        let json = serde_json::to_string(&parsed).expect("serialize to json");
+        let from_json: Workflow = serde_json::from_str(&json).expect("deserialize from json");
+        let encoded = kdl_format::encode(&from_json);
+        let reparsed = kdl_format::decode(&encoded).expect("decode re-encoded");
+        assert_eq!(parsed.title, reparsed.title);
+        assert_eq!(parsed.steps.len(), reparsed.steps.len());
+        assert_eq!(parsed.triggers.len(), reparsed.triggers.len());
+    }
+
 }
 
 /// Lazy accessor for the controller's persistent `arboard::Clipboard`.

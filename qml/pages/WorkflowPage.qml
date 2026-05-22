@@ -201,6 +201,15 @@ Item {
     // [] = top, [3] = wf.steps[3]'s inner list, [3,1] = nested.
     property var crumb: []
 
+    // View-source pane state. Open re-encodes the live workflow as KDL
+    // through wfCtrl.workflow_to_kdl(...) and renders it in a slide-over
+    // on the right of the canvas. Reset on workflow switch.
+    property bool sourcePaneOpen: false
+    property string sourcePaneCopyHint: ""
+    readonly property string sourceKdl: sourcePaneOpen
+        ? wfCtrl.workflow_to_kdl(JSON.stringify(root.workflow))
+        : ""
+
     // Pure read helper. Mutators clone wf and walk it themselves.
     function _stepsAtCrumb(wf) {
         let steps = wf && wf.steps ? wf.steps : []
@@ -1631,6 +1640,19 @@ Item {
             }
             SecondaryButton {
                 visible: !root.fragmentMode
+                text: root.sourcePaneOpen ? "</> Source ✓" : "</> Source"
+                leftPadding: 12
+                rightPadding: 12
+                onClicked: {
+                    root.sourcePaneOpen = !root.sourcePaneOpen
+                    root.sourcePaneCopyHint = ""
+                }
+                ToolTip.visible: hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Show the live KDL source for this workflow"
+            }
+            SecondaryButton {
+                visible: !root.fragmentMode
                     && editorContent.selectedCount >= 1
                     && !root.running
                 text: "▢ Group"
@@ -2133,6 +2155,60 @@ Item {
                 onSuccessorChosen: (stepIdx, otherIdx) => root._makeSuccessorOf(stepIdx, otherIdx)
                 onCopyStepAsKdlRequested: (stepIdx) => root._copyMenuTarget(stepIdx)
                 onPasteKdlRequested: () => root._pasteKdlIntoCurrent()
+            }
+
+            // Read-only KDL mirror of the live workflow. Slides in from
+            // the right of the canvas over the inspector area, so the
+            // user can keep editing on the canvas and watch the source
+            // re-encode in place. Width animates 0→520.
+            ViewSourcePane {
+                id: sourcePane
+                visible: width > 0
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 24
+                anchors.topMargin: 16
+                anchors.bottomMargin: 24
+                width: root.sourcePaneOpen ? 520 : 0
+                z: 10
+                clip: true
+
+                kdlText: root.sourceKdl
+                copyHint: root.sourcePaneCopyHint
+
+                onCloseRequested: root.sourcePaneOpen = false
+                onCopyRequested: {
+                    sourceClipboard.text = root.sourceKdl
+                    sourceClipboard.selectAll()
+                    sourceClipboard.copy()
+                    sourceClipboard.deselect()
+                    root.sourcePaneCopyHint = "✓ copied"
+                    sourceCopyResetTimer.restart()
+                }
+
+                Behavior on width {
+                    NumberAnimation {
+                        duration: Theme.dur(Theme.durSlow)
+                        easing.type: Theme.easingStd
+                    }
+                }
+            }
+
+            // Qt 6 has no QML-level Clipboard.setText; copy() on a
+            // hidden TextEdit is the dependency-free path.
+            TextEdit {
+                id: sourceClipboard
+                visible: false
+                width: 0
+                height: 0
+            }
+
+            Timer {
+                id: sourceCopyResetTimer
+                interval: 1400
+                repeat: false
+                onTriggered: root.sourcePaneCopyHint = ""
             }
 
             // External file drop, scoped to the canvas. A `.kdl` dropped

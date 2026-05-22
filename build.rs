@@ -53,6 +53,7 @@ fn main() {
             QmlFile::from("qml/components/workflow/StepInspectorPanel.qml"),
             QmlFile::from("qml/components/workflow/StepPalette.qml"),
             QmlFile::from("qml/components/workflow/WorkflowCanvas.qml"),
+            QmlFile::from("qml/components/workflow/ViewSourcePane.qml"),
             QmlFile::from("qml/components/workflow/OptionNumberRow.qml"),
             QmlFile::from("qml/components/workflow/NewWorkflowDialog.qml"),
             // Record
