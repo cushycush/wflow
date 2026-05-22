@@ -62,21 +62,25 @@ What works:
   (preserve_step_ids), new card lands at the canvas default spot,
   camera zooms to fit the union. Matthew confirmed this reads right.
 
-What shipped in 2f9d6ab (v1 fallback for the two known bugs):
-- **Tab.** Added `Keys.priority: Keys.BeforeItem` to the TextEdit so
-  our handler beats Qt's default focus traversal. Tab now inserts
-  4 spaces. Mechanical fix, but untested on the running app, so
-  dogfood first thing.
-- **Live highlight drift.** Dropped the per-keystroke re-tokenize +
-  HTML-rebuild loop entirely. `textFormat` now flips to PlainText
-  while `_editing` is true (highlight freezes; new text appears in
-  default `Theme.text`) and snaps back to RichText on focus-loss
-  when the canonical-source `Binding` re-fires with fresh tokens.
-  An `on_EditingChanged` handler stages the rendered plain text
-  into `body.text` on the true-transition so the HTML markup
-  doesn't render literally during the textFormat lag. The
-  `rehighlightTimer` is gone; only the 600ms `applyTimer` remains
-  on textChanged.
+What shipped (2f9d6ab + ef9ad9b, v1 fallback for the two known bugs):
+- **Tab** (2f9d6ab). Added `Keys.priority: Keys.BeforeItem` to the
+  TextEdit so our handler beats Qt's default focus traversal. Tab
+  now inserts 4 spaces.
+- **Live highlight drift** (2f9d6ab + ef9ad9b). Dropped the
+  per-keystroke re-tokenize + HTML-rebuild loop entirely. First
+  attempt flipped `textFormat` from RichText to PlainText during
+  the edit burst; that backfired because setting body.text=plain
+  in RichText causes Qt to round-trip the input through its
+  default HTML serialization (DOCTYPE/head/style/p), and the
+  subsequent switch to PlainText renders that markup literally.
+  ef9ad9b reverted: textFormat stays RichText, and
+  `on_EditingChanged` swaps the colored HTML for a no-spans
+  `<pre>` wrapping on edit-start (same plain text, default color,
+  no enclosing colored span at the cursor). The Binding on text
+  still releases during `_editing`, so the no-spans render holds
+  until focus-loss when the canonical highlighted HTML snaps back.
+  The `rehighlightTimer` is gone; only the 600ms `applyTimer`
+  remains on textChanged.
 
 What's still open (the long-term fix):
 - **Proper live highlight.** v1 freezes the colors during the edit
@@ -178,9 +182,13 @@ toolbar buttons clear the floating navpill.
 
 ## recently landed (since 9dffb8e)
 
+- (unpushed) ef9ad9b followup: stay in RichText during the edit
+  burst and swap the colored HTML for a no-spans `<pre>` instead.
+  The textFormat flip in 2f9d6ab was rendering Qt's HTML wrapper
+  literally on first keystroke.
 - (unpushed) 2f9d6ab v1 fallback for the WFLOW-66 tab + live-highlight
-  bugs. Keys.priority for tab, textFormat flips to PlainText during
-  the edit burst. See the WFLOW-66 in-flight section above.
+  bugs. Keys.priority for tab, plus the textFormat flip that ef9ad9b
+  walks back. See the WFLOW-66 in-flight section above.
 - (unpushed) d0003a8 editable view-source pane scaffolding, WIP
   (WFLOW-66). Working: parse + apply, position preservation,
   zoom-to-fit.
