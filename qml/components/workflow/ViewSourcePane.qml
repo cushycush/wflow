@@ -76,16 +76,19 @@ Item {
                     font.weight: Font.Medium
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                IconButton {
-                    iconText: "⧉"
-                    text: "Copy"
-                    compact: true
+                SecondaryButton {
+                    text: "⧉ Copy"
+                    topPadding: 4
+                    bottomPadding: 4
+                    leftPadding: 12
+                    rightPadding: 12
                     enabled: root.hasText
                     onClicked: root.copyRequested()
                     ToolTip.visible: hovered
                     ToolTip.delay: 400
                     ToolTip.text: "Copy the full KDL source to the clipboard"
                 }
+                Item { width: 4; height: 1 }
                 IconButton {
                     iconText: "×"
                     compact: true
@@ -107,37 +110,45 @@ Item {
             color: Theme.lineSoft
         }
 
-        // Body
-        ScrollView {
+        // Body. Plain Flickable + TextEdit because Controls TextArea
+        // inside a ScrollView defers its initial layout until the user
+        // clicks in — the text exists but doesn't paint until focus.
+        Flickable {
             id: scroll
             anchors.top: headerBar.bottom
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: 1
-            anchors.margins: 1
+            anchors.leftMargin: 1
+            anchors.rightMargin: 1
+            anchors.bottomMargin: 1
             clip: true
+            contentWidth: body.contentWidth + body.leftPadding + body.rightPadding
+            contentHeight: body.contentHeight + body.topPadding + body.bottomPadding
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
 
-            TextArea {
+            TextEdit {
                 id: body
-                text: root.kdlText
+                width: scroll.contentWidth
+                height: scroll.contentHeight
+                text: root.hasText ? root.kdlText : "(no workflow loaded)"
                 readOnly: true
-                wrapMode: TextArea.NoWrap
+                wrapMode: TextEdit.NoWrap
                 selectByMouse: true
                 selectByKeyboard: true
                 persistentSelection: true
                 font.family: Theme.familyMono
                 font.pixelSize: Theme.fontSm
-                color: Theme.text
+                color: root.hasText ? Theme.text : Theme.text3
                 selectionColor: Theme.accentDim
                 selectedTextColor: Theme.text
                 leftPadding: 16
                 rightPadding: 16
                 topPadding: 12
                 bottomPadding: 16
-                background: null
-                placeholderText: root.hasText ? "" : "(no workflow loaded)"
-                placeholderTextColor: Theme.text3
             }
         }
     }
