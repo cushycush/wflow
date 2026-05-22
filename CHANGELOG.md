@@ -13,36 +13,33 @@ breaks.
 
 ## [1.3.0] - 2026-05-22
 
-The view-source pane is editable now, with live KDL syntax highlighting
-that re-tokenizes per keystroke through a hand-written
-`QSyntaxHighlighter`. Plus the flat top app bar that walked back the
+The view-source pane lands in the workflow editor, showing the current
+workflow as KDL alongside the canvas and accepting edits that round-trip
+back to the canvas. Plus the flat top app bar that walked back the
 floating navpill, KDL copy/paste through the system clipboard, and
 drag-a-`.kdl`-on-the-canvas import.
 
 ### Added
 
-- **The view-source pane is editable end-to-end.** The `</> Source`
-  toggle on the canvas already showed the KDL of the current workflow
-  (44f5910, 0a8536b); it accepts edits now. Typing parses on a 600ms
-  debounce and round-trips through `apply_kdl_source`, which swaps the
-  in-memory workflow on success. Existing card positions survive the
-  round-trip via a `preserve_step_ids` helper that walks old and new
-  step lists by `std::mem::discriminant` of the action variant, so
-  adding or removing a line doesn't relayout the canvas. Tab inserts
-  4 spaces. Broken KDL surfaces a coral "● unparsed" chip in the
-  header (tooltip carries the parse error) and the canvas holds at
-  last-good state until you click out or fix the source. Last-edit-wins
-  on focus-loss; a broken draft gets discarded.
-- **Live KDL syntax highlighting via a hand-written C++ `QSyntaxHighlighter`.**
-  29d0a70 added the static highlight (HTML re-render per source change);
-  the editable pane needs per-keystroke re-coloring without the cursor
-  fighting Qt's document rebuild. `cpp/kdl_syntax_highlighter.h`
-  subclasses `QSyntaxHighlighter` and attaches to the body TextEdit's
-  `QTextDocument` from QML. The pane re-tokenizes the local buffer on
-  every textChanged through `wfCtrl.tokenize_kdl` and feeds the spans
-  to the highlighter, which applies `QTextCharFormat` ranges via
-  `setFormat`. The document itself isn't rebuilt, so the cursor stays
-  where the user left it.
+- **View-source pane in the workflow editor.** `</> Source` in the
+  editor toolbar slides a panel in from the right of the canvas
+  showing the current workflow as KDL, syntax-highlighted, re-encoded
+  live as you change the canvas. The pane is editable: typing parses
+  on a 600ms debounce and round-trips through `apply_kdl_source`,
+  which swaps the in-memory workflow on success. Existing card
+  positions survive the round-trip via a `preserve_step_ids` helper
+  that walks old and new step lists by `std::mem::discriminant` of
+  the action variant, so adding or removing a line doesn't relayout
+  the unchanged cards. Tab inserts 4 spaces. Broken KDL surfaces a
+  coral "● unparsed" chip in the header (parse error in a tooltip)
+  and the canvas holds at last-good state until you click out or fix
+  the source. Last-edit-wins on focus-loss; a broken draft gets
+  discarded. Highlighting uses a hand-written C++ `QSyntaxHighlighter`
+  (`cpp/kdl_syntax_highlighter.h`) attached to the body TextEdit's
+  `QTextDocument`, re-tokenizing the local buffer per keystroke
+  through `wfCtrl.tokenize_kdl` and applying `QTextCharFormat` ranges
+  via `setFormat`. The document itself isn't rebuilt on each
+  keystroke, so the cursor stays where the user left it.
 - **Flat top app bar in place of the floating navpill.** The pill that
   floated over the canvas was forcing the editor toolbar to dodge it.
   The new app bar sits flush at the top of the window; the doc-tab
