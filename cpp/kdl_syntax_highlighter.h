@@ -32,6 +32,7 @@ class KdlSyntaxHighlighter : public QSyntaxHighlighter {
     Q_PROPERTY(QQuickTextDocument *textDocument READ textDocument WRITE setTextDocument NOTIFY textDocumentChanged)
     Q_PROPERTY(QString spansJson READ spansJson WRITE setSpansJson NOTIFY spansJsonChanged)
     Q_PROPERTY(QVariantMap colors READ colors WRITE setColors NOTIFY colorsChanged)
+    Q_PROPERTY(QColor defaultColor READ defaultColor WRITE setDefaultColor NOTIFY defaultColorChanged)
 
 public:
     explicit KdlSyntaxHighlighter(QObject *parent = nullptr)
@@ -71,13 +72,37 @@ public:
         if (document()) rehighlight();
     }
 
+    QColor defaultColor() const { return m_defaultColor; }
+
+    void setDefaultColor(const QColor &c) {
+        if (m_defaultColor == c) return;
+        m_defaultColor = c;
+        emit defaultColorChanged();
+        if (document()) rehighlight();
+    }
+
 signals:
     void textDocumentChanged();
     void spansJsonChanged();
     void colorsChanged();
+    void defaultColorChanged();
 
 protected:
     void highlightBlock(const QString &text) override {
+        // Prime the entire block with the default text color first.
+        // Once QSyntaxHighlighter is applying QTextCharFormats to the
+        // document, the QML TextEdit's `color` property no longer acts
+        // as a render-time fallback for unformatted ranges, so chars
+        // not covered by a token span end up with an unset foreground
+        // and effectively disappear. The default-color sweep keeps
+        // them readable, and per-token setFormat() calls below layer
+        // their colors on top.
+        if (m_defaultColor.isValid() && text.length() > 0) {
+            QTextCharFormat base;
+            base.setForeground(m_defaultColor);
+            setFormat(0, text.length(), base);
+        }
+
         if (m_spans.isEmpty() || m_colorCache.isEmpty()) return;
         const QTextBlock blk = currentBlock();
         const int blockStart = blk.position();
@@ -135,5 +160,6 @@ private:
     QString m_spansJson;
     QVariantMap m_colors;
     QHash<QString, QColor> m_colorCache;
+    QColor m_defaultColor;
     QList<Span> m_spans;
 };

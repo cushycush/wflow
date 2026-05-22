@@ -257,9 +257,21 @@ Item {
                 // re-applies formats from `_liveSpansJson`, which has
                 // already been snapped back to canonical by
                 // `on_EditingChanged` above.
+                //
+                // restoreMode: RestoreNone is load-bearing. Qt's
+                // default (RestoreBindingOrValue) snaps the property
+                // back to its pre-binding value when `when` goes
+                // false — for TextEdit.text that pre-value is the
+                // empty string, so the whole document wipes the
+                // moment the user types and the typed char ends up
+                // alone in an empty buffer. RestoreNone keeps the
+                // last binding-driven value (the canonical KDL) so
+                // the keystroke inserts into the document the user
+                // was reading.
                 Binding on text {
                     value: root.hasText ? root.kdlText : "(no workflow loaded)"
                     when: !root._editing
+                    restoreMode: Binding.RestoreNone
                 }
 
                 // BeforeItem so our Tab handler runs ahead of Qt's
@@ -314,6 +326,9 @@ Item {
                 id: highlighter
                 textDocument: body.textDocument
                 spansJson: root._liveSpansJson
+                // Primes every block so unformatted chars stay
+                // readable; per-token colors layer on top.
+                defaultColor: Theme.text
                 colors: ({
                     "keyword": Theme.kdlColor("keyword"),
                     "node":    Theme.kdlColor("node"),
