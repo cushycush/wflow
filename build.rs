@@ -78,10 +78,19 @@ fn main() {
     .file("src/bridge/auth.rs")
     .file("src/bridge/deeplink_inbox.rs")
     .file("src/bridge/explore.rs")
+    .file("src/bridge/kdl_highlight.rs")
     .file("src/bridge/library.rs")
     .file("src/bridge/state.rs")
     .file("src/bridge/workflow.rs")
     .file("src/bridge/recorder.rs")
+    // Hand-written C++ QSyntaxHighlighter subclass for the view-source
+    // pane. moc runs on the header automatically (it ends in `.h`),
+    // and the parent dir is added to the cc include path by
+    // cxx-qt-build, so `kdl_qml_register.h` can `#include "kdl_syntax_highlighter.h"`
+    // directly. Registration is invoked from main.rs before the
+    // QQmlApplicationEngine loads any QML.
+    .cpp_file("cpp/kdl_syntax_highlighter.h")
+    .cpp_file("cpp/kdl_qml_register.h")
     .qt_module("Quick")
     .qt_module("QuickControls2")
     .build();

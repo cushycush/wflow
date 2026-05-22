@@ -98,6 +98,10 @@ fn run_gui_with_lock(
     let mut app = QGuiApplication::new();
     let mut engine = QQmlApplicationEngine::new();
 
+    // Register hand-written C++ QML types before the engine loads QML
+    // (KdlSyntaxHighlighter for the view-source pane).
+    bridge::kdl_highlight::qobject::register_kdl_qml_types();
+
     if let Some(engine) = engine.as_mut() {
         engine.load(&QUrl::from("qrc:/qt/qml/Wflow/qml/Main.qml"));
     }

@@ -4,21 +4,28 @@ import Wflow
 
 // Editable KDL view of the current workflow. Slides in from the right
 // of the canvas. The text re-encodes as the canvas mutates; edits in
-// here parse + apply back to the canvas on a debounce.
+// here parse + apply back to the canvas on a debounce. Syntax
+// highlighting runs through a Rust-fed C++ KdlSyntaxHighlighter
+// (cpp/kdl_syntax_highlighter.h) attached to the body's text document.
+// setFormat() applies char-format ranges to the existing QTextDocument
+// without rebuilding it, so the cursor stays put across keystrokes.
 Item {
     id: root
 
     property string kdlText: ""
     // JSON `[[start, len, "kind"], ...]` from
     // `wfCtrl.tokenize_kdl(kdlText)`. Empty / "[]" renders unstyled.
+    // Drives the highlighter while the user isn't editing; during
+    // edit, the pane re-tokenizes the local buffer per-keystroke and
+    // feeds the highlighter directly.
     property string kdlSpansJson: "[]"
     property string copyHint: ""
     // False for fragment view (read-only by design); true on a real
     // workflow.
     property bool editable: false
     // WorkflowController, passed in so the pane can re-tokenize the
-    // local buffer per-keystroke and keep new text highlighted in the
-    // same way the canonical source is.
+    // local buffer per-keystroke and keep new text highlighted in
+    // the same way the canonical source is.
     property var workflowController: null
     // Last parse error from an apply attempt. Empty when the pane
     // text either matches the canvas or parses cleanly.
@@ -28,80 +35,43 @@ Item {
 
     // True while the user is actively typing in the pane. Suppresses
     // the upstream rebind so each keystroke doesn't snap the cursor
-    // back to position 0. Flips false on focus-loss; the binding then
-    // re-applies with the canonical, fully-highlighted source.
-    // Interim behavior: existing colored spans stay put during edit;
-    // new chars inherit whatever cursor format Qt picks. The proper
-    // QSyntaxHighlighter-based live re-highlight is still on the way.
+    // back to position 0. Flips false on focus-loss; the binding
+    // then re-applies with the canonical source. With the
+    // QSyntaxHighlighter doing live re-coloring via setFormat on
+    // the existing QTextDocument, the document itself isn't rebuilt
+    // per keystroke and the cursor stays put.
     property bool _editing: false
+
+    // Highlight spans the pane is currently rendering. Tracks
+    // `kdlSpansJson` when not editing; tracks the local buffer's
+    // tokenization while editing. Set imperatively on textChanged
+    // so the binding to `kdlSpansJson` doesn't keep snapping it
+    // back during a keystroke burst.
+    property string _liveSpansJson: "[]"
 
     signal closeRequested()
     signal copyRequested()
-    // Emitted on the debounced timer after a textChanged burst. Parent
-    // calls apply_kdl_source on the WorkflowController and sets
-    // parseError from the result.
+    // Emitted on the debounced timer after a textChanged burst.
+    // Parent calls apply_kdl_source on the WorkflowController and
+    // sets parseError from the result.
     signal applyRequested(string kdl)
 
-    // Pre-computed HTML for the body. Rebuilds when the source text,
-    // the span list, or the active palette changes. Falls back to
-    // plain text on any parse failure.
-    readonly property string _kdlHtml: _buildHtml(kdlText, kdlSpansJson,
-        Theme.palette, Theme.isDark)
+    Component.onCompleted: _liveSpansJson = kdlSpansJson
 
-    function _escape(s) {
-        return s
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
+    // Track upstream spans when the canvas re-encodes outside an
+    // edit burst. During edit we own the property and ignore
+    // upstream churn (the apply path will re-fire this once the
+    // edit lands).
+    onKdlSpansJsonChanged: {
+        if (!_editing) _liveSpansJson = kdlSpansJson
     }
 
-    // Builds a `<pre>`-wrapped HTML body where each highlighted span
-    // is wrapped in `<span style="color: ...">`. Anything between
-    // spans renders in the default text color. `palette` and `isDark`
-    // are unused in the body of the function; they exist as
-    // arguments so the property binding re-fires when the user
-    // switches palette or light/dark, since Theme.kdlColor reads both.
-    function _buildHtml(text, spansJson, palette, isDark) {
-        if (!text || text.length === 0) return ""
-        let spans = []
-        try { spans = JSON.parse(spansJson) } catch (e) { spans = [] }
-        if (!Array.isArray(spans)) spans = []
-
-        const family = Theme.familyMono
-        const size = Theme.fontSm
-        // QML color objects render as `#aarrggbb` when concatenated,
-        // which Qt's RichText subset accepts as-is. Cast through
-        // `String()` for explicitness — same effective output.
-        const baseColor = String(Theme.text)
-        const headerOpen = "<pre style=\"font-family: '" + family
-            + "'; font-size: " + size + "px; margin: 0; "
-            + "white-space: pre; color: " + baseColor + ";\">"
-        const headerClose = "</pre>"
-
-        if (spans.length === 0) return headerOpen + root._escape(text) + headerClose
-
-        let buf = headerOpen
-        let cursor = 0
-        for (let i = 0; i < spans.length; ++i) {
-            const s = spans[i]
-            const start = s[0] | 0
-            const len = s[1] | 0
-            const kind = s[2]
-            if (start < cursor || start + len > text.length) continue
-            if (start > cursor) {
-                buf += root._escape(text.substring(cursor, start))
-            }
-            const color = String(Theme.kdlColor(kind))
-            const piece = root._escape(text.substring(start, start + len))
-            const style = (kind === "comment")
-                ? "color: " + color + "; font-style: italic;"
-                : "color: " + color + ";"
-            buf += "<span style=\"" + style + "\">" + piece + "</span>"
-            cursor = start + len
-        }
-        if (cursor < text.length) buf += root._escape(text.substring(cursor))
-        buf += headerClose
-        return buf
+    // Snap spans back to canonical on focus-loss. The Binding on
+    // body.text fires in the same change and replaces the local
+    // draft with kdlText; QSyntaxHighlighter re-applies formats
+    // automatically as the document content changes.
+    on_EditingChanged: {
+        if (!_editing) _liveSpansJson = kdlSpansJson
     }
 
     Rectangle {
@@ -250,15 +220,10 @@ Item {
                 id: body
                 width: scroll.contentWidth
                 height: scroll.contentHeight
-                // RichText for the highlighted body; PlainText for the
-                // empty-state placeholder so Theme.text3 still tracks.
-                // We stay in RichText during an edit burst too — the
-                // on_EditingChanged handler strips the color spans
-                // instead of flipping textFormat, because flipping
-                // textFormat after Qt has wrapped the document in its
-                // default HTML serialization renders that markup
-                // literally.
-                textFormat: root.hasText ? TextEdit.RichText : TextEdit.PlainText
+                // Plain text throughout. Highlighting comes from the
+                // KdlSyntaxHighlighter below, which applies char-format
+                // ranges to the QTextDocument without rebuilding it.
+                textFormat: TextEdit.PlainText
                 readOnly: !root.editable
                 wrapMode: TextEdit.NoWrap
                 selectByMouse: true
@@ -285,19 +250,21 @@ Item {
                     font.pixelSize: body.font.pixelSize
                 }
 
-                // Upstream rebind. Disabled while the user is typing so
-                // each keystroke doesn't snap the cursor to position 0.
-                // Re-enables on focus-loss; the canonical source then
-                // snaps back in with full highlighting (any unparsed
-                // local draft is discarded — last-edit-wins).
+                // Upstream rebind. Disabled while the user is typing
+                // so each keystroke doesn't snap the cursor back to
+                // the canonical source. Re-enables on focus-loss; the
+                // canonical text snaps in and the highlighter
+                // re-applies formats from `_liveSpansJson`, which has
+                // already been snapped back to canonical by
+                // `on_EditingChanged` above.
                 Binding on text {
-                    value: root.hasText ? root._kdlHtml : "(no workflow loaded)"
+                    value: root.hasText ? root.kdlText : "(no workflow loaded)"
                     when: !root._editing
                 }
 
                 // BeforeItem so our Tab handler runs ahead of Qt's
-                // default focus-traversal, which otherwise eats the key
-                // and stops `body.insert` from ever firing.
+                // default focus-traversal, which otherwise eats the
+                // key and stops `body.insert` from ever firing.
                 Keys.priority: Keys.BeforeItem
                 Keys.onPressed: (event) => {
                     if (!root.editable) return
@@ -322,15 +289,42 @@ Item {
                 }
                 onActiveFocusChanged: if (!activeFocus) root._editing = false
 
-                // Guard against the textChanged feedback loop from our
-                // own snapshot-on-edit-start assignment.
-                property bool _applyingHighlight: false
-
                 onTextChanged: {
                     if (!root.editable || !root._editing) return
-                    if (body._applyingHighlight) return
+                    if (!root.workflowController) return
+                    // Live re-tokenize: keep the highlighter's spans
+                    // tracking the local buffer. The tokenizer is
+                    // mid-edit tolerant, so partial input still
+                    // returns sensible spans (malformed bytes fall
+                    // through as plain).
+                    const plain = body.getText(0, body.length)
+                    root._liveSpansJson =
+                        root.workflowController.tokenize_kdl(plain)
                     applyTimer.restart()
                 }
+            }
+
+            // Hand-written C++ subclass registered from main.rs via
+            // bridge::kdl_highlight::qobject::register_kdl_qml_types.
+            // Attaches to body's QTextDocument and applies
+            // QTextCharFormat ranges via setFormat(); the document
+            // itself isn't rebuilt, so the cursor stays where the
+            // user left it.
+            KdlSyntaxHighlighter {
+                id: highlighter
+                textDocument: body.textDocument
+                spansJson: root._liveSpansJson
+                colors: ({
+                    "keyword": Theme.kdlColor("keyword"),
+                    "node":    Theme.kdlColor("node"),
+                    "prop":    Theme.kdlColor("prop"),
+                    "string":  Theme.kdlColor("string"),
+                    "number":  Theme.kdlColor("number"),
+                    "bool":    Theme.kdlColor("bool"),
+                    "ident":   Theme.kdlColor("ident"),
+                    "punct":   Theme.kdlColor("punct"),
+                    "comment": Theme.kdlColor("comment")
+                })
             }
 
             // Debounced parse + apply. Same 600ms cadence as the
@@ -341,8 +335,6 @@ Item {
                 interval: 600
                 repeat: false
                 onTriggered: {
-                    // RichText `body.text` is the HTML; getText returns
-                    // the raw KDL the user actually typed.
                     const plain = body.getText(0, body.length)
                     root.applyRequested(plain)
                 }
