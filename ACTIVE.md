@@ -16,7 +16,10 @@ flush under the app bar with no orphan-tab gap. (2) WFLOW-64 (kdl
 syntax highlighting in the view-source pane) turned out to be
 already committed at 29d0a70 from a prior session, pushed it in
 the same run. (3) Editable view-source pane (WFLOW-66) is partway
-in, committed but not pushed; details below.
+in, committed but not pushed; details below. (4) Late-night fix
+pass at 2f9d6ab landed the v1 fallback for the two known WFLOW-66
+bugs (tab insertion + live-highlight drift); applied but not
+dogfooded yet.
 
 ## WFLOW-66 in-flight: editable view-source pane
 
@@ -59,26 +62,42 @@ What works:
   (preserve_step_ids), new card lands at the canvas default spot,
   camera zooms to fit the union. Matthew confirmed this reads right.
 
-What's broken (next session):
-- **Live highlighting goes wonky during edit.** Once you start typing,
-  the colors don't track new text correctly and stay wonky until you
-  close + reopen the source pane (which forces the binding to re-fire
-  from canonical). Current code re-tokenizes locally + rebuilds HTML +
-  saves/restores `body.cursorPosition` on a 150ms debounce. The
-  underlying issue is fighting Qt's RichText TextEdit cursor +
-  document model on every rebuild. Two reasonable next moves:
-  (a) drop syntax highlighting entirely while `_editing` is true
-  (switch to PlainText for the duration, snap back to RichText on
-  focus-loss), or (b) bite off the proper Qt fix and ship a
-  Rust-side `QSyntaxHighlighter` subclass exposed via cxx-qt
-  attached to `body`'s `QQuickTextDocument`. (a) is the v1 fallback;
-  (b) is the right long-term answer.
-- **Tab key doesn't insert anything.** The `Keys.onPressed` handler
-  is at default priority (`Keys.AfterItem`), so Qt's default Tab
-  focus-traversal runs first and our handler never gets to call
-  `body.insert`. Fix: add `Keys.priority: Keys.BeforeItem` to the
-  TextEdit so the handler fires before the focus chain. Untested
-  on disk; apply + dogfood next session.
+What shipped in 2f9d6ab (v1 fallback for the two known bugs):
+- **Tab.** Added `Keys.priority: Keys.BeforeItem` to the TextEdit so
+  our handler beats Qt's default focus traversal. Tab now inserts
+  4 spaces. Mechanical fix, but untested on the running app, so
+  dogfood first thing.
+- **Live highlight drift.** Dropped the per-keystroke re-tokenize +
+  HTML-rebuild loop entirely. `textFormat` now flips to PlainText
+  while `_editing` is true (highlight freezes; new text appears in
+  default `Theme.text`) and snaps back to RichText on focus-loss
+  when the canonical-source `Binding` re-fires with fresh tokens.
+  An `on_EditingChanged` handler stages the rendered plain text
+  into `body.text` on the true-transition so the HTML markup
+  doesn't render literally during the textFormat lag. The
+  `rehighlightTimer` is gone; only the 600ms `applyTimer` remains
+  on textChanged.
+
+What's still open (the long-term fix):
+- **Proper live highlight.** v1 freezes the colors during the edit
+  burst. The long-term answer is a Rust-side `QSyntaxHighlighter`
+  subclass exposed via cxx-qt, attached to `body`'s
+  `QQuickTextDocument`. That moves tokenization off the QML hot
+  path and into Qt's own per-block highlight infrastructure, so
+  the cursor doesn't fight a document rebuild on every keystroke.
+  Separate piece of work; not blocking ship of WFLOW-66 if the
+  v1 visual change reads acceptably.
+
+To dogfood when you pick this back up:
+- Open a workflow, hit `</> Source`, click into the pane, type. New
+  text should appear in default color, existing colored tokens
+  should stay frozen, applyTimer should fire ~600ms later and the
+  canvas should update. Tab key should drop in 4 spaces.
+- Click out of the pane. Text should snap back to fully-coloured
+  HTML in RichText mode.
+- Type something that doesn't parse. Coral "● unparsed" chip in the
+  header; click a canvas step and the pane should snap back to
+  canonical (last-edit-wins).
 
 Plus a small bookkeeping item: `scripts/jira/issues.csv` has WFLOW-66
 appended; the row is already on the Jira side (created via
@@ -159,10 +178,12 @@ toolbar buttons clear the floating navpill.
 
 ## recently landed (since 9dffb8e)
 
-- (this commit, unpushed) editable view-source pane scaffolding,
-  WIP (WFLOW-66). Working: parse + apply, position preservation,
-  zoom-to-fit. Broken: live highlighting, Tab insertion. See the
-  WFLOW-66 in-flight section above.
+- (unpushed) 2f9d6ab v1 fallback for the WFLOW-66 tab + live-highlight
+  bugs. Keys.priority for tab, textFormat flips to PlainText during
+  the edit burst. See the WFLOW-66 in-flight section above.
+- (unpushed) d0003a8 editable view-source pane scaffolding, WIP
+  (WFLOW-66). Working: parse + apply, position preservation,
+  zoom-to-fit.
 - 17daaca top app bar replaces the floating navpill; drop the
   topMargin workarounds in WorkflowPage / SettingsPage (WFLOW-65)
 - 29d0a70 kdl syntax highlighting in the view-source pane (WFLOW-64)
