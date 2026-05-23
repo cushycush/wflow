@@ -204,12 +204,13 @@ Item {
 
                     SettingRow {
                         title: "Palette"
-                        subtitle: "Warm Paper is the wflows.io brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent."
+                        subtitle: "Warm Paper is the wflows.io brand: cream surfaces and a coral accent. Cool Slate is the original look: blue-gray surfaces with an amber accent. Drift is the third skin: slate dark, cream light, warm gold accent."
 
                         SegmentedControl {
                             items: [
                                 { label: "Warm Paper", value: "warm" },
-                                { label: "Cool Slate", value: "cool" }
+                                { label: "Cool Slate", value: "cool" },
+                                { label: "Drift",      value: "drift" }
                             ]
                             selected: Theme.palette
                             onActivated: (v) => Theme.applyPalette(v)

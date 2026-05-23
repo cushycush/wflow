@@ -133,11 +133,11 @@ wflows.io (the marketing site). Anti-references: editorial layouts, modular
 synth / rack, glassmorphism, neon-on-dark, purple-blue gradients,
 skeuomorphic hardware, dense SaaS dashboard templates, bouncy animation.
 
-### Palettes, two brand skins, one source of truth
+### Palettes, three brand skins, one source of truth
 
-As of v0.5.0, wflow ships two brand palettes. The active one is set on
-first run via the tutorial and persists in `state.toml`; users can flip
-any time from Settings. Both support light + dark.
+wflow ships three brand palettes. The active one is set on first run
+via the tutorial and persists in `state.toml`; users can flip any time
+from Settings. All three support light + dark.
 
 **Warm Paper** (default, mirrors wflows.io): warm-cream surfaces (hue
 55-60, near-white at L≈0.97 light / warm near-black at L≈0.16 dark)
@@ -147,14 +147,22 @@ identity.
 **Cool Slate** (the original brief): slate-blue surfaces (hue 260, low
 chroma) with a warm amber accent (hue 60).
 
+**Drift** (the third skin): slate-900 / cream-200 surfaces with a
+gold-500 accent (hue 40-45), reading as architectural parchment on
+dark and warm vellum on light. Chip tints come from a slate/gold-
+adjacent brand-tier set (plum, steel, sage, teal, ochre, terra) so
+categories stay in the slate-gold register.
+
 `qml/Theme.qml` is the canonical token registry. Every color resolves
-through `_pl(coolDark, coolLight, warmDark, warmLight)`, which reads
-both `palette` and `isDark` and returns the matching string. When you
-need a token's value, read Theme.qml, don't copy hex into a component.
+through `_pl(coolDark, coolLight, warmDark, warmLight, driftDark,
+driftLight)`, which reads both `palette` and `isDark` and returns the
+matching string. When you need a token's value, read Theme.qml, don't
+copy hex into a component.
 
 Cat-tint chips also branch by palette so the saturated original set
-rides with cool slate and the muted ink-* register (mirrored from
-wflows.io tokens.css) rides with warm paper. Either way, the rule
+rides with cool slate, the muted ink-* register (mirrored from
+wflows.io tokens.css) rides with warm paper, and the slate/gold-
+adjacent brand-tier set rides with drift. Either way, the rule
 holds: tint only on the chip, accent only on the primary affordance.
 
 ### Typography

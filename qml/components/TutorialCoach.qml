@@ -278,12 +278,22 @@ Item {
                             surface: "#383b40",
                             accent:  "#e1a04a",
                             line:    "#4c4f55"
+                        },
+                        {
+                            id: "drift",
+                            label: "Drift",
+                            sub: "drift brand",
+                            bg:      "#e9e0d0",
+                            bgDark:  "#21242d",
+                            surface: "#2c3848",
+                            accent:  "#c9a45c",
+                            line:    "#3f4651"
                         }
                     ]
                     delegate: Rectangle {
                         readonly property bool isSelected: Theme.palette === modelData.id
                         readonly property bool useDark: Theme.isDark
-                        width: (parent.width - parent.spacing) / 2
+                        width: (parent.width - parent.spacing * 2) / 3
                         height: 92
                         radius: Theme.radiusMd
                         color: useDark ? modelData.bgDark : modelData.bg

@@ -44,7 +44,7 @@ pub mod qobject {
         #[qinvokable]
         fn apply_theme_mode(self: Pin<&mut StateController>, mode: QString);
 
-        /// "warm" | "cool". Anything else coerces to "warm".
+        /// "warm" | "cool" | "drift". Anything else coerces to "warm".
         #[qinvokable]
         fn apply_palette(self: Pin<&mut StateController>, palette: QString);
 
@@ -195,7 +195,7 @@ impl qobject::StateController {
     fn apply_palette(mut self: Pin<&mut Self>, palette: QString) {
         use cxx_qt::CxxQtType;
         let raw: String = palette.to_string();
-        let coerced = if raw != "warm" && raw != "cool" {
+        let coerced = if raw != "warm" && raw != "cool" && raw != "drift" {
             "warm".to_string()
         } else {
             raw.clone()

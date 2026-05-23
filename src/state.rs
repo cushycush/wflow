@@ -20,7 +20,8 @@ pub struct State {
     /// "auto" | "light" | "dark".
     #[serde(default = "default_theme_mode")]
     pub theme_mode: String,
-    /// "warm" (paper + coral, wflows.io) | "cool" (slate + amber).
+    /// "warm" (paper + coral, wflows.io) | "cool" (slate + amber)
+    /// | "drift" (slate + gold, the third skin).
     #[serde(default = "default_palette")]
     pub palette: String,
     #[serde(default)]
@@ -332,6 +333,10 @@ mod tests {
         save(&s);
         let again = load();
         assert_eq!(again.palette, "cool");
+
+        s.palette = "drift".to_string();
+        save(&s);
+        assert_eq!(load().palette, "drift");
     }
 
     #[test]
