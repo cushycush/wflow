@@ -11,6 +11,42 @@ breaks.
 
 ---
 
+## [1.4.0] - 2026-05-22
+
+The wdotool-core bump pulls in the KDE Plasma 6 fixes wflow had been
+waiting on (libei input plus window ops). Drift lands as a third brand
+palette in the same release.
+
+### Fixed
+
+- **KDE Plasma 6 libei input and window ops.** Bumped `wdotool-core`
+  from 0.5.0 to 0.5.3, which carries three KDE-side fixes from
+  upstream: the libei timeout triad that was blocking KDE verification
+  (0.5.1), libei input on Plasma 6 via flush plus two-stage seat.bind
+  (0.5.2), and KDE window ops on Plasma 6 (0.5.3). No wflow code
+  changes; the `"0.5"` constraint in `Cargo.toml` resolves the new
+  patch automatically.
+
+### Added
+
+- **Drift as a third brand palette.** wflow already shipped Warm
+  Paper and Cool Slate; Drift is a third skin that mirrors a separate
+  OS project of the same name. Slate-900 dark / cream-200 light
+  surfaces with a gold-500 accent. Cat-tint chips lean on a
+  slate/gold-adjacent brand-tier set (plum, steel, sage, teal, ochre,
+  terra) so they stay in the same register as the surfaces. Settings
+  gets a third segmented-control entry; the first-run tutorial tile
+  row goes from 2-up to 3-up. `Theme.qml`'s `_pl` helper went from
+  four args to six. Older `state.toml` files still round-trip
+  unchanged: unknown palette values coerce to "warm".
+
+### Changed
+
+- **README has a source-pane screenshot** in the editor section that
+  matches the v1.3.0 prose.
+
+---
+
 ## [1.3.0] - 2026-05-22
 
 The view-source pane lands in the workflow editor, showing the current
