@@ -10,6 +10,15 @@
 /.claude
 /.mcp.json
 
+# Agent-facing context files. ACTIVE.md is the session handoff doc,
+# CLAUDE.md holds the project-level Claude Code instructions, and
+# .impeccable.md is the impeccable skill's design context. All three
+# are tools for the local dev environment, not project artifacts. They
+# stay on disk via this ignore so Claude still loads them locally.
+/ACTIVE.md
+/CLAUDE.md
+/.impeccable.md
+
 # Flatpak build artifacts, regenerated on every run of build-local.sh.
 # cargo-sources.json is computed from Cargo.lock; flatpak-cargo-generator.py
 # is fetched from upstream flatpak-builder-tools.
